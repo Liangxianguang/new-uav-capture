@@ -3,7 +3,6 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - pybullet=3.25
   - ffmpeg=4.3.1
   - pip
   - pip:

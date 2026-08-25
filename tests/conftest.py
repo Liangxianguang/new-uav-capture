@@ -1,4 +1,4 @@
-"""Native-runtime settings required before importing PyBullet and PyTorch."""
+"""Native-runtime settings required before importing PyTorch."""
 
 from __future__ import annotations
 

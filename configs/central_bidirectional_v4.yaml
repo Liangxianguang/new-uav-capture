@@ -1,7 +1,7 @@
 protocol_name: central_bidirectional_capture_v4
 task: partially_observable_3d_cooperative_capture_radius_with_central_mixed_obstacles
 status: frozen_fixed_s2_protocol
-source_environment_config: capture_radius_pursuit_time_aligned_uncertainty_dev.yaml
+source_environment_config: capture_radius_pursuit_central_v4_flee.yaml
 
 world:
   half_extent_xy: 10.0

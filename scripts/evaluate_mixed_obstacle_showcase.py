@@ -39,7 +39,7 @@ from run_mixed_obstacle_showcase import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--method", choices=("f1", "f2"), default="f2")
+    parser.add_argument("--method", choices=("capture",), default="capture")
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--baseline", choices=("dynamic_encirclement",))
     parser.add_argument("--output-dir", type=Path, required=True)

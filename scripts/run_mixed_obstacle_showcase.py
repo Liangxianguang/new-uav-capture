@@ -89,7 +89,7 @@ def transit_metrics_from_episode_row(row: dict[str, Any]) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--method", choices=tuple(METHOD_CONFIGS), default="f2")
+    parser.add_argument("--method", choices=tuple(METHOD_CONFIGS), default="capture")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=642002)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -132,7 +132,6 @@ def build_config(
     if detection_range <= 0.0 or target_speed_scale <= 0.0:
         raise ValueError("detection-range and target-speed-scale must be positive.")
     config = yaml.safe_load(METHOD_CONFIGS[method].read_text(encoding="utf-8"))
-    config["task"]["pursuit"].setdefault("include_uncertainty_features", method == "f2")
     config["task"]["pursuit"]["obstacle_profile"] = "mixed"
     config["task"]["pursuit"]["detection_range"] = float(
         protocol.detection_range if protocol is not None else detection_range

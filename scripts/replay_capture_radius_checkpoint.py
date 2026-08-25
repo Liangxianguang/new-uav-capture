@@ -28,20 +28,26 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from evaluate_capture_radius_mappo import load_policy, rollout_episode, save_trajectory, select_device  # noqa: E402
-from run_stage4c_formal import CONDITIONS  # noqa: E402
-
-
 METHOD_CONFIGS = {
-    "f1": PROJECT_ROOT / "configs" / "capture_radius_pursuit_time_aligned_belief_dev.yaml",
-    "f2": PROJECT_ROOT / "configs" / "capture_radius_pursuit_time_aligned_uncertainty_dev.yaml",
+    "capture": PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml",
+}
+
+# This compact replay contract is retained only for the generic one-episode
+# CLI below. Random S3 replay uses render_random_capture_episode.py instead.
+CONDITIONS = {
+    "central": {
+        "pursuit": {},
+        "obstacle_count": 3,
+        "target_speed_scale": 0.45,
+    }
 }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--method", choices=tuple(METHOD_CONFIGS), required=True)
+    parser.add_argument("--method", choices=tuple(METHOD_CONFIGS), default="capture")
     parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--condition", choices=tuple(CONDITIONS), required=True)
+    parser.add_argument("--condition", choices=tuple(CONDITIONS), default="central")
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--use-cbf", action="store_true")
@@ -54,9 +60,6 @@ def parse_args() -> argparse.Namespace:
 
 def make_config(method: str, condition_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
     config = yaml.safe_load(METHOD_CONFIGS[method].read_text(encoding="utf-8"))
-    # F1 predates the explicit uncertainty flag; make the replay contract
-    # self-describing while preserving the checkpoint's original input shape.
-    config["task"]["pursuit"].setdefault("include_uncertainty_features", method == "f2")
     condition = copy.deepcopy(CONDITIONS[condition_name])
     config["task"]["pursuit"].update(copy.deepcopy(condition["pursuit"]))
     config["experiments"] = [

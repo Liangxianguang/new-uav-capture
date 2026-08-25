@@ -1,12 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$Config = "configs/capture_radius_recurrent_behavior_cloning_gru_prediction_dev.yaml",
+    [string]$Config = "configs/capture_radius_recurrent_behavior_cloning_s3_retrain.yaml",
     [string]$Output = "",
-    [int]$Seed = 521001,
+    [int]$Seed = 661606,
     [ValidateSet("auto", "cuda", "cpu")]
     [string]$Device = "cuda",
     [string]$PredictionCheckpoint = "",
-    [int]$SequenceLength = 32,
+    [int]$SequenceLength = 1,
     [int]$SequenceBatchSize = 16,
     [int]$PredictionHistoryLength = 8,
     [int]$PredictionHorizonIndex = 2,

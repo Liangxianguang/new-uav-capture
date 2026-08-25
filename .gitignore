@@ -2,43 +2,20 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 
-# Generated experiment outputs stay local or in an external archive.
+# Generated experiment artifacts are reproducible locally, not versioned.
 results/*
 !results/.gitkeep
-!results/RECURRENT_POLICY_STAGE3C_P1_STRESS_REPORT.md
-!results/RECURRENT_POLICY_STAGE3C_P1_STRESS_SUMMARY.json
-!results/STAGE4C_F1_FORMAL_REPORT.md
-!results/STAGE4C_F1_FORMAL_SUMMARY.json
-!results/STAGE4_COMMON_LOCKED_REPORT.md
-!results/STAGE4_COMMON_LOCKED_SUMMARY.json
-
-# Local simulator archives and generated meshes.
-third_party/*.zip
-third_party/**/files/
-third_party/**/examples/
-third_party/**/assignments/
-third_party/**/experiments/
-third_party/**/ros2/
-third_party/**/.github/
-third_party/**/README.md
-third_party/**/.gitignore
-third_party/**/setup.py
-third_party/**/gym_pybullet_drones/envs/multi_agent_rl/
-third_party/**/gym_pybullet_drones/envs/single_agent_rl/
-third_party/**/gym_pybullet_drones/envs/DynAviary.py
-third_party/**/gym_pybullet_drones/envs/VisionAviary.py
-third_party/**/gym_pybullet_drones/utils/Logger.py
 **/tensorboard/
 **/checkpoint*.pt
 **/best_checkpoint*.pt
 **/last_checkpoint*.pt
 *.npz
-*.png
 
-# A single reviewed development checkpoint and its representative media are
-# intentionally versioned for a runnable, inspectable repository release.
-!models/
+# Representative release media is the only tracked rendered output.
+*.png
+!docs/media/*.png
+!docs/media/*.gif
+!docs/media/*.mp4
+
+# The released development checkpoint is intentionally versioned.
 !models/v5_development_exact_reactive_seed661606.pt
-!docs/
-!docs/media/
-!docs/media/*

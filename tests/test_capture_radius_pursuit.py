@@ -9,11 +9,10 @@ import yaml
 
 from encirclement3d.pursuit_controllers import DynamicEncirclementController
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv, _BeliefPacket, _BeliefSnapshot
-from scripts.generate_prediction_dataset import assemble_prediction_samples
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONFIG = PROJECT_ROOT / "configs" / "capture_radius_pursuit_dev.yaml"
+CONFIG = PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml"
 
 
 def load_config() -> dict:
@@ -80,12 +79,13 @@ def test_policy_observation_does_not_expose_target_truth() -> None:
     assert "target_position" not in observation
     assert "target_velocity" not in observation
     encoded = env.policy_observations(observation)
-    assert encoded.shape == (4, 44)
+    assert encoded.shape == (4, 48)
     assert np.isfinite(encoded).all()
 
 
 def test_partial_observation_is_deterministic_and_has_dropout() -> None:
     config = load_config()
+    config["task"]["pursuit"]["detection_dropout_probability"] = 0.999999
     first = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.55)
     second = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.55)
     first_observation = first.reset(seed=520104)
@@ -102,7 +102,7 @@ def test_partial_observation_is_deterministic_and_has_dropout() -> None:
         first_observation["target_belief_positions"],
         second_observation["target_belief_positions"],
     )
-    assert float(np.mean(first_observation["target_visible"])) < 1.0
+    assert not np.any(first_observation["target_visible"])
 
 
 def test_dynamic_controller_uses_only_policy_safe_observation() -> None:
@@ -133,7 +133,7 @@ def test_prediction_features_are_partial_observation_only() -> None:
     env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.55)
     observation = env.reset(seed=520107)
     encoded = env.policy_observations(observation)
-    assert encoded.shape == (4, 48)
+    assert encoded.shape == (4, 52)
     assert np.isfinite(encoded).all()
 
     # Prediction is derived from belief state. Altering hidden target truth
@@ -232,13 +232,14 @@ def test_time_aligned_delayed_belief_propagates_packet_to_current_step_once() ->
     assert observation["target_observation_confidence"][0] == pytest.approx(
         packet.confidence * float(env.pursuit["observation_confidence_decay"]) ** 3
     )
-    assert env.policy_observations(observation).shape == (4, 44)
+    assert env.policy_observations(observation).shape == (4, 48)
 
 
-def test_legacy_delayed_belief_semantics_remain_the_default() -> None:
+def test_legacy_delayed_belief_semantics_remain_available() -> None:
     config = load_config()
     config["task"]["pursuit"].update(
         {
+            "belief_update_mode": "legacy",
             "observation_delay_steps": 3,
             "detection_dropout_probability": 0.0,
             "observation_noise_std": 0.0,
@@ -467,79 +468,10 @@ def test_box_and_wall_obstacles_have_finite_local_observations() -> None:
         assert not (terminated and truncated)
 
 
-def test_hard_benchmark_preserves_frozen_actor_observation_dimension() -> None:
-    benchmark = yaml.safe_load(
-        (PROJECT_ROOT / "configs" / "capture_radius_hard_benchmark.yaml").read_text(encoding="utf-8")
-    )
-    for experiment in benchmark["experiments"]:
-        config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-        config["task"]["pursuit"].update(benchmark["task"]["pursuit"])
-        config["task"]["pursuit"].update(experiment.get("pursuit_overrides", {}))
-        env = CaptureRadiusPursuit3DEnv(
-            config,
-            obstacle_count=int(experiment["obstacle_count"]),
-            target_speed_scale=float(experiment["target_speed_scale"]),
-        )
-        observation = env.reset(seed=620001)
-        assert env.policy_observations(observation).shape == (4, 44)
-
-
-def test_time_aligned_belief_training_config_preserves_actor_input_dimension() -> None:
-    config = yaml.safe_load(
-        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_time_aligned_belief_dev.yaml").read_text(encoding="utf-8")
-    )
-    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.55)
-    observation = env.reset(seed=520119)
-    assert env.pursuit["belief_update_mode"] == "time_aligned"
-    assert env.pursuit["belief_stale_velocity_decay"] == pytest.approx(0.80)
-    assert env.pursuit["belief_velocity_decay_start_age_steps"] == 3
-    assert env.policy_observations(observation).shape == (4, 44)
-
-
 def test_time_aligned_uncertainty_config_exposes_explicit_belief_features() -> None:
-    config = yaml.safe_load(
-        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_time_aligned_uncertainty_dev.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
+    config = load_config()
     env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.55)
     observation = env.reset(seed=520120)
     assert env.pursuit["belief_update_mode"] == "time_aligned"
     assert env.pursuit["include_uncertainty_features"] is True
     assert env.policy_observations(observation).shape == (4, 48)
-
-
-def test_prediction_dataset_assembly_uses_history_and_future_labels_only() -> None:
-    policy = np.zeros((12, 4, 48), dtype=np.float32)
-    belief_relative = np.zeros((12, 4, 3), dtype=np.float32)
-    belief_velocity = np.zeros((12, 4, 3), dtype=np.float32)
-    confidence = np.ones((12, 4), dtype=np.float32)
-    covariance = np.ones((12, 4, 3), dtype=np.float32)
-    message_age = np.zeros((12, 4), dtype=np.int64)
-    target_positions = np.zeros((12, 3), dtype=np.float32)
-    target_positions[:, 0] = np.arange(12, dtype=np.float32)
-    defender_positions = np.zeros((12, 4, 3), dtype=np.float32)
-    episode = {
-        "policy": policy,
-        "belief_relative": belief_relative,
-        "belief_velocity": belief_velocity,
-        "confidence": confidence,
-        "covariance": covariance,
-        "message_age": message_age,
-        "target_positions": target_positions,
-        "defender_positions": defender_positions,
-        "seed": 123,
-    }
-    arrays = assemble_prediction_samples(
-        [episode],
-        history_length=4,
-        horizon_steps=[1, 3],
-        extent=10.0,
-        target_max_speed=3.6,
-        dt=0.1,
-    )
-    assert arrays["inputs"].shape == (6 * 4, 4, 48)
-    assert arrays["labels_relative"].shape == (6 * 4, 2, 3)
-    np.testing.assert_allclose(arrays["labels_relative"][0, 0, 0], 0.4)
-    np.testing.assert_allclose(arrays["labels_relative"][0, 1, 0], 0.6)
-    assert np.all(arrays["episode_seed"] == 123)

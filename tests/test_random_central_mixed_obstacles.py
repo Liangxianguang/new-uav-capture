@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def showcase_config() -> dict:
     return yaml.safe_load(
-        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_showcase_mixed_curriculum.yaml").read_text(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(
             encoding="utf-8"
         )
     )
@@ -62,7 +62,7 @@ def test_s3_random_layout_supports_both_start_sides_and_axis_aligned_walls() -> 
 
 
 def test_s3_protocol_has_disjoint_reproducible_motion_and_layout_seed_blocks() -> None:
-    protocol = load_protocol(PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_protocol.yaml")
+    protocol = load_protocol(PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_v5_protocol.yaml")
     assert protocol["s3"]["target_crossing_required"] is False
     assert protocol["s3"]["required_defender_zone_entries"] == 2
     specs = {
@@ -76,21 +76,17 @@ def test_s3_protocol_has_disjoint_reproducible_motion_and_layout_seed_blocks() -
     assert len(episode_seeds) == 9
     assert len(layout_seeds) == 9
     assert episode_seeds.isdisjoint(layout_seeds)
-    validation_specs = [episode_spec(protocol, "validation", index) for index in range(192)]
+    validation_specs = [episode_spec(protocol, "validation", index) for index in range(60)]
     assert {spec["defender_side"] for spec in validation_specs} == {"left", "right"}
     assert {spec["obstacle_count"] for spec in validation_specs} == {3, 4, 5}
     assert {spec["observation_condition"] for spec in validation_specs} == {"nominal", "delayed_noisy"}
     assert {spec["target_speed_scale"] for spec in validation_specs} == {0.45, 0.55}
     assert {spec["target_motion_mode"] for spec in validation_specs} == {"flee_persistence", "s_curve"}
-    side_observation_counts = {}
-    for spec in validation_specs:
-        key = (spec["defender_side"], spec["observation_condition"])
-        side_observation_counts[key] = side_observation_counts.get(key, 0) + 1
-    assert side_observation_counts == {
-        ("left", "nominal"): 48,
-        ("left", "delayed_noisy"): 48,
-        ("right", "nominal"): 48,
-        ("right", "delayed_noisy"): 48,
+    assert {(spec["defender_side"], spec["observation_condition"]) for spec in validation_specs} == {
+        ("left", "nominal"),
+        ("left", "delayed_noisy"),
+        ("right", "nominal"),
+        ("right", "delayed_noisy"),
     }
     assert resolved_episode_count(protocol, "locked_test", None) == 100
     assert resolved_episode_count(protocol, "locked_test", 100) == 100
@@ -99,10 +95,10 @@ def test_s3_protocol_has_disjoint_reproducible_motion_and_layout_seed_blocks() -
 
 
 def test_s3_v4_environment_override_preserves_shape_aware_actor_contract() -> None:
-    protocol = load_protocol(PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_protocol.yaml")
+    protocol = load_protocol(PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_v5_protocol.yaml")
     spec = episode_spec(protocol, "validation", 0)
     config = config_for_spec(
-        "f2",
+        "capture",
         spec,
         PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml",
     )

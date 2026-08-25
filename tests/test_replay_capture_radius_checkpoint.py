@@ -7,19 +7,18 @@ import numpy as np
 from scripts.replay_capture_radius_checkpoint import METHOD_CONFIGS, find_ffmpeg, make_config, render_animation
 
 
-def test_replay_renderer_has_f1_and_f2_configs() -> None:
-    assert set(METHOD_CONFIGS) == {"f1", "f2"}
-    f1, _ = make_config("f1", "delayed_measurements")
-    f2, _ = make_config("f2", "delayed_measurements")
-    assert f1["task"]["pursuit"]["include_uncertainty_features"] is False
-    assert f2["task"]["pursuit"]["include_uncertainty_features"] is True
+def test_replay_renderer_uses_the_active_capture_config() -> None:
+    assert set(METHOD_CONFIGS) == {"capture"}
+    config, _ = make_config("capture", "central")
+    assert config["task"]["policy_obstacle_geometry"] == "shape_extents_and_type"
+    assert config["task"]["pursuit"]["include_uncertainty_features"] is True
 
 
-def test_replay_renderer_keeps_locked_condition_parameters() -> None:
-    config, condition = make_config("f2", "burst_occlusion")
-    assert condition["obstacle_count"] == 5
-    assert config["experiments"][0]["obstacle_count"] == 5
-    assert config["task"]["pursuit"]["detection_loss_burst_duration_steps"] == 5
+def test_replay_renderer_keeps_central_condition_parameters() -> None:
+    config, condition = make_config("capture", "central")
+    assert condition["obstacle_count"] == 3
+    assert config["experiments"][0]["obstacle_count"] == 3
+    assert config["experiments"][0]["target_speed_scale"] == 0.45
 
 
 def test_replay_renderer_exports_gif_and_final_png(tmp_path) -> None:

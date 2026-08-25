@@ -1,80 +1,93 @@
 # 3D Multi-UAV Cooperative Capture
 
-This repository studies cooperative pursuit of one evasive target by four UAVs
-in a partially observable three-dimensional obstacle field. The research
-question is whether the team can bring at least one pursuer inside a capture
-radius while avoiding obstacle collision, inter-UAV collision, and world-boundary
-violation.
+This repository contains a reproducible kinematic benchmark for four UAV
+pursuers cooperatively capturing one evasive target in a partially observable
+three-dimensional obstacle field. Obstacles are central cylinders, boxes, and
+walls; the target and pursuers start on opposite sides and may safely route
+around or above obstacles.
 
-The main benchmark is a kinematic simulation, not a physical capture system,
-flight-controller validation, vision-in-the-loop system, SITL result, or flight
-test. The safety filter is part of the deployed method: results labelled
-`Policy + CBF` must not be interpreted as results of the neural policy alone.
+The released workflow is intentionally narrow: train or evaluate a recurrent
+behavior-cloning policy, execute it with the local CBF safety filter, and
+replay the complete capture trajectory as PNG/GIF/H.264 MP4. Historical
+branches that are not part of this workflow have been removed from the active
+repository.
 
-## Capture Definition
+## Task And Scope
 
-An episode is a **Cooperative Safe Capture** only if all of the following hold:
+An episode is a **Cooperative Safe Capture** when all conditions hold:
 
-1. At least one defender enters the target's `0.80 m` capture radius.
-2. The event occurs before the episode time limit.
-3. No defender, target, or defender pair collides with an obstacle or each
-   other before termination.
-4. No defender leaves the allowed 3-D world boundary.
+1. At least one pursuer enters the target capture radius of `0.80 m`.
+2. Capture occurs within the `250` control-step limit (`dt = 0.1 s`).
+3. Before termination there is no obstacle collision, inter-UAV collision, or
+   boundary violation.
+4. At least two pursuers have entered the central obstacle zone. The target is
+   not required to enter or cross that zone.
 
-Entering the central obstacle region is recorded as a diagnostic, not a
-precondition for capture. The target may be captured on either side of the
-obstacles.
+The world is `20 m x 20 m x 10 m`; the benchmark uses four pursuers with
+maximum speed `5.0 m/s` and maximum acceleration `6.0 m/s^2`. Observations
+include detection dropout/noise and delayed, lossy teammate messages. This is
+a **kinematic simulation**. Capture-radius entry is not physical contact,
+net capture, flight-control validation, real vision, SITL, or a flight test.
 
-## Released Evidence
+## Released Method And Evidence
 
-The repository distinguishes formal locked-test evidence from development-only
-experiments. Do not cite a single selected development seed as a formal
-improvement.
+The released checkpoint is **V5 exact-reactive recurrent behavior cloning +
+local CBF**:
 
-| Benchmark | Execution stack | Cooperative Safe Capture | Safety / interpretation |
-| --- | --- | ---: | --- |
-| V4 fixed cylinder | retained BC + CBF | `100.0% +/- 0.0%` | 3 independently trained checkpoints |
-| V4 fixed box | retained BC + CBF | `100.0% +/- 0.0%` | 3 independently trained checkpoints |
-| V4 fixed wall | retained BC + CBF | `98.7% +/- 0.6%` | small residual safety failures |
-| V4 fixed mixed S2 | retained BC + CBF | `100.0% +/- 0.0%` | 3 independently trained checkpoints |
-| V4 random mixed S3 locked test | retained BC + CBF | `75.3% +/- 6.5%` | collision `4.7% +/- 1.2%`, boundary `4.7% +/- 1.2%` |
-| V4 random mixed S3 locked test | raw policy | `2.3% +/- 1.2%` | collision `97.7% +/- 1.2%`; not deployable |
-| V5 random mixed S3 development | exact-reactive seed `661606` + CBF | `57/60 = 95.0%` | collision `0%`, boundary `0%`, Transit `100%`; one seed only |
+- a parameter-sharing recurrent actor consumes local target-belief, teammate,
+  and shape-aware obstacle observations;
+- it is trained from quality-gated rule-expert demonstrations;
+- deployment resets the recurrent hidden state every control step, matching
+  the V5 training contract (`sequence_length = 1`);
+- the CBF filter modifies proposed velocity commands to respect obstacle,
+  inter-UAV, and world-boundary constraints.
 
-The V4 locked-test report is the current formal benchmark result:
+`Policy + CBF` is the deployed stack. It must never be reported as the raw
+neural policy alone.
 
-- [V4 locked-test report](CENTRAL_V4_LOCKED_TEST_REPORT.md)
-- [V4 locked-test summary](CENTRAL_V4_LOCKED_TEST_SUMMARY.json)
-- [V4 visualisation audit](CENTRAL_V4_VISUALIZATION_REPORT.md)
-- [V5 development status](CENTRAL_V5_EXACT_REACTIVE_DEVELOPMENT_STATUS.md)
+| Evidence | Cooperative Safe Capture | Status |
+| --- | ---: | --- |
+| V4 fixed cylinder / box / wall / mixed S2 | `100.0 / 100.0 / 98.7 / 100.0%` | Formal three-seed locked test |
+| V4 random mixed S3, policy + CBF | `75.3% +/- 6.5%` | Formal three-seed locked test |
+| V4 random mixed S3, raw policy | `2.3% +/- 1.2%` | Formal three-seed locked test |
+| Released V5 random mixed S3, policy + CBF | `57/60 = 95.0%` | Development validation, one training seed |
 
-The V5 `95.0%` number is included to make the best current observed run
-inspectable. It has **not** opened its V5 locked block and does not meet the
-three-independent-seed gate.
+The V5 checkpoint is the most useful runnable model, but its `95.0%` result is
+**not** a multi-seed locked-test result. The formal V4 result remains the
+defensible benchmark claim. Full evidence and reporting boundaries are in
+[docs/evidence/README.md](docs/evidence/README.md).
 
-## Repository Layout
+## Repository Map
 
 ```text
-src/encirclement3d/       Environment, observations, controller, CBF, policy, dynamics
-configs/                  Versioned V4/V5 environment and evaluation contracts
-scripts/                  Training, evaluation, aggregation, replay, and rendering CLIs
-tests/                    Environment, protocol, CLI, and regression tests
-models/                   Reviewed V5 development checkpoint (0.60 MB)
-docs/media/               Representative development-only capture media and provenance
-results/                  Local generated output only; ignored except formal reports/summaries
-third_party/              Minimal vendored assets for optional PyBullet extensions
+configs/                         Versioned environment, S3 protocol, and retraining YAML
+models/                          Released V5 development checkpoint and checksum
+src/encirclement3d/              Pursuit environment, observations, actor, CBF, scenarios
+scripts/                         Train, evaluate, replay, render, and PowerShell/BAT launchers
+tests/                           Regression tests for task semantics and reproducible tools
+docs/evidence/                   Formal result reports and structured summaries
+docs/media/                      Reviewed successful capture PNG/GIF/MP4
+results/                         Local run outputs only; ignored by Git
 ```
 
-Generated checkpoints, expert archives, TensorBoard logs, episode CSV files,
-trajectory arrays, and scratch media belong in `results/`. They are deliberately
-not tracked. Each run writes its effective configuration and provenance next to
-its output, so it can be rerun without retaining gigabytes of intermediates.
+Important files:
 
-## Environment
+| Purpose | File |
+| --- | --- |
+| Environment contract | `configs/capture_radius_pursuit_central_v4_flee.yaml` |
+| Random mixed-obstacle protocol | `configs/central_random_mixed_obstacle_s3_v5_protocol.yaml` |
+| Standalone retraining contract | `configs/capture_radius_recurrent_behavior_cloning_s3_retrain.yaml` |
+| Released model | `models/v5_development_exact_reactive_seed661606.pt` |
+| Training CLI | `scripts/train_capture_radius_recurrent_behavior_cloning.py` |
+| Random S3 evaluator | `scripts/evaluate_random_central_mixed_obstacles.py` |
+| Fixed S1/S2 evaluator | `scripts/evaluate_mixed_obstacle_showcase.py` |
+| Scene replay and 3-D renderer | `scripts/render_random_capture_episode.py`, `scripts/render_3d_capture_animation.py` |
 
-The project was exercised on Windows with Python 3.11, PyTorch `2.7.1+cu126`,
-and an NVIDIA RTX 4060. `environment.yml` also installs PyBullet, FFmpeg,
-TensorBoard, and pytest.
+## Installation
+
+The repository was validated on Windows, Python 3.11, PyTorch `2.7.1+cu126`,
+and an RTX 4060. CUDA is recommended for training; CPU works for evaluation
+and rendering.
 
 ```powershell
 Set-Location F:\uav_capture\three_d_encirclement
@@ -84,16 +97,23 @@ $env:PYTHONPATH = "$PWD\src;$PWD\scripts"
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-If the conda environment already exists, use `conda env update -f environment.yml
---prune`. CUDA is recommended for training; evaluation and media rendering can
-run on CPU.
+For an existing environment, run `conda env update -f environment.yml --prune`.
 
-## Quick Reproduction: Released V5 Development Checkpoint
+## Reproduce The Released V5 Result
 
-This command recreates the 60-episode V5 **development** protocol from the
-released checkpoint. It is not a locked test. The per-step recurrent reset is
-read from the checkpoint automatically; specifying `1` makes the deployment
-contract explicit.
+The following command evaluates the published checkpoint on the frozen V5
+**development validation** block. It creates the sampled maps, per-episode
+CSV, JSON summary, and provenance under a new local directory.
+
+```powershell
+.\scripts\reproduce_released_v5.ps1 -Device cuda
+```
+
+The historical expected result is `57/60` Cooperative Safe Capture, `0%`
+collision, `0%` boundary violation, and `100%` Transit. This is a verification
+target for the released development model, not a new locked test.
+
+Equivalent manual evaluation:
 
 ```powershell
 python scripts/evaluate_random_central_mixed_obstacles.py `
@@ -101,114 +121,105 @@ python scripts/evaluate_random_central_mixed_obstacles.py `
   --environment-config configs/capture_radius_pursuit_central_v4_flee.yaml `
   --protocol configs/central_random_mixed_obstacle_s3_v5_protocol.yaml `
   --split validation `
-  --output-dir results/reproduce_v5_seed661606_s3_validation `
+  --output-dir results/reproduce_v5_s3_validation `
   --use-cbf --recurrent-reset-interval 1 --device cuda
 ```
 
-Expected historical result: `57/60` Cooperative Safe Capture, with no
-collision or boundary failure. Output includes `episodes.csv`, `scenes.jsonl`,
-`summary.json`, protocol/evaluation metadata, and the generated random layouts.
+To assess the safety layer, rerun the same frozen scenes without `--use-cbf`
+in a different output directory. Do not tune the model or CBF from either
+evaluation.
 
-To inspect the CBF contribution, repeat the same command without `--use-cbf` in
-a different output directory. This is an exploratory comparison, not a basis
-for tuning the locked V4 benchmark.
+## Fixed-Scene Evaluation
 
-## Train the Formal V4 Protocol from Scratch
-
-The formal V4 result was calculated over three independent BC training seeds.
-The source and contract are included, while historical raw expert archives and
-large intermediate outputs are intentionally not versioned. This reruns the
-same training procedure and produces new local archives under `results/`.
-
-```powershell
-$seeds = 661201, 661202, 661203
-foreach ($seed in $seeds) {
-  python scripts/train_capture_radius_recurrent_behavior_cloning.py `
-    --config configs/capture_radius_recurrent_behavior_cloning_central_v4_s3_retained.yaml `
-    --seed $seed `
-    --output "results/central_v4/bc_s3_retained_seed$seed" `
-    --device cuda
-}
-```
-
-Monitor training with:
-
-```powershell
-tensorboard --logdir results --port 6006
-```
-
-The training script refuses to overwrite a non-empty run directory. A complete
-formal repetition needs the three frozen checkpoints, its registered seed block,
-and the locked evaluator; do not use locked-test outputs to change a model,
-threshold, scene sampler, or CBF parameter.
-
-## Evaluate Fixed and Random Obstacles
-
-Use a fresh output directory for every run. The following is a development
-example using the released V5 checkpoint and the fixed mixed S2 scene:
+This command checks a fixed mixed obstacle scene. `--protocol-config` is
+required because it supplies the frozen central-zone task contract.
 
 ```powershell
 python scripts/evaluate_mixed_obstacle_showcase.py `
   --checkpoint models/v5_development_exact_reactive_seed661606.pt `
-  --scenario v4_s2 --layout mixed --seed 660501 --episodes 20 `
-  --output-dir results/reproduce_v5_seed661606_s2 `
+  --method capture --scenario v4_s2 `
+  --protocol-config configs/central_bidirectional_v4.yaml `
+  --episodes 20 --seed 660501 `
+  --output-dir results/reproduce_v5_fixed_s2 `
   --use-cbf --recurrent-reset-interval 1 --device cuda
 ```
 
-The random S3 command in the previous section is the recommended robustness
-evaluation: it samples 3-5 central cylinder, box, and wall obstacles, uses
-separate motion/layout seeds, includes nominal and delayed-noisy observations,
-and records Transit independently from capture.
+## Replay And Render A Full Capture
 
-## Replay and Render a Capture
-
-After the random evaluation finishes, replay a known successful scene. The
-script restores its scene metadata and produces trajectory data, a top-down
-PNG/GIF/MP4, and audit metadata.
+The automatic reproduction script renders episode `0`. To render manually
+after evaluation, use the generated `scenes.jsonl` file. The renderer writes a
+top-down PNG/GIF/MP4 followed by a perspective 3-D PNG/GIF/MP4 with obstacle
+volumes, altitude cues, trajectory tails, dynamic capture radius, and a frozen
+capture frame.
 
 ```powershell
 python scripts/render_random_capture_episode.py `
   --checkpoint models/v5_development_exact_reactive_seed661606.pt `
-  --scenes results/reproduce_v5_seed661606_s3_validation/scenes.jsonl `
+  --scenes results/reproduce_v5_s3_validation/scenes.jsonl `
   --episode-index 0 --use-cbf --recurrent-reset-interval 1 `
-  --output-dir results/reproduce_v5_seed661606_episode0 --device cuda
+  --output-dir results/reproduce_v5_episode0 --device cuda
 
 python scripts/render_3d_capture_animation.py `
-  --trajectory results/reproduce_v5_seed661606_episode0/trajectory.npz `
-  --result results/reproduce_v5_seed661606_episode0/episode.json `
-  --output-dir results/reproduce_v5_seed661606_episode0/three_d
+  --trajectory results/reproduce_v5_episode0/trajectory.npz `
+  --result results/reproduce_v5_episode0/episode.json `
+  --output-dir results/reproduce_v5_episode0/three_d
 ```
 
-The 3-D renderer keeps obstacle volumes, altitude projections, capture sphere,
-trajectory tails, and a frozen `CAPTURE CONFIRMED` frame. FFmpeg in the conda
-environment writes H.264 MP4 in addition to GIF. A representative V5
-development replay is documented in [docs/media/README.md](docs/media/README.md).
+One reviewed successful development replay is available in
+[docs/media/README.md](docs/media/README.md):
 
-## Verification
+![V5 capture frame](docs/media/v5_development_s3_episode0_capture_3d.png)
 
-Run the complete test suite after changing source or protocol code:
+## Train A New Candidate From Scratch
+
+The historical V4/V5 expert archives and three frozen V4 checkpoints are not
+published. Therefore no clean clone can bitwise recreate those historical
+models. The command below **does** reproduce the released standalone training
+procedure: it collects new, quality-gated expert demonstrations locally,
+trains a sequence-length-one recurrent BC actor, writes TensorBoard data, and
+saves every effective configuration and source hash.
+
+```powershell
+python scripts/train_capture_radius_recurrent_behavior_cloning.py `
+  --config configs/capture_radius_recurrent_behavior_cloning_s3_retrain.yaml `
+  --output results/train_seed661606 `
+  --seed 661606 --device cuda --sequence-length 1 --sequence-batch-size 16
+```
+
+Use a different output directory for each seed. The trainer refuses to
+overwrite nonempty directories. Compare a newly trained model only on a fresh
+development block; do not label it as the released V5 checkpoint or as a
+formal V4 result.
+
+PowerShell and BAT wrappers are included:
+
+```powershell
+.\scripts\run_capture_radius_recurrent_behavior_cloning.ps1 `
+  -Output results\train_seed661606 -Seed 661606 -Device cuda
+
+.\scripts\start_tensorboard.ps1 -LogDir results -Port 6006
+```
+
+## Verify The Repository
 
 ```powershell
 python -m pytest -q
-```
-
-For a quick CLI smoke check:
-
-```powershell
-python scripts/render_3d_capture_animation.py --help
-python scripts/render_random_capture_episode.py --help
 python scripts/evaluate_random_central_mixed_obstacles.py --help
+python scripts/render_random_capture_episode.py --help
+python scripts/render_3d_capture_animation.py --help
 ```
 
-## Scope and Reporting Rules
+Generated checkpoints, expert archives, TensorBoard logs, CSV/NPZ trajectory
+data, and newly rendered media are intentionally ignored. Each run stores its
+effective YAML, metadata, and hashes inside its own `results/` directory.
 
-- `CBF` is part of the execution stack and must be reported separately from a
-  raw actor.
-- A capture-radius event is not physical contact capture or net capture.
-- Formal conclusions use independent training seeds and the locked protocol;
-  single-seed results are development evidence only.
-- The V4 locked result remains `75.3% +/- 6.5%`, not `95.0%`.
-- The V5 development checkpoint is released for inspection and rerun, not as a
-  substitute for a multi-seed locked comparison.
-- Optional PyBullet and execution-dynamics modules are extensions; they do not
-  convert the main kinematic benchmark into a real-flight result.
+## Reporting Rules
+
+- Report raw policy and `Policy + CBF` separately.
+- Report the V4 locked result as `75.3% +/- 6.5%` on random S3, not the V5
+  single-seed `95.0%` development result.
+- Transit is an independent route-feasibility diagnostic, not capture.
+- A capture-radius event is not physical contact or entity capture.
+- The active benchmark is kinematic. The local, uncommitted execution-dynamics
+  draft in `src/encirclement3d/pursuit_env.py` is intentionally outside this
+  release until it has a complete experimental protocol and tests.

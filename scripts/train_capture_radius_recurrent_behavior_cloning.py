@@ -767,6 +767,9 @@ def main() -> None:
     if args.prediction_history_length <= 0 or args.prediction_horizon_index < 0:
         raise ValueError("Invalid prediction history arguments.")
     document, config, settings = load_configuration(args)
+    recurrent_reset_interval = int(settings.get("recurrent_reset_interval_steps", 1))
+    if recurrent_reset_interval <= 0:
+        raise ValueError("imitation.recurrent_reset_interval_steps must be positive.")
     configured_datasets = settings.get("expert_datasets")
     if args.expert_dataset is not None and configured_datasets is not None:
         raise ValueError("Use either --expert-dataset or imitation.expert_datasets, not both.")
@@ -962,6 +965,7 @@ def main() -> None:
             "algorithm": "behavior_cloning_recurrent_local_rule_expert",
             "actor_recurrent": True,
             "recurrent_hidden_dim": int(settings["hidden_dim"]),
+            "recurrent_reset_interval_steps": recurrent_reset_interval,
             "prediction_checkpoint": str(prediction_checkpoint) if prediction_checkpoint is not None else None,
             "prediction_history_length": args.prediction_history_length if prediction_checkpoint is not None else None,
             "prediction_horizon_index": args.prediction_horizon_index if prediction_checkpoint is not None else None,

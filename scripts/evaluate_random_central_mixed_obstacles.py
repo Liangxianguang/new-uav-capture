@@ -42,13 +42,13 @@ from run_mixed_obstacle_showcase import (  # noqa: E402
 )
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_protocol.yaml"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_v5_protocol.yaml"
 REQUIRED_SPLITS = ("train", "validation", "locked_test")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--method", choices=("f1", "f2"), default="f2")
+    parser.add_argument("--method", choices=("capture",), default="capture")
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--baseline", choices=("dynamic_encirclement",))
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
