@@ -18,7 +18,8 @@
 
 - Phase 0：基础环境和全量回归已验证；正式 V5 基线重跑和锁定评估尚未完成。
 - Phase 1：执行扰动模型、预测窗口数据结构、采集 CLI、元数据和回归测试已完成；自适应目标策略和大规模 train/validation/locked-test 数据集尚未完成。
-- Phase 2 及以后：尚未开始模型训练和规划/安全层实现。
+- Phase 2：已完成 CPU smoke 数据、GRU 基线和 portable SSM-conditioned diffusion 的最小训练链路；当前 smoke 结果未通过预测 go/no-go，不能进入 DN-MPC 或 R-CLBF-QP。
+- Phase 3 及以后：尚未开始实现。
 
 ---
 
@@ -225,7 +226,7 @@ episode_id / timestep / seed
 - [x] 保存数据集版本、配置 hash、源代码 hash 和标签生成协议。
 - [x] 检查所有输入和标签 finite、范围合理、坐标系一致。
 - [x] 检查未来轨迹没有错误地使用当前之后的观测信息。
-- [ ] 生成小型 CPU smoke dataset，保证开发测试不依赖 GPU。
+- [x] 生成小型 CPU smoke dataset，保证开发测试不依赖 GPU。
 
 ### 4.4 Phase 1 通过条件
 
@@ -258,7 +259,7 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 ## 5.2 Mamba/SSM 编码器任务
 
 - [ ] 评估当前环境是否允许引入 `mamba-ssm` 或等价依赖。
-- [ ] 如果 CUDA/平台兼容性不稳定，先实现纯 PyTorch selective-SSM 兼容版本。
+- [x] 如果 CUDA/平台兼容性不稳定，先实现纯 PyTorch SSM 兼容版本；当前实现为 `portable_diagonal_ssm`，不是官方 `mamba_ssm` CUDA kernel。
 - [ ] 固定输入 token 定义：belief、速度、confidence、age、队友摘要、障碍物摘要。
 - [ ] 明确是否使用 defender ID embedding；默认使用参数共享和 permutation-aware team pooling。
 - [ ] 实现可变历史长度或固定 padding mask。
@@ -269,14 +270,14 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 ## 5.3 条件扩散解码器任务
 
 - [ ] 选择轨迹空间：绝对坐标、相对目标坐标或速度增量；优先相对坐标。
-- [ ] 定义扩散目标为未来位置序列或未来速度序列，并固定一种主方案。
-- [ ] 实现 noise schedule、训练 loss 和条件注入。
-- [ ] 支持候选轨迹 batch sampling。
+- [x] 定义扩散目标为未来位置序列或未来速度序列，并固定一种主方案；当前使用相对团队 belief reference 的未来位置位移。
+- [x] 实现 noise schedule、训练 loss 和条件注入。
+- [x] 支持候选轨迹 batch sampling。
 - [ ] 输出候选轨迹分数，并使用 softmax 或 energy normalization 得到相对置信度。
 - [ ] 对候选轨迹进行速度、加速度、边界和障碍物可行性检查。
-- [ ] 设计快速采样路径：少步 DDIM、蒸馏模型或 latent diffusion 三选一。
-- [ ] 提供 deterministic seed，保证评估可重放。
-- [ ] 对所有预测输出做坐标反归一化和 finite 检查。
+- [x] 设计快速采样路径：当前使用 few-step DDIM 风格采样。
+- [x] 提供 deterministic seed，保证训练和采样可由固定配置重放。
+- [x] 对所有预测输出做坐标反归一化和 finite 检查。
 
 ## 5.4 置信度与校准任务
 
@@ -302,11 +303,11 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 
 ## 5.6 预测消融
 
-- [ ] Constant-velocity baseline。
-- [ ] 当前 GRU Gaussian predictor。
+- [x] Constant-velocity baseline（CPU smoke）。
+- [x] 当前 GRU Gaussian predictor（CPU smoke）。
 - [ ] Mamba + deterministic head。
 - [ ] GRU + diffusion head。
-- [ ] Mamba + diffusion head。
+- [x] Mamba + diffusion head 的 portable SSM smoke 实现；正式 Mamba kernel 对照尚未完成。
 - [ ] 单模态 diffusion 与多模态 diffusion。
 - [ ] 无 confidence calibration 与 calibrated confidence。
 - [ ] 不同候选数量 `K`。

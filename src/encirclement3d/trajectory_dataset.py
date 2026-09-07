@@ -15,10 +15,12 @@ class PredictionDataset:
     history_observations: np.ndarray
     future_target_displacements: np.ndarray
     reference_positions: np.ndarray
+    reference_velocities: np.ndarray
     episode_indices: np.ndarray
     timesteps: np.ndarray
     episode_seeds: np.ndarray
     target_motion_modes: np.ndarray
+    dt_seconds: float
 
     @property
     def sample_count(self) -> int:
@@ -45,10 +47,12 @@ class PredictionDataset:
             "history_observations": self.history_observations,
             "future_target_displacements": self.future_target_displacements,
             "reference_positions": self.reference_positions,
+            "reference_velocities": self.reference_velocities,
             "episode_indices": self.episode_indices,
             "timesteps": self.timesteps,
             "episode_seeds": self.episode_seeds,
             "target_motion_modes": self.target_motion_modes,
+            "dt_seconds": np.asarray(self.dt_seconds, dtype=np.float32),
         }
 
 
@@ -95,7 +99,9 @@ def build_episode_samples(
     local_frames: list[np.ndarray],
     reference_positions: list[np.ndarray],
     target_positions: list[np.ndarray],
+    reference_velocities: list[np.ndarray] | None = None,
     *,
+    dt_seconds: float,
     history_length: int,
     horizon_steps: int,
     episode_index: int,
@@ -106,24 +112,35 @@ def build_episode_samples(
 
     if len(local_frames) != len(reference_positions) or len(local_frames) != len(target_positions):
         raise ValueError("Observation, reference, and target frame counts must match.")
+    if reference_velocities is not None and len(reference_velocities) != len(local_frames):
+        raise ValueError("Reference velocity frame counts must match observations.")
     if horizon_steps <= 0:
         raise ValueError("horizon_steps must be positive.")
+    if not np.isfinite(dt_seconds) or dt_seconds <= 0.0:
+        raise ValueError("dt_seconds must be finite and positive.")
     if len(local_frames) <= horizon_steps:
         raise ValueError("An episode must contain more frames than horizon_steps.")
 
     histories: list[np.ndarray] = []
     future_displacements: list[np.ndarray] = []
     references: list[np.ndarray] = []
+    reference_velocity_values: list[np.ndarray] = []
     timesteps: list[int] = []
     for timestep in range(len(local_frames) - horizon_steps):
         reference = np.asarray(reference_positions[timestep], dtype=np.float32)
+        velocity = (
+            np.zeros(3, dtype=np.float32)
+            if reference_velocities is None
+            else np.asarray(reference_velocities[timestep], dtype=np.float32)
+        )
         target = np.asarray(target_positions, dtype=np.float32)
-        if reference.shape != (3,) or target.ndim != 2 or target.shape[1] != 3:
+        if reference.shape != (3,) or velocity.shape != (3,) or target.ndim != 2 or target.shape[1] != 3:
             raise ValueError("Reference and target positions must use three-dimensional coordinates.")
         future = target[timestep + 1 : timestep + 1 + horizon_steps] - reference[None, :]
         histories.append(padded_history(local_frames, timestep, history_length))
         future_displacements.append(future.astype(np.float32, copy=False))
         references.append(reference)
+        reference_velocity_values.append(velocity)
         timesteps.append(timestep)
 
     sample_count = len(histories)
@@ -132,10 +149,12 @@ def build_episode_samples(
         history_observations=np.stack(histories).astype(np.float32),
         future_target_displacements=np.stack(future_displacements).astype(np.float32),
         reference_positions=np.stack(references).astype(np.float32),
+        reference_velocities=np.stack(reference_velocity_values).astype(np.float32),
         episode_indices=np.full(sample_count, int(episode_index), dtype=np.int64),
         timesteps=np.asarray(timesteps, dtype=np.int64),
         episode_seeds=np.full(sample_count, int(episode_seed), dtype=np.int64),
         target_motion_modes=np.full(sample_count, str(target_motion_mode)),
+        dt_seconds=float(dt_seconds),
     )
     validate_prediction_dataset(dataset)
     if dataset.defender_count != defender_count or dataset.feature_dim != feature_dim:
@@ -153,6 +172,7 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
             or dataset.horizon_steps != first.horizon_steps
             or dataset.defender_count != first.defender_count
             or dataset.feature_dim != first.feature_dim
+            or not np.isclose(dataset.dt_seconds, first.dt_seconds)
         ):
             raise ValueError("Prediction datasets have incompatible dimensions.")
     merged = PredictionDataset(
@@ -161,10 +181,12 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
             [item.future_target_displacements for item in datasets], axis=0
         ),
         reference_positions=np.concatenate([item.reference_positions for item in datasets], axis=0),
+        reference_velocities=np.concatenate([item.reference_velocities for item in datasets], axis=0),
         episode_indices=np.concatenate([item.episode_indices for item in datasets], axis=0),
         timesteps=np.concatenate([item.timesteps for item in datasets], axis=0),
         episode_seeds=np.concatenate([item.episode_seeds for item in datasets], axis=0),
         target_motion_modes=np.concatenate([item.target_motion_modes for item in datasets], axis=0),
+        dt_seconds=first.dt_seconds,
     )
     validate_prediction_dataset(merged)
     return merged
@@ -180,6 +202,10 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
         raise ValueError("future_target_displacements must have shape [samples, horizon, 3].")
     if dataset.reference_positions.shape != (sample_count, 3):
         raise ValueError("reference_positions must have shape [samples, 3].")
+    if dataset.reference_velocities.shape != (sample_count, 3):
+        raise ValueError("reference_velocities must have shape [samples, 3].")
+    if not np.isfinite(dataset.dt_seconds) or dataset.dt_seconds <= 0.0:
+        raise ValueError("dt_seconds must be finite and positive.")
     for values, name in (
         (dataset.episode_indices, "episode_indices"),
         (dataset.timesteps, "timesteps"),
@@ -192,6 +218,7 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
         (expected_history, "history_observations"),
         (expected_future, "future_target_displacements"),
         (dataset.reference_positions, "reference_positions"),
+        (dataset.reference_velocities, "reference_velocities"),
     ):
         if not np.isfinite(values).all():
             raise ValueError(f"{name} contains non-finite values.")
@@ -208,10 +235,12 @@ def load_prediction_dataset(path: str) -> PredictionDataset:
             "history_observations",
             "future_target_displacements",
             "reference_positions",
+            "reference_velocities",
             "episode_indices",
             "timesteps",
             "episode_seeds",
             "target_motion_modes",
+            "dt_seconds",
         }
         missing = required.difference(archive.files)
         if missing:
@@ -220,10 +249,12 @@ def load_prediction_dataset(path: str) -> PredictionDataset:
             history_observations=np.asarray(archive["history_observations"], dtype=np.float32),
             future_target_displacements=np.asarray(archive["future_target_displacements"], dtype=np.float32),
             reference_positions=np.asarray(archive["reference_positions"], dtype=np.float32),
+            reference_velocities=np.asarray(archive["reference_velocities"], dtype=np.float32),
             episode_indices=np.asarray(archive["episode_indices"], dtype=np.int64),
             timesteps=np.asarray(archive["timesteps"], dtype=np.int64),
             episode_seeds=np.asarray(archive["episode_seeds"], dtype=np.int64),
             target_motion_modes=np.asarray(archive["target_motion_modes"], dtype=str),
+            dt_seconds=float(np.asarray(archive["dt_seconds"]).item()),
         )
     validate_prediction_dataset(dataset)
     return dataset

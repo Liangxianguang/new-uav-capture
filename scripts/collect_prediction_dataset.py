@@ -96,12 +96,19 @@ def collect_episode(
     )
     local_frames: list[np.ndarray] = []
     references: list[np.ndarray] = []
+    reference_velocities: list[np.ndarray] = []
     target_positions: list[np.ndarray] = []
     while True:
         # This is the only actor input saved in the dataset. Target truth is
         # used below only as a future supervised label.
         local_frames.append(policy_observations(env, observation).copy())
         references.append(team_belief_reference(observation))
+        belief_velocities = np.asarray(observation["target_belief_velocities"], dtype=np.float64)
+        confidences = np.asarray(observation["target_observation_confidence"], dtype=np.float64)
+        ages = np.asarray(observation["message_age_steps"], dtype=np.float64)
+        weights = np.maximum(confidences, 1e-3) / (1.0 + np.maximum(ages, 0.0))
+        weights /= np.sum(weights)
+        reference_velocities.append(np.sum(belief_velocities * weights[:, None], axis=0).astype(np.float32))
         target_positions.append(env.target_position.copy().astype(np.float32))
         action = controller.act(observation) if controller is not None else np.zeros((env.n_defenders, 3))
         observation, _reward, terminated, truncated, _info = env.step(action)
@@ -111,6 +118,8 @@ def collect_episode(
         local_frames,
         references,
         target_positions,
+        reference_velocities,
+        dt_seconds=float(env.dt),
         history_length=history_length,
         horizon_steps=horizon_steps,
         episode_index=episode_index,
@@ -182,6 +191,7 @@ def main() -> None:
         "defender_count": int(merged.defender_count),
         "feature_dim": int(merged.feature_dim),
         "sample_count": int(merged.sample_count),
+        "dt_seconds": float(merged.dt_seconds),
         "input_contract": {
             "source": "encirclement3d.observation_encoding.policy_observations",
             "uses_target_truth": False,

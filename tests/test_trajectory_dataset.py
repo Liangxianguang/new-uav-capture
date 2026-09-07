@@ -29,12 +29,15 @@ def test_padded_history_has_fixed_shape_and_repeats_first_frame() -> None:
 def test_episode_samples_use_future_truth_only_as_labels() -> None:
     frames = [np.full((4, 2), float(index), dtype=np.float32) for index in range(6)]
     references = [np.array([float(index), 0.0, 0.0], dtype=np.float32) for index in range(6)]
+    reference_velocities = [np.array([0.5, 0.0, 0.0], dtype=np.float32) for _ in range(6)]
     targets = [np.array([10.0 + index, 1.0, 2.0], dtype=np.float32) for index in range(6)]
 
     dataset = build_episode_samples(
         frames,
         references,
         targets,
+        reference_velocities,
+        dt_seconds=0.1,
         history_length=3,
         horizon_steps=2,
         episode_index=7,
@@ -53,10 +56,13 @@ def test_prediction_dataset_round_trip_rejects_non_finite_values(tmp_path) -> No
     frames = [np.zeros((4, 2), dtype=np.float32) for _ in range(4)]
     references = [np.zeros(3, dtype=np.float32) for _ in range(4)]
     targets = [np.ones(3, dtype=np.float32) for _ in range(4)]
+    reference_velocities = [np.zeros(3, dtype=np.float32) for _ in range(4)]
     dataset = build_episode_samples(
         frames,
         references,
         targets,
+        reference_velocities,
+        dt_seconds=0.1,
         history_length=2,
         horizon_steps=1,
         episode_index=0,
@@ -79,9 +85,11 @@ def test_prediction_dataset_round_trip_rejects_non_finite_values(tmp_path) -> No
                 invalid,
                 dataset.future_target_displacements,
                 dataset.reference_positions,
+                dataset.reference_velocities,
                 dataset.episode_indices,
                 dataset.timesteps,
                 dataset.episode_seeds,
                 dataset.target_motion_modes,
+                dataset.dt_seconds,
             )
         )
