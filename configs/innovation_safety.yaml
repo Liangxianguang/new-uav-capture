@@ -22,6 +22,18 @@ safety:
 evaluation:
   episodes: 8
   seed_start: 649101
+  initial_state_protocol:
+    mode: stratified_robust_safe
+    candidate_seed_count: 64
+    strata:
+      - name: tight
+        min_barrier_m: 0.0
+        max_barrier_m: 0.25
+        count: 4
+      - name: nominal
+        min_barrier_m: 0.25
+        max_barrier_m: 1000000000.0
+        count: 4
   obstacle_count: 3
   target_speed_scale: 0.45
   target_motion_mode: flee_persistence

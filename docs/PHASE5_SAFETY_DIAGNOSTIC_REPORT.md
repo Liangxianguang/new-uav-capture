@@ -3,7 +3,8 @@
 > Date: 2026-09-07
 > Protocol: `configs/innovation_safety.yaml`
 > Run: `results/phase5_diagnostic_v5_seed649101/`
-> Status: diagnostic complete; P5 hard-barrier gate remains **not passed**.
+> Status: historical unstratified diagnostic; superseded for the P5 gate by
+> `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`.
 
 ## 1. Scope and claim boundary
 
@@ -93,10 +94,14 @@ reset state satisfies robust contracted set?
 
 ## 5. Decision and next actions
 
-P5 is still **pending**. The current evidence supports the narrower statement
+This unstratified run remains **not passed** and must not be used as the final
+P5 estimate. The current evidence supports the narrower statement
 “conditional velocity-level robust CBF-QP filter with an auditable independent
 one-step checker.” It does not support “R-CLBF-QP” or a formal closed-loop
 safety guarantee.
+
+The subsequent stratified validation passed the conditional velocity-level P5
+gate; see `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`.
 
 Before P6 or end-to-end claims, the following must be completed:
 

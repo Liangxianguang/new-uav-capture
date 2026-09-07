@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v1.4（2026-09-07）
+> 版本：v1.5（2026-09-07）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 已完成失败原因分类、独立 checker、fallback 诊断和 TensorBoard 归档，但 8 个固定 seed 中仅 37.5% 初始状态满足 robust 收缩安全集，条件性安全 gate 仍未通过。P4 泛化、R-CLBF-QP 形式化结论和端到端验证仍未完成。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate。P4 泛化、执行扰动、多步不变性、R-CLBF-QP 形式化结论和端到端验证仍未完成。
 
 ## 1. 先给结论
 
@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | SSM + 条件扩散预测 | 中高，Conditional Go | 已有稳定多模态候选和较低 minFDE，但 raw 候选不可执行，且平均提升低于 10% 门槛 | portable SSM diffusion + dynamics projection + coverage/energy/latency 审计 |
 | 极小极大 DN-MPC | 中高（固定 S3 gate） | 已完成 warm start 后四种通信模式的固定 S3 验证，但 locked-test、未见自适应目标和形式化博弈泛化仍未知 | 在 locked-test 和未见自适应目标上复验 |
-| R-CLBF-QP | 中低 | QP 过滤器可实现，完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 可审计 robust CBF-QP；只有证书检查通过才升级为 R-CLBF-QP |
+| R-CLBF-QP | 中低 | 当前只有 velocity-level robust CBF-QP 条件性 gate；完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 先报告条件性 robust CBF-QP；只有 P6 证据齐全才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
 ### 1.1 当前正式证据
@@ -405,9 +405,9 @@ P3-F 只能作为上限，不能作为主方法结果。
 
 P5 是 R-CLBF-QP 前的必要基线。先解决 QP 可行性、离散时间约束和执行误差，再讨论 learned CLBF。
 
-当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。9 个安全单元测试通过；8 个固定 seed 的 robust CBF-QP safe capture 为 100%，但初始 robust-safe precondition 仅 37.5%，19 步为 `precondition_invalid`，0 步为 `qp_infeasible`。在初始条件有效的步骤上 solver success 与独立 next-state safety 均为 100%，因此目前只能称为条件性过滤器，不能称为通过的 robust safety filter，更不能称为 R-CLBF-QP。
+当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。分层协议从 64 个候选 seed 中按 tight/nominal 两个 robust-safe strata 固定选择 8 个 episode；8/8 初始状态有效，130/130 步独立 certificate、next-state safety 和 solver success 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。由此通过的是“在冻结 reset 和速度级假设下的条件性 P5 gate”，不是无条件闭环安全保证，也不是 R-CLBF-QP。
 
-当前配置禁用 slack，动作变化限制由 `max_acceleration * dt` 推导，鲁棒 margin 合计为 `0.46 m`，另加基础 safety margin `0.35 m`，不可行时使用经过独立 checker 的 `barrier_recovery` fallback。下一轮仍需冻结 robust-safe reset 和 hard-case protocol；soft-slack 结果只能作诊断，不能算作安全证书通过。
+当前配置禁用 slack，动作变化限制由 `max_acceleration * dt` 推导，鲁棒 margin 合计为 `0.46 m`，另加基础 safety margin `0.35 m`，不可行时使用经过独立 checker 的 `barrier_recovery` fallback。hard-case scan 已完成四类 robust-safe 状态和一个故意 unsafe reset 的诊断；soft-slack 结果仍只能作诊断，不能算作安全证书通过。
 
 ### 10.1 安全集
 
@@ -431,11 +431,11 @@ s.t. discrete barrier constraints
      robust margins for observation, delay and execution disturbance
 ```
 
-- [ ] 名义动作来自 P3/P4 planner。
-- [ ] 安全约束优先级高于性能约束。
-- [ ] 对安全 slack 使用分层惩罚；任何 slack 都必须记录，不能静默掩盖违反。
-- [ ] infeasible 时进入应急动作，并记录 certificate invalid。
-- [ ] 输出每个 barrier 值、残差、slack、active 状态、修正量和 solver status。
+- [x] 名义动作来自 P3/P4 planner。
+- [x] 安全约束优先级高于性能约束。
+- [x] 对安全 slack 使用分层惩罚；任何 slack 都必须记录，不能静默掩盖违反。
+- [x] infeasible 时进入应急动作，并记录 certificate invalid。
+- [x] 输出每个 barrier 值、残差、slack、active 状态、修正量和 solver status。
 
 ### 10.3 鲁棒 margin
 
@@ -450,19 +450,22 @@ s.t. discrete barrier constraints
 
 ### 10.4 P5 验收条件
 
-- [ ] 相同 planner 输出下，碰撞率不高于当前 local CBF。
-- [ ] 所有可行 QP 的最大 barrier residual 小于预设数值容差。
-- [ ] infeasible 比例低于 1%，并且 fallback 的安全结果完整记录。
-- [ ] p95 QP latency 满足高频执行预算。
-- [ ] 在窄通道、障碍拐角、边界附近和机间近距离做专门压力测试。
+- [x] 相同 planner 输出下，碰撞率不高于当前 local CBF。
+- [x] 所有可行 QP 的最大 barrier residual 小于预设数值容差。
+- [x] infeasible 比例低于 1%，并且 fallback 的安全结果完整记录。
+- [x] p95 QP latency 满足高频执行预算。
+- [x] 在窄通道、障碍拐角、边界附近和机间近距离做专门压力测试。
 
-当前 P5 gate 为 **pending / blocked by robust-safe reset contract**，不是“尚未运行”。失败分类和诊断已完成；正式通过前必须完成：
+当前 P5 gate 为 **conditional pass**，适用范围是分层 robust-safe reset、velocity-level 离散动力学、冻结 margin、动作变化限制和独立一步 checker。以下证据已完成，但不能越权解释为 R-CLBF-QP 或闭环证明：
 
 - [x] 每步持久化 `solver_status`、`solver_message`、`fallback_reason`、约束数量、最小 residual、最大 violation 和最大 slack。
-- [x] 将初始状态不在收缩安全集与 QP infeasible 分成两个 gate；当前 8-seed 结果分别为 5 个初始 episode 失败和 0 个 QP infeasible 步骤。
+- [x] 将初始状态不在收缩安全集与 QP infeasible 分成两个 gate；分层正式结果为 8/8 初始状态有效、0 个 QP infeasible 步骤。
 - [x] 至少比较 hard-barrier、soft-slack diagnostic、local CBF 和 fallback 四种路径，并保留 certificate invalid 标记；结果见 `docs/PHASE5_HARD_CASE_SCAN_REPORT.md`。
 - [x] 为 zero-action 之外的 fallback 实现 `barrier_recovery`，fallback 仍经过独立 checker；当前 fallback 当步回到 robust set 的比例为 26.3%。
 - [x] 在窄通道、箱体拐角、边界和近距离机间状态上完成独立数值扫描；连续时间和多步执行压力测试仍未完成。
+
+正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，历史未分层结果见
+`docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。下一阶段必须优先完成执行延迟/噪声、连续时间 swept-volume 和多步安全审计，再决定是否进入 P6。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 
@@ -710,10 +713,10 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 先冻结 robust-safe reset/分层 hard-case protocol，并在初始有效层上完成 P5 hard-barrier gate；保持 independent certificate checker，不用 solver residual 替代真实 next-state 检查。
+1. 完成执行延迟/噪声/加速度扰动 Monte Carlo、连续时间 swept-volume 和多步安全审计；保留独立 certificate checker，不用 solver residual 替代真实 next-state 检查。
 2. 在 locked-test、退化观测和未见自适应目标策略上复验四轮 best-response + shifted warm start，保持三 seed、场景 hash、通信审计和 TensorBoard/JSONL 协议。
-3. 只有 P5 hard-barrier gate 通过，才进入 P6 learned CLBF；如果无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
-4. 只有 P4 泛化和 P5 安全 gate 均通过后，才进入端到端三种子 locked-test；联合训练最后进行。
+3. 只有 P4 泛化和 P5 扩展安全审计均通过，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
+4. 只有 P4 泛化、P5 扩展安全审计和 P6 证书边界均通过后，才进入端到端三种子 locked-test；联合训练最后进行。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：
 

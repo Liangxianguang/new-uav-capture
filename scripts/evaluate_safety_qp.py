@@ -91,6 +91,145 @@ def _mean(values: list[float]) -> float:
     return float(np.mean(np.asarray(values, dtype=np.float64))) if values else float("nan")
 
 
+def _probe_initial_state(
+    base_config: dict[str, Any],
+    *,
+    seed: int,
+    obstacle_count: int,
+    target_speed_scale: float,
+    qp_config: RobustCBFQPConfig,
+) -> dict[str, Any]:
+    """Audit reset membership using only public geometry and a zero action."""
+
+    env = CaptureRadiusPursuit3DEnv(
+        copy.deepcopy(base_config),
+        obstacle_count=obstacle_count,
+        target_speed_scale=target_speed_scale,
+    )
+    observation = env.reset(seed=seed)
+    certificate = check_one_step_safety(
+        _certificate_observation(observation, env),
+        np.zeros((env.n_defenders, 3), dtype=np.float64),
+        dt=float(env.dt),
+        drone_radius=float(env.agents["drone_radius"]),
+        max_speed_mps=float(env.agents["defender_max_speed"]),
+        max_acceleration_mps2=float(env.agents["defender_max_acceleration"]),
+        safety_margin_m=float(env.pursuit["safety_margin"]),
+        robust_margin_m=float(qp_config.robust_margin_m),
+        action_change_limit_mps=(
+            float(qp_config.action_change_limit_mps)
+            if qp_config.action_change_limit_mps is not None
+            else None
+        ),
+        enforce_action_change=True,
+    )
+    return {
+        "seed": int(seed),
+        "initial_min_barrier_m": float(certificate.current_min_barrier_m),
+        "current_state_safe": bool(certificate.current_state_safe),
+        "next_state_safe_under_zero_action": bool(certificate.next_state_safe),
+        "violations": list(certificate.violations),
+    }
+
+
+def _classify_initial_stratum(minimum_barrier: float, strata: list[dict[str, Any]]) -> str | None:
+    for stratum in strata:
+        lower = float(stratum["min_barrier_m"])
+        upper = float(stratum.get("max_barrier_m", float("inf")))
+        if lower <= minimum_barrier < upper:
+            return str(stratum["name"])
+    return None
+
+
+def select_episode_seeds(
+    base_config: dict[str, Any],
+    *,
+    evaluation: dict[str, Any],
+    requested_episodes: int,
+    seed_start: int,
+    obstacle_count: int,
+    target_speed_scale: float,
+    qp_config: RobustCBFQPConfig,
+) -> tuple[list[int], dict[str, Any]]:
+    """Select fixed episode seeds under an auditable reset protocol."""
+
+    protocol = dict(evaluation.get("initial_state_protocol", {}))
+    mode = str(protocol.get("mode", "report_all"))
+    if mode == "report_all":
+        seeds = [int(seed_start + index) for index in range(requested_episodes)]
+        return seeds, {
+            "mode": mode,
+            "requested_episodes": int(requested_episodes),
+            "candidate_seed_start": int(seed_start),
+            "candidate_seed_count": int(requested_episodes),
+            "accepted_seeds": seeds,
+            "rejected_seeds": [],
+            "strata": [],
+        }
+    if mode != "stratified_robust_safe":
+        raise ValueError(f"Unsupported initial_state_protocol.mode: {mode}")
+
+    candidate_count = int(protocol.get("candidate_seed_count", max(4 * requested_episodes, requested_episodes)))
+    strata = [dict(item) for item in protocol.get("strata", ())]
+    if not strata:
+        first_count = requested_episodes // 2
+        strata = [
+            {"name": "tight", "min_barrier_m": 0.0, "max_barrier_m": 0.25, "count": first_count},
+            {"name": "nominal", "min_barrier_m": 0.25, "max_barrier_m": float("inf"), "count": requested_episodes - first_count},
+        ]
+    expected_count = sum(int(item.get("count", 0)) for item in strata)
+    if expected_count != requested_episodes:
+        raise ValueError("initial_state_protocol.strata counts must equal requested episodes")
+    if candidate_count < requested_episodes:
+        raise ValueError("candidate_seed_count must be at least requested episodes")
+
+    audits: list[dict[str, Any]] = []
+    selected_by_stratum: dict[str, list[int]] = {str(item["name"]): [] for item in strata}
+    for seed in range(seed_start, seed_start + candidate_count):
+        audit = _probe_initial_state(
+            base_config,
+            seed=seed,
+            obstacle_count=obstacle_count,
+            target_speed_scale=target_speed_scale,
+            qp_config=qp_config,
+        )
+        stratum = (
+            _classify_initial_stratum(audit["initial_min_barrier_m"], strata)
+            if audit["current_state_safe"]
+            else None
+        )
+        audit["stratum"] = stratum
+        audit["accepted"] = False
+        if stratum is not None:
+            stratum_config = next(item for item in strata if str(item["name"]) == stratum)
+            selected = selected_by_stratum[stratum]
+            if len(selected) < int(stratum_config["count"]):
+                selected.append(int(seed))
+                audit["accepted"] = True
+        audits.append(audit)
+    missing = {
+        name: int(next(item for item in strata if str(item["name"]) == name)["count"]) - len(seeds)
+        for name, seeds in selected_by_stratum.items()
+        if len(seeds) < int(next(item for item in strata if str(item["name"]) == name)["count"])
+    }
+    if missing:
+        raise RuntimeError(
+            "Unable to satisfy initial_state_protocol strata; "
+            f"missing={missing}, candidate_seed_count={candidate_count}"
+        )
+    accepted_seeds = [seed for item in strata for seed in selected_by_stratum[str(item["name"])] ]
+    return accepted_seeds, {
+        "mode": mode,
+        "requested_episodes": int(requested_episodes),
+        "candidate_seed_start": int(seed_start),
+        "candidate_seed_count": int(candidate_count),
+        "accepted_seeds": accepted_seeds,
+        "rejected_seeds": [audit for audit in audits if not bool(audit["accepted"])],
+        "accepted_seed_audits": [audit for audit in audits if bool(audit["accepted"])],
+        "strata": strata,
+    }
+
+
 def _certificate_observation(
     observation: dict[str, Any],
     env: CaptureRadiusPursuit3DEnv,
@@ -384,6 +523,11 @@ def log_tensorboard(output: Path, run_config: dict[str, Any], rows: list[dict[st
     with writer_type(log_dir=str(output / "tensorboard"), flush_secs=5) as writer:
         writer.add_text("Evaluation/config", yaml.safe_dump(run_config, sort_keys=False), 0)
         writer.add_text("Evaluation/source_hashes", json.dumps(run_config["source_hashes"], indent=2), 0)
+        writer.add_text(
+            "Evaluation/initial_state_protocol",
+            json.dumps(run_config["initial_state_protocol"], indent=2),
+            0,
+        )
         for index, row in enumerate(rows):
             for key in (
                 "safe_capture_success",
@@ -438,6 +582,8 @@ def log_tensorboard(output: Path, run_config: dict[str, Any], rows: list[dict[st
                 "gamma": run_config["safety"]["gamma"],
                 "safety_margin_m": run_config["safety"]["safety_margin_m"],
                 "robust_margin_m": run_config["safety"]["robust_margin_m"],
+                "initial_state_mode": run_config["initial_state_protocol"]["mode"],
+                "candidate_seed_count": run_config["initial_state_protocol"]["candidate_seed_count"],
             },
             {
                 "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),
@@ -469,6 +615,15 @@ def main() -> None:
     safety_mapping.setdefault("max_acceleration_mps2", float(env_probe.agents["defender_max_acceleration"]))
     safety_mapping.setdefault("safety_margin_m", float(env_probe.pursuit["safety_margin"]))
     qp_config = RobustCBFQPConfig.from_mapping(safety_mapping)
+    episode_seeds, protocol_audit = select_episode_seeds(
+        base_config,
+        evaluation=evaluation,
+        requested_episodes=episodes,
+        seed_start=seed_start,
+        obstacle_count=obstacle_count,
+        target_speed_scale=target_speed_scale,
+        qp_config=qp_config,
+    )
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     summaries: dict[str, Any] = {}
@@ -479,10 +634,10 @@ def main() -> None:
         method_output.mkdir(parents=True, exist_ok=True)
         rows: list[dict[str, Any]] = []
         all_steps: list[dict[str, Any]] = []
-        for episode_index in range(episodes):
+        for episode_index, episode_seed in enumerate(episode_seeds):
             row, step_rows = run_episode(
                 base_config,
-                seed=seed_start + episode_index,
+                seed=episode_seed,
                 method=method,
                 obstacle_count=obstacle_count,
                 target_speed_scale=target_speed_scale,
@@ -502,12 +657,14 @@ def main() -> None:
                 "method": method,
                 "episodes": episodes,
                 "seed_start": seed_start,
+                "episode_seeds": episode_seeds,
                 "obstacle_count": obstacle_count,
                 "target_speed_scale": target_speed_scale,
                 "target_motion_mode": target_motion_mode,
                 "max_steps": max_steps,
                 "control_cycle_budget_ms": evaluation.get("control_cycle_budget_ms"),
             },
+            "initial_state_protocol": protocol_audit,
             "source_hashes": run_hashes,
         }
         method_output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
@@ -523,13 +680,33 @@ def main() -> None:
         log_tensorboard(method_output, run_config, rows, summary)
         summaries[method] = summary
 
+    robust_summary = summaries.get("robust_cbf_qp", {})
+    budget_ms = float(evaluation.get("control_cycle_budget_ms", float("inf")))
+    conditional_gate_pass = bool(
+        protocol_audit["mode"] == "stratified_robust_safe"
+        and float(robust_summary.get("initial_precondition_valid_rate", 0.0)) >= 1.0
+        and float(robust_summary.get("certificate_valid_rate", 0.0)) >= 1.0
+        and float(robust_summary.get("next_state_safe_rate", 0.0)) >= 1.0
+        and int(robust_summary.get("qp_infeasible_count", 1)) == 0
+        and int(robust_summary.get("solver_failure_count", 1)) == 0
+        and float(robust_summary.get("collision_rate", 1.0)) == 0.0
+        and float(robust_summary.get("boundary_violation_rate", 1.0)) == 0.0
+        and float(robust_summary.get("safety_latency_ms", {}).get("p95", float("inf"))) <= budget_ms
+    )
+    decision = "conditional_p5_pass" if conditional_gate_pass else "pending_gate"
+    decision_reason = (
+        "Stratified robust-safe reset passed the velocity-level P5 gate; hard-case scan and formal proof remain separate."
+        if conditional_gate_pass
+        else "P5 requires independent certificate, local-CBF comparison, and hard-case review."
+    )
     result = {
         "experiment_name": document.get("experiment_name", "phase5_robust_cbf_qp_validation"),
         "config": str(args.config.resolve()),
         "methods": summaries,
+        "initial_state_protocol": protocol_audit,
         "source_hashes": run_hashes,
-        "decision": "pending_gate",
-        "decision_reason": "P5 requires independent certificate, local-CBF comparison, and hard-case review.",
+        "decision": decision,
+        "decision_reason": decision_reason,
     }
     output.joinpath("summary.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
     print(json.dumps(result, indent=2, allow_nan=True))
