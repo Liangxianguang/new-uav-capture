@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,280 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
+
+
+@dataclass(frozen=True)
+class TrajectoryNormalizer:
+    """Train-split-only affine normalization for trajectory coordinates."""
+
+    center: np.ndarray
+    scale: np.ndarray
+    kind: str = "per_horizon_coordinate_train_split_standardization"
+
+    @classmethod
+    def fit(cls, targets: np.ndarray, minimum_scale: float = 1e-3) -> "TrajectoryNormalizer":
+        values = np.asarray(targets, dtype=np.float32)
+        if values.ndim != 3 or values.shape[-1] != 3:
+            raise ValueError("targets must have shape [samples, horizon, 3].")
+        if not np.isfinite(values).all() or minimum_scale <= 0.0:
+            raise ValueError("targets must be finite and minimum_scale must be positive.")
+        center = values.mean(axis=0, keepdims=True)
+        scale = np.maximum(values.std(axis=0, keepdims=True), minimum_scale)
+        return cls(center.astype(np.float32), scale.astype(np.float32))
+
+    @classmethod
+    def fixed(cls, horizon_count: int, scale: float) -> "TrajectoryNormalizer":
+        if horizon_count <= 0 or not np.isfinite(scale) or scale <= 0.0:
+            raise ValueError("horizon_count and scale must be positive.")
+        return cls(
+            np.zeros((1, horizon_count, 3), dtype=np.float32),
+            np.full((1, horizon_count, 3), scale, dtype=np.float32),
+            kind="fixed_scalar_scale_legacy_compatibility",
+        )
+
+    def _tensors(self, values: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if values.ndim < 2 or values.shape[-2:] != self.center.shape[-2:]:
+            raise ValueError("Trajectory values have an incompatible horizon or coordinate shape.")
+        center = torch.as_tensor(self.center, device=values.device, dtype=values.dtype)
+        scale = torch.as_tensor(self.scale, device=values.device, dtype=values.dtype)
+        return center, scale
+
+    def normalize(self, values: torch.Tensor) -> torch.Tensor:
+        center, scale = self._tensors(values)
+        return (values - center) / scale
+
+    def denormalize(self, values: torch.Tensor) -> torch.Tensor:
+        center, scale = self._tensors(values)
+        return values * scale + center
+
+    def variance_to_physical(self, log_variance: torch.Tensor) -> torch.Tensor:
+        _center, scale = self._tensors(log_variance)
+        return log_variance + 2.0 * torch.log(scale)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "center": self.center.tolist(),
+            "scale": self.scale.tolist(),
+        }
+
+
+@dataclass(frozen=True)
+class CandidateTrajectorySet:
+    """Stable planner-facing candidate contract.
+
+    ``logits`` are deliberately uniform until a calibrated scorer is trained.
+    They provide a fixed interface without misrepresenting uncalibrated
+    diffusion samples as probabilistic mode estimates.
+    """
+
+    trajectories: torch.Tensor
+    logits: torch.Tensor
+    score_kind: str
+
+    def __post_init__(self) -> None:
+        if self.trajectories.ndim != 4 or self.trajectories.shape[-1] != 3:
+            raise ValueError("trajectories must have shape [batch, candidates, horizon, 3].")
+        if self.logits.shape != self.trajectories.shape[:2]:
+            raise ValueError("logits must have shape [batch, candidates].")
+        if not torch.isfinite(self.trajectories).all() or not torch.isfinite(self.logits).all():
+            raise ValueError("Candidate trajectories and logits must be finite.")
+
+    @classmethod
+    def uniform(cls, trajectories: torch.Tensor) -> "CandidateTrajectorySet":
+        return cls(
+            trajectories=trajectories,
+            logits=torch.zeros(trajectories.shape[:2], dtype=trajectories.dtype, device=trajectories.device),
+            score_kind="uniform_uncalibrated",
+        )
+
+    @property
+    def relative_weights(self) -> torch.Tensor:
+        return torch.softmax(self.logits, dim=1)
+
+
+@dataclass(frozen=True)
+class CandidateFeasibility:
+    """Per-candidate geometric and kinematic feasibility diagnostics."""
+
+    finite: torch.Tensor
+    within_bounds: torch.Tensor
+    speed_feasible: torch.Tensor
+    acceleration_feasible: torch.Tensor
+    obstacle_clear: torch.Tensor
+    obstacle_checked: bool
+    acceleration_checked: bool
+
+    @property
+    def feasible(self) -> torch.Tensor:
+        return (
+            self.finite
+            & self.within_bounds
+            & self.speed_feasible
+            & self.acceleration_feasible
+            & self.obstacle_clear
+        )
+
+    def metrics(self) -> dict[str, float]:
+        return {
+            "candidate_finite_fraction": float(self.finite.float().mean().cpu()),
+            "candidate_within_bounds_fraction": float(self.within_bounds.float().mean().cpu()),
+            "candidate_speed_feasible_fraction": float(self.speed_feasible.float().mean().cpu()),
+            "candidate_acceleration_feasible_fraction": float(
+                self.acceleration_feasible.float().mean().cpu()
+            ),
+            "candidate_obstacle_clear_fraction": float(self.obstacle_clear.float().mean().cpu()),
+            "candidate_feasible_fraction": float(self.feasible.float().mean().cpu()),
+            "candidate_obstacle_checked": float(self.obstacle_checked),
+            "candidate_acceleration_checked": float(self.acceleration_checked),
+        }
+
+
+def assess_candidate_feasibility(
+    candidates: torch.Tensor,
+    reference_positions: torch.Tensor,
+    reference_velocities: torch.Tensor,
+    dt_seconds: float,
+    lower_bounds: torch.Tensor,
+    upper_bounds: torch.Tensor,
+    max_speed: float,
+    max_acceleration: float | None = None,
+    obstacle_centers_xy: torch.Tensor | None = None,
+    obstacle_radii: torch.Tensor | None = None,
+    obstacle_heights: torch.Tensor | None = None,
+    obstacle_half_extents_xy: torch.Tensor | None = None,
+    obstacle_shape_codes: torch.Tensor | None = None,
+    minimum_obstacle_clearance: float = 0.0,
+) -> CandidateFeasibility:
+    """Check candidate position, speed, acceleration, and obstacle constraints.
+
+    Candidates are target displacements from each sample's published team-belief
+    reference. Obstacle codes use cylinder=0, box=1, and wall=2, matching the
+    archived prediction-dataset contract.
+    """
+
+    if candidates.ndim != 4 or candidates.shape[-1] != 3:
+        raise ValueError("candidates must have shape [batch, candidates, horizon, 3].")
+    batch_size, candidate_count, _horizon, _coordinates = candidates.shape
+    if reference_positions.shape != (batch_size, 3) or reference_velocities.shape != (batch_size, 3):
+        raise ValueError("Reference positions and velocities must have shape [batch, 3].")
+    if lower_bounds.shape != (batch_size, 3) or upper_bounds.shape != (batch_size, 3):
+        raise ValueError("World bounds must have shape [batch, 3].")
+    if not np.isfinite(dt_seconds) or dt_seconds <= 0.0 or max_speed <= 0.0:
+        raise ValueError("dt_seconds and max_speed must be positive and finite.")
+    if max_acceleration is not None and (not np.isfinite(max_acceleration) or max_acceleration <= 0.0):
+        raise ValueError("max_acceleration must be positive and finite when supplied.")
+    if minimum_obstacle_clearance < 0.0:
+        raise ValueError("minimum_obstacle_clearance must be non-negative.")
+
+    finite = torch.isfinite(candidates).all(dim=(2, 3))
+    positions = candidates + reference_positions[:, None, None, :]
+    within_bounds = (
+        (positions >= lower_bounds[:, None, None, :])
+        & (positions <= upper_bounds[:, None, None, :])
+    ).all(dim=(2, 3))
+    previous_positions = torch.cat(
+        [
+            reference_positions[:, None, None, :].expand(-1, candidate_count, -1, -1),
+            positions[:, :, :-1, :],
+        ],
+        dim=2,
+    )
+    velocities = (positions - previous_positions) / float(dt_seconds)
+    speed_feasible = (torch.linalg.vector_norm(velocities, dim=-1) <= max_speed).all(dim=2)
+
+    if max_acceleration is None:
+        acceleration_feasible = torch.ones_like(speed_feasible)
+        acceleration_checked = False
+    else:
+        previous_velocities = torch.cat(
+            [
+                reference_velocities[:, None, None, :].expand(-1, candidate_count, -1, -1),
+                velocities[:, :, :-1, :],
+            ],
+            dim=2,
+        )
+        accelerations = (velocities - previous_velocities) / float(dt_seconds)
+        acceleration_feasible = (
+            torch.linalg.vector_norm(accelerations, dim=-1) <= max_acceleration
+        ).all(dim=2)
+        acceleration_checked = True
+
+    obstacle_fields = (
+        obstacle_centers_xy,
+        obstacle_radii,
+        obstacle_heights,
+        obstacle_half_extents_xy,
+        obstacle_shape_codes,
+    )
+    if any(value is None for value in obstacle_fields) and any(value is not None for value in obstacle_fields):
+        raise ValueError("Obstacle context must include every obstacle field or none of them.")
+    if all(value is None for value in obstacle_fields):
+        obstacle_clear = torch.ones_like(speed_feasible)
+        obstacle_checked = False
+    else:
+        assert obstacle_centers_xy is not None
+        assert obstacle_radii is not None
+        assert obstacle_heights is not None
+        assert obstacle_half_extents_xy is not None
+        assert obstacle_shape_codes is not None
+        obstacle_count = obstacle_centers_xy.shape[1]
+        if (
+            obstacle_centers_xy.shape != (batch_size, obstacle_count, 2)
+            or obstacle_radii.shape != (batch_size, obstacle_count)
+            or obstacle_heights.shape != (batch_size, obstacle_count)
+            or obstacle_half_extents_xy.shape != (batch_size, obstacle_count, 2)
+            or obstacle_shape_codes.shape != (batch_size, obstacle_count)
+        ):
+            raise ValueError("Obstacle context has incompatible shapes.")
+        obstacle_clear = torch.ones_like(speed_feasible)
+        for obstacle_index in range(obstacle_count):
+            center_xy = obstacle_centers_xy[:, obstacle_index, None, None, :]
+            radius = obstacle_radii[:, obstacle_index, None, None]
+            height = obstacle_heights[:, obstacle_index, None, None]
+            half_xy = obstacle_half_extents_xy[:, obstacle_index, None, None, :]
+            radial_gap = torch.linalg.vector_norm(positions[..., :2] - center_xy, dim=-1) - radius
+            below = (-positions[..., 2]).clamp_min(0.0)
+            above = (positions[..., 2] - height).clamp_min(0.0)
+            vertical_gap = below + above
+            cylinder_clearance = torch.where(
+                vertical_gap == 0.0,
+                radial_gap,
+                torch.where(
+                    radial_gap <= 0.0,
+                    vertical_gap,
+                    torch.hypot(radial_gap, vertical_gap),
+                ),
+            )
+            box_center = torch.cat(
+                [center_xy, height[..., None] * 0.5],
+                dim=-1,
+            )
+            box_half_extent = torch.cat(
+                [half_xy, height[..., None] * 0.5],
+                dim=-1,
+            )
+            signed_distance = torch.abs(positions - box_center) - box_half_extent
+            outside = signed_distance.clamp_min(0.0)
+            outside_norm = torch.linalg.vector_norm(outside, dim=-1)
+            box_clearance = torch.where(
+                outside_norm > 0.0,
+                outside_norm,
+                -(-signed_distance).amin(dim=-1),
+            )
+            is_cylinder = obstacle_shape_codes[:, obstacle_index, None, None] == 0
+            clearance = torch.where(is_cylinder, cylinder_clearance, box_clearance)
+            obstacle_clear &= (clearance >= minimum_obstacle_clearance).all(dim=2)
+        obstacle_checked = True
+    return CandidateFeasibility(
+        finite=finite,
+        within_bounds=within_bounds,
+        speed_feasible=speed_feasible,
+        acceleration_feasible=acceleration_feasible,
+        obstacle_clear=obstacle_clear,
+        obstacle_checked=obstacle_checked,
+        acceleration_checked=acceleration_checked,
+    )
 
 
 class HistoryTargetPredictor(nn.Module):
@@ -300,15 +575,29 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         time_embedding = self._time_embedding(timesteps)
         return self.denoiser(torch.cat([noisy_target, condition, time_embedding], dim=-1))
 
-    def diffusion_loss(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def diffusion_loss(
+        self,
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        generator: torch.Generator | None = None,
+    ) -> torch.Tensor:
         if targets.ndim != 3 or targets.shape[1:] != (self.horizon_count, 3):
             raise ValueError("targets must have shape [batch, horizon, 3].")
         condition = self.encode_condition(inputs)
         clean = targets.reshape(targets.shape[0], -1)
         timesteps = torch.randint(
-            0, self.diffusion_steps, (targets.shape[0],), device=targets.device
+            0,
+            self.diffusion_steps,
+            (targets.shape[0],),
+            device=targets.device,
+            generator=generator,
         )
-        noise = torch.randn_like(clean)
+        noise = torch.randn(
+            clean.shape,
+            device=clean.device,
+            dtype=clean.dtype,
+            generator=generator,
+        )
         alpha = self.alphas_cumprod[timesteps].unsqueeze(1)
         noisy = alpha.sqrt() * clean + (1.0 - alpha).sqrt() * noise
         predicted_noise = self.predict_noise(noisy, timesteps, condition)
@@ -363,6 +652,25 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
             previous_alpha = self.alphas_cumprod[previous_timestep]
             current = previous_alpha.sqrt() * clean + (1.0 - previous_alpha).sqrt() * predicted_noise
         return current.reshape(batch_size, num_samples, self.horizon_count, 3)
+
+    @torch.no_grad()
+    def sample_set(
+        self,
+        inputs: torch.Tensor,
+        num_samples: int = 8,
+        sampling_steps: int = 8,
+        generator: torch.Generator | None = None,
+    ) -> CandidateTrajectorySet:
+        """Return planner-facing candidates with explicitly uncalibrated scores."""
+
+        return CandidateTrajectorySet.uniform(
+            self.sample(
+                inputs,
+                num_samples=num_samples,
+                sampling_steps=sampling_steps,
+                generator=generator,
+            )
+        )
 
 
 def prediction_metrics(

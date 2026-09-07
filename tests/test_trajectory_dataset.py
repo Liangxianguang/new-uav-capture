@@ -5,10 +5,23 @@ import pytest
 
 from encirclement3d.trajectory_dataset import (
     build_episode_samples,
+    concatenate_prediction_datasets,
     load_prediction_dataset,
     padded_history,
     save_prediction_dataset,
 )
+
+
+def _geometry() -> dict[str, np.ndarray]:
+    return {
+        "world_lower_bounds": np.array([-3.0, -3.0, 0.0], dtype=np.float32),
+        "world_upper_bounds": np.array([3.0, 3.0, 3.0], dtype=np.float32),
+        "obstacle_centers_xy": np.array([[0.0, 0.0]], dtype=np.float32),
+        "obstacle_radii": np.array([0.5], dtype=np.float32),
+        "obstacle_heights": np.array([2.0], dtype=np.float32),
+        "obstacle_half_extents_xy": np.array([[0.5, 0.75]], dtype=np.float32),
+        "obstacle_shape_codes": np.array([0], dtype=np.int8),
+    }
 
 
 def test_padded_history_has_fixed_shape_and_repeats_first_frame() -> None:
@@ -93,3 +106,100 @@ def test_prediction_dataset_round_trip_rejects_non_finite_values(tmp_path) -> No
                 dataset.dt_seconds,
             )
         )
+
+
+def test_geometry_context_round_trips_and_validates_bounds_and_obstacle_sizes(tmp_path) -> None:
+    frames = [np.zeros((4, 2), dtype=np.float32) for _ in range(4)]
+    references = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    targets = [np.ones(3, dtype=np.float32) for _ in range(4)]
+    velocities = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    dataset = build_episode_samples(
+        frames,
+        references,
+        targets,
+        velocities,
+        dt_seconds=0.1,
+        history_length=2,
+        horizon_steps=1,
+        episode_index=0,
+        episode_seed=10,
+        target_motion_mode="flee_persistence",
+        **_geometry(),
+    )
+    path = tmp_path / "geometry_dataset.npz"
+    save_prediction_dataset(dataset, str(path))
+    loaded = load_prediction_dataset(str(path))
+    assert loaded.has_geometry_context
+    np.testing.assert_allclose(loaded.world_lower_bounds[0], _geometry()["world_lower_bounds"])
+    np.testing.assert_array_equal(loaded.obstacle_shape_codes[:, 0], 0)
+
+    invalid_bounds = _geometry()
+    invalid_bounds["world_upper_bounds"] = invalid_bounds["world_lower_bounds"].copy()
+    with pytest.raises(ValueError, match="strictly smaller"):
+        build_episode_samples(
+            frames,
+            references,
+            targets,
+            velocities,
+            dt_seconds=0.1,
+            history_length=2,
+            horizon_steps=1,
+            episode_index=0,
+            episode_seed=10,
+            target_motion_mode="flee_persistence",
+            **invalid_bounds,
+        )
+
+    invalid_obstacle = _geometry()
+    invalid_obstacle["obstacle_radii"] = np.array([0.0], dtype=np.float32)
+    with pytest.raises(ValueError, match="must be positive"):
+        build_episode_samples(
+            frames,
+            references,
+            targets,
+            velocities,
+            dt_seconds=0.1,
+            history_length=2,
+            horizon_steps=1,
+            episode_index=0,
+            episode_seed=10,
+            target_motion_mode="flee_persistence",
+            **invalid_obstacle,
+        )
+
+
+def test_geometry_datasets_concatenate_and_retain_target_modes() -> None:
+    frames = [np.zeros((4, 2), dtype=np.float32) for _ in range(4)]
+    references = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    velocities = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    first = build_episode_samples(
+        frames,
+        references,
+        [np.array([1.0, 0.0, 0.0], dtype=np.float32) for _ in frames],
+        velocities,
+        dt_seconds=0.1,
+        history_length=2,
+        horizon_steps=1,
+        episode_index=0,
+        episode_seed=10,
+        target_motion_mode="flee_persistence",
+        **_geometry(),
+    )
+    second = build_episode_samples(
+        frames,
+        references,
+        [np.array([2.0, 0.0, 0.0], dtype=np.float32) for _ in frames],
+        velocities,
+        dt_seconds=0.1,
+        history_length=2,
+        horizon_steps=1,
+        episode_index=1,
+        episode_seed=11,
+        target_motion_mode="s_curve",
+        **_geometry(),
+    )
+    merged = concatenate_prediction_datasets([first, second])
+    assert merged.has_geometry_context
+    assert merged.sample_count == first.sample_count + second.sample_count
+    assert set(merged.target_motion_modes.tolist()) == {"flee_persistence", "s_curve"}
+    np.testing.assert_allclose(merged.future_target_displacements[-1, 0], [2.0, 0.0, 0.0])

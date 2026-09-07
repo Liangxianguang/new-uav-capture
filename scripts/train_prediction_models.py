@@ -9,6 +9,7 @@ import os
 import platform
 import sys
 import time
+from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -30,8 +31,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from encirclement3d.prediction import (  # noqa: E402
+    CandidateTrajectorySet,
     ConditionalDiffusionTrajectoryPredictor,
     HistoryTargetPredictor,
+    TrajectoryNormalizer,
+    assess_candidate_feasibility,
     deterministic_mse,
     gaussian_nll,
     prediction_metrics,
@@ -56,7 +60,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-steps", type=int, default=8)
     parser.add_argument("--num-samples", type=int, default=8)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--target-scale", type=float, default=10.0)
+    parser.add_argument(
+        "--target-normalization",
+        choices=("train_split_standardize", "fixed_scale"),
+        default="train_split_standardize",
+        help="Default fits a per-horizon coordinate normalizer on training targets only.",
+    )
+    parser.add_argument(
+        "--target-scale",
+        type=float,
+        default=10.0,
+        help="Legacy scalar normalization used only with --target-normalization fixed_scale.",
+    )
+    parser.add_argument("--normalizer-minimum-scale", type=float, default=1e-3)
+    parser.add_argument(
+        "--evaluation-sampling-seed",
+        type=int,
+        default=745102,
+        help="Seed for repeatable diffusion validation noise; independent from training seed.",
+    )
+    parser.add_argument("--latency-warmup", type=int, default=5)
+    parser.add_argument("--latency-repeats", type=int, default=32)
+    parser.add_argument(
+        "--candidate-max-speed",
+        type=float,
+        help="Physical target speed limit in m/s; default is derived from dataset metadata.",
+    )
+    parser.add_argument(
+        "--candidate-max-acceleration",
+        type=float,
+        help="Physical target acceleration limit in m/s^2; default is derived from dataset metadata.",
+    )
+    parser.add_argument(
+        "--candidate-minimum-clearance",
+        type=float,
+        help="Obstacle clearance in m; default is the recorded drone radius when available.",
+    )
     parser.add_argument("--seed", type=int, default=745101)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     return parser.parse_args()
@@ -75,6 +114,83 @@ def flatten_inputs(dataset: PredictionDataset) -> tuple[torch.Tensor, torch.Tens
     inputs = inputs.reshape(inputs.shape[0], inputs.shape[1], -1)
     targets = torch.as_tensor(dataset.future_target_displacements, dtype=torch.float32)
     return inputs, targets
+
+
+@dataclass(frozen=True)
+class CandidateConstraints:
+    max_speed: float | None
+    max_acceleration: float | None
+    minimum_clearance: float
+    provenance: dict[str, str]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "max_speed_mps": self.max_speed,
+            "max_acceleration_mps2": self.max_acceleration,
+            "minimum_obstacle_clearance_m": self.minimum_clearance,
+            "provenance": self.provenance,
+        }
+
+
+def load_dataset_metadata(path: Path) -> dict[str, Any]:
+    metadata_path = path.resolve().parent / "metadata.json"
+    if not metadata_path.is_file():
+        return {}
+    loaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"Dataset metadata must be a mapping: {metadata_path}")
+    return loaded
+
+
+def derive_candidate_constraints(args: argparse.Namespace) -> CandidateConstraints:
+    metadata = load_dataset_metadata(args.train_dataset)
+    config = metadata.get("config", {})
+    agents = config.get("agents", {}) if isinstance(config, dict) else {}
+    speed_scale = metadata.get("target_speed_scale")
+    derived_speed = None
+    if isinstance(agents.get("target_max_speed"), (int, float)) and isinstance(speed_scale, (int, float)):
+        derived_speed = float(agents["target_max_speed"]) * float(speed_scale)
+    derived_acceleration = (
+        float(agents["target_max_acceleration"])
+        if isinstance(agents.get("target_max_acceleration"), (int, float))
+        else None
+    )
+    derived_clearance = (
+        float(agents["drone_radius"])
+        if isinstance(agents.get("drone_radius"), (int, float))
+        else 0.0
+    )
+    return CandidateConstraints(
+        max_speed=(float(args.candidate_max_speed) if args.candidate_max_speed is not None else derived_speed),
+        max_acceleration=(
+            float(args.candidate_max_acceleration)
+            if args.candidate_max_acceleration is not None
+            else derived_acceleration
+        ),
+        minimum_clearance=(
+            float(args.candidate_minimum_clearance)
+            if args.candidate_minimum_clearance is not None
+            else derived_clearance
+        ),
+        provenance={
+            "max_speed": "cli" if args.candidate_max_speed is not None else "train_dataset_metadata",
+            "max_acceleration": (
+                "cli" if args.candidate_max_acceleration is not None else "train_dataset_metadata"
+            ),
+            "minimum_clearance": (
+                "cli" if args.candidate_minimum_clearance is not None else "train_dataset_metadata"
+            ),
+        },
+    )
+
+
+def seeded_generator(device: torch.device, seed: int) -> torch.Generator:
+    return torch.Generator(device=device.type).manual_seed(seed)
+
+
+def synchronize(device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
 
 def source_hashes() -> dict[str, str]:
@@ -112,13 +228,13 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     model_kind: str,
-    target_scale: float,
+    normalizer: TrajectoryNormalizer,
 ) -> float:
     model.train()
     losses: list[float] = []
     for inputs, targets in loader:
         inputs = inputs.to(device)
-        targets = targets.to(device) / target_scale
+        targets = normalizer.normalize(targets.to(device))
         if model_kind == "gru":
             mean, log_variance = model(inputs)
             loss = gaussian_nll(mean, log_variance, targets)
@@ -135,46 +251,123 @@ def train_epoch(
 
 
 @torch.no_grad()
-def evaluate(
+def evaluate_subset(
     model: torch.nn.Module,
     inputs: torch.Tensor,
     targets: torch.Tensor,
     dataset: PredictionDataset,
+    sample_indices: np.ndarray,
     device: torch.device,
     model_kind: str,
-    target_scale: float,
+    normalizer: TrajectoryNormalizer,
     num_samples: int,
     sampling_steps: int,
+    evaluation_sampling_seed: int,
+    constraints: CandidateConstraints,
 ) -> dict[str, float]:
+    if sample_indices.ndim != 1 or sample_indices.size == 0:
+        raise ValueError("sample_indices must select at least one validation sample.")
     model.eval()
-    inputs = inputs.to(device)
-    targets = targets.to(device)
-    normalized_targets = targets / target_scale
+    indices = torch.as_tensor(sample_indices, dtype=torch.long)
+    inputs = inputs.index_select(0, indices).to(device)
+    targets = targets.index_select(0, indices).to(device)
+    normalized_targets = normalizer.normalize(targets)
     if model_kind == "gru":
         mean, log_variance = model(inputs)
         loss = gaussian_nll(mean, log_variance, normalized_targets)
-        candidates = mean[:, None] * target_scale
+        candidate_set = CandidateTrajectorySet.uniform(normalizer.denormalize(mean[:, None]))
         deterministic = deterministic_mse(mean, normalized_targets)
     else:
-        loss = model.diffusion_loss(inputs, normalized_targets)
-        candidates = model.sample(
+        loss = model.diffusion_loss(
+            inputs,
+            normalized_targets,
+            generator=seeded_generator(device, evaluation_sampling_seed),
+        )
+        candidate_set = model.sample_set(
             inputs,
             num_samples=num_samples,
             sampling_steps=sampling_steps,
-        ) * target_scale
+            generator=seeded_generator(device, evaluation_sampling_seed + 1),
+        )
+        candidate_set = CandidateTrajectorySet(
+            trajectories=normalizer.denormalize(candidate_set.trajectories),
+            logits=candidate_set.logits,
+            score_kind=candidate_set.score_kind,
+        )
         deterministic = torch.tensor(float("nan"), device=device)
-    metrics = prediction_metrics(candidates, targets)
+    metrics = prediction_metrics(candidate_set.trajectories, targets)
     constant_velocity = (
-        torch.as_tensor(dataset.reference_velocities, device=device)[:, None, :]
+        torch.as_tensor(dataset.reference_velocities[sample_indices], device=device)[:, None, :]
         * float(dataset.dt_seconds)
         * torch.arange(1, targets.shape[1] + 1, device=device, dtype=targets.dtype)[None, :, None]
     )
     baseline = prediction_metrics(constant_velocity[:, None], targets)
-    return {
+    result = {
         "loss": float(loss.detach().cpu()),
         "deterministic_mse": float(deterministic.detach().cpu()),
         **{f"model_{key}": value for key, value in metrics.items()},
         **{f"constant_velocity_{key}": value for key, value in baseline.items()},
+    }
+    if dataset.has_geometry_context and constraints.max_speed is not None:
+        feasibility = assess_candidate_feasibility(
+            candidate_set.trajectories,
+            torch.as_tensor(dataset.reference_positions[sample_indices], device=device),
+            torch.as_tensor(dataset.reference_velocities[sample_indices], device=device),
+            dataset.dt_seconds,
+            torch.as_tensor(dataset.world_lower_bounds[sample_indices], device=device),
+            torch.as_tensor(dataset.world_upper_bounds[sample_indices], device=device),
+            constraints.max_speed,
+            constraints.max_acceleration,
+            torch.as_tensor(dataset.obstacle_centers_xy[sample_indices], device=device),
+            torch.as_tensor(dataset.obstacle_radii[sample_indices], device=device),
+            torch.as_tensor(dataset.obstacle_heights[sample_indices], device=device),
+            torch.as_tensor(dataset.obstacle_half_extents_xy[sample_indices], device=device),
+            torch.as_tensor(dataset.obstacle_shape_codes[sample_indices], device=device),
+            constraints.minimum_clearance,
+        )
+        result.update(feasibility.metrics())
+        result["candidate_feasibility_available"] = 1.0
+    else:
+        result["candidate_feasibility_available"] = 0.0
+    return result
+
+
+@torch.no_grad()
+def measure_single_sample_latency(
+    model: torch.nn.Module,
+    input_sample: torch.Tensor,
+    device: torch.device,
+    model_kind: str,
+    num_samples: int,
+    sampling_steps: int,
+    warmup: int,
+    repeats: int,
+) -> dict[str, float]:
+    if warmup < 0 or repeats <= 0:
+        raise ValueError("latency-warmup must be non-negative and latency-repeats must be positive.")
+    model.eval()
+    inputs = input_sample[None].to(device)
+
+    def run() -> None:
+        if model_kind == "gru":
+            model(inputs)
+        else:
+            model.sample_set(inputs, num_samples=num_samples, sampling_steps=sampling_steps)
+
+    for _ in range(warmup):
+        run()
+    synchronize(device)
+    latencies_ms: list[float] = []
+    for _ in range(repeats):
+        synchronize(device)
+        started = time.perf_counter()
+        run()
+        synchronize(device)
+        latencies_ms.append((time.perf_counter() - started) * 1_000.0)
+    return {
+        "single_sample_latency_p50_ms": float(np.percentile(latencies_ms, 50)),
+        "single_sample_latency_p95_ms": float(np.percentile(latencies_ms, 95)),
+        "single_sample_latency_p99_ms": float(np.percentile(latencies_ms, 99)),
     }
 
 
@@ -185,6 +378,8 @@ def write_metadata(
     validation_dataset: PredictionDataset,
     input_dim: int,
     device: torch.device,
+    normalizer: TrajectoryNormalizer,
+    constraints: CandidateConstraints,
 ) -> None:
     serializable_arguments = {
         key: str(value) if isinstance(value, Path) else value
@@ -201,6 +396,9 @@ def write_metadata(
         "input_dim": input_dim,
         "horizon_count": train_dataset.horizon_steps,
         "dt_seconds": float(train_dataset.dt_seconds),
+        "target_normalizer": normalizer.as_dict(),
+        "candidate_feasibility_constraints": constraints.as_dict(),
+        "validation_geometry_context_available": validation_dataset.has_geometry_context,
         "device": str(device),
         "python": sys.version.replace("\n", " "),
         "platform": platform.platform(),
@@ -222,8 +420,22 @@ def main() -> None:
     args = parse_args()
     if args.epochs <= 0 or args.batch_size <= 0 or args.hidden_dim <= 0 or args.num_layers <= 0:
         raise ValueError("epochs, batch-size, hidden-dim, and num-layers must be positive.")
-    if args.learning_rate <= 0.0 or args.target_scale <= 0.0:
-        raise ValueError("learning-rate and target-scale must be positive.")
+    if (
+        args.learning_rate <= 0.0
+        or args.diffusion_steps <= 0
+        or args.sampling_steps <= 0
+        or args.num_samples <= 0
+        or args.normalizer_minimum_scale <= 0.0
+    ):
+        raise ValueError("Learning rate, diffusion settings, and normalizer-minimum-scale must be positive.")
+    if args.target_normalization == "fixed_scale" and args.target_scale <= 0.0:
+        raise ValueError("target-scale must be positive with fixed_scale normalization.")
+    for name in ("candidate_max_speed", "candidate_max_acceleration"):
+        value = getattr(args, name)
+        if value is not None and value <= 0.0:
+            raise ValueError(f"{name.replace('_', '-')} must be positive when supplied.")
+    if args.candidate_minimum_clearance is not None and args.candidate_minimum_clearance < 0.0:
+        raise ValueError("candidate-minimum-clearance must be non-negative when supplied.")
     output = args.output.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -244,6 +456,12 @@ def main() -> None:
     train_inputs, train_targets = flatten_inputs(train_dataset)
     validation_inputs, validation_targets = flatten_inputs(validation_dataset)
     input_dim = int(train_inputs.shape[-1])
+    normalizer = (
+        TrajectoryNormalizer.fit(train_targets.numpy(), args.normalizer_minimum_scale)
+        if args.target_normalization == "train_split_standardize"
+        else TrajectoryNormalizer.fixed(train_dataset.horizon_steps, args.target_scale)
+    )
+    constraints = derive_candidate_constraints(args)
     model = build_model(args, input_dim, train_dataset.horizon_steps).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     train_loader = DataLoader(
@@ -252,7 +470,16 @@ def main() -> None:
         shuffle=True,
         generator=torch.Generator().manual_seed(args.seed),
     )
-    write_metadata(output, args, train_dataset, validation_dataset, input_dim, device)
+    write_metadata(
+        output,
+        args,
+        train_dataset,
+        validation_dataset,
+        input_dim,
+        device,
+        normalizer,
+        constraints,
+    )
     writer = SummaryWriter(log_dir=str(output / "tensorboard"), flush_secs=10)
     writer.add_text(
         "Config/arguments",
@@ -260,6 +487,12 @@ def main() -> None:
             {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
             sort_keys=False,
         ),
+        0,
+    )
+    writer.add_text("Config/target_normalizer", yaml.safe_dump(normalizer.as_dict(), sort_keys=False), 0)
+    writer.add_text(
+        "Config/candidate_feasibility_constraints",
+        yaml.safe_dump(constraints.as_dict(), sort_keys=False),
         0,
     )
     writer.add_text(
@@ -281,7 +514,21 @@ def main() -> None:
         "KMP_DUPLICATE_LIB_OK": os.environ.get("KMP_DUPLICATE_LIB_OK"),
     }), 0)
     writer.add_text("Model/backend", "portable_diagonal_ssm" if args.model == "diffusion" else "gru_gaussian", 0)
-    history: list[dict[str, float | int]] = []
+    writer.add_histogram("Data/train_targets_physical_m", train_targets.reshape(-1), 0)
+    writer.add_histogram(
+        "Data/train_targets_normalized",
+        normalizer.normalize(train_targets).reshape(-1),
+        0,
+    )
+    writer.add_histogram("Data/validation_targets_physical_m", validation_targets.reshape(-1), 0)
+    writer.add_histogram(
+        "Data/validation_targets_normalized",
+        normalizer.normalize(validation_targets).reshape(-1),
+        0,
+    )
+    history: list[dict[str, Any]] = []
+    validation_indices = np.arange(validation_dataset.sample_count, dtype=np.int64)
+    validation_modes = sorted(set(validation_dataset.target_motion_modes.tolist()))
     try:
         for epoch in range(1, args.epochs + 1):
             started = time.perf_counter()
@@ -291,21 +538,62 @@ def main() -> None:
                 optimizer,
                 device,
                 args.model,
-                args.target_scale,
+                normalizer,
             )
-            validation = evaluate(
+            validation = evaluate_subset(
                 model,
                 validation_inputs,
                 validation_targets,
                 validation_dataset,
+                validation_indices,
                 device,
                 args.model,
-                args.target_scale,
+                normalizer,
                 args.num_samples,
                 args.sampling_steps,
+                args.evaluation_sampling_seed,
+                constraints,
+            )
+            per_mode: dict[str, dict[str, float]] = {}
+            for mode_index, mode in enumerate(validation_modes):
+                mode_indices = np.flatnonzero(validation_dataset.target_motion_modes == mode).astype(np.int64)
+                mode_metrics = evaluate_subset(
+                    model,
+                    validation_inputs,
+                    validation_targets,
+                    validation_dataset,
+                    mode_indices,
+                    device,
+                    args.model,
+                    normalizer,
+                    args.num_samples,
+                    args.sampling_steps,
+                    args.evaluation_sampling_seed + 10_000 * (mode_index + 1),
+                    constraints,
+                )
+                per_mode[mode] = mode_metrics
+                for key, value in mode_metrics.items():
+                    if np.isfinite(value):
+                        writer.add_scalar(f"ValidationByMode/{mode}/{key}", value, epoch)
+            latency = measure_single_sample_latency(
+                model,
+                validation_inputs[0],
+                device,
+                args.model,
+                args.num_samples,
+                args.sampling_steps,
+                args.latency_warmup,
+                args.latency_repeats,
             )
             elapsed = time.perf_counter() - started
-            record = {"epoch": epoch, "train_loss": train_loss, **validation, "epoch_seconds": elapsed}
+            record = {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                **validation,
+                **latency,
+                "epoch_seconds": elapsed,
+                "per_target_motion_mode": per_mode,
+            }
             history.append(record)
             writer.add_scalar("Loss/train", train_loss, epoch)
             writer.add_scalar("Loss/validation", validation["loss"], epoch)
@@ -313,6 +601,8 @@ def main() -> None:
                 if key != "loss" and np.isfinite(value):
                     writer.add_scalar(f"Metrics/{key}", value, epoch)
             writer.add_scalar("Timing/epoch_seconds", elapsed, epoch)
+            for key, value in latency.items():
+                writer.add_scalar(f"Timing/{key}", value, epoch)
             writer.add_scalar("Optimization/learning_rate", args.learning_rate, epoch)
             if epoch == 1 or epoch % 5 == 0:
                 for name, parameter in model.named_parameters():
@@ -328,7 +618,8 @@ def main() -> None:
                 "hidden_dim": args.hidden_dim,
                 "num_layers": args.num_layers,
                 "learning_rate": args.learning_rate,
-                "target_scale": args.target_scale,
+                "target_normalization": args.target_normalization,
+                "legacy_target_scale": args.target_scale if args.target_normalization == "fixed_scale" else 0.0,
                 "diffusion_steps": args.diffusion_steps,
                 "sampling_steps": args.sampling_steps,
                 "num_samples": args.num_samples,
@@ -338,6 +629,8 @@ def main() -> None:
                 "hparam/model_min_ade": float(final["model_min_ade"]),
                 "hparam/model_min_fde": float(final["model_min_fde"]),
                 "hparam/constant_velocity_min_ade": float(final["constant_velocity_min_ade"]),
+                "hparam/single_sample_latency_p95_ms": float(final["single_sample_latency_p95_ms"]),
+                "hparam/candidate_feasible_fraction": float(final.get("candidate_feasible_fraction", float("nan"))),
             },
         )
     output.joinpath("training.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
@@ -354,7 +647,8 @@ def main() -> None:
                 "num_layers": args.num_layers,
             }
         ),
-        "target_scale": args.target_scale,
+        "target_normalizer": normalizer.as_dict(),
+        "candidate_feasibility_constraints": constraints.as_dict(),
         "dt_seconds": float(train_dataset.dt_seconds),
         "seed": args.seed,
         "state_dict": model.state_dict(),

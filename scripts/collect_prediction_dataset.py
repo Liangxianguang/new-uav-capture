@@ -32,6 +32,7 @@ from encirclement3d.trajectory_dataset import (  # noqa: E402
 
 
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml"
+TARGET_MOTION_MODES = ("flee_persistence", "random_turn", "s_curve", "burst", "boundary_escape")
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,8 +52,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--target-motion-mode",
-        choices=("flee_persistence", "random_turn", "s_curve", "burst", "boundary_escape"),
+        choices=TARGET_MOTION_MODES,
         default="flee_persistence",
+    )
+    parser.add_argument(
+        "--target-motion-modes",
+        nargs="+",
+        choices=TARGET_MOTION_MODES,
+        help=(
+            "Optional deterministic round-robin target modes. When supplied, this overrides "
+            "--target-motion-mode and records the episode-to-mode schedule in metadata."
+        ),
     )
     parser.add_argument("--history-length", type=int, default=16)
     parser.add_argument("--horizon-steps", type=int, default=12)
@@ -114,6 +124,25 @@ def collect_episode(
         observation, _reward, terminated, truncated, _info = env.step(action)
         if terminated or truncated:
             break
+    shape_codes = {"cylinder": 0, "box": 1, "wall": 2}
+    obstacle_count = len(env.obstacles)
+    centers = np.empty((obstacle_count, 2), dtype=np.float32)
+    radii = np.empty(obstacle_count, dtype=np.float32)
+    heights = np.empty(obstacle_count, dtype=np.float32)
+    half_extents = np.empty((obstacle_count, 2), dtype=np.float32)
+    obstacle_shapes = np.empty(obstacle_count, dtype=np.int8)
+    for index, obstacle in enumerate(env.obstacles):
+        if obstacle.shape not in shape_codes:
+            raise ValueError(f"Unsupported obstacle shape: {obstacle.shape}")
+        centers[index] = np.asarray(obstacle.center_xy, dtype=np.float32)
+        radii[index] = float(obstacle.radius)
+        heights[index] = float(obstacle.height)
+        half_extents[index] = (
+            np.array([obstacle.radius, obstacle.radius], dtype=np.float32)
+            if obstacle.half_extents_xy is None
+            else np.asarray(obstacle.half_extents_xy, dtype=np.float32)
+        )
+        obstacle_shapes[index] = shape_codes[obstacle.shape]
     return build_episode_samples(
         local_frames,
         references,
@@ -125,6 +154,13 @@ def collect_episode(
         episode_index=episode_index,
         episode_seed=episode_seed,
         target_motion_mode=target_motion_mode,
+        world_lower_bounds=env.lower.astype(np.float32),
+        world_upper_bounds=env.upper.astype(np.float32),
+        obstacle_centers_xy=centers,
+        obstacle_radii=radii,
+        obstacle_heights=heights,
+        obstacle_half_extents_xy=half_extents,
+        obstacle_shape_codes=obstacle_shapes,
     ), len(local_frames)
 
 
@@ -154,23 +190,27 @@ def main() -> None:
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
-    config = load_config(args.environment_config, args.target_motion_mode)
+    target_motion_modes = tuple(args.target_motion_modes or (args.target_motion_mode,))
+    config = load_config(args.environment_config, target_motion_modes[0])
     datasets = []
     episode_lengths: list[int] = []
+    mode_schedule: list[str] = []
     for episode_index in range(args.episodes):
+        target_motion_mode = target_motion_modes[episode_index % len(target_motion_modes)]
         dataset, frame_count = collect_episode(
-            config,
+            load_config(args.environment_config, target_motion_mode),
             episode_index=episode_index,
             episode_seed=args.seed + episode_index,
             obstacle_count=args.obstacle_count,
             target_speed_scale=args.target_speed_scale,
             history_length=args.history_length,
             horizon_steps=args.horizon_steps,
-            target_motion_mode=args.target_motion_mode,
+            target_motion_mode=target_motion_mode,
             rollout_policy=args.rollout_policy,
         )
         datasets.append(dataset)
         episode_lengths.append(frame_count)
+        mode_schedule.append(target_motion_mode)
     merged = concatenate_prediction_datasets(datasets)
     dataset_path = output / "dataset.npz"
     save_prediction_dataset(merged, str(dataset_path))
@@ -184,7 +224,9 @@ def main() -> None:
         "episode_lengths": episode_lengths,
         "obstacle_count": int(args.obstacle_count),
         "target_speed_scale": float(args.target_speed_scale),
-        "target_motion_mode": args.target_motion_mode,
+        "target_motion_mode": target_motion_modes[0] if len(target_motion_modes) == 1 else "stratified_cycle",
+        "target_motion_modes": list(target_motion_modes),
+        "episode_target_motion_modes": mode_schedule,
         "rollout_policy": args.rollout_policy,
         "history_length": int(merged.history_length),
         "horizon_steps": int(merged.horizon_steps),
@@ -201,6 +243,11 @@ def main() -> None:
             "source": "CaptureRadiusPursuit3DEnv.target_position",
             "uses_target_truth": True,
             "representation": "future_target_position_minus_published_team_belief_reference",
+        },
+        "geometry_contract": {
+            "available": bool(merged.has_geometry_context),
+            "obstacle_shape_codes": {"cylinder": 0, "box": 1, "wall": 2},
+            "world_bounds": "per-sample static environment bounds",
         },
         "python": sys.version.replace("\n", " "),
         "platform": platform.platform(),

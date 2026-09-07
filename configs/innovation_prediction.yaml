@@ -1,4 +1,4 @@
-experiment_name: innovation_prediction_dataset_v1
+experiment_name: innovation_prediction_dataset_v2_multimodal
 environment_config: capture_radius_pursuit_central_v4_flee.yaml
 
 # Phase 1 data contract. Train/validation/locked_test directories must be
@@ -8,17 +8,53 @@ dataset:
   horizon_steps: 12
   obstacle_count: 3
   target_speed_scale: 0.55
-  target_motion_mode: flee_persistence
+  target_motion_modes:
+    - flee_persistence
+    - random_turn
+    - s_curve
+    - burst
+    - boundary_escape
   rollout_policy: stationary
   train:
-    episodes: 32
+    episodes: 64
     seed: 645101
   validation:
-    episodes: 16
+    episodes: 24
     seed: 646101
   locked_test:
     episodes: 32
     seed: 647201
+
+training:
+  independent_training_seeds: [745101, 745201, 745301]
+  target_normalization: train_split_standardize
+  normalizer_minimum_scale: 0.001
+  epochs: 40
+  batch_size: 128
+  learning_rate: 0.001
+  gru:
+    hidden_dim: 128
+    num_layers: 2
+  diffusion:
+    backend: portable_diagonal_ssm
+    hidden_dim: 128
+    num_layers: 2
+    diffusion_steps: 100
+    sampling_steps: 8
+    num_samples: 8
+    evaluation_sampling_seed: 745102
+
+candidate_feasibility:
+  derive_limits_from_dataset_metadata: true
+  minimum_obstacle_clearance: drone_radius
+  require_geometry_context: true
+  require_candidate_feasible_fraction_at_least: 0.95
+
+latency:
+  control_cycle_budget_ms: 100.0
+  single_sample_warmup: 5
+  single_sample_repeats: 32
+  report_percentiles: [50, 95, 99]
 
 input_contract:
   source: encirclement3d.observation_encoding.policy_observations
@@ -34,3 +70,7 @@ reporting:
   tensorboard_required_for_training: true
   preserve_dataset_metadata: true
   preserve_source_hashes: true
+  preserve_checkpoint: true
+  preserve_training_history: true
+  report_per_target_motion_mode: true
+  report_candidate_score_kind: true
