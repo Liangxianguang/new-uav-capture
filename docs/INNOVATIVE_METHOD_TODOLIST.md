@@ -1,5 +1,9 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
+> 版本：v2.1（2026-09-07）
+> 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
+> 当前结论：预测模块处于正式实验前的 `Conditional Go` 阶段；DN-MPC、R-CLBF-QP 和端到端结论尚未成立。
+
 ## 0. 文档目的
 
 本计划用于验证以下完整方法是否能够在当前四机三维协同围捕基准上成立：
@@ -16,10 +20,94 @@
 
 ### 当前进度
 
-- Phase 0：基础环境和全量回归已验证；正式 V5 基线重跑和锁定评估尚未完成。
-- Phase 1：执行扰动模型、预测窗口数据结构、采集 CLI、元数据和回归测试已完成；自适应目标策略和大规模 train/validation/locked-test 数据集尚未完成。
-- Phase 2：已完成 CPU smoke 数据、GRU 基线和 portable SSM-conditioned diffusion 的最小训练链路；当前 smoke 结果未通过预测 go/no-go，不能进入 DN-MPC 或 R-CLBF-QP。
+- Phase 0：历史回归和基线代码已存在；本轮代码修改后必须重新运行完整测试，并补齐正式 V5 基线重跑和锁定评估。
+- Phase 1：预测窗口、可见信息约束、五类目标模式、障碍物上下文、未来目标速度、数据元数据和数据集切分已经实现；统一执行动力学和自适应博弈目标仍未完成。
+- Phase 2：portable SSM-conditioned diffusion、GRU 对照、归一化、候选可行性检查、conformal coverage、energy score、延迟审计和 TensorBoard 工件已经实现；正式三种训练种子尚未完成，当前 smoke 结果不能作为通过结论。
+- 正式数据集：当前已有 train/validation/locked-test 三个不重叠 seed block，但环境硬速度上限修正晚于数据生成，必须重生成一次以保证 source hash 完全一致。
 - Phase 3 及以后：尚未开始实现。
+
+### 当前必须遵守的决策顺序
+
+```text
+完整回归
+  -> 重生成正式数据集
+  -> 三种子预测训练与冻结测试
+  -> Phase 2 Go/Conditional Go/No-Go
+  -> 集中式 scenario min-max MPC
+  -> 分布式 DN-MPC
+  -> 基础安全 QP
+  -> R-CLBF-QP 与证书检查
+  -> 端到端三种子锁定测试
+```
+
+在 Phase 2 没有通过前，不实现 DN-MPC 的最终版本；在动力学、扰动边界和安全 QP 都固定前，不宣称 R-CLBF-QP 有闭环安全证明。
+
+### 当前立即执行清单
+
+- [ ] 在最新工作树上重新运行完整 `pytest` 和 Python 编译检查。
+- [ ] 重生成 `phase2_prediction_train_v2_multimodal`、`phase2_prediction_validation_v2_multimodal` 和 `phase2_prediction_locked_test_v2_multimodal`，确认 metadata 中的 source hash 对应当前源码。
+- [ ] 使用训练种子 `745101`、`745201`、`745301`，分别训练正式 GRU 和 portable SSM diffusion；每个 seed 使用独立输出目录。
+- [ ] 对每个 checkpoint 运行冻结 validation/locked-test 评估，汇总 ADE/FDE/minADE/minFDE、energy score、conformal coverage、候选可行率和 p50/p95/p99 延迟。
+- [ ] 按五种目标模式和观测退化条件分层汇总，禁止只报告总体平均值。
+- [ ] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
+- [ ] 写入新的 Phase 2 分析报告；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
+- [ ] 只有 Phase 2 达标后，才开始集中式 scenario min-max MPC；只有集中式版本有收益后，才实现分布式 DN-MPC。
+- [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
+
+### 正式预测实验命令模板
+
+以下命令中的路径应替换为实际生成目录；命令本身是协议的一部分，训练参数不得在不同 seed 间临时修改：
+
+```powershell
+conda run --no-capture-output -n uav-encirclement-gpu python -m pytest -q
+conda run --no-capture-output -n uav-encirclement-gpu python -m py_compile `
+  scripts/train_prediction_models.py `
+  scripts/collect_prediction_dataset.py `
+  src/encirclement3d/prediction.py `
+  src/encirclement3d/trajectory_dataset.py `
+  src/encirclement3d/pursuit_env.py
+```
+
+正式训练要求：
+
+- [ ] `--target-normalization train_split_standardize`，归一化器只能拟合 train split。
+- [ ] 使用训练配置中的正式 history/horizon/diffusion/sampling 参数。
+- [ ] 三个训练 seed 只改变随机初始化和训练采样，不改变数据切分、网络规模和评估协议。
+- [ ] evaluation sampling seed 独立于 training seed，并在所有模型间保持可复现。
+- [ ] `candidate-max-speed` 使用物理硬上限，不使用行为强度 `target_speed_scale` 代替。
+- [ ] 任何候选可行率不足的结果必须同时报告原始候选和筛选后候选，不能静默删除失败样本。
+
+### 初步可行性判断
+
+基于当前代码和已完成的 smoke 实验，这个方向不是“直接跑一次就能证明”的方案，而是一个有条件可行的分层研究计划：
+
+| 子方法 | 当前可行性 | 最大风险 | 最小可发表版本 |
+| --- | --- | --- | --- |
+| portable SSM + 条件扩散预测 | 中高 | 候选轨迹可行率、置信度校准和实时采样 | SSM/GRU 对照 + 多模态 coverage/energy/延迟分析 |
+| 集中式 scenario min-max MPC | 中 | 预测误差传递到规划后是否真的改善围捕 | 预测候选驱动的集中式 risk-sensitive MPC |
+| 分布式 DN-MPC | 中低 | 通信延迟、子问题不收敛和实时预算 | 集中式 oracle 与有限通信的分布式对照 |
+| R-CLBF-QP | 中低 | 统一动力学、扰动上界和离散时间证书 | 可审计 robust CBF-QP；CLBF 作为增强结果 |
+| 三者端到端组合 | 低到中 | 误差和延迟在模块间累积 | 在困难场景安全捕获不劣于基线，并报告代价 |
+
+因此推荐的研究成功定义是分层的：
+
+1. **最低成功**：Phase 2 预测器在冻结测试集上证明多模态候选有覆盖价值，且输出经过物理可行性检查。
+2. **方法成功**：集中式 scenario MPC 使用预测候选后，在未见目标模式或退化观测条件下改善安全捕获；分布式版本只在确有增益时纳入主方法。
+3. **完整成功**：R-CLBF-QP 在明确假设下通过独立证书检查，并且端到端三种子结果不劣于当前 `Policy + local CBF`。
+
+如果第 1 层成立而第 2 层不成立，应停止堆叠模块，转写为“可校准的多模态目标轨迹预测”；如果第 2 层成立而第 3 层不成立，应将安全贡献表述为“条件鲁棒安全过滤”，不能声称完整闭环形式化证明。
+
+### 正式数据集锁定表
+
+正式数据集必须在最新动力学修正后重新生成，并在报告中固定以下协议：
+
+| Split | Episodes | Samples（历史版本） | Seed block | 用途 |
+| --- | ---: | ---: | --- | --- |
+| `phase2_prediction_train_v2_multimodal` | 64 | 15,232 | 645101--645164 | 训练和 train-only normalization |
+| `phase2_prediction_validation_v2_multimodal` | 24 | 5,712 | 646101--646124 | 模型选择、conformal/calibration |
+| `phase2_prediction_locked_test_v2_multimodal` | 32 | 7,616 | 647201--647232 | 最终一次性评估 |
+
+重新生成后，如果样本数量因环境修正发生变化，以新 metadata 为准；不能为了保持旧数量而修改环境逻辑。五种目标模式必须在三个 split 中有明确的 episode schedule，且 episode seed 不重叠。
 
 ---
 
