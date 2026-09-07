@@ -3,7 +3,7 @@
 > 版本：v1.0（2026-09-07）  
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果，但尚未证明完整的 DN-MPC、R-CLBF-QP 和端到端方法成立。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已实现并完成 formal-small 诊断，但尚未证明困难场景收益，DN-MPC、R-CLBF-QP 和端到端方法仍未成立。
 
 ## 1. 先给结论
 
@@ -349,6 +349,13 @@ P3-F 只能作为上限，不能作为主方法结果。
 
 若 P3 只有 oracle 输入有效，则判定为诊断工具，停止向 DN-MPC 扩展。
 
+### 8.6 当前 P3 证据
+
+集中式 planner 的实现和 8 个固定 seed 的 formal-small 诊断已完成，详见
+`docs/PHASE3_MPC_DIAGNOSTIC_REPORT.md`。四种配置均无碰撞且安全捕获率为 100%，但场景过于容易，不能区分规划器收益；因此 P3 的困难场景收益门槛仍未验证，暂不进入分布式 DN-MPC。
+
+当前已确认：planner p95 约为 11--12 ms，SSM diffusion + planner + local CBF 的 total control p95 约为 45--52 ms。当前未确认：S3/S5/S6 困难条件下的安全捕获增益、候选级 worst-case capture distance 和三种预测 checkpoint seed 的稳定性。
+
 ## 9. P4：分布式 DN-MPC
 
 只有 P3 有明确收益后才执行 P4。P4 的创新点不是把集中式代码复制四份，而是证明有限通信下的分布式博弈规划仍保持可接受性能。
@@ -677,10 +684,10 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 完成当前 Phase 2 修改的完整测试、编译检查和阶段性提交。
-2. 实现只消费 projected candidates 的集中式 scenario min-max MPC 诊断版。
-3. 在与 `DynamicEncirclementController + local CBF` 相同的场景 seed 上进行 smoke 和小规模正式评估。
-4. 根据 P3 结果决定是否实现 DN-MPC；P3 无收益时停止分布式扩展。
+1. 扩展 P3 到随机混合障碍物、窄通道、delayed-noisy、丢包和未见目标策略。
+2. 保存候选级 rollout cost、worst-case candidate 和 CVaR tail 统计。
+3. 使用三个 prediction checkpoint seed 做同场景对照。
+4. 只有 P3 在困难条件下有收益，才实现 DN-MPC；否则保留集中式诊断结论。
 5. 在动力学契约冻结后实现 robust CBF-QP；没有独立证书前不称 R-CLBF-QP 已证明。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：

@@ -514,6 +514,17 @@ subject to  dynamics
 
 如果 DN-MPC 只有在访问目标真值时有效，则该模块判定为实验诊断工具，不能作为方法主体。
 
+### 当前 Phase 3 诊断状态
+
+- [x] 已实现集中式 finite-shooting scenario MPC，支持 expected、worst-case 和 CVaR。
+- [x] 已实现 projected-candidate contract、solver/fallback diagnostics、逐步 JSONL 和 TensorBoard 记录。
+- [x] 已完成 8 个固定 seed 的 formal-small 诊断；四种配置均无碰撞，total control p95 约为 45--52 ms。
+- [ ] 困难场景（S3/S5/S6）下的安全捕获增益仍未验证。
+- [ ] 候选级 worst-case capture distance 和三个预测 checkpoint seed 的稳定性仍未验证。
+- [ ] 在集中式 planner 通过困难场景门槛前，不实现最终 DN-MPC。
+
+正式诊断报告见 `docs/PHASE3_MPC_DIAGNOSTIC_REPORT.md`；当前结论是集中式 planner 可运行，但 Phase 3 科学门槛尚未通过。
+
 ---
 
 ## 7. Phase 4：R-CLBF-QP 鲁棒安全过滤
