@@ -386,7 +386,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 - [x] 与集中式 oracle 的主要安全指标差距不超过 10 个百分点；三种通信退化条件均保持 100% safe capture、0% collision。
 - [x] delayed-noisy 与丢包条件下安全捕获性能未下降；丢包消息和 fallback 均被记录。
 - [x] 99% 以上控制周期有有效 planner 或记录过的安全 fallback；三种 seed 的 distributed valid plan rate 和 solver success rate 均为 100%。
-- [ ] 每个 seed 的 effective/converged plan rate 均达到 99%；ideal 模式三种 seed 为 98.90%、99.34%、98.90%，两次略低于门槛。
+- [x] 每个 seed 的 effective/converged plan rate 均达到 99%；采用四轮 best-response 和 receding-horizon shifted warm start 后，三种 seed、四种通信模式均为 100%。
 - [x] p95 总 planner latency 满足预算；优化后 distributed planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms。
 
 若 P4 不通过，保留 P3 的集中式结果；不能把“集中式场景 MPC”写成“分布式 DN-MPC”。
@@ -398,8 +398,8 @@ P3-F 只能作为上限，不能作为主方法结果。
 - `distributed_ideal`、`distributed_delayed`、`distributed_dropout` 和 `distributed_none` 的 safe capture 均为 100%，collision 均为 0%；DynamicEncirclement 为 91.7% safe capture、8.3% collision。
 - 三次 `scenes.jsonl` SHA-256 均为 `FD883350CBF126731443EFE7796A5FA8DC6C8D1BA08BEA03A6B445B43A90CA5C`，方向一致，不存在场景重采样造成的比较偏差。
 - delayed 平均消息年龄为 1.89 步，dropout 平均消息年龄为 2.04 步；dropout 消息丢失和 fallback 已进入 episode/step 日志。
-- 优化后的 distributed planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms，实时性门槛已通过；但 ideal 模式的 effective/converged plan rate 在两个 seed 为 98.90%，未满足逐 seed 99% 门槛。
-- 因此 P4 的通信安全和实时性诊断通过，但整体仍判定为 `diagnostic_only`；当前主结论仍是 P3 集中式 scenario MPC。下一步应补齐 ideal 模式收敛处理，并在 locked-test 与未见自适应目标上复验。
+- 修复后的 distributed planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms；三种 seed、四种通信模式的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
+- 因此 P4 固定 S3 validation gate 已通过；locked-test、未见自适应目标和形式化博弈保证仍未完成，不能据此宣称完整部署结论。下一步转入泛化复验和 robust CBF-QP。
 
 ## 10. P5：robust CBF-QP 安全过滤层
 
@@ -698,11 +698,10 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 针对 P4 ideal 模式两个 seed 的 98.90% effective/converged plan rate，做确定性收敛处理或 warm start，并保持三 seed 协议重跑。
-2. 在未见自适应目标策略和 locked-test 上复验通信版本；当前 S3 validation 不能替代泛化测试。
-3. 若有效规划率门槛仍不能满足，保留 P3 集中式 scenario MPC 作为主结果，将 P4 限定为通信鲁棒性和实时性诊断。
-4. 在统一动力学和扰动边界冻结后实现 robust CBF-QP；没有独立证书前不称 R-CLBF-QP 已证明。
-5. 只有 P4 的实时性和泛化门槛通过后，才进入端到端三种子 locked-test。
+1. 在 locked-test 和未见自适应目标策略上复验四轮 best-response + shifted warm start，保持三 seed、场景 hash、通信审计和 TensorBoard/JSONL 协议。
+2. 在统一动力学和扰动边界冻结后实现 robust CBF-QP；没有独立证书前不称 R-CLBF-QP 已证明。
+3. 记录四轮迭代增加的 planner 延迟，并检查高扰动场景是否仍满足 100 ms 控制预算。
+4. 只有 P4 泛化门槛通过后，才进入端到端三种子 locked-test。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：
 

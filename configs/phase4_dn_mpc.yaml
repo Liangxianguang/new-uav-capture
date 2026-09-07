@@ -31,7 +31,7 @@ planner:
   perimeter_scales: [0.75, 1.0]
 
 distributed:
-  max_iterations: 3
+  max_iterations: 4
   convergence_tolerance_mps: 0.15
   communication_interval_steps: 1
   message_delay_steps: 2

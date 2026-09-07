@@ -2,7 +2,7 @@
 
 > 版本：v2.3（2026-09-07）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 已通过 S3 validation；P4 分布式 DN-MPC 的通信安全和 planner 实时性已通过当前 S3 诊断，但 ideal 模式两个 seed 的有效规划率略低于 99% 门槛，DN-MPC、R-CLBF-QP 和端到端完整结论尚未成立。
+> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 已通过 S3 validation；P4 分布式 DN-MPC 已通过固定 S3 validation gate，但 locked-test、未见自适应目标、R-CLBF-QP 和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -28,7 +28,7 @@
 - Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；结论为 `Conditional Go`，未达到 10% minFDE 强门槛。
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
-- Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；优化后 planner p95 为 8.47--12.42 ms、total-control p95 为 49.98--51.52 ms，但 ideal 模式两个 seed 的 effective/converged plan rate 为 98.90%，整体仍未过门。
+- Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
 
 ### 当前必须遵守的决策顺序
 
@@ -60,7 +60,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 记录消息发送、接收、丢包、字节数、消息年龄、planner 有效率、收敛率、局部失败和 fallback。
 - [ ] 在 locked-test、未见自适应目标策略和有效规划率门槛完成前，不宣称 DN-MPC 主结果成立。
 - [x] 通过向量化局部 scenario-cost 评估解决分布式 planner p95 超过 100 ms 的问题；三 seed 的 planner p95 均在 100 ms 内。
-- [ ] 解决 ideal 模式两个 seed 的 effective/converged plan rate 为 98.90% 的边界问题，并保持三 seed 协议重跑。
+- [x] 解决 ideal 模式 effective/converged plan rate 边界问题：增加一轮 best-response，并将上一周期序列按已执行动作左移后 warm start；三 seed 协议重跑均为 100%。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
 
 ### 正式预测实验命令模板
@@ -524,7 +524,7 @@ subject to  dynamics
 - [x] 在 delayed-noisy 条件下，安全捕获和 collision 未出现下降；性能代价已记录。
 - [x] 分布式结果与集中式 oracle 的主要安全指标差距不超过 10 个百分点，或能解释差距来自通信限制。
 - [x] solver success rate 不低于 99%，剩余失败均有安全 fallback；三种 seed 均为 100%。
-- [ ] 每个 seed 的 effective/converged plan rate 不低于 99%；ideal 模式为 98.90%、99.34%、98.90%。
+- [x] 每个 seed 的 effective/converged plan rate 不低于 99%；四种通信模式在三 seed 上均为 100%。
 - [x] p95 planning latency 在单个控制周期内；优化后三种 seed 的分布式 planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms。
 - [x] 仅使用预测候选而不访问目标真值。
 
@@ -541,9 +541,9 @@ subject to  dynamics
 - [x] 已完成 ideal、2-step delayed、10% dropout 和 no-communication 四种 P4 通信条件，并保留 TensorBoard、episode/step JSONL 和 summary JSON。
 - [x] 已确认四种分布式条件均为 100% safe capture、0% collision，DynamicEncirclement 为 91.7% safe capture、8.3% collision。
 - [ ] locked-test 和未见自适应目标策略仍未完成。
-- [x] planner p95 实时性门槛已通过；但 P4 的 per-seed effective/converged plan rate 门槛尚未通过，当前仍仅作为通信鲁棒性和实时性诊断，不能写成完整 DN-MPC 主结果。
+- [x] planner p95 实时性和 per-seed effective/converged plan rate 门槛已通过；P4 固定 S3 validation gate 成立，但 locked-test、未见自适应目标和形式化博弈保证仍未完成。
 
-正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md` 和 `docs/PHASE4_DN_MPC_VALIDATION_REPORT.md`；当前结论是集中式 planner 已通过 validation gate，分布式通信安全和实时性通过诊断，但 P4 整体因 ideal 模式有效规划率门槛未通过而未升级为主结果。
+正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md` 和 `docs/PHASE4_DN_MPC_VALIDATION_REPORT.md`；当前结论是集中式 planner 和固定 S3 分布式 validation gate 均已通过，但泛化、R-CLBF-QP 和端到端结果仍待验证。
 
 ---
 

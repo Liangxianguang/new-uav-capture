@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+from evaluate_minimax_mpc import _shift_warm_start_sequence  # noqa: E402
 
 from encirclement3d.distributed_dn_mpc import (
     DistributedDNMPCConfig,
@@ -111,3 +118,11 @@ def test_dropout_is_deterministic_and_raw_candidates_fallback() -> None:
 def test_configuration_rejects_invalid_dropout_probability() -> None:
     with pytest.raises(ValueError, match="dropout"):
         DistributedDNMPCConfig(message_dropout_probability=1.1)
+
+
+def test_receding_horizon_warm_start_shifts_executed_action() -> None:
+    sequence = np.arange(4 * 2 * 3, dtype=np.float64).reshape(4, 2, 3)
+    shifted = _shift_warm_start_sequence(sequence)
+
+    np.testing.assert_array_equal(shifted[:-1], sequence[1:])
+    np.testing.assert_array_equal(shifted[-1], sequence[-1])

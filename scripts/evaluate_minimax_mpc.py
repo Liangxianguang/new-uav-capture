@@ -303,6 +303,17 @@ def _planning_observation(env: CaptureRadiusPursuit3DEnv, observation: dict[str,
     return value
 
 
+def _shift_warm_start_sequence(sequence: np.ndarray) -> np.ndarray:
+    """Advance a prior receding-horizon sequence by one executed control step."""
+
+    value = np.asarray(sequence, dtype=np.float64)
+    if value.ndim != 3 or value.shape[0] < 1:
+        raise ValueError("warm-start sequence must have shape [horizon, defenders, 3]")
+    if value.shape[0] == 1:
+        return value.copy()
+    return np.concatenate([value[1:], value[-1:]], axis=0)
+
+
 def run_episode(
     config: dict[str, Any],
     *,
@@ -414,7 +425,7 @@ def run_episode(
                     previous_action_sequence=previous_distributed_sequence,
                     fallback_actions=fallback_actions,
                 )
-                previous_distributed_sequence = plan.action_sequence.copy()
+                previous_distributed_sequence = _shift_warm_start_sequence(plan.action_sequence)
             else:
                 planner = ScenarioMinimaxMPC(planner_config_for_method)
                 plan = planner.plan(
