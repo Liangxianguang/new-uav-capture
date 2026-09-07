@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v1.1（2026-09-07）
+> 版本：v1.2（2026-09-07）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已在 S3 validation 通过困难场景门槛；分布式 DN-MPC 的通信安全和 planner 实时性已通过当前 S3 诊断，但 ideal 模式有两个 seed 的有效规划率略低于 99% 门槛，尚不能作为完整方法主结论。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 已开始实现初版 velocity-level robust CBF-QP，但尚未完成测试、独立证书检查和端到端验证。
 
 ## 1. 先给结论
 
@@ -24,7 +24,7 @@
 | 方向 | 当前判断 | 主要原因 | 最小可发表版本 |
 | --- | --- | --- | --- |
 | SSM + 条件扩散预测 | 中高，Conditional Go | 已有稳定多模态候选和较低 minFDE，但 raw 候选不可执行，且平均提升低于 10% 门槛 | portable SSM diffusion + dynamics projection + coverage/energy/latency 审计 |
-| 极小极大 DN-MPC | 中 | S3 通信退化下安全指标稳定且优化后 planner p95 在预算内，但 ideal 模式有效规划率在两个 seed 略低于 99% | 补齐收敛处理，并在 locked-test/未见自适应目标上复验 |
+| 极小极大 DN-MPC | 中高（固定 S3 gate） | 已完成 warm start 后四种通信模式的固定 S3 验证，但 locked-test、未见自适应目标和形式化博弈泛化仍未知 | 在 locked-test 和未见自适应目标上复验 |
 | R-CLBF-QP | 中低 | QP 过滤器可实现，完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 可审计 robust CBF-QP；只有证书检查通过才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
@@ -98,8 +98,8 @@ Phase 2 使用 `v3_multimodal` 数据集、三个训练种子和 locked-test。�
 | 数据集 | `src/encirclement3d/trajectory_dataset.py` | 轨迹窗口、split、标签和几何上下文 | 禁止 episode 内窗口泄漏和 target truth leakage |
 | 预测训练 | `scripts/train_prediction_models.py` | GRU/SSM diffusion 训练和 TensorBoard | 训练配置、归一化器和 source hash 必须落盘 |
 | 预测评估 | `scripts/evaluate_prediction_models.py` | locked-test、coverage、可行性、延迟 | raw/projected 结果必须同时保留 |
-| 规划评估 | 待新增 `scripts/evaluate_minimax_mpc.py` | planner 场景实验和统计 | 不得读取目标真值 |
-| 安全层 | 待新增 `src/encirclement3d/safety_qp.py` | robust CBF-QP/R-CLBF-QP | 先实现可审计 QP，再考虑 learned CLBF |
+| 规划评估 | `scripts/evaluate_minimax_mpc.py`（已加入） | planner 场景实验和统计 | 不得读取目标真值 |
+| 安全层 | `src/encirclement3d/safety_qp.py`（初版已加入） | velocity-level robust CBF-QP；R-CLBF-QP 待验证 | 先完成可审计 QP，再考虑 learned CLBF |
 
 ### 3.1 统一数据契约
 
@@ -387,7 +387,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 - [x] delayed-noisy 与丢包条件下安全捕获性能未下降；丢包消息和 fallback 均被记录。
 - [x] 99% 以上控制周期有有效 planner 或记录过的安全 fallback；三种 seed 的 distributed valid plan rate 和 solver success rate 均为 100%。
 - [x] 每个 seed 的 effective/converged plan rate 均达到 99%；采用四轮 best-response 和 receding-horizon shifted warm start 后，三种 seed、四种通信模式均为 100%。
-- [x] p95 总 planner latency 满足预算；优化后 distributed planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms。
+- [x] p95 总 planner latency 满足预算；修复后 distributed planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms。
 
 若 P4 不通过，保留 P3 的集中式结果；不能把“集中式场景 MPC”写成“分布式 DN-MPC”。
 
@@ -404,6 +404,8 @@ P3-F 只能作为上限，不能作为主方法结果。
 ## 10. P5：robust CBF-QP 安全过滤层
 
 P5 是 R-CLBF-QP 前的必要基线。先解决 QP 可行性、离散时间约束和执行误差，再讨论 learned CLBF。
+
+当前状态：`src/encirclement3d/safety_qp.py` 已有初版 velocity-level robust CBF-QP，实现了障碍物、边界、机间距离、速度、动作变化、slack、fallback 和诊断字段；尚未完成语法/数值测试、独立证书检查、环境接入和 local CBF 对照，因此不能称为已验证的 R-CLBF-QP。
 
 ### 10.1 安全集
 

@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v2.3（2026-09-07）
+> 版本：v2.4（2026-09-07）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 已通过 S3 validation；P4 分布式 DN-MPC 已通过固定 S3 validation gate，但 locked-test、未见自适应目标、R-CLBF-QP 和端到端完整结论尚未成立。
+> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 和 P4 分布式 DN-MPC 已通过固定 S3 validation gate；P5 已开始实现初版 velocity-level robust CBF-QP，但尚未完成测试、证书检查和对照实验。locked-test、未见自适应目标、R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -29,6 +29,7 @@
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
+- Phase 5：`src/encirclement3d/safety_qp.py` 已加入初版 velocity-level robust CBF-QP，包含障碍物、边界、机间距离、速度和动作变化约束、slack、fallback 与诊断字段；尚未通过单元测试和独立安全证书检查。
 
 ### 当前必须遵守的决策顺序
 
@@ -58,9 +59,14 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 集中式 scenario min-max MPC 已在 S3 validation 上相对 DynamicEncirclement 提升 8.3 个百分点 safe capture，满足进入分布式 DN-MPC 的前置门槛。
 - [x] 在相同 12 个 S3 场景、三个 checkpoint seed 上完成 ideal、delayed、dropout、none 和 centralized oracle 对照。
 - [x] 记录消息发送、接收、丢包、字节数、消息年龄、planner 有效率、收敛率、局部失败和 fallback。
-- [ ] 在 locked-test、未见自适应目标策略和有效规划率门槛完成前，不宣称 DN-MPC 主结果成立。
+- [ ] 在 locked-test 和未见自适应目标策略复验完成前，不把固定 S3 validation gate 直接外推为 DN-MPC 泛化主结果。
 - [x] 通过向量化局部 scenario-cost 评估解决分布式 planner p95 超过 100 ms 的问题；三 seed 的 planner p95 均在 100 ms 内。
 - [x] 解决 ideal 模式 effective/converged plan rate 边界问题：增加一轮 best-response，并将上一周期序列按已执行动作左移后 warm start；三 seed 协议重跑均为 100%。
+- [x] 加入初版 `src/encirclement3d/safety_qp.py`；当前只代表 velocity-level robust CBF-QP，不代表 R-CLBF-QP 或闭环证明。
+- [ ] 运行安全 QP 语法检查、单元测试和四类最小数值场景：远离障碍物、边界投影、机间分离、solver fallback。
+- [ ] 新增 `configs/innovation_safety.yaml`、`scripts/evaluate_safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和对应测试。
+- [ ] 在相同 planner 输出下完成 local CBF、robust CBF-QP 和 fallback 的局部对照，记录残差、slack、修正量、延迟和碰撞/边界违规。
+- [ ] P5 验证通过后单独提交；不得将未验证的 `README.md` 或 `docs/EXPERIMENTAL_STUDY_REPORT.md` 加入提交。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
 
 ### 正式预测实验命令模板
@@ -525,7 +531,7 @@ subject to  dynamics
 - [x] 分布式结果与集中式 oracle 的主要安全指标差距不超过 10 个百分点，或能解释差距来自通信限制。
 - [x] solver success rate 不低于 99%，剩余失败均有安全 fallback；三种 seed 均为 100%。
 - [x] 每个 seed 的 effective/converged plan rate 不低于 99%；四种通信模式在三 seed 上均为 100%。
-- [x] p95 planning latency 在单个控制周期内；优化后三种 seed 的分布式 planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms。
+- [x] p95 planning latency 在单个控制周期内；修复后三种 seed 的分布式 planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms。
 - [x] 仅使用预测候选而不访问目标真值。
 
 如果 DN-MPC 只有在访问目标真值时有效，则该模块判定为实验诊断工具，不能作为方法主体。
@@ -547,7 +553,7 @@ subject to  dynamics
 
 ---
 
-## 7. Phase 4：R-CLBF-QP 鲁棒安全过滤
+## 7. Phase 5：robust CBF-QP 与 R-CLBF-QP 鲁棒安全过滤
 
 ## 7.1 先明确证明对象
 
@@ -619,7 +625,7 @@ subject to  dynamics
 
 ---
 
-## 8. Phase 5：端到端集成
+## 8. Phase 6：端到端集成
 
 ## 8.1 集成顺序
 
@@ -660,7 +666,7 @@ subject to  dynamics
 
 ---
 
-## 9. Phase 6：正式实验和统计协议
+## 9. Phase 7：正式实验和统计协议
 
 ### 9.1 场景分层
 
@@ -772,11 +778,11 @@ Mamba + deterministic prediction
 | 第 2 周 | Phase 1 动力学与数据记录 | dynamics contract、dataset v1 |
 | 第 3--4 周 | Phase 2 预测器 | GRU/Mamba/Diffusion checkpoints、prediction report |
 | 第 5--6 周 | Phase 3 集中式和分布式 MPC | planner、solver diagnostics、MPC report |
-| 第 7--8 周 | Phase 4 safety QP/CLBF | QP filter、certificate report |
-| 第 9 周 | Phase 5 集成和消融 | end-to-end artifacts |
-| 第 10 周 | Phase 6 locked test 和论文表格 | final report、复现脚本、模型清单 |
+| 第 7--8 周 | Phase 5 safety QP/CLBF | QP filter、certificate report |
+| 第 9 周 | Phase 6 集成和消融 | end-to-end artifacts |
+| 第 10 周 | Phase 7 locked test 和论文表格 | final report、复现脚本、模型清单 |
 
-如果 Phase 2 不满足预测门槛，应暂停后续扩展，先检查数据和目标策略；如果 Phase 3 不满足实时性，应采用低频 planner + 高频安全层；如果 Phase 4 无法形成可审计证明，应降低论文表述为经验型鲁棒安全过滤。
+如果 Phase 2 不满足预测门槛，应暂停后续扩展，先检查数据和目标策略；如果 Phase 3 不满足实时性，应采用低频 planner + 高频安全层；如果 Phase 5 无法形成可审计证明，应降低论文表述为经验型鲁棒安全过滤。
 
 ---
 
