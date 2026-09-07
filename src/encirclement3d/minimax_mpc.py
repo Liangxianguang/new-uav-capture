@@ -298,6 +298,54 @@ def aggregate_scenario_costs(values: Iterable[float], weights: Iterable[float], 
     raise ValueError(f"Unsupported risk mode: {risk_mode}")
 
 
+def evaluate_candidate_capture_distances(
+    observation: dict[str, Any],
+    action_sequence: np.ndarray,
+    scenarios: ScenarioTrajectorySet,
+    *,
+    dt_seconds: float,
+    max_speed_mps: float,
+) -> dict[str, np.ndarray]:
+    """Evaluate planned candidate-level terminal and closest distances.
+
+    The rollout uses only the planner observation, the selected nominal action
+    sequence, and projected candidate paths.  It is therefore suitable for
+    diagnostics without exposing the environment's true target trajectory.
+    ``terminal_distances_m`` is the nearest-defender distance at the end of
+    the planned horizon; ``minimum_distances_m`` is its minimum over that
+    horizon.  Higher values are worse for both metrics.
+    """
+
+    if dt_seconds <= 0.0 or max_speed_mps <= 0.0:
+        raise ValueError("dt_seconds and max_speed_mps must be positive.")
+    actions = np.asarray(action_sequence, dtype=np.float64)
+    paths = np.asarray(scenarios.trajectories, dtype=np.float64)
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64).copy()
+    if actions.ndim != 3 or actions.shape[-1] != 3:
+        raise ValueError("action_sequence must have shape [horizon, defenders, 3].")
+    if paths.ndim != 3 or paths.shape[-1] != 3 or paths.shape[1] != actions.shape[0]:
+        raise ValueError("Candidate paths and action sequence have incompatible horizons.")
+    if positions.ndim != 2 or positions.shape[-1] != 3 or positions.shape[0] != actions.shape[1]:
+        raise ValueError("Observation and action sequence have incompatible defender shapes.")
+
+    minimum_distances = np.full(paths.shape[0], np.inf, dtype=np.float64)
+    terminal_distances = np.full(paths.shape[0], np.inf, dtype=np.float64)
+    for timestep, target_positions in enumerate(paths.transpose(1, 0, 2)):
+        action = _clip_rows(actions[timestep], max_speed_mps)
+        positions += action * float(dt_seconds)
+        distances = np.linalg.norm(positions[None, :, :] - target_positions[:, None, :], axis=-1)
+        nearest_distances = np.min(distances, axis=1)
+        minimum_distances = np.minimum(minimum_distances, nearest_distances)
+        if timestep == actions.shape[0] - 1:
+            terminal_distances = nearest_distances
+    if not np.isfinite(minimum_distances).all() or not np.isfinite(terminal_distances).all():
+        raise FloatingPointError("Candidate distance rollout produced non-finite values.")
+    return {
+        "terminal_distances_m": terminal_distances,
+        "minimum_distances_m": minimum_distances,
+    }
+
+
 def make_belief_candidate_set(
     observation: dict[str, Any],
     *,
@@ -660,5 +708,6 @@ __all__ = [
     "ScenarioMinimaxMPC",
     "ScenarioTrajectorySet",
     "aggregate_scenario_costs",
+    "evaluate_candidate_capture_distances",
     "make_belief_candidate_set",
 ]

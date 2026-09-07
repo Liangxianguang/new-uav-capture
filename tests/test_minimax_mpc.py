@@ -8,6 +8,7 @@ from encirclement3d.minimax_mpc import (
     ScenarioMinimaxMPC,
     ScenarioTrajectorySet,
     aggregate_scenario_costs,
+    evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
 
@@ -93,3 +94,30 @@ def test_belief_candidate_generation_is_deterministic_and_policy_safe() -> None:
     )
     np.testing.assert_allclose(first.trajectories, second.trajectories)
     assert first.dynamics_status == "projected"
+
+
+def test_candidate_distance_rollout_is_truth_free_and_reports_terminal_and_minimum() -> None:
+    observation = _observation()
+    scenarios = ScenarioTrajectorySet(
+        trajectories=np.array(
+            [
+                [[-3.5, -2.0, 3.0], [-3.5, -2.0, 3.0]],
+                [[-3.0, -2.0, 3.0], [-3.0, -2.0, 3.0]],
+            ],
+            dtype=np.float64,
+        ),
+        weights=np.ones(2),
+        dynamics_status="projected",
+    )
+    actions = np.zeros((2, 4, 3), dtype=np.float64)
+    distances = evaluate_candidate_capture_distances(
+        observation,
+        actions,
+        scenarios,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+    )
+    assert distances["terminal_distances_m"].shape == (2,)
+    assert distances["minimum_distances_m"].shape == (2,)
+    np.testing.assert_allclose(distances["terminal_distances_m"], [0.5, 1.0])
+    np.testing.assert_allclose(distances["minimum_distances_m"], [0.5, 1.0])

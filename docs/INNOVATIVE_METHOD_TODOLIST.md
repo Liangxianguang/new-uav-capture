@@ -27,8 +27,8 @@
 - Phase 1：预测窗口、可见信息约束、五类目标模式、障碍物上下文、未来目标速度、数据元数据和数据集切分已经实现；统一执行动力学和自适应博弈目标仍未完成。
 - Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；结论为 `Conditional Go`，未达到 10% minFDE 强门槛。
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
-- Phase 3：尚未实现最终 DN-MPC；下一步允许实现集中式 scenario min-max MPC 作为诊断规划器，只能消费 dynamics-projected candidates。
-- Phase 4 及以后：尚未开始实现。
+- Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛；最终 DN-MPC 尚未实现。
+- Phase 4：尚未开始实现分布式 DN-MPC；下一步为有限通信 sequential best-response 版本。
 
 ### 当前必须遵守的决策顺序
 
@@ -44,7 +44,7 @@
   -> 端到端三种子锁定测试
 ```
 
-在 Phase 2 没有完全通过前，不实现 DN-MPC 的最终版本；当前只允许实现集中式 scenario MPC 作为诊断规划器。在动力学、扰动边界和安全 QP 都固定前，不宣称 R-CLBF-QP 有闭环安全证明。
+Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validation 门槛已通过后，才进入有限通信 DN-MPC。动力学、扰动边界和安全 QP 都固定前，不宣称 R-CLBF-QP 有闭环安全证明。
 
 ### 当前立即执行清单
 
@@ -55,7 +55,8 @@
 - [x] 按五种目标模式分层汇总；观测退化条件仍需作为 Phase 1/正式规划实验补充。
 - [x] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
 - [x] 写入新的 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
-- [ ] 只有集中式 scenario min-max MPC 证明有收益后，才实现分布式 DN-MPC。
+- [x] 集中式 scenario min-max MPC 已在 S3 validation 上相对 DynamicEncirclement 提升 8.3 个百分点 safe capture，满足进入分布式 DN-MPC 的前置门槛。
+- [ ] 在 locked-test 和通信退化实验完成前，不宣称 DN-MPC 主结果成立。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
 
 ### 正式预测实验命令模板
@@ -422,7 +423,7 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 
 ---
 
-## 6. Phase 3：极小极大分布式 DN-MPC
+## 6. Phase 3：集中式 Scenario Min-Max MPC
 
 ## 6.1 规划问题定义
 
@@ -454,7 +455,7 @@ subject to  dynamics
 - [ ] 对每个代价项写出单位、归一化方式和权重来源。
 - [ ] 先固定权重，再做预注册的小范围敏感性实验。
 
-## 6.3 分布式机制任务
+## 6.3 分布式 DN-MPC 机制任务（Phase 4，尚未开始）
 
 - [ ] 规定每架无人机可获得的信息范围。
 - [ ] 规定共享消息内容：邻机状态、预测轨迹、候选控制序列或角色信息。
@@ -503,9 +504,19 @@ subject to  dynamics
 - [ ] planner 后置当前 CBF。
 - [ ] planner 后置 R-CLBF-QP。
 
-## 6.7 Phase 3 通过条件
+## 6.7 Phase 3 集中式规划通过条件
 
-- [ ] 在相同候选轨迹和相同场景种子下，worst-case 或 CVaR DN-MPC 的安全捕获率高于当前 DynamicEncirclementController。
+- [x] 在相同候选轨迹和相同场景种子下，worst-case 或 CVaR 至少改善一个困难层指标。
+- [x] 在 S3 随机混合障碍物场景下，安全捕获率相对 DynamicEncirclement 提升至少 5 个百分点。
+- [x] collision rate 不高于基线超过 1 个百分点。
+- [x] solver success rate 不低于 99%，剩余失败均有记录过的 fallback。
+- [x] 总控制 p95 在控制预算内，或明确采用低频 planner/高频 safety 架构。
+- [x] 仅使用预测候选而不访问目标真值。
+
+这些条件只证明集中式 scenario planner 的 P3 validation gate，不证明分布式 DN-MPC。
+
+## 6.8 Phase 4 分布式 DN-MPC 通过条件
+
 - [ ] 在 delayed-noisy 条件下，性能下降不超过预注册阈值。
 - [ ] 分布式结果与集中式 oracle 的主要指标差距不超过 10 个百分点，或能解释差距来自通信限制。
 - [ ] solver success rate 不低于 99%，剩余失败均有安全 fallback。
@@ -519,11 +530,13 @@ subject to  dynamics
 - [x] 已实现集中式 finite-shooting scenario MPC，支持 expected、worst-case 和 CVaR。
 - [x] 已实现 projected-candidate contract、solver/fallback diagnostics、逐步 JSONL 和 TensorBoard 记录。
 - [x] 已完成 8 个固定 seed 的 formal-small 诊断；四种配置均无碰撞，total control p95 约为 45--52 ms。
-- [ ] 困难场景（S3/S5/S6）下的安全捕获增益仍未验证。
-- [ ] 候选级 worst-case capture distance 和三个预测 checkpoint seed 的稳定性仍未验证。
-- [ ] 在集中式 planner 通过困难场景门槛前，不实现最终 DN-MPC。
+- [x] 已在 S3 随机混合障碍物、delayed_noisy 和 s_curve 条件下完成 12 个共享场景的 validation。
+- [x] 已保存候选级 minimum/terminal distance、scenario cost、worst/CVaR 聚合统计。
+- [x] 已使用 prediction checkpoint seed `745101/745201/745301` 重复运行，三次 `scenes.jsonl` hash 一致且方向一致。
+- [ ] locked-test、丢包专项和未见自适应目标策略仍未完成。
+- [ ] 只有完成 P4 通信退化验证后，才能把分布式 DN-MPC 写成主方法结果。
 
-正式诊断报告见 `docs/PHASE3_MPC_DIAGNOSTIC_REPORT.md`；当前结论是集中式 planner 可运行，但 Phase 3 科学门槛尚未通过。
+正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md`；当前结论是集中式 planner 已通过 validation gate，但 Phase 3 的分布式通信结论尚未成立。
 
 ---
 

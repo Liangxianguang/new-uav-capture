@@ -3,7 +3,7 @@
 > 版本：v1.0（2026-09-07）  
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已实现并完成 formal-small 诊断，但尚未证明困难场景收益，DN-MPC、R-CLBF-QP 和端到端方法仍未成立。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已在 S3 validation 通过困难场景门槛，但分布式 DN-MPC、R-CLBF-QP 和端到端方法仍未成立。
 
 ## 1. 先给结论
 
@@ -24,7 +24,7 @@
 | 方向 | 当前判断 | 主要原因 | 最小可发表版本 |
 | --- | --- | --- | --- |
 | SSM + 条件扩散预测 | 中高，Conditional Go | 已有稳定多模态候选和较低 minFDE，但 raw 候选不可执行，且平均提升低于 10% 门槛 | portable SSM diffusion + dynamics projection + coverage/energy/latency 审计 |
-| 极小极大 DN-MPC | 中 | 场景候选可以直接进入滚动优化，但规划收益尚未验证，通信和求解失败是主要风险 | 预测候选驱动的集中式 risk-sensitive MPC；分布式作为后续实验 |
+| 极小极大 DN-MPC | 中 | 集中式 S3 validation 已有收益；通信延迟、丢包、子问题不收敛仍是主要风险 | 有限通信 sequential best-response，并与集中式 oracle 同场景对照 |
 | R-CLBF-QP | 中低 | QP 过滤器可实现，完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 可审计 robust CBF-QP；只有证书检查通过才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
@@ -340,21 +340,24 @@ P3-F 只能作为上限，不能作为主方法结果。
 
 ### 8.5 P3 验收条件
 
-- [ ] 在相同场景种子和相同 projected candidates 下，worst-case 或 CVaR 至少改善一个困难层指标。
-- [ ] S3 随机混合障碍物或 S5 退化观测条件下，安全捕获率提升至少 5 个百分点，或者最坏候选 capture distance 降低至少 10%。
-- [ ] collision rate 不高于基线超过 1 个百分点。
-- [ ] solver success rate 不低于 99%，失败均进入记录过的 fallback。
-- [ ] p95 planner latency 能够放入控制预算，或明确采用低频 planner + 高频 safety 架构。
-- [ ] 规划器不读取 target truth。
+- [x] 在相同场景种子和相同 projected candidates 下，worst-case 或 CVaR 至少改善一个困难层指标。
+- [x] S3 随机混合障碍物或 S5 退化观测条件下，安全捕获率提升至少 5 个百分点，或者最坏候选 capture distance 降低至少 10%。
+- [x] collision rate 不高于基线超过 1 个百分点。
+- [x] solver success rate 不低于 99%，失败均进入记录过的 fallback。
+- [x] p95 planner latency 能够放入控制预算，或明确采用低频 planner + 高频 safety 架构。
+- [x] 规划器不读取 target truth。
 
 若 P3 只有 oracle 输入有效，则判定为诊断工具，停止向 DN-MPC 扩展。
 
 ### 8.6 当前 P3 证据
 
-集中式 planner 的实现和 8 个固定 seed 的 formal-small 诊断已完成，详见
-`docs/PHASE3_MPC_DIAGNOSTIC_REPORT.md`。四种配置均无碰撞且安全捕获率为 100%，但场景过于容易，不能区分规划器收益；因此 P3 的困难场景收益门槛仍未验证，暂不进入分布式 DN-MPC。
+集中式 planner 的实现、formal-small 诊断和 S3 validation 已完成，详见
+`docs/PHASE3_MPC_DIAGNOSTIC_REPORT.md` 与 `docs/PHASE3_S3_VALIDATION_REPORT.md`。
+在同一组 12 个 S3 场景和三个 prediction checkpoint seed 上，三种风险配置均为
+100% safe capture、0% collision；DynamicEncirclement 基线为 91.7% safe capture、
+8.3% collision，达到 +8.3 个百分点的预注册门槛，因此允许进入 P4。
 
-当前已确认：planner p95 约为 11--12 ms，SSM diffusion + planner + local CBF 的 total control p95 约为 45--52 ms。当前未确认：S3/S5/S6 困难条件下的安全捕获增益、候选级 worst-case capture distance 和三种预测 checkpoint seed 的稳定性。
+当前已确认：三个 checkpoint seed 的场景 hash 一致，solver success 为 100%，总控制 p95 最大为 83.54 ms，并保存了候选级距离和风险统计。当前未确认：locked-test、丢包专项、未见自适应目标策略和分布式 DN-MPC 的通信鲁棒性。
 
 ## 9. P4：分布式 DN-MPC
 
@@ -684,10 +687,10 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 扩展 P3 到随机混合障碍物、窄通道、delayed-noisy、丢包和未见目标策略。
-2. 保存候选级 rollout cost、worst-case candidate 和 CVaR tail 统计。
-3. 使用三个 prediction checkpoint seed 做同场景对照。
-4. 只有 P3 在困难条件下有收益，才实现 DN-MPC；否则保留集中式诊断结论。
+1. 实现有限通信 sequential best-response DN-MPC，并保留集中式 planner 作为 oracle。
+2. 在相同 S3 场景上加入通信延迟、丢包和 planner fallback 统计。
+3. 完成 DN-MPC 与集中式 oracle 的同场景、三个 checkpoint seed 对照。
+4. 若分布式结果不稳定，保留集中式 planner 贡献，不把通信版本写成主结论。
 5. 在动力学契约冻结后实现 robust CBF-QP；没有独立证书前不称 R-CLBF-QP 已证明。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：

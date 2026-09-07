@@ -26,16 +26,28 @@ if os.name == "nt":
 import numpy as np
 import torch
 import yaml
-from torch.utils.tensorboard import SummaryWriter
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ModuleNotFoundError:  # pragma: no cover - depends on environment extras
+    SummaryWriter = None
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+
+def require_summary_writer() -> Any:
+    if SummaryWriter is None:
+        raise RuntimeError("TensorBoard logging requires the optional 'tensorboard' package.")
+    return SummaryWriter
 
 from encirclement3d.minimax_mpc import (  # noqa: E402
     MinimaxMPCConfig,
     MinimaxMPCDiagnostics,
     ScenarioMinimaxMPC,
     ScenarioTrajectorySet,
+    aggregate_scenario_costs,
+    evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
@@ -50,6 +62,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.showcase import prepare_showcase_episode  # noqa: E402
 
 
 DEFAULT_ENVIRONMENT_CONFIG = PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml"
@@ -282,13 +295,24 @@ def run_episode(
     sampling_seed: int,
     projection_iterations: int,
     use_local_cbf: bool,
-) -> tuple[dict[str, Any], list[dict[str, float]]]:
+    scenario: Any | None = None,
+    validate_scenario: bool = True,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     env = CaptureRadiusPursuit3DEnv(
         config,
         obstacle_count=int(config["experiments"][0]["obstacle_count"]),
         target_speed_scale=float(config["experiments"][0]["target_speed_scale"]),
     )
-    observation = env.reset(seed=seed)
+    if scenario is None:
+        observation = env.reset(seed=seed)
+    else:
+        observation = prepare_showcase_episode(
+            env,
+            scenario,
+            seed=seed,
+            record_history=False,
+            validate_scenario=validate_scenario,
+        )
     fallback_controller = DynamicEncirclementController(env)
     safety_filter = PursuitCBFSafetyFilter(env) if use_local_cbf else None
     planner = ScenarioMinimaxMPC(planner_config)
@@ -313,7 +337,7 @@ def run_episode(
 
     path_length = np.zeros(env.n_defenders, dtype=np.float64)
     previous_positions = env.defender_positions.copy()
-    step_rows: list[dict[str, float]] = []
+    step_rows: list[dict[str, Any]] = []
     final_info: dict[str, Any] = {}
     while True:
         control_started = time.perf_counter()
@@ -322,6 +346,11 @@ def run_episode(
             nominal_actions = fallback_actions
             planner_diagnostics = _default_diagnostics()
             predictor_latency_ms = 0.0
+            candidate_distance_metrics = {
+                "terminal_distances_m": np.empty(0, dtype=np.float64),
+                "minimum_distances_m": np.empty(0, dtype=np.float64),
+            }
+            candidate_weights = np.empty(0, dtype=np.float64)
         else:
             assert runtime is not None
             scenarios, predictor_latency_ms = runtime.predict(observation, planner_config.horizon_steps)
@@ -339,6 +368,53 @@ def run_episode(
             )
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
+            candidate_distance_metrics = evaluate_candidate_capture_distances(
+                _planning_observation(env, observation),
+                plan.action_sequence,
+                scenarios.truncate(planner_config.horizon_steps),
+                dt_seconds=planner_config.dt_seconds,
+                max_speed_mps=planner_config.max_speed_mps,
+            )
+            candidate_weights = scenarios.normalized_weights
+        candidate_minimum_distances = candidate_distance_metrics["minimum_distances_m"]
+        candidate_terminal_distances = candidate_distance_metrics["terminal_distances_m"]
+        if candidate_minimum_distances.size:
+            candidate_expected_minimum = aggregate_scenario_costs(
+                candidate_minimum_distances,
+                candidate_weights,
+                "expected",
+                planner_config.cvar_alpha,
+            )
+            candidate_worst_minimum = aggregate_scenario_costs(
+                candidate_minimum_distances,
+                candidate_weights,
+                "worst_case",
+                planner_config.cvar_alpha,
+            )
+            candidate_cvar_minimum = aggregate_scenario_costs(
+                candidate_minimum_distances,
+                candidate_weights,
+                "cvar",
+                planner_config.cvar_alpha,
+            )
+            candidate_expected_terminal = aggregate_scenario_costs(
+                candidate_terminal_distances,
+                candidate_weights,
+                "expected",
+                planner_config.cvar_alpha,
+            )
+            candidate_worst_terminal = aggregate_scenario_costs(
+                candidate_terminal_distances,
+                candidate_weights,
+                "worst_case",
+                planner_config.cvar_alpha,
+            )
+        else:
+            candidate_expected_minimum = float("nan")
+            candidate_worst_minimum = float("nan")
+            candidate_cvar_minimum = float("nan")
+            candidate_expected_terminal = float("nan")
+            candidate_worst_terminal = float("nan")
         if safety_filter is None:
             safe_actions = np.asarray(nominal_actions, dtype=np.float64)
             cbf_correction = 0.0
@@ -366,6 +442,15 @@ def run_episode(
                 "safety_latency_ms": float(safety_latency_ms),
                 "total_control_latency_ms": float(total_control_latency_ms),
                 "nearest_target_distance": float(final_info["nearest_target_distance"]),
+                "candidate_count": float(candidate_minimum_distances.size),
+                "candidate_expected_minimum_distance_m": float(candidate_expected_minimum),
+                "candidate_worst_minimum_distance_m": float(candidate_worst_minimum),
+                "candidate_cvar_minimum_distance_m": float(candidate_cvar_minimum),
+                "candidate_expected_terminal_distance_m": float(candidate_expected_terminal),
+                "candidate_worst_terminal_distance_m": float(candidate_worst_terminal),
+                "candidate_minimum_distances_m": candidate_minimum_distances.tolist(),
+                "candidate_terminal_distances_m": candidate_terminal_distances.tolist(),
+                "candidate_scenario_costs": list(planner_diagnostics.scenario_costs),
             }
         )
         if terminated or truncated:
@@ -397,6 +482,21 @@ def run_episode(
         "mean_cbf_action_correction_norm": float(
             np.nanmean([row["cbf_action_correction_norm"] for row in step_rows])
         ),
+        "mean_candidate_worst_minimum_distance_m": float(
+            finite_mean([row["candidate_worst_minimum_distance_m"] for row in step_rows])
+        ),
+        "worst_step_candidate_worst_minimum_distance_m": float(
+            finite_max([row["candidate_worst_minimum_distance_m"] for row in step_rows])
+        ),
+        "mean_candidate_cvar_minimum_distance_m": float(
+            finite_mean([row["candidate_cvar_minimum_distance_m"] for row in step_rows])
+        ),
+        "mean_candidate_expected_minimum_distance_m": float(
+            finite_mean([row["candidate_expected_minimum_distance_m"] for row in step_rows])
+        ),
+        "candidate_distance_step_count": int(
+            sum(float(row["candidate_count"]) > 0.0 for row in step_rows)
+        ),
     }
     return summary, step_rows
 
@@ -406,7 +506,17 @@ def percentile(values: list[float], quantile: float) -> float:
     return float(np.percentile(finite, quantile)) if finite.size else float("nan")
 
 
-def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, float]]) -> dict[str, Any]:
+def finite_mean(values: list[float]) -> float:
+    finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
+    return float(np.mean(finite)) if finite.size else float("nan")
+
+
+def finite_max(values: list[float]) -> float:
+    finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
+    return float(np.max(finite)) if finite.size else float("nan")
+
+
+def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) -> dict[str, Any]:
     if not rows:
         raise ValueError("Cannot summarize empty planner evaluation.")
     capture_times = [float(row["capture_time_seconds"]) for row in rows if row["capture_time_seconds"] is not None]
@@ -430,6 +540,15 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, float]]
         "worst_min_clearance_m": float(np.nanmin([float(row["min_clearance_m"]) for row in rows])),
         "mean_defender_path_length_m": float(np.mean([row["mean_defender_path_length_m"] for row in rows])),
         "mean_observation_age_steps": float(np.nanmean([row["mean_observation_age_steps"] for row in rows])),
+        "mean_candidate_worst_minimum_distance_m": finite_mean(
+            [row["mean_candidate_worst_minimum_distance_m"] for row in rows]
+        ),
+        "worst_candidate_minimum_distance_m": finite_max(
+            [row["worst_step_candidate_worst_minimum_distance_m"] for row in rows]
+        ),
+        "mean_candidate_cvar_minimum_distance_m": finite_mean(
+            [row["mean_candidate_cvar_minimum_distance_m"] for row in rows]
+        ),
         "solver_success_rate": float(success_steps / max(planner_steps, 1.0)),
         "fallback_rate": float(fallback_steps / max(planner_steps, 1.0)),
         "planner_latency_ms": {
@@ -589,7 +708,7 @@ def main() -> None:
         summary = summarize_rows(rows, all_step_rows)
         method_output.joinpath("summary.json").write_text(json.dumps(summary, indent=2, allow_nan=True), encoding="utf-8")
         all_summaries[method] = summary
-        with SummaryWriter(log_dir=str(method_output / "tensorboard"), flush_secs=5) as writer:
+        with require_summary_writer()(log_dir=str(method_output / "tensorboard"), flush_secs=5) as writer:
             writer.add_text("Evaluation/config", yaml.safe_dump(run_config, sort_keys=False), 0)
             writer.add_text("Evaluation/source_hashes", json.dumps(run_config["source_hashes"], indent=2), 0)
             for episode_index, row in enumerate(rows):
@@ -606,6 +725,8 @@ def main() -> None:
                     "mean_total_control_latency_ms",
                     "planner_fallback_count",
                     "planner_success_count",
+                    "mean_candidate_worst_minimum_distance_m",
+                    "mean_candidate_cvar_minimum_distance_m",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):

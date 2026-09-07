@@ -1,0 +1,35 @@
+experiment_name: phase3_s3_centralized_mpc_validation
+protocol: central_random_mixed_obstacle_s3_v5_protocol.yaml
+split: validation
+episodes_per_checkpoint: 12
+prediction_checkpoints:
+  - results/phase2_formal_diffusion_seed745101/checkpoint.pt
+  - results/phase2_formal_diffusion_seed745201/checkpoint.pt
+  - results/phase2_formal_diffusion_seed745301/checkpoint.pt
+planner_config: innovation_mpc.yaml
+methods:
+  - dynamic_encirclement
+  - expected
+  - worst_case
+  - cvar
+prediction:
+  candidate_source: checkpoint
+  num_samples: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+safety:
+  filter: local_cbf
+  control_cycle_budget_ms: 100.0
+reporting:
+  common_scene_protocol: true
+  preserve_scene_jsonl: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  tensorboard_required: true
+  candidate_level_distances: true
+  solver_and_fallback_diagnostics: true
+decision_gate:
+  safe_capture_gain_percentage_points: 5.0
+  collision_rate_degradation_percentage_points: 1.0
+  solver_success_rate: 0.99
