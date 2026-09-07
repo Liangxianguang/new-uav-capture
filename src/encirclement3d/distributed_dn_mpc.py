@@ -536,36 +536,178 @@ class DistributedMinimaxDNMPC:
         known: dict[int, _PlannerMessage],
         peer_sequences: dict[int, np.ndarray],
     ) -> tuple[np.ndarray, np.ndarray]:
-        costs = np.stack(
-            [
-                self._local_scenario_costs(
-                    observation,
-                    scenarios,
-                    agent_id,
-                    candidate,
-                    known,
-                    peer_sequences,
-                )
-                for candidate in local_candidates
-            ],
-            axis=0,
+        costs = self._local_scenario_cost_matrix(
+            observation,
+            scenarios,
+            agent_id,
+            np.stack(local_candidates, axis=0),
+            known,
+            peer_sequences,
         )
-        objectives = np.asarray(
-            [
-                aggregate_scenario_costs(
-                    row,
-                    scenarios.normalized_weights,
-                    self.config.risk_mode,
-                    self.config.cvar_alpha,
-                )
-                for row in costs
-            ],
-            dtype=np.float64,
-        )
+        if self.config.risk_mode == "expected":
+            objectives = costs @ scenarios.normalized_weights
+        elif self.config.risk_mode == "worst_case":
+            objectives = np.max(costs, axis=1)
+        else:
+            objectives = np.asarray(
+                [
+                    aggregate_scenario_costs(
+                        row,
+                        scenarios.normalized_weights,
+                        self.config.risk_mode,
+                        self.config.cvar_alpha,
+                    )
+                    for row in costs
+                ],
+                dtype=np.float64,
+            )
         if not np.isfinite(objectives).all():
             raise FloatingPointError("local objective contains non-finite values")
         selected = int(np.argmin(objectives))
         return local_candidates[selected], costs[selected]
+
+    def _local_scenario_cost_matrix(
+        self,
+        observation: dict[str, Any],
+        scenarios: ScenarioTrajectorySet,
+        agent_id: int,
+        own_actions: np.ndarray,
+        known: dict[int, _PlannerMessage],
+        peer_sequences: dict[int, np.ndarray],
+    ) -> np.ndarray:
+        """Evaluate local action candidates against all target scenarios in one pass.
+
+        The previous implementation nested Python loops over local candidates,
+        target scenarios and horizon steps.  Keeping candidates in a leading
+        batch dimension preserves the local information contract while making
+        the expensive finite-shooting arithmetic run in NumPy kernels.
+        """
+
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        actions = np.asarray(own_actions, dtype=np.float64)
+        if actions.ndim == 2:
+            actions = actions[None, ...]
+        if (
+            actions.ndim != 3
+            or actions.shape[1] != self.config.horizon_steps
+            or actions.shape[2] != 3
+        ):
+            raise ValueError("own_actions must have shape [candidates, horizon, 3].")
+        actions = _clip_rows(actions, self.config.max_speed_mps)
+
+        lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
+        upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
+        obstacles = self._local_obstacles(observation, positions[agent_id])
+        paths = np.asarray(scenarios.trajectories, dtype=np.float64)
+        weights = scenarios.normalized_weights
+        candidate_count = paths.shape[0]
+        current = positions[agent_id][None, None, :] + np.cumsum(
+            actions * self.config.dt_seconds,
+            axis=1,
+        )
+        distances = np.linalg.norm(
+            current[:, None, :, :] - paths[None, :, :, :],
+            axis=-1,
+        )
+        result = self.config.weight_distance * distances.sum(axis=2)
+        result += self.config.weight_capture_hinge * np.maximum(
+            distances - self.config.capture_radius_m,
+            0.0,
+        ).__pow__(2).sum(axis=2)
+        result += self.config.weight_terminal_distance * distances[:, :, -1]
+
+        target_reference = np.average(paths[:, 0], axis=0, weights=weights)
+        team_positions = {agent_id: positions[agent_id]}
+        team_positions.update({peer: message.position for peer, message in known.items()})
+        interceptor = min(
+            team_positions,
+            key=lambda peer: float(np.linalg.norm(team_positions[peer] - target_reference)),
+        )
+        if agent_id != interceptor:
+            direction = TETRAHEDRON_DIRECTIONS[agent_id % len(TETRAHEDRON_DIRECTIONS)]
+            target_points = paths + direction[None, None, :] * self.config.role_perimeter_m
+            formation = np.abs(
+                np.linalg.norm(current[:, None, :, :] - target_points[None, :, :, :], axis=-1)
+                - self.config.role_perimeter_m
+            )
+            result += self.config.weight_formation * formation.sum(axis=2)
+
+        result += self.config.weight_control * np.sum(actions * actions, axis=(1, 2))[:, None]
+        previous = np.concatenate(
+            [
+                np.broadcast_to(
+                    np.asarray(observation["defender_velocities"], dtype=np.float64)[agent_id],
+                    (actions.shape[0], 1, 3),
+                ),
+                actions[:, :-1, :],
+            ],
+            axis=1,
+        )
+        change = actions - previous
+        result += self.config.weight_control_change * np.sum(change * change, axis=(1, 2))[:, None]
+        result += self.config.weight_relative_speed * np.linalg.norm(change, axis=-1).sum(axis=1)[:, None]
+
+        for peer, message in known.items():
+            peer_actions = peer_sequences.get(peer)
+            if peer_actions is None:
+                peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + (
+                    np.arange(self.config.horizon_steps, dtype=np.float64)[:, None] + 1.0
+                ) * np.asarray(message.velocity, dtype=np.float64)[None, :] * self.config.dt_seconds
+            else:
+                peer_actions = _clip_rows(np.asarray(peer_actions, dtype=np.float64), self.config.max_speed_mps)
+                peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
+                    peer_actions * self.config.dt_seconds,
+                    axis=0,
+                )
+            inter_agent = np.maximum(
+                self.config.minimum_inter_agent_distance_m
+                - np.linalg.norm(current - peer_positions[None, :, :], axis=-1),
+                0.0,
+            )
+            result += self.config.weight_inter_agent * np.sum(inter_agent * inter_agent, axis=1)[:, None]
+
+        for obstacle in obstacles:
+            shape = str(obstacle.get("shape", "cylinder"))
+            center_xy = np.asarray(obstacle["center_xy"], dtype=np.float64)
+            height = float(obstacle["height"])
+            if shape == "cylinder":
+                radial = np.linalg.norm(current[..., :2] - center_xy, axis=-1) - float(obstacle["radius"])
+                vertical = np.maximum.reduce(
+                    (-current[..., 2], current[..., 2] - height, np.zeros(current.shape[:2]))
+                )
+                clearance = np.where(
+                    vertical == 0.0,
+                    radial,
+                    np.where(radial <= 0.0, vertical, np.hypot(radial, vertical)),
+                )
+            else:
+                half = obstacle.get("half_extents_xy")
+                if half is None:
+                    half = [float(obstacle["radius"]), float(obstacle["radius"])]
+                center = np.array([center_xy[0], center_xy[1], height * 0.5], dtype=np.float64)
+                half_extent = np.array([float(half[0]), float(half[1]), height * 0.5], dtype=np.float64)
+                signed = np.abs(current - center) - half_extent
+                outside = np.maximum(signed, 0.0)
+                outside_norm = np.linalg.norm(outside, axis=-1)
+                clearance = np.where(
+                    outside_norm > 0.0,
+                    outside_norm,
+                    -np.max(-signed, axis=-1),
+                )
+            violation = np.maximum(
+                self.config.safety_margin_m - (clearance - self.config.drone_radius_m),
+                0.0,
+            )
+            result += self.config.weight_obstacle * np.sum(violation * violation, axis=1)[:, None]
+
+        boundary = np.maximum(
+            np.max(np.maximum(lower[None, None, :] - current, 0.0), axis=2),
+            np.max(np.maximum(current - upper[None, None, :], 0.0), axis=2),
+        )
+        result += self.config.weight_boundary * np.sum(boundary * boundary, axis=1)[:, None]
+        if result.shape != (actions.shape[0], candidate_count) or not np.isfinite(result).all():
+            raise FloatingPointError("local scenario cost contains non-finite values")
+        return result
 
     def _local_scenario_costs(
         self,
@@ -576,76 +718,14 @@ class DistributedMinimaxDNMPC:
         known: dict[int, _PlannerMessage],
         peer_sequences: dict[int, np.ndarray],
     ) -> np.ndarray:
-        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-        own_position = positions[agent_id].copy()
-        own_actions = _clip_rows(np.asarray(own_actions, dtype=np.float64), self.config.max_speed_mps)
-        lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
-        upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
-        obstacles = self._local_obstacles(observation, own_position)
-        paths = np.asarray(scenarios.trajectories, dtype=np.float64)
-        weights = scenarios.normalized_weights
-        target_reference = np.average(paths[:, 0], axis=0, weights=weights)
-        team_positions = {agent_id: own_position}
-        team_positions.update({peer: message.position for peer, message in known.items()})
-        interceptor = min(team_positions, key=lambda peer: float(np.linalg.norm(team_positions[peer] - target_reference)))
-        result = np.zeros(paths.shape[0], dtype=np.float64)
-        for candidate_index, target_path in enumerate(paths):
-            current = own_position.copy()
-            peers = {peer: message.position.copy() for peer, message in known.items()}
-            for timestep in range(self.config.horizon_steps):
-                action = own_actions[timestep]
-                current += action * self.config.dt_seconds
-                for peer, message in known.items():
-                    peer_action = peer_sequences.get(peer)
-                    if peer_action is None:
-                        peers[peer] += message.velocity * self.config.dt_seconds
-                    else:
-                        peers[peer] += _clip_rows(peer_action[timestep][None, :], self.config.max_speed_mps)[0] * self.config.dt_seconds
-                target = target_path[timestep]
-                distance = float(np.linalg.norm(current - target))
-                result[candidate_index] += self.config.weight_distance * distance
-                result[candidate_index] += self.config.weight_capture_hinge * max(
-                    distance - self.config.capture_radius_m,
-                    0.0,
-                ) ** 2
-                if timestep == self.config.horizon_steps - 1:
-                    result[candidate_index] += self.config.weight_terminal_distance * distance
-                if agent_id != interceptor:
-                    direction = TETRAHEDRON_DIRECTIONS[agent_id % len(TETRAHEDRON_DIRECTIONS)]
-                    target_point = target + direction * self.config.role_perimeter_m
-                    result[candidate_index] += self.config.weight_formation * abs(
-                        float(np.linalg.norm(current - target_point)) - self.config.role_perimeter_m
-                    )
-                result[candidate_index] += self.config.weight_control * float(np.sum(action * action))
-                if timestep == 0:
-                    previous = np.asarray(observation["defender_velocities"], dtype=np.float64)[agent_id]
-                else:
-                    previous = own_actions[timestep - 1]
-                change = action - previous
-                result[candidate_index] += self.config.weight_control_change * float(np.sum(change * change))
-                result[candidate_index] += self.config.weight_relative_speed * float(np.linalg.norm(change))
-                for obstacle in obstacles:
-                    clearance = _obstacle_clearance(current, obstacle)
-                    violation = max(
-                        self.config.safety_margin_m - (clearance - self.config.drone_radius_m),
-                        0.0,
-                    )
-                    result[candidate_index] += self.config.weight_obstacle * violation * violation
-                boundary = max(
-                    float(np.max(np.maximum(lower - current, 0.0))),
-                    float(np.max(np.maximum(current - upper, 0.0))),
-                )
-                result[candidate_index] += self.config.weight_boundary * boundary * boundary
-                for peer_position in peers.values():
-                    inter_agent = max(
-                        self.config.minimum_inter_agent_distance_m
-                        - float(np.linalg.norm(current - peer_position)),
-                        0.0,
-                    )
-                    result[candidate_index] += self.config.weight_inter_agent * inter_agent * inter_agent
-        if not np.isfinite(result).all():
-            raise FloatingPointError("local scenario cost contains non-finite values")
-        return result
+        return self._local_scenario_cost_matrix(
+            observation,
+            scenarios,
+            agent_id,
+            np.asarray(own_actions, dtype=np.float64)[None, ...],
+            known,
+            peer_sequences,
+        )[0]
 
     def _local_obstacles(self, observation: dict[str, Any], own_position: np.ndarray) -> list[dict[str, Any]]:
         result = []

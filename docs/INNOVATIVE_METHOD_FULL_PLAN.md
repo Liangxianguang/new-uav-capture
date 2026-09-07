@@ -3,7 +3,7 @@
 > 版本：v1.1（2026-09-07）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已在 S3 validation 通过困难场景门槛；分布式 DN-MPC 已完成通信退化诊断，但因 planner 实时性未达 100 ms 门槛，尚不能作为完整方法主结论。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果；集中式 Scenario MPC 已在 S3 validation 通过困难场景门槛；分布式 DN-MPC 的通信安全和 planner 实时性已通过当前 S3 诊断，但 ideal 模式有两个 seed 的有效规划率略低于 99% 门槛，尚不能作为完整方法主结论。
 
 ## 1. 先给结论
 
@@ -24,7 +24,7 @@
 | 方向 | 当前判断 | 主要原因 | 最小可发表版本 |
 | --- | --- | --- | --- |
 | SSM + 条件扩散预测 | 中高，Conditional Go | 已有稳定多模态候选和较低 minFDE，但 raw 候选不可执行，且平均提升低于 10% 门槛 | portable SSM diffusion + dynamics projection + coverage/energy/latency 审计 |
-| 极小极大 DN-MPC | 中 | S3 通信退化下安全指标稳定，但 planner p95 超过 100 ms，实时部署仍未成立 | 优化本地 best-response，或采用低频 planner + 高频安全执行架构 |
+| 极小极大 DN-MPC | 中 | S3 通信退化下安全指标稳定且优化后 planner p95 在预算内，但 ideal 模式有效规划率在两个 seed 略低于 99% | 补齐收敛处理，并在 locked-test/未见自适应目标上复验 |
 | R-CLBF-QP | 中低 | QP 过滤器可实现，完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 可审计 robust CBF-QP；只有证书检查通过才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
@@ -385,8 +385,9 @@ P3-F 只能作为上限，不能作为主方法结果。
 - [x] 分布式安全捕获率在主困难场景中高于当前 DynamicEncirclement，或至少不低于集中式结果 10 个百分点以上。
 - [x] 与集中式 oracle 的主要安全指标差距不超过 10 个百分点；三种通信退化条件均保持 100% safe capture、0% collision。
 - [x] delayed-noisy 与丢包条件下安全捕获性能未下降；丢包消息和 fallback 均被记录。
-- [x] 99% 以上控制周期有有效 planner 或记录过的安全 fallback；三种 seed 的 distributed valid plan rate 均为 100%。
-- [ ] p95 总 planner latency 满足预算，或低频规划架构的端到端频率明确；当前分布式 planner p95 均值为 257.79--623.73 ms，超过 100 ms。
+- [x] 99% 以上控制周期有有效 planner 或记录过的安全 fallback；三种 seed 的 distributed valid plan rate 和 solver success rate 均为 100%。
+- [ ] 每个 seed 的 effective/converged plan rate 均达到 99%；ideal 模式三种 seed 为 98.90%、99.34%、98.90%，两次略低于门槛。
+- [x] p95 总 planner latency 满足预算；优化后 distributed planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms。
 
 若 P4 不通过，保留 P3 的集中式结果；不能把“集中式场景 MPC”写成“分布式 DN-MPC”。
 
@@ -397,8 +398,8 @@ P3-F 只能作为上限，不能作为主方法结果。
 - `distributed_ideal`、`distributed_delayed`、`distributed_dropout` 和 `distributed_none` 的 safe capture 均为 100%，collision 均为 0%；DynamicEncirclement 为 91.7% safe capture、8.3% collision。
 - 三次 `scenes.jsonl` SHA-256 均为 `FD883350CBF126731443EFE7796A5FA8DC6C8D1BA08BEA03A6B445B43A90CA5C`，方向一致，不存在场景重采样造成的比较偏差。
 - delayed 平均消息年龄为 1.89 步，dropout 平均消息年龄为 2.04 步；dropout 消息丢失和 fallback 已进入 episode/step 日志。
-- distributed planner p95 均值为 257.79--623.73 ms，远超 100 ms 控制周期；因此 P4 的通信鲁棒性诊断通过，但实时性门槛失败，P4 整体判定为 `diagnostic_only`。
-- 当前主结论仍是 P3 集中式 scenario MPC；下一步应先解决实时性，或明确验证低频 planner + 高频安全执行架构，再决定是否升级 DN-MPC 主结论。
+- 优化后的 distributed planner p95 均值为 8.47--12.42 ms，total-control p95 均值为 49.98--51.52 ms，实时性门槛已通过；但 ideal 模式的 effective/converged plan rate 在两个 seed 为 98.90%，未满足逐 seed 99% 门槛。
+- 因此 P4 的通信安全和实时性诊断通过，但整体仍判定为 `diagnostic_only`；当前主结论仍是 P3 集中式 scenario MPC。下一步应补齐 ideal 模式收敛处理，并在 locked-test 与未见自适应目标上复验。
 
 ## 10. P5：robust CBF-QP 安全过滤层
 
@@ -697,9 +698,9 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 针对 P4 的 257.79--623.73 ms planner p95，做本地候选剪枝、warm start、并行化和低频 planner + 高频 safety 架构对照。
+1. 针对 P4 ideal 模式两个 seed 的 98.90% effective/converged plan rate，做确定性收敛处理或 warm start，并保持三 seed 协议重跑。
 2. 在未见自适应目标策略和 locked-test 上复验通信版本；当前 S3 validation 不能替代泛化测试。
-3. 若实时性仍不能满足，保留 P3 集中式 scenario MPC 作为主结果，将 P4 限定为通信鲁棒性诊断。
+3. 若有效规划率门槛仍不能满足，保留 P3 集中式 scenario MPC 作为主结果，将 P4 限定为通信鲁棒性和实时性诊断。
 4. 在统一动力学和扰动边界冻结后实现 robust CBF-QP；没有独立证书前不称 R-CLBF-QP 已证明。
 5. 只有 P4 的实时性和泛化门槛通过后，才进入端到端三种子 locked-test。
 
