@@ -4,6 +4,9 @@
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
 > 当前结论：预测模块处于正式实验前的 `Conditional Go` 阶段；DN-MPC、R-CLBF-QP 和端到端结论尚未成立。
 
+完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
+[`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
+
 ## 0. 文档目的
 
 本计划用于验证以下完整方法是否能够在当前四机三维协同围捕基准上成立：
@@ -22,9 +25,10 @@
 
 - Phase 0：历史回归和基线代码已存在；本轮代码修改后必须重新运行完整测试，并补齐正式 V5 基线重跑和锁定评估。
 - Phase 1：预测窗口、可见信息约束、五类目标模式、障碍物上下文、未来目标速度、数据元数据和数据集切分已经实现；统一执行动力学和自适应博弈目标仍未完成。
-- Phase 2：portable SSM-conditioned diffusion、GRU 对照、归一化、候选可行性检查、conformal coverage、energy score、延迟审计和 TensorBoard 工件已经实现；正式三种训练种子尚未完成，当前 smoke 结果不能作为通过结论。
-- 正式数据集：当前已有 train/validation/locked-test 三个不重叠 seed block，但环境硬速度上限修正晚于数据生成，必须重生成一次以保证 source hash 完全一致。
-- Phase 3 及以后：尚未开始实现。
+- Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；结论为 `Conditional Go`，未达到 10% minFDE 强门槛。
+- 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
+- Phase 3：尚未实现最终 DN-MPC；下一步允许实现集中式 scenario min-max MPC 作为诊断规划器，只能消费 dynamics-projected candidates。
+- Phase 4 及以后：尚未开始实现。
 
 ### 当前必须遵守的决策顺序
 
@@ -40,18 +44,18 @@
   -> 端到端三种子锁定测试
 ```
 
-在 Phase 2 没有通过前，不实现 DN-MPC 的最终版本；在动力学、扰动边界和安全 QP 都固定前，不宣称 R-CLBF-QP 有闭环安全证明。
+在 Phase 2 没有完全通过前，不实现 DN-MPC 的最终版本；当前只允许实现集中式 scenario MPC 作为诊断规划器。在动力学、扰动边界和安全 QP 都固定前，不宣称 R-CLBF-QP 有闭环安全证明。
 
 ### 当前立即执行清单
 
-- [ ] 在最新工作树上重新运行完整 `pytest` 和 Python 编译检查。
-- [ ] 重生成 `phase2_prediction_train_v2_multimodal`、`phase2_prediction_validation_v2_multimodal` 和 `phase2_prediction_locked_test_v2_multimodal`，确认 metadata 中的 source hash 对应当前源码。
-- [ ] 使用训练种子 `745101`、`745201`、`745301`，分别训练正式 GRU 和 portable SSM diffusion；每个 seed 使用独立输出目录。
-- [ ] 对每个 checkpoint 运行冻结 validation/locked-test 评估，汇总 ADE/FDE/minADE/minFDE、energy score、conformal coverage、候选可行率和 p50/p95/p99 延迟。
-- [ ] 按五种目标模式和观测退化条件分层汇总，禁止只报告总体平均值。
-- [ ] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
-- [ ] 写入新的 Phase 2 分析报告；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
-- [ ] 只有 Phase 2 达标后，才开始集中式 scenario min-max MPC；只有集中式版本有收益后，才实现分布式 DN-MPC。
+- [x] 在最新工作树上重新运行完整 `pytest` 和 Python 编译检查。
+- [x] 重生成 `phase2_prediction_train_v3_multimodal`、`phase2_prediction_validation_v3_multimodal` 和 `phase2_prediction_locked_test_v3_multimodal`，确认 metadata 中的 source hash 对应当前源码。
+- [x] 使用训练种子 `745101`、`745201`、`745301`，分别训练正式 GRU 和 portable SSM diffusion；每个 seed 使用独立输出目录。
+- [x] 对每个 checkpoint 运行冻结 validation/locked-test 评估，汇总 ADE/FDE/minADE/minFDE、energy score、conformal coverage、候选可行率和 p50/p95/p99 延迟。
+- [x] 按五种目标模式分层汇总；观测退化条件仍需作为 Phase 1/正式规划实验补充。
+- [x] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
+- [x] 写入新的 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
+- [ ] 只有集中式 scenario min-max MPC 证明有收益后，才实现分布式 DN-MPC。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
 
 ### 正式预测实验命令模板
@@ -70,12 +74,12 @@ conda run --no-capture-output -n uav-encirclement-gpu python -m py_compile `
 
 正式训练要求：
 
-- [ ] `--target-normalization train_split_standardize`，归一化器只能拟合 train split。
-- [ ] 使用训练配置中的正式 history/horizon/diffusion/sampling 参数。
-- [ ] 三个训练 seed 只改变随机初始化和训练采样，不改变数据切分、网络规模和评估协议。
-- [ ] evaluation sampling seed 独立于 training seed，并在所有模型间保持可复现。
-- [ ] `candidate-max-speed` 使用物理硬上限，不使用行为强度 `target_speed_scale` 代替。
-- [ ] 任何候选可行率不足的结果必须同时报告原始候选和筛选后候选，不能静默删除失败样本。
+- [x] `--target-normalization train_split_standardize`，归一化器只能拟合 train split。
+- [x] 使用训练配置中的正式 history/horizon/diffusion/sampling 参数。
+- [x] 三个训练 seed 只改变随机初始化和训练采样，不改变数据切分、网络规模和评估协议。
+- [x] evaluation sampling seed 独立于 training seed，并在所有模型间保持可复现。
+- [x] `candidate-max-speed` 使用物理硬上限，不使用行为强度 `target_speed_scale` 代替。
+- [x] 任何候选可行率不足的结果同时报告原始候选和 dynamics-projected 候选，没有静默删除失败样本。
 
 ### 初步可行性判断
 
@@ -103,9 +107,9 @@ conda run --no-capture-output -n uav-encirclement-gpu python -m py_compile `
 
 | Split | Episodes | Samples（历史版本） | Seed block | 用途 |
 | --- | ---: | ---: | --- | --- |
-| `phase2_prediction_train_v2_multimodal` | 64 | 15,232 | 645101--645164 | 训练和 train-only normalization |
-| `phase2_prediction_validation_v2_multimodal` | 24 | 5,712 | 646101--646124 | 模型选择、conformal/calibration |
-| `phase2_prediction_locked_test_v2_multimodal` | 32 | 7,616 | 647201--647232 | 最终一次性评估 |
+| `phase2_prediction_train_v3_multimodal` | 64 | 15,232 | 645101--645164 | 训练和 train-only normalization |
+| `phase2_prediction_validation_v3_multimodal` | 24 | 5,712 | 646101--646124 | 模型选择、conformal/calibration |
+| `phase2_prediction_locked_test_v3_multimodal` | 32 | 7,616 | 647201--647232 | 最终一次性评估 |
 
 重新生成后，如果样本数量因环境修正发生变化，以新 metadata 为准；不能为了保持旧数量而修改环境逻辑。五种目标模式必须在三个 split 中有明确的 episode schedule，且 episode seed 不重叠。
 
@@ -357,37 +361,37 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 
 ## 5.3 条件扩散解码器任务
 
-- [ ] 选择轨迹空间：绝对坐标、相对目标坐标或速度增量；优先相对坐标。
+- [x] 选择轨迹空间：当前固定为相对团队 belief reference 的未来位置位移。
 - [x] 定义扩散目标为未来位置序列或未来速度序列，并固定一种主方案；当前使用相对团队 belief reference 的未来位置位移。
 - [x] 实现 noise schedule、训练 loss 和条件注入。
 - [x] 支持候选轨迹 batch sampling。
-- [ ] 输出候选轨迹分数，并使用 softmax 或 energy normalization 得到相对置信度。
-- [ ] 对候选轨迹进行速度、加速度、边界和障碍物可行性检查。
+- [x] 输出候选轨迹分数接口；当前明确记录为 `uniform_uncalibrated`，不能解释为概率。
+- [x] 对原始和 dynamics-projected 候选分别进行速度、加速度、边界和障碍物可行性检查。
 - [x] 设计快速采样路径：当前使用 few-step DDIM 风格采样。
 - [x] 提供 deterministic seed，保证训练和采样可由固定配置重放。
 - [x] 对所有预测输出做坐标反归一化和 finite 检查。
 
 ## 5.4 置信度与校准任务
 
-- [ ] 定义置信度是 mode probability、轨迹级 energy 还是 coverage confidence。
-- [ ] 在 validation set 上做 temperature scaling 或 conformal calibration。
-- [ ] 统计不同置信度分位数对应的真实轨迹覆盖率。
+- [x] 定义当前置信度输出为 split-conformal full-trajectory coverage；候选分数仍是未校准均匀权重。
+- [x] 在 validation set 上做 split-conformal calibration；尚未把未校准分数包装成 mode probability。
+- [x] 统计校准半径和全轨迹/逐 horizon 覆盖率。
 - [ ] 测量 misspecified target mode 下的置信度退化。
-- [ ] 记录 top-1、top-`K`、均匀候选和 oracle mode 的差异。
-- [ ] 不能用未校准的 softmax 分数直接当作概率写入论文。
+- [x] 记录 top-1、top-`K`、均匀候选；oracle mode 尚未作为主结果使用。
+- [x] 未使用未校准的候选分数作为概率。
 
 ## 5.5 预测评估指标
 
-- [ ] ADE：平均位移误差。
-- [ ] FDE：终点位移误差。
-- [ ] minADE/minFDE：候选集合覆盖能力。
-- [ ] negative log-likelihood 或 energy score。
+- [x] ADE：平均位移误差。
+- [x] FDE：终点位移误差。
+- [x] minADE/minFDE：候选集合覆盖能力。
+- [x] energy score。
 - [ ] CRPS 或等价分布质量指标。
-- [ ] coverage@50/80/90/95%。
-- [ ] calibration error。
-- [ ] 长时域误差随 horizon 的曲线。
-- [ ] 不同观测延迟、丢包和目标模式的分层结果。
-- [ ] 单步推理 p50/p95/p99 延迟。
+- [x] 90% conformal coverage；50/80/95% coverage 尚未作为正式表格输出。
+- [x] 校准半径和覆盖率审计。
+- [x] 长时域 full-trajectory/per-horizon 覆盖结果。
+- [x] 五种目标模式的分层结果；观测退化组合仍待 Phase 1/3。
+- [x] 单步推理 p50/p95/p99 延迟。
 
 ## 5.6 预测消融
 
@@ -405,12 +409,14 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 
 建议采用以下 go/no-go 门槛：
 
-- [ ] 在所有测试模式上，Mamba-Diffusion 的 minFDE 至少比 GRU 基线降低 10%，或在相同误差下达到更高的 coverage。
-- [ ] 90% 置信区域的经验覆盖率位于 `0.85--0.95`，不能严重过度自信。
-- [ ] 预测输出经过动力学和边界检查后，可行候选比例不少于 95%。
+- [ ] 在所有测试模式上，Mamba-Diffusion 的 minFDE 至少比 GRU 基线降低 10%，或在相同误差下达到更高的 coverage；当前 locked-test 仅达到 raw `6.54%`、projected `3.87%` 的平均 minFDE 改善，且 coverage 略低。
+- [x] 90% conformal 目标的经验覆盖率位于 `0.85--0.95`，但按模式仍需继续做未见策略测试。
+- [x] dynamics-projected 预测输出的可行候选比例不少于 95%；raw diffusion 候选仍为 0%，不能直接执行。
 - [ ] 在目标策略切换后仍有可解释的置信度退化，而不是输出异常高置信度。
-- [ ] p95 推理时间满足控制周期预算；若不能满足，必须先蒸馏或降低采样步数。
-- [ ] 与 planner 的接口固定，候选轨迹不再因内部模型实现改变。
+- [x] 单模型 p95 推理时间满足 100 ms 控制周期预算；总 planner/safety 延迟尚未纳入。
+- [x] planner 接口固定为候选轨迹 + 明确的 raw/projected 状态 + `uniform_uncalibrated` score kind。
+
+正式结果见 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`。Phase 2 当前为 `Conditional Go`，因此下一步只实现集中式 scenario min-max MPC 诊断，不宣称最终 DN-MPC 或完整方法已经通过。
 
 如果只提升 ADE/FDE，却没有提升候选覆盖率或校准质量，则不能声称“多模态预测成功”，只能称为更强的点预测器。
 
