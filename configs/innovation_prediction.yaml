@@ -1,0 +1,36 @@
+experiment_name: innovation_prediction_dataset_v1
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Phase 1 data contract. Train/validation/locked_test directories must be
+# generated with disjoint episode seed blocks.
+dataset:
+  history_length: 16
+  horizon_steps: 12
+  obstacle_count: 3
+  target_speed_scale: 0.55
+  target_motion_mode: flee_persistence
+  rollout_policy: stationary
+  train:
+    episodes: 32
+    seed: 645101
+  validation:
+    episodes: 16
+    seed: 646101
+  locked_test:
+    episodes: 32
+    seed: 647201
+
+input_contract:
+  source: encirclement3d.observation_encoding.policy_observations
+  uses_target_truth: false
+  uses_delayed_beliefs: true
+
+label_contract:
+  source: CaptureRadiusPursuit3DEnv.target_position
+  uses_target_truth: true
+  representation: future_target_position_minus_published_team_belief_reference
+
+reporting:
+  tensorboard_required_for_training: true
+  preserve_dataset_metadata: true
+  preserve_source_hashes: true

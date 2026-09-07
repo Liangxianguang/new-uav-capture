@@ -18,6 +18,20 @@ agents:
   drone_radius: 0.25
 dynamics:
   backend: kinematic
+  execution:
+    enabled: false
+    action_delay_steps: 0
+    command_noise_std: 0.0
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+    max_speed_scale: 1.0
+    max_acceleration_scale: 1.0
+    mass_scale: 1.0
+    randomize_per_episode: false
+    max_speed_scale_range: [1.0, 1.0]
+    max_acceleration_scale_range: [1.0, 1.0]
+    mass_scale_range: [1.0, 1.0]
+    drag_coefficient_range: [0.0, 0.0]
 task:
   slot_tracking_gain: 2.5
   cbf_gamma: 0.25

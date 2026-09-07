@@ -106,6 +106,26 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "map_seed_offset": 0,
 }
 
+# This is intentionally a lightweight execution model, not a replacement for
+# a flight controller or a full airframe model. It lets the pursuit benchmark
+# test whether a policy that was trained with ideal velocity commands remains
+# safe when commands are delayed, noisy, and tracked imperfectly.
+_EXECUTION_DEFAULTS: dict[str, Any] = {
+    "enabled": False,
+    "action_delay_steps": 0,
+    "command_noise_std": 0.0,
+    "velocity_time_constant_seconds": 0.0,
+    "drag_coefficient": 0.0,
+    "max_speed_scale": 1.0,
+    "max_acceleration_scale": 1.0,
+    "mass_scale": 1.0,
+    "randomize_per_episode": False,
+    "max_speed_scale_range": (1.0, 1.0),
+    "max_acceleration_scale_range": (1.0, 1.0),
+    "mass_scale_range": (1.0, 1.0),
+    "drag_coefficient_range": (0.0, 0.0),
+}
+
 _TARGET_MOTION_MODES = {"flee_persistence", "random_turn", "s_curve", "burst", "boundary_escape"}
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
@@ -197,6 +217,43 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
     return settings
 
 
+def _finite_range(value: Any, name: str, minimum: float) -> tuple[float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"dynamics.execution.{name} must contain exactly two values.")
+    low, high = (float(value[0]), float(value[1]))
+    if not np.isfinite([low, high]).all() or low < minimum or high < low:
+        raise ValueError(f"dynamics.execution.{name} must satisfy {minimum} <= low <= high.")
+    return low, high
+
+
+def execution_settings(dynamics: dict[str, Any]) -> dict[str, Any]:
+    """Validate lightweight command-execution settings without changing observations."""
+    configured = dynamics.get("execution", {})
+    if not isinstance(configured, dict):
+        raise ValueError("dynamics.execution must be a mapping.")
+    unknown = sorted(set(configured).difference(_EXECUTION_DEFAULTS))
+    if unknown:
+        raise ValueError(f"Unknown dynamics.execution settings: {', '.join(unknown)}")
+    settings = {**_EXECUTION_DEFAULTS, **configured}
+    if int(settings["action_delay_steps"]) < 0:
+        raise ValueError("dynamics.execution.action_delay_steps must be non-negative.")
+    for name in ("command_noise_std", "velocity_time_constant_seconds", "drag_coefficient"):
+        if not np.isfinite(float(settings[name])) or float(settings[name]) < 0.0:
+            raise ValueError(f"dynamics.execution.{name} must be finite and non-negative.")
+    for name in ("max_speed_scale", "max_acceleration_scale", "mass_scale"):
+        if not np.isfinite(float(settings[name])) or float(settings[name]) <= 0.0:
+            raise ValueError(f"dynamics.execution.{name} must be finite and positive.")
+    settings["max_speed_scale_range"] = _finite_range(settings["max_speed_scale_range"], "max_speed_scale_range", 1e-9)
+    settings["max_acceleration_scale_range"] = _finite_range(
+        settings["max_acceleration_scale_range"], "max_acceleration_scale_range", 1e-9
+    )
+    settings["mass_scale_range"] = _finite_range(settings["mass_scale_range"], "mass_scale_range", 1e-9)
+    settings["drag_coefficient_range"] = _finite_range(
+        settings["drag_coefficient_range"], "drag_coefficient_range", 0.0
+    )
+    return settings
+
+
 @dataclass(frozen=True)
 class PursuitEpisodeMetrics:
     minimum_target_distance: float
@@ -247,6 +304,7 @@ class CaptureRadiusPursuit3DEnv:
         self.agents = config["agents"]
         self.task = config["task"]
         self.pursuit = pursuit_settings(self.task)
+        self.execution = execution_settings(config.get("dynamics", {}))
         self.obstacle_count = int(obstacle_count)
         self.target_speed_scale = float(target_speed_scale)
         self.n_defenders = int(self.agents["defenders"])
@@ -259,6 +317,18 @@ class CaptureRadiusPursuit3DEnv:
         self.lower = np.array([-half_extent, -half_extent, float(self.world["minimum_altitude"])], dtype=np.float64)
         self.upper = np.array([half_extent, half_extent, float(self.world["height"])], dtype=np.float64)
         self.rng = np.random.default_rng()
+
+        self.execution_action_queue: list[np.ndarray] = []
+        self.execution_max_speed = float(self.agents["defender_max_speed"])
+        self.execution_max_acceleration = float(self.agents["defender_max_acceleration"])
+        self.execution_mass_scale = 1.0
+        self.execution_drag_coefficient = 0.0
+        self.last_desired_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.last_delayed_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.last_executed_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.action_execution_error_norm = 0.0
+        self.action_execution_error_sum = 0.0
+        self.action_execution_steps = 0
 
         self.obstacles: list[CylinderObstacle] = []
         self.defender_positions = np.zeros((self.n_defenders, 3), dtype=np.float64)
@@ -294,6 +364,30 @@ class CaptureRadiusPursuit3DEnv:
         self.capturing_defender_id = None
         self.history = []
         self._message_queue = []
+        self.last_desired_actions.fill(0.0)
+        self.last_delayed_actions.fill(0.0)
+        self.last_executed_actions.fill(0.0)
+        self.action_execution_error_norm = 0.0
+        self.action_execution_error_sum = 0.0
+        self.action_execution_steps = 0
+        self.execution_max_speed = float(self.agents["defender_max_speed"])
+        self.execution_max_acceleration = float(self.agents["defender_max_acceleration"])
+        self.execution_mass_scale = 1.0
+        self.execution_drag_coefficient = 0.0
+        if bool(self.execution["randomize_per_episode"]):
+            self.execution_max_speed *= self.rng.uniform(*self.execution["max_speed_scale_range"])
+            self.execution_max_acceleration *= self.rng.uniform(*self.execution["max_acceleration_scale_range"])
+            self.execution_mass_scale = self.rng.uniform(*self.execution["mass_scale_range"])
+            self.execution_drag_coefficient = self.rng.uniform(*self.execution["drag_coefficient_range"])
+        else:
+            self.execution_max_speed *= float(self.execution["max_speed_scale"])
+            self.execution_max_acceleration *= float(self.execution["max_acceleration_scale"])
+            self.execution_mass_scale = float(self.execution["mass_scale"])
+            self.execution_drag_coefficient = float(self.execution["drag_coefficient"])
+        self.execution_action_queue = [
+            np.zeros((self.n_defenders, 3), dtype=np.float64)
+            for _ in range(int(self.execution["action_delay_steps"]))
+        ]
 
         self.target_position = np.array(
             [
@@ -369,6 +463,18 @@ class CaptureRadiusPursuit3DEnv:
             "target_prediction_positions": predicted_positions,
             "target_prediction_uncertainties": predicted_uncertainties,
             "step": int(self.step_count),
+            "execution": {
+                "enabled": bool(self.execution["enabled"]),
+                "action_delay_steps": int(self.execution["action_delay_steps"]),
+                "max_speed_mps": float(self.execution_max_speed),
+                "max_acceleration_mps2": float(self.execution_max_acceleration),
+                "mass_scale": float(self.execution_mass_scale),
+                "drag_coefficient": float(self.execution_drag_coefficient),
+                "action_execution_error_norm": float(self.action_execution_error_norm),
+                "mean_action_execution_error_norm": float(
+                    self.action_execution_error_sum / max(self.action_execution_steps, 1)
+                ),
+            },
         }
 
     def centralized_state(self) -> np.ndarray:
@@ -598,14 +704,65 @@ class CaptureRadiusPursuit3DEnv:
                 np.mean(np.trace(self.target_observation_covariance, axis1=1, axis2=2))
             ),
             "capture_radius": float(self.pursuit["capture_radius"]),
+            "execution_enabled": bool(self.execution["enabled"]),
+            "action_execution_error_norm": float(self.action_execution_error_norm),
+            "mean_action_execution_error_norm": float(
+                self.action_execution_error_sum / max(self.action_execution_steps, 1)
+            ),
+            "last_desired_action_norm": float(np.mean(np.linalg.norm(self.last_desired_actions, axis=1))),
+            "last_delayed_action_norm": float(np.mean(np.linalg.norm(self.last_delayed_actions, axis=1))),
+            "last_executed_action_norm": float(np.mean(np.linalg.norm(self.last_executed_actions, axis=1))),
         }
         return self.observe(), reward, terminated, truncated, info
 
     def _apply_defender_actions(self, actions: np.ndarray) -> None:
-        # The first pursuit benchmark is a velocity-level task. This keeps the
-        # CBF action constraints and executed motion identical; action delay
-        # and vehicle dynamics belong to the later PyBullet transfer gate.
-        self.defender_velocities = actions.copy()
+        desired = self._clip_rows(
+            np.asarray(actions, dtype=np.float64),
+            float(self.agents["defender_max_speed"]),
+        )
+        self.last_desired_actions = desired.copy()
+        if not bool(self.execution["enabled"]):
+            # Preserve the historical ideal velocity-level benchmark exactly
+            # unless the experimental execution model is explicitly enabled.
+            delayed = desired
+            executed = desired.copy()
+        else:
+            if self.execution_action_queue:
+                self.execution_action_queue.append(desired.copy())
+                delayed = self.execution_action_queue.pop(0)
+            else:
+                delayed = desired
+            self.last_delayed_actions = delayed.copy()
+            command = delayed + self.rng.normal(
+                0.0,
+                float(self.execution["command_noise_std"]),
+                size=delayed.shape,
+            )
+            command = self._clip_rows(command, float(self.execution_max_speed))
+            if float(self.execution["velocity_time_constant_seconds"]) <= 0.0:
+                tracked = command
+            else:
+                alpha = min(
+                    1.0,
+                    self.dt / float(self.execution["velocity_time_constant_seconds"]),
+                )
+                tracked = self.defender_velocities + alpha * (command - self.defender_velocities)
+            if float(self.execution_drag_coefficient) > 0.0:
+                tracked *= np.exp(-float(self.execution_drag_coefficient) * self.dt)
+            max_delta = (
+                float(self.execution_max_acceleration)
+                * self.dt
+                / max(float(self.execution_mass_scale), 1e-9)
+            )
+            executed = self._move_toward_velocity(self.defender_velocities, tracked, max_delta)
+            executed = self._clip_rows(executed, float(self.execution_max_speed))
+
+        self.last_delayed_actions = delayed.copy()
+        self.last_executed_actions = executed.copy()
+        self.action_execution_error_norm = float(np.mean(np.linalg.norm(executed - desired, axis=1)))
+        self.action_execution_error_sum += self.action_execution_error_norm
+        self.action_execution_steps += 1
+        self.defender_velocities = executed
         self.defender_positions += self.defender_velocities * self.dt
         self._enforce_world_bounds(self.defender_positions, self.defender_velocities)
 
