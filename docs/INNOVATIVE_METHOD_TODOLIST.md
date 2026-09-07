@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v2.4（2026-09-07）
+> 版本：v2.5（2026-09-07）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 和 P4 分布式 DN-MPC 已通过固定 S3 validation gate；P5 已开始实现初版 velocity-level robust CBF-QP，但尚未完成测试、证书检查和对照实验。locked-test、未见自适应目标、R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
+> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC 和 P4 分布式 DN-MPC 已通过固定 S3 validation gate；P5 的 velocity-level robust CBF-QP 已完成单元测试和独立一步证书检查，但在 8-episode hard-barrier validation 中因不可行/fallback 导致 safe capture 仅 50%，因此 P5 正式 gate 未通过。locked-test、未见自适应目标、R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -29,7 +29,7 @@
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
-- Phase 5：`src/encirclement3d/safety_qp.py` 已加入初版 velocity-level robust CBF-QP，包含障碍物、边界、机间距离、速度和动作变化约束、slack、fallback 与诊断字段；尚未通过单元测试和独立安全证书检查。
+- Phase 5：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和评估脚本已实现；安全 QP 单元测试 7/7 通过，联合回归 16/16 通过，独立一步证书检查已接入。但 8-episode hard-barrier validation 的 robust CBF-QP safe capture 为 50%、solver fallback 1000 次、next-state safety 约 49.4%，正式 gate 未通过。
 
 ### 当前必须遵守的决策顺序
 
@@ -63,11 +63,34 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 通过向量化局部 scenario-cost 评估解决分布式 planner p95 超过 100 ms 的问题；三 seed 的 planner p95 均在 100 ms 内。
 - [x] 解决 ideal 模式 effective/converged plan rate 边界问题：增加一轮 best-response，并将上一周期序列按已执行动作左移后 warm start；三 seed 协议重跑均为 100%。
 - [x] 加入初版 `src/encirclement3d/safety_qp.py`；当前只代表 velocity-level robust CBF-QP，不代表 R-CLBF-QP 或闭环证明。
-- [ ] 运行安全 QP 语法检查、单元测试和四类最小数值场景：远离障碍物、边界投影、机间分离、solver fallback。
-- [ ] 新增 `configs/innovation_safety.yaml`、`scripts/evaluate_safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和对应测试。
-- [ ] 在相同 planner 输出下完成 local CBF、robust CBF-QP 和 fallback 的局部对照，记录残差、slack、修正量、延迟和碰撞/边界违规。
+- [x] 完成安全 QP 语法检查、7 个安全单元测试和四类最小数值场景：远离障碍物、边界投影、机间分离、solver fallback。
+- [x] 新增 `configs/innovation_safety.yaml`、`scripts/evaluate_safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和对应测试。
+- [x] 在相同 nominal action 下完成 nominal、local CBF 和 robust CBF-QP 对照，并记录证书、残差、修正量、延迟、碰撞和超时。
+- [ ] 补齐每步 `solver_status`、`solver_message`、`fallback_reason`、约束数量、残差和 slack 的完整 JSONL 记录，先完成不可行原因分类。
+- [ ] 分离“初始状态不在 robust 收缩安全集”和“QP 求解不可行”两个 gate，不把前置条件失败误算成 solver 成功或安全证明。
+- [ ] 在 margin、动作变化限制和 fallback 策略冻结后，重跑 hard-barrier validation；soft-slack 结果只能作为诊断，不能计入 certificate-valid gate。
 - [ ] P5 验证通过后单独提交；不得将未验证的 `README.md` 或 `docs/EXPERIMENTAL_STUDY_REPORT.md` 加入提交。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
+
+### P5 当前证据和阻塞项
+
+当前 hard-barrier 配置为：
+
+- `slack_enabled: false`；
+- `action_change_limit_mps: null`，由 `max_acceleration * dt` 推导；
+- 鲁棒 margin 合计为 `0.46 m`，另加基础 safety margin `0.35 m`；
+- fallback 为 `zero_action`；
+- 独立 checker 重新计算 `p_next = p + dt * u_safe`，不复用 QP 内部 residual。
+
+8-episode validation 结果：
+
+| 方法 | Safe Capture | Collision | Timeout | Solver success | Fallback | Next-state safety | Filter p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| nominal | 100% | 0% | 0% | 100% | 0 | 98.6% | 0.002 ms |
+| local CBF | 100% | 0% | 0% | N/A | 0 | 100% | 6.59 ms |
+| robust CBF-QP hard | 50% | 0% | 50% | 50% | 1000 | 49.4% | 16.46 ms |
+
+这组结果只支持以下结论：当前 QP 结构可运行、约束和证书可以审计，但尚不能作为通过的 robust safety filter，更不能称为 R-CLBF-QP 或闭环形式化安全证明。下一轮必须先记录精确失败原因，并分别处理收缩安全集前置条件、动作变化约束、QP 数值求解和 fallback 恢复能力。
 
 ### 正式预测实验命令模板
 
@@ -565,42 +588,42 @@ subject to  dynamics
 
 ## 7.2 安全集和 barrier 任务
 
-- [ ] 定义障碍物安全函数 `h_obstacle`。
-- [ ] 定义世界边界安全函数 `h_boundary`。
-- [ ] 定义机间安全函数 `h_inter_agent`。
-- [ ] 明确 barrier 使用净空、平方距离还是 signed distance。
-- [ ] 处理圆柱、箱体和墙体的不可微边界/拐角。
-- [ ] 明确目标本身是否属于安全约束；捕获目标不能被错误地排除或纳入排斥项。
-- [ ] 对观测误差、延迟、预测误差和执行误差加入收缩项。
-- [ ] 固定鲁棒 margin 的来源：理论上界、统计分位数或 conformal bound。
+- [x] 定义障碍物安全函数 `h_obstacle`。
+- [x] 定义世界边界安全函数 `h_boundary`。
+- [x] 定义机间安全函数 `h_inter_agent`。
+- [x] 明确当前实现使用 signed clearance/净空，而不是平方距离。
+- [x] 为圆柱和轴对齐箱体提供几何处理；拐角和不可微区域仍需 hard-case 扫描。
+- [x] 明确目标本身不加入追捕机排斥障碍集合。
+- [x] 将观测误差、延迟和执行误差以显式 margin 写入配置；预测误差 margin 的校准来源仍待冻结。
+- [ ] 用理论上界或独立校准集冻结每一项 robust margin，并证明实际扰动被覆盖。
 
 ## 7.3 CLBF/QP 任务
 
 建议先实现安全 QP，再加入 learned robust CLBF，防止理论和求解器问题同时出现。
 
-- [ ] 定义 QP 决策变量：当前控制量和可选 slack。
-- [ ] 定义名义动作跟踪目标。
-- [ ] 加入速度/加速度/动作变化约束。
-- [ ] 加入离散 CBF 或高阶 CBF 约束。
-- [ ] 对机间约束处理相对控制耦合。
-- [ ] 对边界和障碍物处理动作饱和。
-- [ ] 实现 slack 分层惩罚，安全约束优先级高于性能约束。
-- [ ] 实现 solver infeasible 的应急动作。
-- [ ] 记录每个约束的 barrier 值、残差、slack 和 active 状态。
-- [ ] 记录 solver status、数值条件和修正量。
+- [x] 定义 QP 决策变量：当前控制量和可选 slack。
+- [x] 定义名义动作跟踪目标。
+- [x] 加入速度/加速度/动作变化约束。
+- [x] 加入当前 velocity-level 离散 CBF 约束；高阶 CBF 仍未实现。
+- [x] 对机间约束处理相对控制耦合。
+- [x] 对边界和障碍物处理动作饱和。
+- [x] 实现 slack 惩罚；hard-barrier 主配置禁用 slack，soft-slack 只能诊断。
+- [x] 实现 solver infeasible 的应急动作，并将 certificate 标记为 invalid。
+- [x] 记录 barrier 值、残差、slack、active 状态、修正量和 solver status 的接口。
+- [ ] 补齐失败原因和数值条件的逐步持久化，并验证 fallback 本身满足安全契约。
 - [ ] 为 learned CLBF 记录网络版本、训练域、验证域和 Lipschitz/gradient bound。
 
 ## 7.4 安全证明任务
 
-- [ ] 写出系统动力学假设。
-- [ ] 写出扰动集合和每一项上界。
-- [ ] 证明 nominal action 到 safe action 的约束满足性。
-- [ ] 证明在可行 QP 下安全集的离散时间正向不变性，或明确只能得到一步安全保证。
+- [x] 写出当前速度级系统动力学假设。
+- [ ] 写出并冻结观测、延迟、执行和预测扰动集合及每一项上界。
+- [x] 对 nominal action 到 QP action 的约束残差进行数值检查。
+- [x] 明确当前独立 checker 只能给出一步安全检查；离散时间正向不变性仍未证明。
 - [ ] 证明 slack 不会掩盖安全约束违反；若允许 slack，给出可接受条件。
 - [ ] 证明动作饱和、延迟和求解误差如何进入 margin。
 - [ ] 给出 solver numerical tolerance 对 barrier 的最坏影响。
 - [ ] 用独立数值脚本检查理论 bound 是否覆盖实际扰动样本。
-- [ ] 明确哪些条件无法满足时，证书自动失效并标记 episode。
+- [x] 明确 QP infeasible、fallback、初始状态越界、下一状态越界、非有限动作和扰动假设不覆盖时证书自动失效。
 
 ## 7.5 R-CLBF 训练和验证任务
 
@@ -614,12 +637,19 @@ subject to  dynamics
 
 ## 7.6 安全层通过条件
 
-- [ ] 所有可行 QP 的最大安全约束残差不超过预设数值容差。
+- [x] 在可行 QP 样例中检查最大安全约束残差；正式 hard-case gate 尚未通过。
 - [ ] 证书假设覆盖评估中实际使用的速度、延迟、噪声和扰动范围。
 - [ ] infeasible 比例低于预注册阈值，且 fallback 不产生未记录安全违规。
 - [ ] 在相同 planner 输出下，R-CLBF-QP 不增加碰撞率。
 - [ ] 与当前局部 CBF 比较时，至少改善一个难例安全指标或明显降低动作修正量/超时率。
-- [ ] 证明文档和代码检查器使用同一套 barrier 定义。
+- [x] 独立一步 checker 与当前 barrier 定义对齐；完整证明文档仍未完成。
+
+### P5 当前决策
+
+- 工程实现等级 `L0`：通过，单元测试和联合回归通过。
+- 可审计一步安全检查：通过接口验证，但 hard-barrier 大规模 validation 未通过。
+- `robust CBF-QP safety filter` 主结果：暂不通过，先修复不可行与 fallback 统计。
+- `R-CLBF-QP` / 闭环形式化保证：未开始验收，不得使用该表述。
 
 如果只能证明“QP 求解器通常找到了较安全的动作”，则应称为 robust safety filter，不能称为闭环形式化安全证明。
 
@@ -844,11 +874,10 @@ Mamba + deterministic prediction
 
 ## 14. 当前建议
 
-第一步只做 Phase 0 和 Phase 1，不要立即编写完整扩散模型、分布式 MPC 和 CLBF 网络。最先要回答的不是“网络能否训练”，而是：
+当前不应回到“先把所有模块写完”的路线，而应按以下顺序收敛：
 
-1. 目标数据是否足够多样，能否支撑多模态预测；
-2. 统一动力学后，规划器和安全层是否使用同一个系统模型；
-3. 新模块的运行时间是否能满足控制周期；
-4. 现有基线的失败是否确实来自预测和规划，而不是环境、数据或安全层接口问题。
-
-只有这四个问题通过，才进入 Mamba-Diffusion；只有预测器通过，才进入 DN-MPC；只有动力学和扰动边界固定，才进入 R-CLBF-QP。
+1. 先修复并审计 P5：记录不可行原因，区分初始 robust safe-set 前置条件、动作变化约束、数值失败和 fallback 失败；完成 hard-case 复验。
+2. 并行完成 P4 locked-test、退化观测和未见自适应目标策略测试；固定 S3 的 100% 结果不能外推为泛化结论。
+3. 只有 P5 hard-barrier gate 通过，才做 P6 learned CLBF；如果只能稳定完成一步检查，就把贡献限定为条件性 robust CBF-QP。
+4. 只有 P4 泛化和 P5 安全 gate 均通过，才做 P7 端到端三种子 locked-test；联合训练放到所有冻结模块之后。
+5. 任何一级失败都保留上一级已证实贡献：预测失败回退到校准预测，分布式失败回退到集中式 scenario MPC，CLBF 失败回退到 robust CBF-QP，端到端失败则分模块报告。
