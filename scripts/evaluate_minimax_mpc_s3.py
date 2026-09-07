@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--environment-config", type=Path, default=DEFAULT_ENVIRONMENT_CONFIG)
     parser.add_argument("--mpc-config", type=Path, default=DEFAULT_MPC_CONFIG)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--scene-records",
+        type=Path,
+        help="Reuse a previously generated scenes.jsonl after validating its locked specs.",
+    )
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--candidate-source", choices=("checkpoint", "belief"), default="checkpoint")
     parser.add_argument(
@@ -203,6 +208,31 @@ def grouped_summary(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> 
     return result
 
 
+def load_scene_records(
+    path: Path,
+    *,
+    protocol: dict[str, Any],
+    split: str,
+    episodes: int,
+) -> list[dict[str, Any]]:
+    records = [
+        json.loads(line)
+        for line in path.resolve().read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if len(records) != episodes:
+        raise ValueError(f"Scene record count must be {episodes}; got {len(records)}")
+    for episode_index, record in enumerate(records):
+        if int(record.get("episode_index", -1)) != episode_index:
+            raise ValueError("Scene records must have contiguous episode_index values.")
+        expected = episode_spec(protocol, split, episode_index)
+        if record.get("spec") != expected:
+            raise ValueError(f"Scene record spec mismatch at episode {episode_index}.")
+        if not isinstance(record.get("scenario"), dict):
+            raise ValueError(f"Scene record scenario must be a mapping at episode {episode_index}.")
+    return records
+
+
 def main() -> None:
     args = parse_args()
     protocol_path = args.protocol.resolve()
@@ -247,6 +277,7 @@ def main() -> None:
         "mpc_config": str(args.mpc_config.resolve()),
         "split": args.split,
         "episodes": episodes,
+        "scene_records": None if args.scene_records is None else str(args.scene_records.resolve()),
         "methods": methods,
         "candidate_source": args.candidate_source,
         "checkpoint": None if checkpoint is None else str(checkpoint),
@@ -265,32 +296,40 @@ def main() -> None:
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
     output.joinpath("protocol.yaml").write_text(protocol_path.read_text(encoding="utf-8"), encoding="utf-8")
 
-    episode_records: list[dict[str, Any]] = []
-    for episode_index in range(episodes):
-        spec = episode_spec(protocol, args.split, episode_index)
-        config = config_for_spec(args.environment_config, spec, args.max_steps)
-        validation_env = CaptureRadiusPursuit3DEnv(
-            config,
-            obstacle_count=0,
-            target_speed_scale=float(spec["target_speed_scale"]),
+    if args.scene_records is not None:
+        episode_records = load_scene_records(
+            args.scene_records,
+            protocol=protocol,
+            split=args.split,
+            episodes=episodes,
         )
-        scenario = random_central_mixed_obstacle_scenario(
-            validation_env,
-            layout_seed=int(spec["layout_seed"]),
-            initial_side_distance=float(spec["initial_side_distance"]),
-            defender_side=str(spec["defender_side"]),
-            target_crossing_required=bool(spec["target_crossing_required"]),
-            obstacle_count_range=(int(spec["obstacle_count"]), int(spec["obstacle_count"])),
-            max_attempts=int(protocol["s3"].get("max_sampling_attempts", 500)),
-            required_defender_zone_entries=int(protocol["s3"].get("required_defender_zone_entries", 1)),
-        )
-        episode_records.append(
-            {
-                "episode_index": episode_index,
-                "spec": spec,
-                "scenario": scenario_metadata(scenario),
-            }
-        )
+    else:
+        episode_records = []
+        for episode_index in range(episodes):
+            spec = episode_spec(protocol, args.split, episode_index)
+            config = config_for_spec(args.environment_config, spec, args.max_steps)
+            validation_env = CaptureRadiusPursuit3DEnv(
+                config,
+                obstacle_count=0,
+                target_speed_scale=float(spec["target_speed_scale"]),
+            )
+            scenario = random_central_mixed_obstacle_scenario(
+                validation_env,
+                layout_seed=int(spec["layout_seed"]),
+                initial_side_distance=float(spec["initial_side_distance"]),
+                defender_side=str(spec["defender_side"]),
+                target_crossing_required=bool(spec["target_crossing_required"]),
+                obstacle_count_range=(int(spec["obstacle_count"]), int(spec["obstacle_count"])),
+                max_attempts=int(protocol["s3"].get("max_sampling_attempts", 500)),
+                required_defender_zone_entries=int(protocol["s3"].get("required_defender_zone_entries", 1)),
+            )
+            episode_records.append(
+                {
+                    "episode_index": episode_index,
+                    "spec": spec,
+                    "scenario": scenario_metadata(scenario),
+                }
+            )
     output.joinpath("scenes.jsonl").write_text(
         "".join(json.dumps(record, allow_nan=True) + "\n" for record in episode_records),
         encoding="utf-8",

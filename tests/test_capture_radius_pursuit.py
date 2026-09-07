@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -451,6 +452,74 @@ def test_hard_benchmark_motion_modes_are_deterministic() -> None:
         second.step(np.zeros((4, 3)))
     np.testing.assert_allclose(first.target_position, second.target_position)
     np.testing.assert_allclose(first.target_velocity, second.target_velocity)
+
+
+def test_unseen_adaptive_adversary_is_deterministic_and_physical() -> None:
+    config = load_config()
+    config["task"]["pursuit"].update(
+        {
+            "target_motion_mode": "adaptive_adversarial",
+            "obstacle_profile": "mixed",
+            "map_seed_offset": 100000,
+        }
+    )
+    first = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.75)
+    second = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.75)
+    first.reset(seed=520121)
+    second.reset(seed=520121)
+    for _ in range(80):
+        first.step(np.zeros((4, 3)))
+        second.step(np.zeros((4, 3)))
+        np.testing.assert_allclose(first.target_position, second.target_position)
+        np.testing.assert_allclose(first.target_velocity, second.target_velocity)
+        assert np.linalg.norm(first.target_velocity) <= float(config["agents"]["target_max_speed"]) + 1e-9
+        assert np.all(first.target_position >= first.lower - 1e-9)
+        assert np.all(first.target_position <= first.upper + 1e-9)
+        assert first.world_violation_steps == 0
+
+
+def test_execution_randomness_does_not_change_scene_reset() -> None:
+    base = load_config()
+    mild = copy.deepcopy(base)
+    hard = copy.deepcopy(base)
+    mild["dynamics"]["execution"].update(
+        {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "command_noise_std": 0.03,
+            "velocity_time_constant_seconds": 0.20,
+            "drag_coefficient": 0.05,
+        }
+    )
+    hard["dynamics"]["execution"].update(
+        {
+            "enabled": True,
+            "action_delay_steps": 2,
+            "command_noise_std": 0.08,
+            "velocity_time_constant_seconds": 0.40,
+            "drag_coefficient": 0.10,
+            "randomize_per_episode": True,
+            "max_speed_scale_range": [0.85, 0.98],
+            "max_acceleration_scale_range": [0.70, 0.95],
+            "mass_scale_range": [0.90, 1.10],
+            "drag_coefficient_range": [0.05, 0.20],
+        }
+    )
+    first = CaptureRadiusPursuit3DEnv(mild, obstacle_count=3, target_speed_scale=0.45)
+    second = CaptureRadiusPursuit3DEnv(hard, obstacle_count=3, target_speed_scale=0.45)
+    first_observation = first.reset(seed=520122)
+    second_observation = second.reset(seed=520122)
+
+    np.testing.assert_allclose(first.target_position, second.target_position)
+    np.testing.assert_allclose(first.defender_positions, second.defender_positions)
+    np.testing.assert_allclose(first.target_belief_positions, second.target_belief_positions)
+    assert [item.shape for item in first.obstacles] == [item.shape for item in second.obstacles]
+    for first_obstacle, second_obstacle in zip(first.obstacles, second.obstacles):
+        np.testing.assert_allclose(first_obstacle.center_xy, second_obstacle.center_xy)
+        assert first_obstacle.radius == pytest.approx(second_obstacle.radius)
+        assert first_obstacle.height == pytest.approx(second_obstacle.height)
+    assert first_observation["execution"]["action_delay_steps"] == 1
+    assert second_observation["execution"]["action_delay_steps"] == 2
 
 
 def test_target_burst_respects_declared_hard_speed_limit() -> None:

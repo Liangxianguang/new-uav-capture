@@ -1,0 +1,44 @@
+protocol_name: phase4_unseen_adaptive_target_locked_test
+phase: F1_unseen_adaptive_target_generalization
+not_a_replacement_for_existing_locked_benchmarks: true
+parent_s3_protocol: central_random_mixed_obstacle_s3_v5_protocol.yaml
+seed_blocks:
+  train: 648501
+  validation: 648601
+  locked_test: 648701
+episodes_per_split:
+  train: 40
+  validation: 40
+  locked_test: 100
+s3:
+  target_crossing_required: false
+  required_defender_zone_entries: 2
+  obstacle_count_range: [3, 5]
+  initial_side_distances: [6.0, 6.5, 7.0, 7.5]
+  defender_sides: [left, right]
+  target_speed_scales: [0.45, 0.55]
+  target_crossing_speed_scales: [0.90]
+  target_motion_modes: [adaptive_adversarial]
+  observation_conditions:
+    - name: nominal
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+    - name: delayed_noisy
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.22
+        observation_noise_std: 0.06
+        message_delay_steps: 4
+        message_dropout_probability: 0.10
+  max_sampling_attempts: 500
+failure_analysis:
+  episode_level_artifacts_required: true
+  hard_example_rules:
+    termination_reasons: [timeout, safety_failure]
+    min_clearance_below_m: 0.30
+    max_cbf_action_correction_above: 0.25
+  preserve_parent_protocol_artifacts: true

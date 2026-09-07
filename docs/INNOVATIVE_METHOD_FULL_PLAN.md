@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v1.5（2026-09-07）
+> 版本：v1.7（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate。P4 泛化、执行扰动、多步不变性、R-CLBF-QP 形式化结论和端到端验证仍未完成。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。P4 locked-test 泛化、R-CLBF-QP 形式化结论和端到端验证仍未完成。checkpoint `745101` 的首个自适应目标 `worst_case` locked-test 达到 97% safe capture、0% collision，但 predictor p95 约 228 ms、total-control p95 约 317 ms，实时性仍未通过。
 
 ## 1. 先给结论
 
@@ -27,6 +27,8 @@
 | 极小极大 DN-MPC | 中高（固定 S3 gate） | 已完成 warm start 后四种通信模式的固定 S3 验证，但 locked-test、未见自适应目标和形式化博弈泛化仍未知 | 在 locked-test 和未见自适应目标上复验 |
 | R-CLBF-QP | 中低 | 当前只有 velocity-level robust CBF-QP 条件性 gate；完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 先报告条件性 robust CBF-QP；只有 P6 证据齐全才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
+
+当前阶段性判断为 `L2 partial + L3 conditional`：固定 S3 的规划结果不能替代未见自适应目标泛化；一步 velocity-level QP 结果不能替代包含执行状态的闭环安全证书。
 
 ### 1.1 当前正式证据
 
@@ -400,6 +402,10 @@ P3-F 只能作为上限，不能作为主方法结果。
 - delayed 平均消息年龄为 1.89 步，dropout 平均消息年龄为 2.04 步；dropout 消息丢失和 fallback 已进入 episode/step 日志。
 - 修复后的 distributed planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms；三种 seed、四种通信模式的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
 - 因此 P4 固定 S3 validation gate 已通过；locked-test、未见自适应目标和形式化博弈保证仍未完成，不能据此宣称完整部署结论。下一步转入泛化复验和 robust CBF-QP。
+- 已加入环境内部的 `adaptive_adversarial` 未见目标策略，并通过物理可行性单元测试和 4-episode smoke；该 smoke 的 distributed-none 与 DynamicEncirclement 均为 100% safe capture，但不能替代 100-episode locked-test。
+- P4 locked-test 已固定为 100 个 adaptive-adversarial episode，当前由三个 checkpoint seed 顺序复验；正式结果写入报告前仍保持 pending。
+- checkpoint `745101` 的 `worst_case` 已完成 100 个 locked-test episode：safe capture `97%`、collision `0%`、timeout `3%`；但 predictor p95 `228.37 ms`、total-control p95 `317.35 ms`，因此该结果只能作为泛化和离线规划证据，不能作为逐周期实时部署证据。
+- P4 正式主表仍要求三个 checkpoint × 六个方法全部完成，并且复用同一份场景文件；未完成前不写总体 locked-test 结论。
 
 ## 10. P5：robust CBF-QP 安全过滤层
 
@@ -463,9 +469,15 @@ s.t. discrete barrier constraints
 - [x] 至少比较 hard-barrier、soft-slack diagnostic、local CBF 和 fallback 四种路径，并保留 certificate invalid 标记；结果见 `docs/PHASE5_HARD_CASE_SCAN_REPORT.md`。
 - [x] 为 zero-action 之外的 fallback 实现 `barrier_recovery`，fallback 仍经过独立 checker；当前 fallback 当步回到 robust set 的比例为 26.3%。
 - [x] 在窄通道、箱体拐角、边界和近距离机间状态上完成独立数值扫描；连续时间和多步执行压力测试仍未完成。
+- [x] 完成 delayed/noisy/tracking/randomized execution 的 8-seed、2-variant、3-method multi-step audit；真实 post-step checker 已纳入，结果显示当前 robust CBF-QP 未通过执行扰动扩展，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
 
-正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，历史未分层结果见
+正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，执行扰动扩展见
+`docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`，历史未分层结果见
 `docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。下一阶段必须优先完成执行延迟/噪声、连续时间 swept-volume 和多步安全审计，再决定是否进入 P6。
+
+执行扰动审计已完成但未通过：mild variant 的 robust CBF-QP safe capture 为 50.0%，hard randomized variant 为 0.0%；实际 post-step contracted-set safety rate 分别为 74.84% 和 58.18%，fallback 分别为 117 和 200 次。因此 P5 仍只在冻结 velocity-level 一步假设下 conditional pass，P6 learned CLBF 保持暂停。
+
+P5 恢复必须将延迟命令队列、执行跟踪状态和随机参数纳入 filter state，并让 environment、rollout、QP 与独立 checker 共享同一执行动力学；单纯增大静态 margin 不视为修复。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 
@@ -713,10 +725,11 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 完成执行延迟/噪声/加速度扰动 Monte Carlo、连续时间 swept-volume 和多步安全审计；保留独立 certificate checker，不用 solver residual 替代真实 next-state 检查。
-2. 在 locked-test、退化观测和未见自适应目标策略上复验四轮 best-response + shifted warm start，保持三 seed、场景 hash、通信审计和 TensorBoard/JSONL 协议。
-3. 只有 P4 泛化和 P5 扩展安全审计均通过，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
-4. 只有 P4 泛化、P5 扩展安全审计和 P6 证书边界均通过后，才进入端到端三种子 locked-test；联合训练最后进行。
+1. 完成 P4 locked-test 三 checkpoint × 六方法结果，保持 100 episode、adaptive target、同一场景 hash、通信审计和 TensorBoard/JSONL 协议。
+2. 对 predictor p95 超过 100 ms 的问题采用低频刷新、候选缓存和 stale-age 审计；若不能满足，保留为离线方法结果。
+3. 修正 robust filter 对延迟队列、tracking state 和执行扰动的建模，重新建立 P5 execution-invariant safety gate；当前审计是明确的 No-Go 证据。
+4. 在 P4 泛化和 P5 扩展安全审计均通过后，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
+5. 连续时间 swept-volume、扰动覆盖证明和端到端三种子 locked-test 仍属于后续未完成任务；联合训练最后进行。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：
 

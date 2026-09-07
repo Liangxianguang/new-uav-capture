@@ -89,6 +89,11 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_burst_period_steps": 30,
     "target_burst_duration_steps": 8,
     "target_burst_speed_scale": 1.25,
+    "target_adaptive_heading_weight": 0.20,
+    "target_adaptive_obstacle_weight": 4.00,
+    "target_adaptive_boundary_weight": 2.00,
+    "target_adaptive_defender_weight": 1.00,
+    "target_adaptive_lookahead_steps": 8,
     "target_flee_gain": 1.00,
     "target_vertical_gain": 0.20,
     "controller_obstacle_avoidance_distance": 2.00,
@@ -112,6 +117,7 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
 # safe when commands are delayed, noisy, and tracked imperfectly.
 _EXECUTION_DEFAULTS: dict[str, Any] = {
     "enabled": False,
+    "random_seed_offset": 104729,
     "action_delay_steps": 0,
     "command_noise_std": 0.0,
     "velocity_time_constant_seconds": 0.0,
@@ -126,7 +132,14 @@ _EXECUTION_DEFAULTS: dict[str, Any] = {
     "drag_coefficient_range": (0.0, 0.0),
 }
 
-_TARGET_MOTION_MODES = {"flee_persistence", "random_turn", "s_curve", "burst", "boundary_escape"}
+_TARGET_MOTION_MODES = {
+    "flee_persistence",
+    "random_turn",
+    "s_curve",
+    "burst",
+    "boundary_escape",
+    "adaptive_adversarial",
+}
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
 
@@ -207,9 +220,19 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
     ):
         if int(settings[name]) <= 0:
             raise ValueError(f"task.pursuit.{name} must be positive.")
-    for name in ("target_s_curve_amplitude", "target_s_curve_frequency", "target_burst_speed_scale"):
+    for name in (
+        "target_s_curve_amplitude",
+        "target_s_curve_frequency",
+        "target_burst_speed_scale",
+        "target_adaptive_heading_weight",
+        "target_adaptive_obstacle_weight",
+        "target_adaptive_boundary_weight",
+        "target_adaptive_defender_weight",
+    ):
         if float(settings[name]) < 0.0:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
+    if int(settings["target_adaptive_lookahead_steps"]) <= 0:
+        raise ValueError("task.pursuit.target_adaptive_lookahead_steps must be positive.")
     if int(settings["target_burst_duration_steps"]) > int(settings["target_burst_period_steps"]):
         raise ValueError("target_burst_duration_steps cannot exceed target_burst_period_steps.")
     if int(settings["map_seed_offset"]) < 0:
@@ -235,6 +258,8 @@ def execution_settings(dynamics: dict[str, Any]) -> dict[str, Any]:
     if unknown:
         raise ValueError(f"Unknown dynamics.execution settings: {', '.join(unknown)}")
     settings = {**_EXECUTION_DEFAULTS, **configured}
+    if int(settings["random_seed_offset"]) < 0:
+        raise ValueError("dynamics.execution.random_seed_offset must be non-negative.")
     if int(settings["action_delay_steps"]) < 0:
         raise ValueError("dynamics.execution.action_delay_steps must be non-negative.")
     for name in ("command_noise_std", "velocity_time_constant_seconds", "drag_coefficient"):
@@ -317,6 +342,7 @@ class CaptureRadiusPursuit3DEnv:
         self.lower = np.array([-half_extent, -half_extent, float(self.world["minimum_altitude"])], dtype=np.float64)
         self.upper = np.array([half_extent, half_extent, float(self.world["height"])], dtype=np.float64)
         self.rng = np.random.default_rng()
+        self.execution_rng = np.random.default_rng()
 
         self.execution_action_queue: list[np.ndarray] = []
         self.execution_max_speed = float(self.agents["defender_max_speed"])
@@ -356,6 +382,9 @@ class CaptureRadiusPursuit3DEnv:
 
     def reset(self, seed: int, record_history: bool = False) -> dict[str, Any]:
         self.rng = np.random.default_rng(seed)
+        self.execution_rng = np.random.default_rng(
+            int(seed) + int(self.execution["random_seed_offset"])
+        )
         self.step_count = 0
         self.collision_steps = 0
         self.world_violation_steps = 0
@@ -375,10 +404,10 @@ class CaptureRadiusPursuit3DEnv:
         self.execution_mass_scale = 1.0
         self.execution_drag_coefficient = 0.0
         if bool(self.execution["randomize_per_episode"]):
-            self.execution_max_speed *= self.rng.uniform(*self.execution["max_speed_scale_range"])
-            self.execution_max_acceleration *= self.rng.uniform(*self.execution["max_acceleration_scale_range"])
-            self.execution_mass_scale = self.rng.uniform(*self.execution["mass_scale_range"])
-            self.execution_drag_coefficient = self.rng.uniform(*self.execution["drag_coefficient_range"])
+            self.execution_max_speed *= self.execution_rng.uniform(*self.execution["max_speed_scale_range"])
+            self.execution_max_acceleration *= self.execution_rng.uniform(*self.execution["max_acceleration_scale_range"])
+            self.execution_mass_scale = self.execution_rng.uniform(*self.execution["mass_scale_range"])
+            self.execution_drag_coefficient = self.execution_rng.uniform(*self.execution["drag_coefficient_range"])
         else:
             self.execution_max_speed *= float(self.execution["max_speed_scale"])
             self.execution_max_acceleration *= float(self.execution["max_acceleration_scale"])
@@ -737,7 +766,7 @@ class CaptureRadiusPursuit3DEnv:
             else:
                 delayed = desired
             self.last_delayed_actions = delayed.copy()
-            command = delayed + self.rng.normal(
+            command = delayed + self.execution_rng.normal(
                 0.0,
                 float(self.execution["command_noise_std"]),
                 size=delayed.shape,
@@ -771,6 +800,9 @@ class CaptureRadiusPursuit3DEnv:
         self._enforce_world_bounds(self.defender_positions, self.defender_velocities)
 
     def _target_action(self) -> np.ndarray:
+        if str(self.pursuit["target_motion_mode"]) == "adaptive_adversarial":
+            return self._adaptive_adversarial_target_action()
+
         desired = float(self.pursuit["target_heading_persistence"]) * self.target_escape_direction
         for defender_position in self.defender_positions:
             delta = self.target_position - defender_position
@@ -842,6 +874,105 @@ class CaptureRadiusPursuit3DEnv:
             if self.step_count % burst_period < burst_duration:
                 speed_scale *= float(self.pursuit["target_burst_speed_scale"])
         return direction * float(self.agents["target_max_speed"]) * speed_scale
+
+    def _adaptive_adversarial_target_action(self) -> np.ndarray:
+        """Choose a feasible one-step escape direction from public geometry.
+
+        This policy is intentionally environment-internal. It uses the true
+        simulator state only to generate an unseen adversary; no selected
+        direction, target state, or policy id is exposed through ``observe``.
+        """
+
+        centroid = self.defender_positions.mean(axis=0)
+        candidates: list[np.ndarray] = [
+            _unit(self.target_position - centroid, fallback=self.target_escape_direction),
+            self.target_escape_direction.copy(),
+        ]
+        for defender_position in self.defender_positions:
+            candidates.append(
+                _unit(self.target_position - defender_position, fallback=self.target_escape_direction)
+            )
+        for axis in range(3):
+            basis = np.zeros(3, dtype=np.float64)
+            basis[axis] = 1.0
+            candidates.extend((basis, -basis))
+        candidates.extend(TETRAHEDRON_DIRECTIONS.copy())
+
+        unique: list[np.ndarray] = []
+        for candidate in candidates:
+            direction = _unit(np.asarray(candidate, dtype=np.float64), fallback=self.target_escape_direction)
+            if not any(float(np.dot(direction, previous)) > 1.0 - 1.0e-9 for previous in unique):
+                unique.append(direction)
+
+        target_speed = float(self.agents["target_max_speed"]) * float(self.target_speed_scale)
+        max_delta = float(self.agents["target_max_acceleration"]) * float(self.dt)
+        best_score = float("-inf")
+        best_direction = self.target_escape_direction.copy()
+        feasible_direction_found = False
+        candidate_clearances: list[tuple[np.ndarray, float, float]] = []
+        for direction in unique:
+            desired_velocity = direction * target_speed
+            predicted_velocity = self._move_toward_velocity(
+                self.target_velocity[None, :],
+                desired_velocity[None, :],
+                max_delta=max_delta,
+            )[0]
+            predicted_position = self.target_position + predicted_velocity * float(self.dt)
+            defender_distance = float(np.min(np.linalg.norm(self.defender_positions - predicted_position, axis=1)))
+            simulated_position = self.target_position.copy()
+            simulated_velocity = self.target_velocity.copy()
+            obstacle_clearance = float("inf")
+            boundary_clearance = float("inf")
+            for _ in range(int(self.pursuit["target_adaptive_lookahead_steps"])):
+                simulated_velocity = self._move_toward_velocity(
+                    simulated_velocity[None, :],
+                    desired_velocity[None, :],
+                    max_delta=max_delta,
+                )[0]
+                simulated_position = simulated_position + simulated_velocity * float(self.dt)
+                obstacle_clearance = min(
+                    obstacle_clearance,
+                    min(
+                        (self._obstacle_clearance(simulated_position, obstacle) for obstacle in self.obstacles),
+                        default=float("inf"),
+                    ),
+                )
+                boundary_clearance = min(
+                    boundary_clearance,
+                    float(
+                        min(
+                            np.min(simulated_position - self.lower),
+                            np.min(self.upper - simulated_position),
+                        )
+                    ),
+                )
+            candidate_clearances.append((direction, obstacle_clearance, boundary_clearance))
+            if obstacle_clearance < 0.0 or boundary_clearance < 0.0:
+                continue
+            score = (
+                float(self.pursuit["target_adaptive_defender_weight"]) * defender_distance
+                + float(self.pursuit["target_adaptive_obstacle_weight"]) * obstacle_clearance
+                + float(self.pursuit["target_adaptive_boundary_weight"]) * boundary_clearance
+                + float(self.pursuit["target_adaptive_heading_weight"]) * float(
+                    np.dot(direction, self.target_escape_direction)
+                )
+            )
+            if score > best_score:
+                best_score = score
+                best_direction = direction
+                feasible_direction_found = True
+
+        if not feasible_direction_found:
+            # The current state may already be close to a corner. Preserve
+            # physical validity by choosing the direction with the largest
+            # boundary/obstacle clearance instead of forcing an escape move.
+            best_direction = max(
+                candidate_clearances,
+                key=lambda item: min(item[1], item[2]),
+            )[0]
+
+        self.target_escape_direction = _unit(best_direction, fallback=self.target_escape_direction)
+        return self.target_escape_direction * target_speed
 
     def _update_target_beliefs(self) -> None:
         self.target_visible[:] = False
