@@ -87,6 +87,7 @@ def test_prediction_dataset_round_trip_rejects_non_finite_values(tmp_path) -> No
     loaded = load_prediction_dataset(str(path))
     np.testing.assert_allclose(loaded.history_observations, dataset.history_observations)
     np.testing.assert_allclose(loaded.future_target_displacements, dataset.future_target_displacements)
+    np.testing.assert_allclose(loaded.future_target_velocities, dataset.future_target_velocities)
 
     invalid = dataset.history_observations.copy()
     invalid[0, 0, 0, 0] = np.nan
@@ -130,6 +131,10 @@ def test_geometry_context_round_trips_and_validates_bounds_and_obstacle_sizes(tm
     save_prediction_dataset(dataset, str(path))
     loaded = load_prediction_dataset(str(path))
     assert loaded.has_geometry_context
+    np.testing.assert_allclose(
+        loaded.future_target_velocities,
+        dataset.future_target_velocities,
+    )
     np.testing.assert_allclose(loaded.world_lower_bounds[0], _geometry()["world_lower_bounds"])
     np.testing.assert_array_equal(loaded.obstacle_shape_codes[:, 0], 0)
 
@@ -203,3 +208,4 @@ def test_geometry_datasets_concatenate_and_retain_target_modes() -> None:
     assert merged.sample_count == first.sample_count + second.sample_count
     assert set(merged.target_motion_modes.tolist()) == {"flee_persistence", "s_curve"}
     np.testing.assert_allclose(merged.future_target_displacements[-1, 0], [2.0, 0.0, 0.0])
+    np.testing.assert_allclose(merged.future_target_velocities[-1, 0], [0.0, 0.0, 0.0])

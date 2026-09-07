@@ -21,6 +21,7 @@ class PredictionDataset:
     episode_seeds: np.ndarray
     target_motion_modes: np.ndarray
     dt_seconds: float
+    future_target_velocities: np.ndarray | None = None
     world_lower_bounds: np.ndarray | None = None
     world_upper_bounds: np.ndarray | None = None
     obstacle_centers_xy: np.ndarray | None = None
@@ -76,6 +77,8 @@ class PredictionDataset:
             "target_motion_modes": self.target_motion_modes,
             "dt_seconds": np.asarray(self.dt_seconds, dtype=np.float32),
         }
+        if self.future_target_velocities is not None:
+            values["future_target_velocities"] = self.future_target_velocities
         if self.has_geometry_context:
             values.update(
                 {
@@ -165,6 +168,7 @@ def build_episode_samples(
 
     histories: list[np.ndarray] = []
     future_displacements: list[np.ndarray] = []
+    future_velocities: list[np.ndarray] = []
     references: list[np.ndarray] = []
     reference_velocity_values: list[np.ndarray] = []
     timesteps: list[int] = []
@@ -179,8 +183,13 @@ def build_episode_samples(
         if reference.shape != (3,) or velocity.shape != (3,) or target.ndim != 2 or target.shape[1] != 3:
             raise ValueError("Reference and target positions must use three-dimensional coordinates.")
         future = target[timestep + 1 : timestep + 1 + horizon_steps] - reference[None, :]
+        previous_target = target[timestep : timestep + horizon_steps]
+        future_velocity = (target[timestep + 1 : timestep + 1 + horizon_steps] - previous_target) / float(
+            dt_seconds
+        )
         histories.append(padded_history(local_frames, timestep, history_length))
         future_displacements.append(future.astype(np.float32, copy=False))
+        future_velocities.append(future_velocity.astype(np.float32, copy=False))
         references.append(reference)
         reference_velocity_values.append(velocity)
         timesteps.append(timestep)
@@ -238,6 +247,7 @@ def build_episode_samples(
         episode_seeds=np.full(sample_count, int(episode_seed), dtype=np.int64),
         target_motion_modes=np.full(sample_count, str(target_motion_mode)),
         dt_seconds=float(dt_seconds),
+        future_target_velocities=np.stack(future_velocities).astype(np.float32),
         **geometry,
     )
     validate_prediction_dataset(dataset)
@@ -249,6 +259,9 @@ def build_episode_samples(
 def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> PredictionDataset:
     if not datasets:
         raise ValueError("At least one prediction dataset is required.")
+    velocity_presence = [item.future_target_velocities is not None for item in datasets]
+    if any(velocity_presence) and not all(velocity_presence):
+        raise ValueError("Prediction datasets must consistently include future target velocities.")
     first = datasets[0]
     for dataset in datasets[1:]:
         if (
@@ -268,6 +281,14 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
         history_observations=np.concatenate([item.history_observations for item in datasets], axis=0),
         future_target_displacements=np.concatenate(
             [item.future_target_displacements for item in datasets], axis=0
+        ),
+        future_target_velocities=(
+            np.concatenate(
+                [item.future_target_velocities for item in datasets if item.future_target_velocities is not None],
+                axis=0,
+            )
+            if all(item.future_target_velocities is not None for item in datasets)
+            else None
         ),
         reference_positions=np.concatenate([item.reference_positions for item in datasets], axis=0),
         reference_velocities=np.concatenate([item.reference_velocities for item in datasets], axis=0),
@@ -324,6 +345,12 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
         raise ValueError("history_observations must have shape [samples, history, defenders, features].")
     if expected_future.ndim != 3 or expected_future.shape[0] != sample_count or expected_future.shape[2] != 3:
         raise ValueError("future_target_displacements must have shape [samples, horizon, 3].")
+    if dataset.future_target_velocities is not None:
+        if (
+            dataset.future_target_velocities.ndim != 3
+            or dataset.future_target_velocities.shape != expected_future.shape
+        ):
+            raise ValueError("future_target_velocities must match future_target_displacements shape.")
     if dataset.reference_positions.shape != (sample_count, 3):
         raise ValueError("reference_positions must have shape [samples, 3].")
     if dataset.reference_velocities.shape != (sample_count, 3):
@@ -346,6 +373,8 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
     ):
         if not np.isfinite(values).all():
             raise ValueError(f"{name} contains non-finite values.")
+    if dataset.future_target_velocities is not None and not np.isfinite(dataset.future_target_velocities).all():
+        raise ValueError("future_target_velocities contains non-finite values.")
     geometry_fields = (
         dataset.world_lower_bounds,
         dataset.world_upper_bounds,
@@ -451,6 +480,11 @@ def load_prediction_dataset(path: str) -> PredictionDataset:
             episode_seeds=np.asarray(archive["episode_seeds"], dtype=np.int64),
             target_motion_modes=np.asarray(archive["target_motion_modes"], dtype=str),
             dt_seconds=float(np.asarray(archive["dt_seconds"]).item()),
+            future_target_velocities=(
+                np.asarray(archive["future_target_velocities"], dtype=np.float32)
+                if "future_target_velocities" in archive.files
+                else None
+            ),
             **geometry,
         )
     validate_prediction_dataset(dataset)

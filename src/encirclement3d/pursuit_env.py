@@ -628,6 +628,10 @@ class CaptureRadiusPursuit3DEnv:
             target_action[None, :],
             max_delta=float(self.agents["target_max_acceleration"]) * self.dt,
         )[0]
+        self.target_velocity = self._clip_rows(
+            self.target_velocity[None, :],
+            float(self.agents["target_max_speed"]),
+        )[0]
         self.target_position += self.target_velocity * self.dt
         self._enforce_world_bounds(self.target_position[None, :], self.target_velocity[None, :])
 

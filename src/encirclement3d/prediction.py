@@ -691,3 +691,66 @@ def prediction_metrics(
         "min_fde": float(fde.min(dim=1).values.mean().detach().cpu()),
         "candidate_spread": float(candidates.std(dim=1, unbiased=False).mean().detach().cpu()),
     }
+
+
+def candidate_energy_score(candidates: torch.Tensor, targets: torch.Tensor) -> float:
+    """Return the multivariate energy score for an equally weighted candidate set."""
+
+    if candidates.ndim != 4 or targets.ndim != 3 or candidates.shape[0] != targets.shape[0]:
+        raise ValueError("Expected candidates [batch, modes, horizon, 3] and targets [batch, horizon, 3].")
+    batch_size, candidate_count, horizon_count, coordinates = candidates.shape
+    if targets.shape[1:] != (horizon_count, coordinates) or candidate_count <= 0:
+        raise ValueError("Candidate and target horizons must match and candidate count must be positive.")
+    candidate_vectors = candidates.reshape(batch_size, candidate_count, -1)
+    target_vectors = targets.reshape(batch_size, -1)[:, None, :]
+    fit = torch.linalg.vector_norm(candidate_vectors - target_vectors, dim=-1).mean(dim=1)
+    pairwise = torch.linalg.vector_norm(
+        candidate_vectors[:, :, None, :] - candidate_vectors[:, None, :, :], dim=-1
+    ).mean(dim=(1, 2))
+    return float((fit - 0.5 * pairwise).mean().detach().cpu())
+
+
+def conformal_nonconformity(candidates: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Return one split-conformal trajectory error per sample in physical units."""
+
+    if candidates.ndim != 4 or targets.ndim != 3 or candidates.shape[0] != targets.shape[0]:
+        raise ValueError("Expected candidates [batch, modes, horizon, 3] and targets [batch, horizon, 3].")
+    distances = torch.linalg.vector_norm(candidates - targets[:, None], dim=-1)
+    return distances.amax(dim=-1).amin(dim=1)
+
+
+def conformal_radius(calibration_scores: torch.Tensor, coverage: float = 0.9) -> float:
+    """Compute a finite-sample split-conformal radius for desired marginal coverage."""
+
+    if calibration_scores.ndim != 1 or calibration_scores.numel() == 0:
+        raise ValueError("calibration_scores must be a non-empty vector.")
+    if not 0.0 < coverage < 1.0:
+        raise ValueError("coverage must be strictly between zero and one.")
+    if not torch.isfinite(calibration_scores).all():
+        raise ValueError("calibration_scores must be finite.")
+    quantile_level = min(
+        1.0,
+        float(np.ceil((calibration_scores.numel() + 1) * coverage) / calibration_scores.numel()),
+    )
+    return float(torch.quantile(calibration_scores, quantile_level, interpolation="higher").cpu())
+
+
+def conformal_coverage(
+    candidates: torch.Tensor,
+    targets: torch.Tensor,
+    radius: float,
+) -> dict[str, float]:
+    """Measure full-trajectory and per-horizon coverage for a calibrated radius."""
+
+    if not np.isfinite(radius) or radius < 0.0:
+        raise ValueError("radius must be finite and non-negative.")
+    distances = torch.linalg.vector_norm(candidates - targets[:, None], dim=-1)
+    within = distances <= float(radius)
+    full_coverage = within.all(dim=-1).any(dim=1).float().mean()
+    horizon_coverage = within.any(dim=1).float().mean(dim=0)
+    return {
+        "coverage_full_trajectory": float(full_coverage.cpu()),
+        "coverage_horizon_mean": float(horizon_coverage.mean().cpu()),
+        "coverage_horizon_min": float(horizon_coverage.min().cpu()),
+        "coverage_horizon_max": float(horizon_coverage.max().cpu()),
+    }

@@ -243,6 +243,7 @@ def main() -> None:
             "source": "CaptureRadiusPursuit3DEnv.target_position",
             "uses_target_truth": True,
             "representation": "future_target_position_minus_published_team_belief_reference",
+            "future_velocity_representation": "finite_difference_of_target_position_over_dt",
         },
         "geometry_contract": {
             "available": bool(merged.has_geometry_context),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import torch
+import pytest
 
 from encirclement3d.prediction import (
     CandidateTrajectorySet,
@@ -8,6 +9,10 @@ from encirclement3d.prediction import (
     DiagonalSSMEncoder,
     TrajectoryNormalizer,
     assess_candidate_feasibility,
+    candidate_energy_score,
+    conformal_coverage,
+    conformal_nonconformity,
+    conformal_radius,
     prediction_metrics,
 )
 
@@ -45,6 +50,21 @@ def test_prediction_metrics_report_best_of_k() -> None:
     assert metrics["min_ade"] == 0.0
     assert metrics["min_fde"] == 0.0
     assert metrics["candidate_spread"] > 0.0
+
+
+def test_energy_score_and_split_conformal_coverage_are_finite() -> None:
+    targets = torch.zeros(3, 2, 3)
+    candidates = torch.zeros(3, 2, 2, 3)
+    candidates[0, :, :, 0] = 0.1
+    candidates[1, :, :, 0] = 0.2
+    candidates[2, :, :, 0] = 0.3
+    scores = conformal_nonconformity(candidates, targets)
+    assert torch.allclose(scores, torch.tensor([0.1, 0.2, 0.3]))
+    radius = conformal_radius(scores, coverage=0.9)
+    assert radius == pytest.approx(0.3)
+    coverage = conformal_coverage(candidates, targets, radius)
+    assert coverage["coverage_full_trajectory"] == 1.0
+    assert candidate_energy_score(candidates, targets) >= 0.0
 
 
 def test_trajectory_normalizer_round_trips_train_targets_and_labels_legacy_scale() -> None:

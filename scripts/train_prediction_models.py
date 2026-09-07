@@ -36,6 +36,10 @@ from encirclement3d.prediction import (  # noqa: E402
     HistoryTargetPredictor,
     TrajectoryNormalizer,
     assess_candidate_feasibility,
+    candidate_energy_score,
+    conformal_coverage,
+    conformal_nonconformity,
+    conformal_radius,
     deterministic_mse,
     gaussian_nll,
     prediction_metrics,
@@ -146,10 +150,11 @@ def derive_candidate_constraints(args: argparse.Namespace) -> CandidateConstrain
     metadata = load_dataset_metadata(args.train_dataset)
     config = metadata.get("config", {})
     agents = config.get("agents", {}) if isinstance(config, dict) else {}
-    speed_scale = metadata.get("target_speed_scale")
     derived_speed = None
-    if isinstance(agents.get("target_max_speed"), (int, float)) and isinstance(speed_scale, (int, float)):
-        derived_speed = float(agents["target_max_speed"]) * float(speed_scale)
+    if isinstance(agents.get("target_max_speed"), (int, float)):
+        # target_speed_scale changes the nominal behavior, while the agent
+        # configuration is the hard physical speed limit used by feasibility.
+        derived_speed = float(agents["target_max_speed"])
     derived_acceleration = (
         float(agents["target_max_acceleration"])
         if isinstance(agents.get("target_max_acceleration"), (int, float))
@@ -251,6 +256,33 @@ def train_epoch(
 
 
 @torch.no_grad()
+def sample_physical_candidates(
+    model: torch.nn.Module,
+    inputs: torch.Tensor,
+    sample_indices: np.ndarray,
+    device: torch.device,
+    model_kind: str,
+    normalizer: TrajectoryNormalizer,
+    num_samples: int,
+    sampling_steps: int,
+    sampling_seed: int,
+) -> torch.Tensor:
+    model.eval()
+    indices = torch.as_tensor(sample_indices, dtype=torch.long)
+    selected_inputs = inputs.index_select(0, indices).to(device)
+    if model_kind == "gru":
+        mean, _log_variance = model(selected_inputs)
+        return normalizer.denormalize(mean[:, None])
+    candidate_set = model.sample_set(
+        selected_inputs,
+        num_samples=num_samples,
+        sampling_steps=sampling_steps,
+        generator=seeded_generator(device, sampling_seed),
+    )
+    return normalizer.denormalize(candidate_set.trajectories)
+
+
+@torch.no_grad()
 def evaluate_subset(
     model: torch.nn.Module,
     inputs: torch.Tensor,
@@ -264,6 +296,7 @@ def evaluate_subset(
     sampling_steps: int,
     evaluation_sampling_seed: int,
     constraints: CandidateConstraints,
+    calibration_radius: float | None = None,
 ) -> dict[str, float]:
     if sample_indices.ndim != 1 or sample_indices.size == 0:
         raise ValueError("sample_indices must select at least one validation sample.")
@@ -296,6 +329,7 @@ def evaluate_subset(
         )
         deterministic = torch.tensor(float("nan"), device=device)
     metrics = prediction_metrics(candidate_set.trajectories, targets)
+    metrics["energy_score"] = candidate_energy_score(candidate_set.trajectories, targets)
     constant_velocity = (
         torch.as_tensor(dataset.reference_velocities[sample_indices], device=device)[:, None, :]
         * float(dataset.dt_seconds)
@@ -329,7 +363,24 @@ def evaluate_subset(
         result["candidate_feasibility_available"] = 1.0
     else:
         result["candidate_feasibility_available"] = 0.0
+    if calibration_radius is not None:
+        result.update(conformal_coverage(candidate_set.trajectories, targets, calibration_radius))
+        result["calibration_radius_m"] = float(calibration_radius)
     return result
+
+
+def validation_calibration_indices(dataset: PredictionDataset) -> tuple[np.ndarray, np.ndarray]:
+    """Split validation episodes, rather than overlapping windows, for calibration."""
+
+    episode_seeds = np.unique(dataset.episode_seeds)
+    if episode_seeds.size < 2:
+        raise ValueError("Validation calibration requires at least two distinct episodes.")
+    calibration_count = max(1, episode_seeds.size // 2)
+    calibration_seeds = episode_seeds[:calibration_count]
+    evaluation_seeds = episode_seeds[calibration_count:]
+    calibration = np.flatnonzero(np.isin(dataset.episode_seeds, calibration_seeds)).astype(np.int64)
+    evaluation = np.flatnonzero(np.isin(dataset.episode_seeds, evaluation_seeds)).astype(np.int64)
+    return calibration, evaluation
 
 
 @torch.no_grad()
@@ -399,6 +450,13 @@ def write_metadata(
         "target_normalizer": normalizer.as_dict(),
         "candidate_feasibility_constraints": constraints.as_dict(),
         "validation_geometry_context_available": validation_dataset.has_geometry_context,
+        "candidate_score_kind": "uniform_uncalibrated",
+        "confidence_calibration": {
+            "method": "split_conformal_full_trajectory_max_distance",
+            "coverage_target": 0.90,
+            "calibration_split": "first half of validation episodes",
+            "evaluation_split": "second half of validation episodes",
+        },
         "device": str(device),
         "python": sys.version.replace("\n", " "),
         "platform": platform.platform(),
@@ -496,6 +554,19 @@ def main() -> None:
         0,
     )
     writer.add_text(
+        "Config/confidence_calibration",
+        yaml.safe_dump(
+            {
+                "method": "split_conformal_full_trajectory_max_distance",
+                "coverage_target": 0.90,
+                "calibration_split": "first half of validation episodes",
+                "evaluation_split": "second half of validation episodes",
+            },
+            sort_keys=False,
+        ),
+        0,
+    )
+    writer.add_text(
         "Config/dataset_contract",
         yaml.safe_dump(
             {
@@ -528,6 +599,7 @@ def main() -> None:
     )
     history: list[dict[str, Any]] = []
     validation_indices = np.arange(validation_dataset.sample_count, dtype=np.int64)
+    calibration_indices, calibrated_evaluation_indices = validation_calibration_indices(validation_dataset)
     validation_modes = sorted(set(validation_dataset.target_motion_modes.tolist()))
     try:
         for epoch in range(1, args.epochs + 1):
@@ -554,6 +626,43 @@ def main() -> None:
                 args.evaluation_sampling_seed,
                 constraints,
             )
+            calibration_candidates = sample_physical_candidates(
+                model,
+                validation_inputs,
+                calibration_indices,
+                device,
+                args.model,
+                normalizer,
+                args.num_samples,
+                args.sampling_steps,
+                args.evaluation_sampling_seed + 2,
+            )
+            calibration_targets = validation_targets.index_select(
+                0, torch.as_tensor(calibration_indices, dtype=torch.long)
+            ).to(device)
+            radius = conformal_radius(
+                conformal_nonconformity(calibration_candidates, calibration_targets),
+                coverage=0.90,
+            )
+            calibrated_validation = evaluate_subset(
+                model,
+                validation_inputs,
+                validation_targets,
+                validation_dataset,
+                calibrated_evaluation_indices,
+                device,
+                args.model,
+                normalizer,
+                args.num_samples,
+                args.sampling_steps,
+                args.evaluation_sampling_seed + 3,
+                constraints,
+                calibration_radius=radius,
+            )
+            calibrated_record = {f"calibrated_{key}": value for key, value in calibrated_validation.items()}
+            for key, value in calibrated_record.items():
+                if np.isfinite(value):
+                    writer.add_scalar(f"Calibration/{key}", value, epoch)
             per_mode: dict[str, dict[str, float]] = {}
             for mode_index, mode in enumerate(validation_modes):
                 mode_indices = np.flatnonzero(validation_dataset.target_motion_modes == mode).astype(np.int64)
@@ -590,6 +699,7 @@ def main() -> None:
                 "epoch": epoch,
                 "train_loss": train_loss,
                 **validation,
+                **calibrated_record,
                 **latency,
                 "epoch_seconds": elapsed,
                 "per_target_motion_mode": per_mode,
@@ -631,6 +741,9 @@ def main() -> None:
                 "hparam/constant_velocity_min_ade": float(final["constant_velocity_min_ade"]),
                 "hparam/single_sample_latency_p95_ms": float(final["single_sample_latency_p95_ms"]),
                 "hparam/candidate_feasible_fraction": float(final.get("candidate_feasible_fraction", float("nan"))),
+                "hparam/calibrated_coverage_full_trajectory": float(
+                    final.get("calibrated_coverage_full_trajectory", float("nan"))
+                ),
             },
         )
     output.joinpath("training.json").write_text(json.dumps(history, indent=2), encoding="utf-8")

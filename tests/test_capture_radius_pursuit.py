@@ -453,6 +453,22 @@ def test_hard_benchmark_motion_modes_are_deterministic() -> None:
     np.testing.assert_allclose(first.target_velocity, second.target_velocity)
 
 
+def test_target_burst_respects_declared_hard_speed_limit() -> None:
+    config = load_config()
+    config["task"]["pursuit"].update(
+        {
+            "target_motion_mode": "burst",
+            "target_burst_speed_scale": 5.0,
+            "obstacle_profile": "mixed",
+        }
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=1.0)
+    env.reset(seed=520118)
+    for _ in range(80):
+        env.step(np.zeros((4, 3)))
+        assert np.linalg.norm(env.target_velocity) <= float(config["agents"]["target_max_speed"]) + 1e-9
+
+
 def test_box_and_wall_obstacles_have_finite_local_observations() -> None:
     config = load_config()
     for profile in ("boxes", "walls", "narrow_channels"):
