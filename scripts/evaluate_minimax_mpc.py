@@ -50,6 +50,10 @@ from encirclement3d.minimax_mpc import (  # noqa: E402
     evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
+from encirclement3d.distributed_dn_mpc import (  # noqa: E402
+    DistributedDNMPCConfig,
+    DistributedMinimaxDNMPC,
+)
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
 from encirclement3d.prediction import (  # noqa: E402
     ConditionalDiffusionTrajectoryPredictor,
@@ -76,7 +80,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--candidate-source", choices=("checkpoint", "belief"), default="checkpoint")
-    parser.add_argument("--methods", nargs="+", choices=("dynamic_encirclement", "expected", "worst_case", "cvar"))
+    parser.add_argument(
+        "--methods",
+        nargs="+",
+        choices=(
+            "dynamic_encirclement",
+            "expected",
+            "worst_case",
+            "cvar",
+            "distributed_ideal",
+            "distributed_delayed",
+            "distributed_dropout",
+            "distributed_none",
+        ),
+    )
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--seed-start", type=int)
     parser.add_argument("--obstacle-count", type=int)
@@ -107,19 +124,24 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
-def source_hashes() -> dict[str, str]:
+def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
     paths = (
         PROJECT_ROOT / "scripts" / "evaluate_minimax_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "minimax_mpc.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "distributed_dn_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
         PROJECT_ROOT / "configs" / "innovation_mpc.yaml",
     )
-    return {
+    hashes = {
         str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in paths
     }
+    if mpc_config_path is not None:
+        path = mpc_config_path.resolve()
+        hashes[str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
 
 
 def weighted_belief_velocity(observation: dict[str, Any]) -> np.ndarray:
@@ -295,6 +317,7 @@ def run_episode(
     sampling_seed: int,
     projection_iterations: int,
     use_local_cbf: bool,
+    distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -316,6 +339,28 @@ def run_episode(
     fallback_controller = DynamicEncirclementController(env)
     safety_filter = PursuitCBFSafetyFilter(env) if use_local_cbf else None
     planner = ScenarioMinimaxMPC(planner_config)
+    distributed_planner: DistributedMinimaxDNMPC | None = None
+    previous_distributed_sequence: np.ndarray | None = None
+    distributed_methods = {
+        "distributed_ideal": "ideal",
+        "distributed_delayed": "delayed",
+        "distributed_dropout": "dropout",
+        "distributed_none": "none",
+    }
+    if method in distributed_methods:
+        if distributed_config is None:
+            distributed_config = DistributedDNMPCConfig(
+                communication_mode=distributed_methods[method],
+            )
+        elif distributed_config.communication_mode != distributed_methods[method]:
+            raise ValueError(
+                f"distributed config mode {distributed_config.communication_mode!r} "
+                f"does not match method {method!r}"
+            )
+        distributed_planner = DistributedMinimaxDNMPC(
+            MinimaxMPCConfig(**{**planner_config.__dict__, "risk_mode": "worst_case"}),
+            distributed_config,
+        )
     runtime = None
     if method != "dynamic_encirclement":
         if candidate_source == "checkpoint" and checkpoint_data is None:
@@ -357,19 +402,30 @@ def run_episode(
             planner_config_for_method = MinimaxMPCConfig(
                 **{
                     **planner_config.__dict__,
-                    "risk_mode": method,
+                    "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
                 }
             )
-            planner = ScenarioMinimaxMPC(planner_config_for_method)
-            plan = planner.plan(
-                _planning_observation(env, observation),
-                scenarios,
-                fallback_actions=fallback_actions,
-            )
+            planning_observation = _planning_observation(env, observation)
+            if distributed_planner is not None:
+                plan = distributed_planner.plan(
+                    planning_observation,
+                    scenarios,
+                    step_index=env.step_count,
+                    previous_action_sequence=previous_distributed_sequence,
+                    fallback_actions=fallback_actions,
+                )
+                previous_distributed_sequence = plan.action_sequence.copy()
+            else:
+                planner = ScenarioMinimaxMPC(planner_config_for_method)
+                plan = planner.plan(
+                    planning_observation,
+                    scenarios,
+                    fallback_actions=fallback_actions,
+                )
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
             candidate_distance_metrics = evaluate_candidate_capture_distances(
-                _planning_observation(env, observation),
+                planning_observation,
                 plan.action_sequence,
                 scenarios.truncate(planner_config.horizon_steps),
                 dt_seconds=planner_config.dt_seconds,
@@ -429,13 +485,27 @@ def run_episode(
         observation, _reward, terminated, truncated, final_info = env.step(safe_actions)
         path_length += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
         previous_positions = env.defender_positions.copy()
+        planner_status = str(planner_diagnostics.status)
         step_rows.append(
             {
                 "step": float(env.step_count),
                 "predictor_latency_ms": float(predictor_latency_ms),
                 "planner_latency_ms": float(planner_diagnostics.latency_ms),
-                "planner_status": 1.0 if planner_diagnostics.status == "success" else 0.0,
-                "planner_fallback": 1.0 if planner_diagnostics.status == "fallback" else 0.0,
+                "planner_status": 1.0 if planner_status == "success" else 0.0,
+                "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
+                "planner_valid": 1.0 if planner_status in {"success", "not_converged", "partial_fallback"} else 0.0,
+                "planner_converged": 1.0 if bool(getattr(planner_diagnostics, "converged", False)) else 0.0,
+                "planner_local_solver_failures": float(getattr(planner_diagnostics, "local_solver_failures", 0)),
+                "messages_attempted": float(getattr(planner_diagnostics, "messages_attempted", 0)),
+                "messages_sent": float(getattr(planner_diagnostics, "messages_sent", 0)),
+                "messages_received": float(getattr(planner_diagnostics, "messages_received", 0)),
+                "messages_dropped": float(getattr(planner_diagnostics, "messages_dropped", 0)),
+                "message_bytes_sent": float(getattr(planner_diagnostics, "message_bytes_sent", 0)),
+                "message_bytes_received": float(getattr(planner_diagnostics, "message_bytes_received", 0)),
+                "max_message_age_steps": float(getattr(planner_diagnostics, "max_message_age_steps", 0)),
+                "mean_message_age_steps": float(getattr(planner_diagnostics, "mean_message_age_steps", 0.0)),
+                "distributed_iterations": float(getattr(planner_diagnostics, "iterations", 0)),
+                "distributed_action_delta_mps": float(getattr(planner_diagnostics, "max_action_delta_mps", 0.0)),
                 "objective_value": float(planner_diagnostics.objective_value),
                 "worst_case_cost": float(planner_diagnostics.worst_case_cost),
                 "cbf_action_correction_norm": float(cbf_correction),
@@ -478,7 +548,20 @@ def run_episode(
         ),
         "planner_fallback_count": int(sum(row["planner_fallback"] for row in step_rows)),
         "planner_success_count": int(sum(row["planner_status"] for row in step_rows)),
+        "planner_valid_count": int(sum(row["planner_valid"] for row in step_rows)),
+        "planner_converged_count": int(sum(row["planner_converged"] for row in step_rows)),
+        "planner_local_solver_failures": int(sum(row["planner_local_solver_failures"] for row in step_rows)),
         "planner_step_count": len(step_rows),
+        "messages_attempted": int(sum(row["messages_attempted"] for row in step_rows)),
+        "messages_sent": int(sum(row["messages_sent"] for row in step_rows)),
+        "messages_received": int(sum(row["messages_received"] for row in step_rows)),
+        "messages_dropped": int(sum(row["messages_dropped"] for row in step_rows)),
+        "message_bytes_sent": int(sum(row["message_bytes_sent"] for row in step_rows)),
+        "message_bytes_received": int(sum(row["message_bytes_received"] for row in step_rows)),
+        "max_message_age_steps": int(max(row["max_message_age_steps"] for row in step_rows)),
+        "mean_message_age_steps": finite_mean([row["mean_message_age_steps"] for row in step_rows]),
+        "mean_distributed_iterations": finite_mean([row["distributed_iterations"] for row in step_rows]),
+        "mean_distributed_action_delta_mps": finite_mean([row["distributed_action_delta_mps"] for row in step_rows]),
         "mean_cbf_action_correction_norm": float(
             np.nanmean([row["cbf_action_correction_norm"] for row in step_rows])
         ),
@@ -550,6 +633,27 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             [row["mean_candidate_cvar_minimum_distance_m"] for row in rows]
         ),
         "solver_success_rate": float(success_steps / max(planner_steps, 1.0)),
+        "valid_plan_rate": float(sum(float(row["planner_valid_count"]) for row in rows) / max(planner_steps, 1.0)),
+        "effective_plan_rate": float(success_steps / max(planner_steps, 1.0)),
+        "convergence_rate": float(
+            sum(float(row["planner_converged_count"]) for row in rows) / max(planner_steps, 1.0)
+        ),
+        "local_solver_failure_rate": float(
+            sum(float(row["planner_local_solver_failures"]) for row in rows)
+            / max(planner_steps, 1.0)
+        ),
+        "messages_attempted": int(sum(row["messages_attempted"] for row in rows)),
+        "messages_sent": int(sum(row["messages_sent"] for row in rows)),
+        "messages_received": int(sum(row["messages_received"] for row in rows)),
+        "messages_dropped": int(sum(row["messages_dropped"] for row in rows)),
+        "message_bytes_sent": int(sum(row["message_bytes_sent"] for row in rows)),
+        "message_bytes_received": int(sum(row["message_bytes_received"] for row in rows)),
+        "max_message_age_steps": int(max(row["max_message_age_steps"] for row in rows)),
+        "mean_message_age_steps": finite_mean([row["mean_message_age_steps"] for row in rows]),
+        "mean_distributed_iterations": finite_mean([row["mean_distributed_iterations"] for row in rows]),
+        "mean_distributed_action_delta_mps": finite_mean(
+            [row["mean_distributed_action_delta_mps"] for row in rows]
+        ),
         "fallback_rate": float(fallback_steps / max(planner_steps, 1.0)),
         "planner_latency_ms": {
             "p50": percentile(planner_latencies, 50),
@@ -579,6 +683,7 @@ def main() -> None:
     args = parse_args()
     mpc_document = load_yaml(args.mpc_config)
     planner_mapping = dict(mpc_document.get("planner", {}))
+    distributed_mapping = dict(mpc_document.get("distributed", {}))
     evaluation_mapping = dict(mpc_document.get("evaluation", {}))
     prediction_mapping = dict(mpc_document.get("prediction", {}))
     output = args.output_dir.resolve()
@@ -647,6 +752,7 @@ def main() -> None:
         "environment_config": str(args.environment_config.resolve()),
         "mpc_config": str(args.mpc_config.resolve()),
         "planner": planner_config.__dict__,
+        "distributed": distributed_mapping,
         "evaluation": {
             "episodes": episodes,
             "seed_start": seed_start,
@@ -660,7 +766,7 @@ def main() -> None:
             "device": str(device),
             "use_local_cbf": use_local_cbf,
         },
-        "source_hashes": source_hashes(),
+        "source_hashes": source_hashes(args.mpc_config),
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
     all_summaries: dict[str, Any] = {}
@@ -675,6 +781,20 @@ def main() -> None:
         ):
             for episode_index in range(episodes):
                 seed = seed_start + episode_index
+                distributed_config = None
+                distributed_modes = {
+                    "distributed_ideal": "ideal",
+                    "distributed_delayed": "delayed",
+                    "distributed_dropout": "dropout",
+                    "distributed_none": "none",
+                }
+                if method in distributed_modes:
+                    distributed_config = DistributedDNMPCConfig.from_mapping(
+                        {
+                            **distributed_mapping,
+                            "communication_mode": distributed_modes[method],
+                        }
+                    )
                 row, step_rows = run_episode(
                     base_config,
                     seed=seed,
@@ -688,6 +808,7 @@ def main() -> None:
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
                     use_local_cbf=use_local_cbf,
+                    distributed_config=distributed_config,
                 )
                 rows.append(row)
                 all_step_rows.extend(step_rows)
@@ -725,6 +846,17 @@ def main() -> None:
                     "mean_total_control_latency_ms",
                     "planner_fallback_count",
                     "planner_success_count",
+                    "planner_valid_count",
+                    "planner_converged_count",
+                    "planner_local_solver_failures",
+                    "messages_attempted",
+                    "messages_sent",
+                    "messages_received",
+                    "messages_dropped",
+                    "message_bytes_sent",
+                    "max_message_age_steps",
+                    "mean_distributed_iterations",
+                    "mean_distributed_action_delta_mps",
                     "mean_candidate_worst_minimum_distance_m",
                     "mean_candidate_cvar_minimum_distance_m",
                 ):
@@ -748,7 +880,8 @@ def main() -> None:
             writer.add_scalar("Summary/TotalControlLatency/p99_ms", summary["total_control_latency_ms"]["p99"], 0)
             writer.add_hparams(
                 {
-                    "risk_mode": method,
+                    "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
+                    "distributed_method": int(method.startswith("distributed_")),
                     "horizon_steps": planner_config.horizon_steps,
                     "control_horizon_steps": planner_config.control_horizon_steps,
                     "candidate_source": args.candidate_source,
@@ -766,7 +899,7 @@ def main() -> None:
         "config": run_config,
         "methods": all_summaries,
         "decision": "diagnostic_only",
-        "decision_reason": "Centralized scenario planner is evaluated before any distributed DN-MPC claim.",
+        "decision_reason": "P4 communication robustness is diagnostic until the formal S3 gate is reviewed.",
     }
     output.joinpath("summary.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
     print(json.dumps(result, indent=2, allow_nan=True))

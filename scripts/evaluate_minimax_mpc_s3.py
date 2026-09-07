@@ -45,6 +45,7 @@ from evaluate_minimax_mpc import (  # noqa: E402
     summarize_rows,
 )
 from evaluate_minimax_mpc import require_summary_writer  # noqa: E402
+from encirclement3d.distributed_dn_mpc import DistributedDNMPCConfig  # noqa: E402
 
 
 DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_v5_protocol.yaml"
@@ -63,7 +64,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--methods",
         nargs="+",
-        choices=("dynamic_encirclement", "expected", "worst_case", "cvar"),
+        choices=(
+            "dynamic_encirclement",
+            "expected",
+            "worst_case",
+            "cvar",
+            "distributed_ideal",
+            "distributed_delayed",
+            "distributed_dropout",
+            "distributed_none",
+        ),
     )
     parser.add_argument("--episodes", type=int, help="Smoke override; locked_test requires its configured count.")
     parser.add_argument("--max-steps", type=int)
@@ -166,8 +176,8 @@ def config_for_spec(
     return config
 
 
-def source_hashes_s3(protocol_path: Path) -> dict[str, str]:
-    hashes = source_hashes()
+def source_hashes_s3(protocol_path: Path, mpc_config_path: Path) -> dict[str, str]:
+    hashes = source_hashes(mpc_config_path)
     tracked = (
         PROJECT_ROOT / "scripts" / "evaluate_minimax_mpc_s3.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "showcase.py",
@@ -205,6 +215,7 @@ def main() -> None:
 
     mpc_document = load_yaml(args.mpc_config)
     planner_config = MinimaxMPCConfig.from_mapping(dict(mpc_document.get("planner", {})))
+    distributed_mapping = dict(mpc_document.get("distributed", {}))
     prediction_config = dict(mpc_document.get("prediction", {}))
     methods = list(args.methods or mpc_document.get("evaluation", {}).get("methods", ["dynamic_encirclement", "expected", "worst_case", "cvar"]))
     if args.candidate_source == "checkpoint" and args.checkpoint is None:
@@ -227,7 +238,7 @@ def main() -> None:
     if min(num_samples, sampling_steps, projection_iterations) <= 0:
         raise ValueError("Prediction sampling and projection settings must be positive")
 
-    hashes = source_hashes_s3(protocol_path)
+    hashes = source_hashes_s3(protocol_path, args.mpc_config)
     if checkpoint is not None:
         hashes["checkpoint_sha256"] = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
     run_config = {
@@ -241,6 +252,7 @@ def main() -> None:
         "checkpoint": None if checkpoint is None else str(checkpoint),
         "device": str(device),
         "planner": planner_config.__dict__,
+        "distributed": distributed_mapping,
         "prediction": {
             "num_samples": num_samples,
             "sampling_steps": sampling_steps,
@@ -299,6 +311,20 @@ def main() -> None:
                 spec = record["spec"]
                 config = config_for_spec(args.environment_config, spec, args.max_steps)
                 scenario = scenario_from_metadata(record["scenario"])
+                distributed_config = None
+                distributed_modes = {
+                    "distributed_ideal": "ideal",
+                    "distributed_delayed": "delayed",
+                    "distributed_dropout": "dropout",
+                    "distributed_none": "none",
+                }
+                if method in distributed_modes:
+                    distributed_config = DistributedDNMPCConfig.from_mapping(
+                        {
+                            **distributed_mapping,
+                            "communication_mode": distributed_modes[method],
+                        }
+                    )
                 row, steps = run_episode(
                     config,
                     seed=int(spec["episode_seed"]),
@@ -312,6 +338,7 @@ def main() -> None:
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
                     use_local_cbf=not args.without_local_cbf,
+                    distributed_config=distributed_config,
                     scenario=scenario,
                     validate_scenario=False,
                 )
@@ -365,6 +392,17 @@ def main() -> None:
                     "mean_total_control_latency_ms",
                     "planner_fallback_count",
                     "planner_success_count",
+                    "planner_valid_count",
+                    "planner_converged_count",
+                    "planner_local_solver_failures",
+                    "messages_attempted",
+                    "messages_sent",
+                    "messages_received",
+                    "messages_dropped",
+                    "message_bytes_sent",
+                    "max_message_age_steps",
+                    "mean_distributed_iterations",
+                    "mean_distributed_action_delta_mps",
                     "mean_candidate_worst_minimum_distance_m",
                     "mean_candidate_cvar_minimum_distance_m",
                 ):
@@ -386,7 +424,8 @@ def main() -> None:
                         writer.add_scalar(f"Summary/{name}/{percentile}_ms", overall[key][percentile], 0)
             writer.add_hparams(
                 {
-                    "method": method,
+                     "method": method,
+                     "distributed_method": int(method.startswith("distributed_")),
                     "split": args.split,
                     "horizon_steps": planner_config.horizon_steps,
                     "control_horizon_steps": planner_config.control_horizon_steps,
@@ -404,7 +443,7 @@ def main() -> None:
         "config": run_config,
         "methods": all_summaries,
         "decision": "diagnostic_only",
-        "decision_reason": "S3 centralized planner evidence is required before distributed DN-MPC.",
+        "decision_reason": "P4 communication robustness is diagnostic until the formal S3 gate is reviewed.",
     }
     output.joinpath("summary.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
     print(json.dumps(result, indent=2, allow_nan=True), flush=True)

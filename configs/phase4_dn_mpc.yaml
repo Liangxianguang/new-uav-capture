@@ -1,0 +1,74 @@
+experiment_name: phase4_distributed_dn_mpc_s3_validation
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+protocol: central_random_mixed_obstacle_s3_v5_protocol.yaml
+
+planner:
+  implementation: finite_shooting_sequential_best_response
+  dt_seconds: 0.1
+  horizon_steps: 8
+  control_horizon_steps: 3
+  max_speed_mps: 5.0
+  capture_radius_m: 0.80
+  drone_radius_m: 0.25
+  safety_margin_m: 0.35
+  minimum_inter_agent_distance_m: 1.00
+  risk_mode: worst_case
+  cvar_alpha: 0.75
+  role_perimeter_m: 1.40
+  slot_gain: 2.5
+  target_velocity_gain: 1.0
+  weight_distance: 1.0
+  weight_terminal_distance: 3.0
+  weight_capture_hinge: 1.5
+  weight_formation: 0.25
+  weight_control: 0.015
+  weight_control_change: 0.02
+  weight_obstacle: 25.0
+  weight_boundary: 25.0
+  weight_inter_agent: 25.0
+  weight_relative_speed: 0.02
+  max_role_variants: 4
+  perimeter_scales: [0.75, 1.0]
+
+distributed:
+  max_iterations: 3
+  convergence_tolerance_mps: 0.15
+  communication_interval_steps: 1
+  message_delay_steps: 2
+  message_dropout_probability: 0.10
+  max_message_age_steps: 8
+  local_timeout_ms: 100.0
+  max_local_candidate_paths: 4
+  local_obstacle_range_m: 8.0
+  bytes_per_float: 8
+  fallback_policy: fallback_actions_then_previous_sequence
+
+prediction:
+  candidate_source: checkpoint
+  candidate_status_required: projected
+  num_samples: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+
+evaluation:
+  split: validation
+  methods:
+    - worst_case
+    - distributed_ideal
+    - distributed_delayed
+    - distributed_dropout
+    - distributed_none
+    - dynamic_encirclement
+  control_cycle_budget_ms: 100.0
+  fallback_policy: fallback_actions_then_previous_sequence
+
+reporting:
+  tensorboard_required: true
+  preserve_common_scenes_jsonl: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  report_message_counts_bytes_and_age: true
+  report_convergence_and_local_failures: true
+  report_planner_valid_and_effective_rate: true
+  report_oracle_gap: true

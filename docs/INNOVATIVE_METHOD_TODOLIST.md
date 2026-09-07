@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v2.1（2026-09-07）
+> 版本：v2.2（2026-09-07）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：预测模块处于正式实验前的 `Conditional Go` 阶段；DN-MPC、R-CLBF-QP 和端到端结论尚未成立。
+> 当前结论：预测模块处于 `Conditional Go` 阶段；P3 集中式 Scenario MPC 已通过 S3 validation；P4 分布式 DN-MPC 已完成通信鲁棒性诊断，但因 planner 实时性未达 100 ms 门槛，DN-MPC、R-CLBF-QP 和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -27,8 +27,8 @@
 - Phase 1：预测窗口、可见信息约束、五类目标模式、障碍物上下文、未来目标速度、数据元数据和数据集切分已经实现；统一执行动力学和自适应博弈目标仍未完成。
 - Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；结论为 `Conditional Go`，未达到 10% minFDE 强门槛。
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
-- Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛；最终 DN-MPC 尚未实现。
-- Phase 4：尚未开始实现分布式 DN-MPC；下一步为有限通信 sequential best-response 版本。
+- Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
+- Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；通信鲁棒性通过诊断，但 planner p95 为 257.79--623.73 ms，实时性门槛失败。
 
 ### 当前必须遵守的决策顺序
 
@@ -56,7 +56,10 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
 - [x] 写入新的 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
 - [x] 集中式 scenario min-max MPC 已在 S3 validation 上相对 DynamicEncirclement 提升 8.3 个百分点 safe capture，满足进入分布式 DN-MPC 的前置门槛。
-- [ ] 在 locked-test 和通信退化实验完成前，不宣称 DN-MPC 主结果成立。
+- [x] 在相同 12 个 S3 场景、三个 checkpoint seed 上完成 ideal、delayed、dropout、none 和 centralized oracle 对照。
+- [x] 记录消息发送、接收、丢包、字节数、消息年龄、planner 有效率、收敛率、局部失败和 fallback。
+- [ ] 在 locked-test、未见自适应目标策略和实时性优化完成前，不宣称 DN-MPC 主结果成立。
+- [ ] 解决分布式 planner p95 超过 100 ms 的问题，或完成低频 planner + 高频 safety 执行架构的独立验证。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。
 
 ### 正式预测实验命令模板
@@ -455,41 +458,41 @@ subject to  dynamics
 - [ ] 对每个代价项写出单位、归一化方式和权重来源。
 - [ ] 先固定权重，再做预注册的小范围敏感性实验。
 
-## 6.3 分布式 DN-MPC 机制任务（Phase 4，尚未开始）
+## 6.3 分布式 DN-MPC 机制任务（Phase 4）
 
-- [ ] 规定每架无人机可获得的信息范围。
-- [ ] 规定共享消息内容：邻机状态、预测轨迹、候选控制序列或角色信息。
-- [ ] 规定消息延迟、丢包和通信频率。
-- [ ] 实现本地 MPC 子问题。
-- [ ] 实现 consensus、ADMM 或 sequential best-response 中的一种。
-- [ ] 规定每个控制周期的最大迭代次数。
-- [ ] 记录未收敛次数和局部求解失败次数。
-- [ ] 设计通信中断时的本地 fallback。
-- [ ] 验证分布式输出与集中式 oracle 的差距。
+- [x] 规定每架无人机可获得的信息范围。
+- [x] 规定共享消息内容：邻机状态、预测轨迹、候选控制序列或角色信息。
+- [x] 规定消息延迟、丢包和通信频率。
+- [x] 实现本地 MPC 子问题。
+- [x] 实现 sequential best-response 作为第一种分布式机制。
+- [x] 规定每个控制周期的最大迭代次数。
+- [x] 记录未收敛次数和局部求解失败次数。
+- [x] 设计通信中断时的本地 fallback。
+- [x] 验证分布式输出与集中式 oracle 的安全指标差距。
 
 ## 6.4 求解器和实时性任务
 
 - [ ] 评估 SciPy、OSQP、CVXPY/Clarabel 或 CasADi 的依赖和 Windows 安装稳定性。
 - [ ] 第一版优先使用线性化动力学和 QP/二次代价，降低实时风险。
 - [ ] 为非凸障碍物约束设计局部线性化或安全层后置处理。
-- [ ] 设置 solver time limit。
-- [ ] 设置 infeasible、timeout、NaN 和异常数值的 fallback。
-- [ ] 记录每步 solver status、迭代次数、目标值、最大约束残差和运行时间。
-- [ ] 对所有 planner output 做动作范围检查。
+- [x] 设置 solver time limit。
+- [x] 设置 infeasible、timeout、NaN 和异常数值的 fallback。
+- [x] 记录每步 solver status、迭代次数、目标值、最大约束残差和运行时间。
+- [x] 对所有 planner output 做动作范围检查。
 
 ## 6.5 规划评估指标
 
-- [ ] Cooperative Safe Capture rate。
+- [x] Cooperative Safe Capture rate。
 - [ ] worst-case candidate capture rate。
 - [ ] expected candidate capture rate。
 - [ ] CVaR capture distance。
-- [ ] capture time。
-- [ ] collision and boundary violation。
-- [ ] minimum clearance。
+- [x] capture time。
+- [x] collision and boundary violation。
+- [x] minimum clearance。
 - [ ] role switching frequency。
-- [ ] solver success rate。
-- [ ] p95/p99 planning latency。
-- [ ] 通信量和通信失败后的恢复时间。
+- [x] solver success rate。
+- [x] p95/p99 planning latency。
+- [x] 通信量和通信失败后的恢复时间。
 
 ## 6.6 DN-MPC 消融
 
@@ -533,10 +536,12 @@ subject to  dynamics
 - [x] 已在 S3 随机混合障碍物、delayed_noisy 和 s_curve 条件下完成 12 个共享场景的 validation。
 - [x] 已保存候选级 minimum/terminal distance、scenario cost、worst/CVaR 聚合统计。
 - [x] 已使用 prediction checkpoint seed `745101/745201/745301` 重复运行，三次 `scenes.jsonl` hash 一致且方向一致。
-- [ ] locked-test、丢包专项和未见自适应目标策略仍未完成。
-- [ ] 只有完成 P4 通信退化验证后，才能把分布式 DN-MPC 写成主方法结果。
+- [x] 已完成 ideal、2-step delayed、10% dropout 和 no-communication 四种 P4 通信条件，并保留 TensorBoard、episode/step JSONL 和 summary JSON。
+- [x] 已确认四种分布式条件均为 100% safe capture、0% collision，DynamicEncirclement 为 91.7% safe capture、8.3% collision。
+- [ ] locked-test 和未见自适应目标策略仍未完成。
+- [ ] planner p95 实时性门槛仍未通过；P4 当前仅作为通信鲁棒性诊断，不能写成完整 DN-MPC 主结果。
 
-正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md`；当前结论是集中式 planner 已通过 validation gate，但 Phase 3 的分布式通信结论尚未成立。
+正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md` 和 `docs/PHASE4_DN_MPC_VALIDATION_REPORT.md`；当前结论是集中式 planner 已通过 validation gate，分布式通信鲁棒性通过诊断，但 P4 整体因实时性失败而未通过。
 
 ---
 
