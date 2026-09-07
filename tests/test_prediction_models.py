@@ -14,6 +14,7 @@ from encirclement3d.prediction import (
     conformal_nonconformity,
     conformal_radius,
     prediction_metrics,
+    project_candidate_trajectories,
 )
 
 
@@ -151,6 +152,25 @@ def test_candidate_feasibility_detects_bounds_speed_and_acceleration() -> None:
     )
     assert bool(accelerating.speed_feasible.item())
     assert not bool(accelerating.acceleration_feasible.item())
+
+
+def test_candidate_projection_satisfies_bounded_rollout_contract() -> None:
+    candidates = torch.tensor(
+        [[[[0.0, 0.0, 0.0], [2.0, -2.0, 1.0], [-1.0, 2.0, -1.0], [3.0, 3.0, 0.0]]]],
+        dtype=torch.float32,
+    )
+    projected = project_candidate_trajectories(
+        candidates,
+        reference_positions=torch.zeros(1, 3),
+        reference_velocities=torch.zeros(1, 3),
+        dt_seconds=0.1,
+        max_speed=2.0,
+        max_acceleration=4.0,
+        lower_bounds=torch.full((1, 3), -2.0),
+        upper_bounds=torch.full((1, 3), 2.0),
+    )
+    feasibility = _feasibility_inputs(projected, max_speed=2.0, max_acceleration=4.0)
+    assert bool(feasibility.feasible.item())
 
 
 def test_candidate_feasibility_detects_cylinder_box_and_wall_collisions() -> None:

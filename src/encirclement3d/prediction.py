@@ -286,6 +286,84 @@ def assess_candidate_feasibility(
     )
 
 
+def project_candidate_trajectories(
+    candidates: torch.Tensor,
+    reference_positions: torch.Tensor,
+    reference_velocities: torch.Tensor,
+    dt_seconds: float,
+    max_speed: float,
+    max_acceleration: float | None = None,
+    lower_bounds: torch.Tensor | None = None,
+    upper_bounds: torch.Tensor | None = None,
+    iterations: int = 4,
+) -> torch.Tensor:
+    """Project position candidates onto a bounded velocity/acceleration rollout.
+
+    The projection is a lightweight runtime contract for a downstream planner:
+    each point is reconstructed from a velocity state, then alternately clipped
+    to the speed ball, acceleration ball, and world-bound velocity box. It does
+    not claim obstacle avoidance or replace the safety filter.
+    """
+
+    if candidates.ndim != 4 or candidates.shape[-1] != 3:
+        raise ValueError("candidates must have shape [batch, candidates, horizon, 3].")
+    batch_size, candidate_count, _horizon, _coordinates = candidates.shape
+    if reference_positions.shape != (batch_size, 3) or reference_velocities.shape != (batch_size, 3):
+        raise ValueError("Reference positions and velocities must have shape [batch, 3].")
+    if not np.isfinite(dt_seconds) or dt_seconds <= 0.0 or not np.isfinite(max_speed) or max_speed <= 0.0:
+        raise ValueError("dt_seconds and max_speed must be finite and positive.")
+    if max_acceleration is not None and (not np.isfinite(max_acceleration) or max_acceleration <= 0.0):
+        raise ValueError("max_acceleration must be finite and positive when supplied.")
+    if (lower_bounds is None) != (upper_bounds is None):
+        raise ValueError("lower_bounds and upper_bounds must be supplied together.")
+    if lower_bounds is not None and upper_bounds is not None:
+        if lower_bounds.shape != (batch_size, 3) or upper_bounds.shape != (batch_size, 3):
+            raise ValueError("World bounds must have shape [batch, 3].")
+        if not torch.all(lower_bounds < upper_bounds):
+            raise ValueError("lower_bounds must be strictly smaller than upper_bounds.")
+    if iterations <= 0:
+        raise ValueError("iterations must be positive.")
+    if not torch.isfinite(candidates).all():
+        raise ValueError("candidates must be finite.")
+
+    previous_position = reference_positions[:, None, :].expand(-1, candidate_count, -1).clone()
+    previous_velocity = reference_velocities[:, None, :].expand(-1, candidate_count, -1).clone()
+    projected: list[torch.Tensor] = []
+    # Leave a small margin for the strict <= checks used by the independent
+    # feasibility auditor and for floating-point roundoff at the boundary.
+    acceleration_delta = (
+        None if max_acceleration is None else 0.999 * float(max_acceleration) * float(dt_seconds)
+    )
+
+    for timestep in range(candidates.shape[2]):
+        desired_position = candidates[:, :, timestep, :] + reference_positions[:, None, :]
+        velocity = (desired_position - previous_position) / float(dt_seconds)
+        for _ in range(iterations):
+            speed = torch.linalg.vector_norm(velocity, dim=-1, keepdim=True)
+            velocity = velocity * torch.clamp(float(max_speed) / speed.clamp_min(1e-9), max=1.0)
+            if acceleration_delta is not None:
+                delta = velocity - previous_velocity
+                delta_norm = torch.linalg.vector_norm(delta, dim=-1, keepdim=True)
+                velocity = previous_velocity + delta * torch.clamp(
+                    float(acceleration_delta) / delta_norm.clamp_min(1e-9), max=1.0
+                )
+            if lower_bounds is not None and upper_bounds is not None:
+                lower_velocity = (lower_bounds[:, None, :] - previous_position) / float(dt_seconds)
+                upper_velocity = (upper_bounds[:, None, :] - previous_position) / float(dt_seconds)
+                velocity = torch.minimum(torch.maximum(velocity, lower_velocity), upper_velocity)
+        position = previous_position + velocity * float(dt_seconds)
+        if lower_bounds is not None and upper_bounds is not None:
+            position = torch.minimum(torch.maximum(position, lower_bounds[:, None, :]), upper_bounds[:, None, :])
+            velocity = (position - previous_position) / float(dt_seconds)
+        projected.append(position - reference_positions[:, None, :])
+        previous_position = position
+        previous_velocity = velocity
+    result = torch.stack(projected, dim=2)
+    if not torch.isfinite(result).all():
+        raise RuntimeError("Candidate trajectory projection emitted non-finite values.")
+    return result
+
+
 class HistoryTargetPredictor(nn.Module):
     """GRU predictor that maps local observation history to target means/uncertainty."""
 
