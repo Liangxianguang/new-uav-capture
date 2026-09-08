@@ -266,6 +266,193 @@ def rollout_execution(
     return np.stack(positions_out, axis=0), np.stack(velocities_out, axis=0), results
 
 
+def _clip_row_with_jacobian(
+    value: np.ndarray,
+    max_norm: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Clip one velocity row and return its local Jacobian."""
+
+    vector = np.asarray(value, dtype=np.float64)
+    norm = float(np.linalg.norm(vector))
+    identity = np.eye(vector.size, dtype=np.float64)
+    if norm <= float(max_norm) + 1.0e-12:
+        return vector.copy(), identity
+    if norm <= 1.0e-12:
+        return np.zeros_like(vector), identity
+    unit = vector / norm
+    jacobian = (float(max_norm) / norm) * (identity - np.outer(unit, unit))
+    return vector * (float(max_norm) / norm), jacobian
+
+
+def _advance_execution_with_jacobian(
+    current_velocity: np.ndarray,
+    delayed_action: np.ndarray,
+    parameters: ExecutionParameters,
+) -> tuple[ExecutionStep, np.ndarray, np.ndarray]:
+    """Advance deterministic execution and return local velocity Jacobians.
+
+    The derivatives follow the same clipped, tracked and acceleration-limited
+    branches as :func:`advance_execution`.  They are local derivatives; the
+    independent rollout certificate remains authoritative at branch changes.
+    """
+
+    current = np.asarray(current_velocity, dtype=np.float64)
+    delayed = np.asarray(delayed_action, dtype=np.float64)
+    if current.shape != delayed.shape or current.ndim != 2 or current.shape[-1] != 3:
+        raise ValueError("current_velocity and delayed_action must have shape [defenders, 3]")
+    defenders = int(current.shape[0])
+    current_jacobian = np.zeros((defenders * 3, defenders * 3), dtype=np.float64)
+    delayed_jacobian = np.zeros_like(current_jacobian)
+    for index in range(defenders):
+        start = index * 3
+        delayed_jacobian[start : start + 3, start : start + 3] = np.eye(3, dtype=np.float64)
+
+    if not parameters.enabled:
+        zero = np.zeros_like(delayed)
+        step = ExecutionStep(
+            command=delayed.copy(),
+            tracked=delayed.copy(),
+            executed=delayed.copy(),
+            noise=zero,
+            noise_was_clipped=False,
+        )
+        return step, current_jacobian, delayed_jacobian
+
+    commands = np.zeros_like(delayed)
+    tracked = np.zeros_like(delayed)
+    executed = np.zeros_like(delayed)
+    command_jacobian = np.zeros_like(delayed_jacobian)
+    tracked_from_current = np.zeros_like(current_jacobian)
+    tracked_from_delayed = np.zeros_like(delayed_jacobian)
+    execution_from_current = np.zeros_like(current_jacobian)
+    execution_from_delayed = np.zeros_like(delayed_jacobian)
+    alpha = float(parameters.tracking_alpha)
+    drag = float(parameters.drag_gain)
+    max_delta = float(parameters.max_acceleration_mps2) * float(parameters.dt_seconds) / float(parameters.mass_scale)
+
+    for index in range(defenders):
+        start = index * 3
+        stop = start + 3
+        command, command_local_jacobian = _clip_row_with_jacobian(
+            delayed[index], parameters.max_speed_mps
+        )
+        commands[index] = command
+        command_jacobian[start:stop, start:stop] = command_local_jacobian
+
+        current_block = current[index]
+        tracked_block = drag * ((1.0 - alpha) * current_block + alpha * command)
+        tracked[index] = tracked_block
+        tracked_from_current[start:stop, start:stop] = drag * (1.0 - alpha) * np.eye(3)
+        tracked_from_delayed[start:stop, start:stop] = (
+            drag * alpha * command_local_jacobian
+        )
+
+        delta = tracked_block - current_block
+        delta_norm = float(np.linalg.norm(delta))
+        if delta_norm <= max_delta + 1.0e-12:
+            executed_block = tracked_block
+            executed_from_current_local = drag * (1.0 - alpha) * np.eye(3)
+            executed_from_delayed_local = drag * alpha * command_local_jacobian
+        elif delta_norm <= 1.0e-12:
+            executed_block = current_block.copy()
+            executed_from_current_local = np.eye(3)
+            executed_from_delayed_local = np.zeros((3, 3), dtype=np.float64)
+        else:
+            unit = delta / delta_norm
+            projection = (float(max_delta) / delta_norm) * (
+                np.eye(3) - np.outer(unit, unit)
+            )
+            executed_block = current_block + float(max_delta) * unit
+            executed_from_current_local = np.eye(3) + projection @ (
+                drag * (1.0 - alpha) * np.eye(3) - np.eye(3)
+            )
+            executed_from_delayed_local = projection @ (
+                drag * alpha * command_local_jacobian
+            )
+
+        executed_block, final_clip_jacobian = _clip_row_with_jacobian(
+            executed_block, parameters.max_speed_mps
+        )
+        executed[index] = executed_block
+        execution_from_current[start:stop, start:stop] = (
+            final_clip_jacobian @ executed_from_current_local
+        )
+        execution_from_delayed[start:stop, start:stop] = (
+            final_clip_jacobian @ executed_from_delayed_local
+        )
+
+    step = ExecutionStep(
+        command=commands,
+        tracked=tracked,
+        executed=executed,
+        noise=np.zeros_like(delayed),
+        noise_was_clipped=False,
+    )
+    return step, execution_from_current, execution_from_delayed
+
+
+def rollout_execution_with_action_jacobian(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    action_queue: list[np.ndarray] | tuple[np.ndarray, ...],
+    new_action: np.ndarray,
+    parameters: ExecutionParameters,
+    *,
+    horizon_steps: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[ExecutionStep], np.ndarray, np.ndarray]:
+    """Roll out deterministic execution and differentiate w.r.t. ``new_action``.
+
+    Returns position and velocity Jacobians with shape
+    ``[steps, defenders * 3, defenders * 3]``.  Queued commands are constants;
+    the newly selected action is reused after the queue is exhausted, exactly
+    as in :func:`rollout_execution`.
+    """
+
+    position = np.asarray(positions, dtype=np.float64).copy()
+    velocity = np.asarray(velocities, dtype=np.float64).copy()
+    action = np.asarray(new_action, dtype=np.float64)
+    if position.shape != velocity.shape or position.shape != action.shape:
+        raise ValueError("positions, velocities, and new_action must have the same shape")
+    sequence = [np.asarray(item, dtype=np.float64).copy() for item in action_queue]
+    sequence.append(action.copy())
+    steps = len(sequence) if horizon_steps is None else int(horizon_steps)
+    if steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    action_dimension = int(action.size)
+    position_jacobian = np.zeros((action_dimension, action_dimension), dtype=np.float64)
+    velocity_jacobian = np.zeros_like(position_jacobian)
+    results: list[ExecutionStep] = []
+    positions_out: list[np.ndarray] = []
+    velocities_out: list[np.ndarray] = []
+    position_jacobians: list[np.ndarray] = []
+    velocity_jacobians: list[np.ndarray] = []
+    for index in range(steps):
+        delayed = sequence[index] if index < len(sequence) else action
+        delayed_jacobian = np.eye(action_dimension, dtype=np.float64) if index >= len(action_queue) else np.zeros_like(position_jacobian)
+        result, execution_from_current, execution_from_delayed = _advance_execution_with_jacobian(
+            velocity, delayed, parameters
+        )
+        velocity_jacobian = (
+            execution_from_current @ velocity_jacobian
+            + execution_from_delayed @ delayed_jacobian
+        )
+        velocity = result.executed.copy()
+        position = position + parameters.dt_seconds * velocity
+        position_jacobian = position_jacobian + parameters.dt_seconds * velocity_jacobian
+        results.append(result)
+        positions_out.append(position.copy())
+        velocities_out.append(velocity.copy())
+        position_jacobians.append(position_jacobian.copy())
+        velocity_jacobians.append(velocity_jacobian.copy())
+    return (
+        np.stack(positions_out, axis=0),
+        np.stack(velocities_out, axis=0),
+        results,
+        np.stack(position_jacobians, axis=0),
+        np.stack(velocity_jacobians, axis=0),
+    )
+
+
 def position_uncertainty_radii(parameters: ExecutionParameters, defenders: int, horizon_steps: int) -> np.ndarray:
     """Conservative position tube from bounded command noise only."""
 
@@ -299,5 +486,6 @@ __all__ = [
     "position_uncertainty_radii",
     "queue_from_observation",
     "rollout_execution",
+    "rollout_execution_with_action_jacobian",
     "validate_command_authority_mode",
 ]

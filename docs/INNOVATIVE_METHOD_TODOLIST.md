@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v3.1（2026-09-08）
+> 版本：v3.2（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。held-out reachable-margin 覆盖率为 98.05--98.93%，不能接入主过滤器作为 99% 契约。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
+> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。新增 analytic rollout Jacobian 后，mild/hard flush 的 safety p95 降至 501.45/1776.21 ms，但 held-out reachable-margin 覆盖率仍为 98.05--98.93%，连续段证书仍为 17.59--43.87%，不能接入主过滤器作为 99% 契约。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。详见 `docs/PHASE5_ANALYTIC_JACOBIAN_AUDIT_REPORT.md`。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -30,6 +30,7 @@
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
 - Phase 5：已实现 solver/fallback/precondition 分类、命名约束残差、独立 checker 结果和 TensorBoard 记录；安全单元测试 9/9 通过。分层协议从 64 个候选 seed 中固定选择 tight/nominal 两层共 8 个 robust-safe episode；130/130 步 solver、独立 certificate 和 next-state safety 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。P5 通过的是冻结协议下的 velocity-level 条件性 gate，详见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`；R-CLBF-QP 和闭环证明仍未开始。后续 execution-state contract、五步 preview、sampled swept-volume、command-authority/linearized projection 审计和四种 execution variant 的经验 reachable-set calibration 已完成，但扩展 gate 为 No-Go，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`、`docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md` 和 `docs/PHASE5_REACHABLE_SET_CALIBRATION_REPORT.md`。
+- Phase 5 solver 优化：已实现 deterministic execution rollout 的分支 Jacobian、半解析 geometry barrier Jacobian、analytic/finite-difference 可切换 backend，并完成固定 8-seed、4 execution variant、三种方法 formal audit；结果为性能 Pareto 改善但 execution-invariant safety 仍 No-Go，详见 `docs/PHASE5_ANALYTIC_JACOBIAN_AUDIT_REPORT.md`。
 - P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，严格 10 Hz 部署参考未满足，但作为工程权衡记录，不阻塞 P4 方法验证。
 
 ### 成功等级总览
@@ -155,7 +156,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 在 mild 和 hard 两类扰动、固定 8 个 seed、三种方法上重跑，并报告 safe capture、termination、fallback、certificate invalid 和实际安全率；v5 execution gate 为 No-Go。
 - [x] 增加 queue-aware emergency braking，并明确 pending command 可干预/不可干预边界；flush authority 仅作为显式模拟对照。
 - [x] 将 nonlinear SLSQP projection 替换为首版 sequential linearized bounded projection，并重新审计相同锁定矩阵；结果仍为 No-Go。
-- [ ] 优化有限差分 Jacobian、解析分支 Jacobian或专用 QP 后重新审计相同锁定矩阵。
+- [x] 将有限差分 Jacobian 替换为可切换的解析 rollout/geometry Jacobian，并重新审计相同锁定矩阵；analytic 后端降低 flush p95，但未通过 execution-invariant safety gate。
 - [ ] 只有在执行扰动扩展通过后，才开始 learned CLBF；否则将安全贡献固定命名为条件性 robust CBF-QP。
 
 P5 恢复的停止条件：实际 post-step safety 低于 99%、QP/fallback 失败率高于 1%、或安全率提升以不可接受的 timeout/capture 损失为代价时，停止继续增大 margin，改为报告安全--效率 Pareto 或回退到可审计的一步过滤器。

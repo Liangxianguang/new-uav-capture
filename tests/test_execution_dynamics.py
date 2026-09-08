@@ -19,6 +19,8 @@ from encirclement3d.safety_certificate import (
     check_execution_rollout_safety,
     check_execution_continuous_segment_safety,
     check_execution_swept_volume_safety,
+    execution_barrier_values,
+    execution_barrier_values_with_action_jacobian,
 )
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter
 
@@ -345,3 +347,65 @@ def test_continuous_segment_certificate_detects_interagent_midsegment_crossing()
     assert not certificate.valid
     assert not certificate.continuous_segment_safe
     assert certificate.minimum_robust_barrier_m < 0.0
+
+
+def test_analytic_execution_barrier_jacobian_matches_finite_difference() -> None:
+    observation = {
+        "defender_positions": np.array([[-4.0, -4.0, 4.0], [4.0, 4.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "action_queue": [np.array([[0.2, -0.1, 0.1], [-0.2, 0.1, -0.1]], dtype=np.float64)],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.02,
+            "velocity_time_constant_seconds": 0.2,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    action = np.array([[0.7, -0.4, 0.2], [-0.5, 0.3, -0.1]], dtype=np.float64)
+    kwargs = {
+        "dt": 0.1,
+        "drone_radius": 0.25,
+        "safety_margin_m": 0.1,
+        "robust_margin_m": 0.0,
+        "horizon_steps": 4,
+    }
+    _nominal, analytic_values, jacobian, _assumptions = execution_barrier_values_with_action_jacobian(
+        observation, action, **kwargs
+    )
+    _nominal, reference_values, _assumptions = execution_barrier_values(observation, action, **kwargs)
+    assert list(analytic_values) == list(reference_values)
+    np.testing.assert_allclose(
+        [analytic_values[name] for name in analytic_values],
+        [reference_values[name] for name in reference_values],
+        atol=1.0e-12,
+    )
+
+    finite_difference = np.zeros_like(jacobian)
+    flat_action = action.reshape(-1)
+    step = 1.0e-5
+    names = list(analytic_values)
+    for index in range(flat_action.size):
+        plus = flat_action.copy()
+        minus = flat_action.copy()
+        plus[index] += step
+        minus[index] -= step
+        _nominal, plus_values, _assumptions = execution_barrier_values(
+            observation, plus.reshape(action.shape), **kwargs
+        )
+        _nominal, minus_values, _assumptions = execution_barrier_values(
+            observation, minus.reshape(action.shape), **kwargs
+        )
+        finite_difference[:, index] = np.asarray(
+            [(plus_values[name] - minus_values[name]) / (2.0 * step) for name in names],
+            dtype=np.float64,
+        )
+    np.testing.assert_allclose(jacobian, finite_difference, atol=2.0e-5, rtol=2.0e-5)

@@ -21,7 +21,11 @@ from encirclement3d.execution_dynamics import (
     command_authority_from_observation,
     queue_from_observation,
 )
-from encirclement3d.safety_certificate import check_execution_rollout_safety, execution_barrier_values
+from encirclement3d.safety_certificate import (
+    check_execution_rollout_safety,
+    execution_barrier_values,
+    execution_barrier_values_with_action_jacobian,
+)
 
 
 def _unit(vector: np.ndarray, fallback: np.ndarray | None = None) -> np.ndarray:
@@ -118,6 +122,7 @@ class RobustCBFQPConfig:
     solver_max_iterations: int = 100
     fallback_policy: str = "zero_action"
     execution_preview_horizon_steps: int = 5
+    execution_linearization_backend: str = "analytic"
     execution_linearization_iterations: int = 3
     execution_linearization_fd_step_mps: float = 1.0e-3
     execution_projection_iterations: int = 160
@@ -153,6 +158,8 @@ class RobustCBFQPConfig:
             raise ValueError("solver_max_iterations must be positive.")
         if int(self.execution_preview_horizon_steps) <= 0:
             raise ValueError("execution_preview_horizon_steps must be positive.")
+        if str(self.execution_linearization_backend) not in {"analytic", "finite_difference"}:
+            raise ValueError("execution_linearization_backend must be analytic or finite_difference.")
         if int(self.execution_linearization_iterations) <= 0:
             raise ValueError("execution_linearization_iterations must be positive.")
         if int(self.execution_projection_iterations) <= 0:
@@ -672,8 +679,25 @@ class RobustCBFQPFilter:
             evaluations += 1
             return robust
 
+        def linearize(flat_actions: np.ndarray) -> tuple[dict[str, float], np.ndarray | None]:
+            nonlocal evaluations
+            if str(self.config.execution_linearization_backend) == "analytic":
+                _nominal, robust, jacobian, _assumptions = execution_barrier_values_with_action_jacobian(
+                    observation,
+                    np.asarray(flat_actions, dtype=np.float64).reshape(action_shape),
+                    dt=float(self.env.dt),
+                    drone_radius=float(self.env.agents["drone_radius"]),
+                    safety_margin_m=float(self.config.safety_margin_m),
+                    robust_margin_m=float(self.config.robust_margin_m),
+                    horizon_steps=preview_steps,
+                    command_authority=directive,
+                )
+                evaluations += 1
+                return robust, np.asarray(jacobian, dtype=np.float64)
+            return values(flat_actions), None
+
         for linearization_index in range(1, int(self.config.execution_linearization_iterations) + 1):
-            base_map = values(reference)
+            base_map, analytic_jacobian = linearize(reference)
             names = list(base_map)
             base = np.asarray([float(base_map[name]) for name in names], dtype=np.float64)
             if not np.isfinite(base).all():
@@ -686,6 +710,7 @@ class RobustCBFQPFilter:
                     "evaluations": evaluations,
                     "barrier_values": base_map,
                     "residuals": base,
+                    "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
                 }
             if float(np.min(base, initial=np.inf)) >= -float(self.config.solver_tolerance):
                 return {
@@ -697,23 +722,39 @@ class RobustCBFQPFilter:
                     "evaluations": evaluations,
                     "barrier_values": base_map,
                     "residuals": base,
+                    "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
                 }
 
-            jacobian = np.zeros((len(names), reference.size), dtype=np.float64)
-            finite_difference = float(self.config.execution_linearization_fd_step_mps)
-            for index in range(reference.size):
-                perturbed = reference.copy()
-                perturbed[index] = min(upper_action[index], perturbed[index] + finite_difference)
-                delta = float(perturbed[index] - reference[index])
-                if delta <= 1.0e-12:
-                    perturbed[index] = max(lower_action[index], reference[index] - finite_difference)
+            if analytic_jacobian is not None:
+                jacobian = analytic_jacobian
+                if jacobian.shape != (len(names), reference.size) or not np.isfinite(jacobian).all():
+                    return {
+                        "success": False,
+                        "actions": reference.reshape(action_shape),
+                        "message": "non_finite_execution_jacobian",
+                        "projection_iterations": 0,
+                        "linearization_iterations": linearization_index,
+                        "evaluations": evaluations,
+                        "barrier_values": base_map,
+                        "residuals": base,
+                        "solver_backend": "analytic_rollout_jacobian",
+                    }
+            else:
+                jacobian = np.zeros((len(names), reference.size), dtype=np.float64)
+                finite_difference = float(self.config.execution_linearization_fd_step_mps)
+                for index in range(reference.size):
+                    perturbed = reference.copy()
+                    perturbed[index] = min(upper_action[index], perturbed[index] + finite_difference)
                     delta = float(perturbed[index] - reference[index])
-                if abs(delta) <= 1.0e-12:
-                    continue
-                perturbed_map = values(perturbed)
-                jacobian[:, index] = (
-                    np.asarray([float(perturbed_map[name]) for name in names], dtype=np.float64) - base
-                ) / delta
+                    if delta <= 1.0e-12:
+                        perturbed[index] = max(lower_action[index], reference[index] - finite_difference)
+                        delta = float(perturbed[index] - reference[index])
+                    if abs(delta) <= 1.0e-12:
+                        continue
+                    perturbed_map = values(perturbed)
+                    jacobian[:, index] = (
+                        np.asarray([float(perturbed_map[name]) for name in names], dtype=np.float64) - base
+                    ) / delta
 
             lower_rhs = -base + jacobian @ reference
             candidate, projection_success, projection_iterations, message = self._project_linearized_halfspaces(
@@ -738,6 +779,7 @@ class RobustCBFQPFilter:
                     "evaluations": evaluations,
                     "barrier_values": candidate_map,
                     "residuals": candidate_values,
+                    "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
                 }
             reference = candidate
 
@@ -750,6 +792,7 @@ class RobustCBFQPFilter:
             "evaluations": evaluations,
             "barrier_values": last_values,
             "residuals": last_residuals,
+            "solver_backend": "analytic_rollout_jacobian" if str(self.config.execution_linearization_backend) == "analytic" else "finite_difference_dykstra",
         }
 
     def _project_linearized_halfspaces(
@@ -841,7 +884,7 @@ class RobustCBFQPFilter:
             recovery_action_used=bool(directive.emergency_brake),
             barrier_values_m=barrier_values,
             constraint_residuals_m=residual_map,
-            solver_backend="sequential_linearized_dykstra",
+            solver_backend=str(result.get("solver_backend", "sequential_linearized_dykstra")),
             linearization_iterations=int(result["linearization_iterations"]),
             linearization_evaluations=int(result["evaluations"]),
             command_authority=directive.as_dict(),
@@ -907,7 +950,11 @@ class RobustCBFQPFilter:
             failure_category=category,
             precondition_valid=precondition_valid,
             command_authority=directive,
-            solver_backend="sequential_linearized_dykstra",
+            solver_backend=(
+                str(self.config.execution_linearization_backend) + "_rollout_jacobian"
+                if str(self.config.execution_linearization_backend) == "analytic"
+                else "finite_difference_dykstra"
+            ),
             force_zero_action=bool(directive.emergency_brake),
             queue_override_slots=int(override_slots),
         )

@@ -48,6 +48,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--variants", nargs="+")
     parser.add_argument("--methods", nargs="+", choices=("nominal", "local_cbf", "robust_cbf_qp"))
+    parser.add_argument(
+        "--linearization-backend",
+        choices=("analytic", "finite_difference"),
+        help="Override the execution-aware safety linearization backend.",
+    )
     parser.add_argument("--max-steps", type=int)
     return parser.parse_args()
 
@@ -406,6 +411,11 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
     def rate(key: str) -> float:
         return float(np.mean([bool(row[key]) for row in rows]))
 
+    backend_counts: dict[str, int] = {}
+    for row in steps:
+        backend = str(row.get("solver_backend", "none"))
+        backend_counts[backend] = backend_counts.get(backend, 0) + 1
+
     return {
         "episodes": len(rows),
         "safe_capture_rate": rate("safe_capture_success"),
@@ -459,6 +469,10 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "mean_linearization_evaluations": _finite_mean(
             [float(row["linearization_evaluations"]) for row in steps if row.get("linearization_evaluations") is not None]
         ),
+        "solver_backend_counts": backend_counts,
+        "analytic_backend_step_rate": float(
+            backend_counts.get("analytic_rollout_jacobian", 0) / max(len(steps), 1)
+        ),
         "multi_step_step_count": len(steps),
     }
 
@@ -492,6 +506,9 @@ def log_tensorboard(
                 "pending_command_authority": str(config["execution"].get("pending_command_authority", "immutable")),
                 "command_noise_std": float(config["execution"]["command_noise_std"]),
                 "velocity_time_constant_seconds": float(config["execution"]["velocity_time_constant_seconds"]),
+                "execution_linearization_backend": str(
+                    config["safety"].get("execution_linearization_backend", "analytic")
+                ),
                 "execution_linearization_iterations": int(
                     config["safety"].get("execution_linearization_iterations", 0)
                 ),
@@ -515,6 +532,7 @@ def log_tensorboard(
                 "hparam/actual_post_robust_state_safe_rate": float(
                     summary["actual_post_robust_state_safe_rate"]
                 ),
+                "hparam/analytic_backend_step_rate": float(summary["analytic_backend_step_rate"]),
             },
         )
 
@@ -526,6 +544,8 @@ def main() -> None:
     base_config = load_yaml(environment_path)
     evaluation = dict(document["evaluation"])
     safety_mapping = dict(document["safety"])
+    if args.linearization_backend is not None:
+        safety_mapping["execution_linearization_backend"] = str(args.linearization_backend)
     env_probe = CaptureRadiusPursuit3DEnv(copy.deepcopy(base_config), obstacle_count=int(evaluation["obstacle_count"]), target_speed_scale=float(evaluation["target_speed_scale"]))
     safety_mapping.setdefault("max_speed_mps", float(env_probe.agents["defender_max_speed"]))
     safety_mapping.setdefault("max_acceleration_mps2", float(env_probe.agents["defender_max_acceleration"]))

@@ -192,6 +192,11 @@ def test_config_rejects_invalid_fallback_policy() -> None:
         RobustCBFQPConfig(fallback_policy="ignore")
 
 
+def test_config_rejects_unknown_execution_linearization_backend() -> None:
+    with pytest.raises(ValueError, match="execution_linearization_backend"):
+        RobustCBFQPConfig(execution_linearization_backend="unknown")
+
+
 def test_qp_diagnostics_persist_barriers_and_residuals() -> None:
     env = _env()
     observation = _observation(

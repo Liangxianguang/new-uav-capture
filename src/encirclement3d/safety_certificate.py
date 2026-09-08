@@ -22,6 +22,7 @@ from encirclement3d.execution_dynamics import (
     position_uncertainty_radii,
     queue_from_observation,
     rollout_execution,
+    rollout_execution_with_action_jacobian,
 )
 
 
@@ -79,6 +80,49 @@ def _signed_obstacle_clearance(position: np.ndarray, obstacle: Any) -> float:
     if outside_norm > 1.0e-12:
         return outside_norm
     return -float(np.min(-signed_axes))
+
+
+def _signed_obstacle_clearance_and_gradient(position: np.ndarray, obstacle: Any) -> tuple[float, np.ndarray]:
+    """Return signed obstacle clearance and one deterministic local gradient."""
+
+    point = np.asarray(position, dtype=np.float64)
+    shape, center_xy, radius, height, half_extents_xy = _obstacle_geometry(obstacle)
+    if shape == "cylinder":
+        delta_xy = point[:2] - center_xy
+        radial_norm = float(np.linalg.norm(delta_xy))
+        radial_gap = radial_norm - radius
+        radial_gradient = _unit(
+            np.array([delta_xy[0], delta_xy[1], 0.0], dtype=np.float64),
+            fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64),
+        )
+        if 0.0 <= point[2] <= height:
+            return radial_gap, radial_gradient
+        nearest_z = 0.0 if point[2] < 0.0 else height
+        vertical_delta = float(point[2] - nearest_z)
+        vertical_gap = abs(vertical_delta)
+        vertical_gradient = np.array([0.0, 0.0, -1.0 if vertical_delta < 0.0 else 1.0], dtype=np.float64)
+        if radial_gap <= 0.0:
+            return vertical_gap, vertical_gradient
+        distance = float(np.hypot(radial_gap, vertical_gap))
+        if distance <= 1.0e-12:
+            return 0.0, radial_gradient
+        return distance, (radial_gap * radial_gradient + vertical_gap * vertical_gradient) / distance
+
+    if half_extents_xy is None:
+        half_extents_xy = np.array([radius, radius], dtype=np.float64)
+    center = np.array([center_xy[0], center_xy[1], 0.5 * height], dtype=np.float64)
+    half = np.array([half_extents_xy[0], half_extents_xy[1], 0.5 * height], dtype=np.float64)
+    delta = point - center
+    signed_axes = np.abs(delta) - half
+    outside = np.maximum(signed_axes, 0.0)
+    outside_norm = float(np.linalg.norm(outside))
+    if outside_norm > 1.0e-12:
+        gradient = (outside * np.sign(delta)) / outside_norm
+        return outside_norm, gradient
+    axis = int(np.argmax(signed_axes))
+    gradient = np.zeros(3, dtype=np.float64)
+    gradient[axis] = 1.0 if delta[axis] >= 0.0 else -1.0
+    return -float(np.min(-signed_axes)), gradient
 
 
 @dataclass(frozen=True)
@@ -452,6 +496,176 @@ def execution_barrier_values(
     return nominal_values, robust_values, assumptions
 
 
+def execution_barrier_values_with_action_jacobian(
+    observation: Mapping[str, Any],
+    action: np.ndarray,
+    *,
+    dt: float,
+    drone_radius: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    horizon_steps: int | None = None,
+    swept_substeps: int = 4,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
+) -> tuple[dict[str, float], dict[str, float], np.ndarray, dict[str, float]]:
+    """Evaluate execution barriers with local action derivatives.
+
+    This shares the rollout convention of :func:`execution_barrier_values`.
+    The returned Jacobian is ordered by the robust-barrier dictionary and is
+    used only for sequential linearization; independent nonlinear certificates
+    remain the acceptance criterion.
+    """
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+    actions = np.asarray(action, dtype=np.float64)
+    if positions.ndim != 2 or positions.shape[-1] != 3 or velocities.shape != positions.shape:
+        raise ValueError("defender positions and velocities must have shape [defenders, 3]")
+    if actions.shape != positions.shape:
+        raise ValueError("action must have shape [defenders, 3]")
+    lower = np.asarray(observation["world_lower_bounds"], dtype=np.float64)
+    upper = np.asarray(observation["world_upper_bounds"], dtype=np.float64)
+    obstacles = list(observation.get("obstacles", ()))
+    parameters = parameters_from_observation(observation, dt)
+    queue = queue_from_observation(observation, positions.shape[0])
+    queue, directive, overridden_slots = apply_command_authority(
+        queue,
+        command_authority,
+        allowed_mode=command_authority_from_observation(observation),
+    )
+    preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
+    if preview_steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    if int(swept_substeps) <= 0:
+        raise ValueError("swept_substeps must be positive")
+    rollout_positions, _rollout_velocities, _steps, position_jacobians, _velocity_jacobians = (
+        rollout_execution_with_action_jacobian(
+            positions,
+            velocities,
+            queue,
+            actions,
+            parameters,
+            horizon_steps=preview_steps,
+        )
+    )
+    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    nominal_values: dict[str, float] = {}
+    robust_values: dict[str, float] = {}
+    gradients: list[np.ndarray] = []
+    action_dimension = int(actions.size)
+    effective_margin = float(safety_margin_m) + float(robust_margin_m)
+
+    def append_value(key: str, nominal: float, robust: float, gradient: np.ndarray) -> None:
+        nominal_values[key] = float(nominal)
+        robust_values[key] = float(robust)
+        gradients.append(np.asarray(gradient, dtype=np.float64).reshape(action_dimension))
+
+    for step_index, (future_positions, radii, endpoint_jacobian) in enumerate(
+        zip(rollout_positions, uncertainty, position_jacobians), start=1
+    ):
+        previous_positions = positions if step_index == 1 else rollout_positions[step_index - 2]
+        previous_jacobian = (
+            np.zeros_like(endpoint_jacobian) if step_index == 1 else position_jacobians[step_index - 2]
+        )
+        segment_jacobian = endpoint_jacobian - previous_jacobian
+        displacement = future_positions - previous_positions
+        for subdivision in range(1, int(swept_substeps) + 1):
+            fraction = float(subdivision) / float(swept_substeps)
+            sample_positions = previous_positions + fraction * displacement
+            sample_jacobian = previous_jacobian + fraction * segment_jacobian
+            for defender_index, position in enumerate(sample_positions):
+                position_gradient = sample_jacobian[
+                    defender_index * 3 : defender_index * 3 + 3
+                ]
+                motion = displacement[defender_index]
+                motion_norm = float(np.linalg.norm(motion))
+                if motion_norm <= 1.0e-12:
+                    motion_gradient = np.zeros(action_dimension, dtype=np.float64)
+                else:
+                    motion_gradient = (motion / motion_norm) @ segment_jacobian[
+                        defender_index * 3 : defender_index * 3 + 3
+                    ]
+                for obstacle_index, obstacle in enumerate(obstacles):
+                    clearance, clearance_gradient = _signed_obstacle_clearance_and_gradient(position, obstacle)
+                    nominal = clearance - float(drone_radius) - effective_margin - motion_norm / float(swept_substeps)
+                    robust = nominal - float(radii[defender_index])
+                    key = f"step[{step_index}]/sweep[{subdivision}]/obstacle[{obstacle_index}]/{defender_index}"
+                    append_value(key, nominal, robust, clearance_gradient @ position_gradient - motion_gradient / float(swept_substeps))
+                for axis in range(3):
+                    lower_nominal = (
+                        position[axis] - lower[axis] - float(drone_radius) - effective_margin - motion_norm / float(swept_substeps)
+                    )
+                    lower_key = f"step[{step_index}]/sweep[{subdivision}]/boundary_lower[{axis}]/{defender_index}"
+                    append_value(
+                        lower_key,
+                        lower_nominal,
+                        lower_nominal - float(radii[defender_index]),
+                        position_gradient[axis] - motion_gradient / float(swept_substeps),
+                    )
+                    upper_nominal = (
+                        upper[axis] - position[axis] - float(drone_radius) - effective_margin - motion_norm / float(swept_substeps)
+                    )
+                    upper_key = f"step[{step_index}]/sweep[{subdivision}]/boundary_upper[{axis}]/{defender_index}"
+                    append_value(
+                        upper_key,
+                        upper_nominal,
+                        upper_nominal - float(radii[defender_index]),
+                        -position_gradient[axis] - motion_gradient / float(swept_substeps),
+                    )
+            minimum_distance = 2.0 * float(drone_radius) + effective_margin
+            for first in range(len(sample_positions)):
+                for second in range(first + 1, len(sample_positions)):
+                    relative = sample_positions[first] - sample_positions[second]
+                    relative_norm = float(np.linalg.norm(relative))
+                    normal = _unit(relative, fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64))
+                    relative_gradient = normal @ (
+                        sample_jacobian[first * 3 : first * 3 + 3]
+                        - sample_jacobian[second * 3 : second * 3 + 3]
+                    )
+                    first_motion = displacement[first]
+                    second_motion = displacement[second]
+                    first_norm = float(np.linalg.norm(first_motion))
+                    second_norm = float(np.linalg.norm(second_motion))
+                    first_gradient = (
+                        np.zeros(action_dimension, dtype=np.float64)
+                        if first_norm <= 1.0e-12
+                        else (first_motion / first_norm) @ segment_jacobian[first * 3 : first * 3 + 3]
+                    )
+                    second_gradient = (
+                        np.zeros(action_dimension, dtype=np.float64)
+                        if second_norm <= 1.0e-12
+                        else (second_motion / second_norm) @ segment_jacobian[second * 3 : second * 3 + 3]
+                    )
+                    motion_penalty = (first_norm + second_norm) / float(swept_substeps)
+                    nominal = relative_norm - minimum_distance - motion_penalty
+                    robust = nominal - float(radii[first] + radii[second])
+                    key = f"step[{step_index}]/sweep[{subdivision}]/inter_agent[{first},{second}]"
+                    append_value(
+                        key,
+                        nominal,
+                        robust,
+                        relative_gradient - (first_gradient + second_gradient) / float(swept_substeps),
+                    )
+    assumptions = {
+        "dt_seconds": float(dt),
+        "horizon_steps": float(preview_steps),
+        "action_delay_steps": float(parameters.action_delay_steps),
+        "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+        "tracking_alpha": float(parameters.tracking_alpha),
+        "drag_gain": float(parameters.drag_gain),
+        "max_speed_mps": float(parameters.max_speed_mps),
+        "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+        "mass_scale": float(parameters.mass_scale),
+        "swept_substeps": float(swept_substeps),
+        "command_authority_mode": float(
+            {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+        ),
+        "emergency_brake_requested": float(directive.emergency_brake),
+        "queue_override_slots": float(overridden_slots),
+    }
+    return nominal_values, robust_values, np.stack(gradients, axis=0), assumptions
+
+
 def check_execution_rollout_safety(
     observation: Mapping[str, Any],
     action: np.ndarray,
@@ -771,4 +985,5 @@ __all__ = [
     "check_execution_swept_volume_safety",
     "check_one_step_safety",
     "execution_barrier_values",
+    "execution_barrier_values_with_action_jacobian",
 ]
