@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v1.7（2026-09-08）
+> 版本：v1.8（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC 和分布式 DN-MPC 已通过固定 S3 validation gate；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。P4 locked-test 泛化、R-CLBF-QP 形式化结论和端到端验证仍未完成。checkpoint `745101` 的首个自适应目标 `worst_case` locked-test 达到 97% safe capture、0% collision，但 predictor p95 约 228 ms、total-control p95 约 317 ms，实时性仍未通过。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存仍未满足 100 ms total-control p95，R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -285,7 +285,7 @@ P2 的目标不是追求模型名字，而是验证“在可见信息约束下�
 - [ ] 目标策略切换后，置信度随失配而退化，不能异常维持高置信度。
 - [x] 单模型 p95 延迟低于 100 ms；总 planner/safety 延迟尚未验收。
 
-当前状态为 Conditional Go。P3 集中式诊断和 P4 固定 S3 validation gate 已完成，但 P2 的强预测门槛、locked-test、未见自适应目标和最终端到端结论仍未完成。
+当前状态为 Conditional Go。P3 集中式诊断、P4 固定 S3 validation gate 和 P4 adaptive locked-test 的规划效果门槛已完成；P2 的强预测门槛、P5 执行扰动安全、R-CLBF-QP 和最终端到端结论仍未完成。
 
 ## 8. P3：集中式 scenario min-max MPC 诊断版
 
@@ -359,7 +359,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 100% safe capture、0% collision；DynamicEncirclement 基线为 91.7% safe capture、
 8.3% collision，达到 +8.3 个百分点的预注册门槛，因此允许进入 P4。
 
-当前已确认：三个 checkpoint seed 的场景 hash 一致，solver success 为 100%，总控制 p95 最大为 83.54 ms，并保存了候选级距离和风险统计。当前未确认：locked-test、丢包专项、未见自适应目标策略和分布式 DN-MPC 的通信鲁棒性。
+当前已确认：三个 checkpoint seed 的场景 hash 一致，solver success 为 100%，总控制 p95 最大为 83.54 ms，并保存了候选级距离和风险统计。locked-test、丢包专项、未见自适应目标策略和分布式 DN-MPC 的通信鲁棒性已在 P4 继续复验，结果见 Phase 4 报告。
 
 ## 9. P4：分布式 DN-MPC
 
@@ -401,11 +401,12 @@ P3-F 只能作为上限，不能作为主方法结果。
 - 三次 `scenes.jsonl` SHA-256 均为 `FD883350CBF126731443EFE7796A5FA8DC6C8D1BA08BEA03A6B445B43A90CA5C`，方向一致，不存在场景重采样造成的比较偏差。
 - delayed 平均消息年龄为 1.89 步，dropout 平均消息年龄为 2.04 步；dropout 消息丢失和 fallback 已进入 episode/step 日志。
 - 修复后的 distributed planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms；三种 seed、四种通信模式的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
-- 因此 P4 固定 S3 validation gate 已通过；locked-test、未见自适应目标和形式化博弈保证仍未完成，不能据此宣称完整部署结论。下一步转入泛化复验和 robust CBF-QP。
-- 已加入环境内部的 `adaptive_adversarial` 未见目标策略，并通过物理可行性单元测试和 4-episode smoke；该 smoke 的 distributed-none 与 DynamicEncirclement 均为 100% safe capture，但不能替代 100-episode locked-test。
-- P4 locked-test 已固定为 100 个 adaptive-adversarial episode，当前由三个 checkpoint seed 顺序复验；正式结果写入报告前仍保持 pending。
-- checkpoint `745101` 的 `worst_case` 已完成 100 个 locked-test episode：safe capture `97%`、collision `0%`、timeout `3%`；但 predictor p95 `228.37 ms`、total-control p95 `317.35 ms`，因此该结果只能作为泛化和离线规划证据，不能作为逐周期实时部署证据。
-- P4 正式主表仍要求三个 checkpoint × 六个方法全部完成，并且复用同一份场景文件；未完成前不写总体 locked-test 结论。
+- 因此 P4 固定 S3 validation gate 已通过；该结果不能单独外推为完整部署结论。`adaptive_adversarial` 泛化和通信复验的正式结果见下列 locked-test 条目。
+- 已加入环境内部的 `adaptive_adversarial` 未见目标策略，并通过物理可行性单元测试、4-episode validation smoke 和 100-episode locked-test；smoke 只用于开发检查，不替代正式矩阵。
+- P4 locked-test 已完成 100 个 `adaptive_adversarial` episode，三个 checkpoint × 六个方法共 18 个方法结果复用同一份场景文件；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+- 共享 DynamicEncirclement baseline 为 `95.00%` safe capture、`2.00%` collision；三 checkpoint 的预测驱动方法为 `97.33--99.00%` safe capture、`0--1.00%` collision，solver/valid/effective plan rate 均达到 `99%` 以上，P4 泛化效果门槛通过。
+- 低频预测缓存采用每 20 个控制步刷新，平均 refresh rate 约 `6.56%`，最大候选年龄 `19` 步；三 checkpoint aggregate total-control p95 为 `167.73--229.62 ms`，高于 `100 ms` 预算。因此该结果支持离线/低频缓存规划诊断，不支持逐周期实时部署结论。
+- P4 的形式化 zero-sum game guarantee、执行不变性和真实无人机部署仍未验证；P5 执行扰动 No-Go 后，R-CLBF-QP 继续暂停。
 
 ## 10. P5：robust CBF-QP 安全过滤层
 
@@ -725,8 +726,8 @@ docs/FINAL_INNOVATION_REPORT.md
 
 在当前工作树上，下一步按以下顺序执行：
 
-1. 完成 P4 locked-test 三 checkpoint × 六方法结果，保持 100 episode、adaptive target、同一场景 hash、通信审计和 TensorBoard/JSONL 协议。
-2. 对 predictor p95 超过 100 ms 的问题采用低频刷新、候选缓存和 stale-age 审计；若不能满足，保留为离线方法结果。
+1. 保留 P4 locked-test 三 checkpoint × 六方法结果，使用 100 episode、adaptive target、同一场景 hash、通信审计和 TensorBoard/JSONL 协议；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+2. 低频刷新、候选缓存和 stale-age 审计已经完成，但 total-control p95 仍超过 100 ms；后续只在独立 ablation 中测试 batch、异步预测、蒸馏和更少扩散步数，当前方法不宣称实时部署。
 3. 修正 robust filter 对延迟队列、tracking state 和执行扰动的建模，重新建立 P5 execution-invariant safety gate；当前审计是明确的 No-Go 证据。
 4. 在 P4 泛化和 P5 扩展安全审计均通过后，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
 5. 连续时间 swept-volume、扰动覆盖证明和端到端三种子 locked-test 仍属于后续未完成任务；联合训练最后进行。

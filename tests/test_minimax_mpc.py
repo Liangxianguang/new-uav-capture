@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
+import torch
+import yaml
 
+from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.minimax_mpc import (
     MinimaxMPCConfig,
     ScenarioMinimaxMPC,
@@ -11,6 +16,10 @@ from encirclement3d.minimax_mpc import (
     evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
+from scripts.evaluate_minimax_mpc import PredictionRuntime
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _observation() -> dict[str, object]:
@@ -121,3 +130,34 @@ def test_candidate_distance_rollout_is_truth_free_and_reports_terminal_and_minim
     assert distances["minimum_distances_m"].shape == (2,)
     np.testing.assert_allclose(distances["terminal_distances_m"], [0.5, 1.0])
     np.testing.assert_allclose(distances["minimum_distances_m"], [0.5, 1.0])
+
+
+def test_prediction_runtime_reuses_cached_candidates_and_records_age() -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(encoding="utf-8")
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.45)
+    observation = env.reset(seed=648301)
+    runtime = PredictionRuntime(
+        env=env,
+        source="belief",
+        device=torch.device("cpu"),
+        num_samples=4,
+        refresh_interval_steps=2,
+    )
+    runtime.reset()
+
+    first, first_latency, first_refreshed, first_age = runtime.predict(observation, planner_horizon=4)
+    second, second_latency, second_refreshed, second_age = runtime.predict(observation, planner_horizon=4)
+    third, _third_latency, third_refreshed, third_age = runtime.predict(observation, planner_horizon=4)
+
+    assert first_refreshed is True
+    assert first_age == 0
+    assert second_refreshed is False
+    assert second_age == 1
+    assert second is first
+    assert second_latency == pytest.approx(0.0)
+    assert first_latency >= 0.0
+    assert third_refreshed is True
+    assert third_age == 0
+    assert third is not first

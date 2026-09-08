@@ -104,6 +104,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-steps", type=int)
     parser.add_argument("--sampling-seed", type=int)
     parser.add_argument("--projection-iterations", type=int)
+    parser.add_argument(
+        "--prediction-refresh-interval-steps",
+        type=int,
+        help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--without-local-cbf", action="store_true")
     return parser.parse_args()
@@ -197,16 +202,39 @@ class PredictionRuntime:
     sampling_steps: int = 8
     sampling_seed: int = 745102
     projection_iterations: int = 4
+    refresh_interval_steps: int = 1
     history_length: int = 16
     history: list[np.ndarray] | None = None
     step_index: int = 0
+    cached_scenarios: ScenarioTrajectorySet | None = None
+    cached_age_steps: int = 0
+    refresh_count: int = 0
 
     def reset(self) -> None:
         self.history = []
         self.step_index = 0
+        self.cached_scenarios = None
+        self.cached_age_steps = 0
+        self.refresh_count = 0
 
-    def predict(self, observation: dict[str, Any], planner_horizon: int) -> tuple[ScenarioTrajectorySet, float]:
+    def predict(
+        self,
+        observation: dict[str, Any],
+        planner_horizon: int,
+    ) -> tuple[ScenarioTrajectorySet, float, bool, int]:
         started = time.perf_counter()
+        if self.refresh_interval_steps <= 0:
+            raise ValueError("refresh_interval_steps must be positive.")
+        refresh = self.cached_scenarios is None or self.step_index % self.refresh_interval_steps == 0
+        if not refresh:
+            assert self.history is not None
+            frame = policy_observations(self.env, observation).astype(np.float32)
+            self.history.append(frame.copy())
+            if len(self.history) > self.history_length:
+                self.history.pop(0)
+            self.step_index += 1
+            self.cached_age_steps += 1
+            return self.cached_scenarios, 0.0, False, self.cached_age_steps
         if self.source == "belief":
             result = make_belief_candidate_set(
                 observation,
@@ -215,7 +243,11 @@ class PredictionRuntime:
                 max_speed_mps=float(self.env.agents["target_max_speed"]),
                 candidate_count=self.num_samples,
             )
-            return result, (time.perf_counter() - started) * 1000.0
+            self.cached_scenarios = result
+            self.cached_age_steps = 0
+            self.refresh_count += 1
+            self.step_index += 1
+            return result, (time.perf_counter() - started) * 1000.0, True, 0
         if self.model is None or self.normalizer is None or self.model_kind is None:
             raise RuntimeError("checkpoint prediction runtime is not initialized")
         frame = policy_observations(self.env, observation).astype(np.float32)
@@ -257,16 +289,17 @@ class PredictionRuntime:
             self.projection_iterations,
         )
         trajectories = projected_displacements[0].detach().cpu().numpy() + reference[None, None, :]
-        self.step_index += 1
-        return (
-            ScenarioTrajectorySet(
-                trajectories=trajectories,
-                weights=np.ones(trajectories.shape[0], dtype=np.float64),
-                score_kind="uniform_uncalibrated",
-                dynamics_status="projected",
-            ),
-            (time.perf_counter() - started) * 1000.0,
+        result = ScenarioTrajectorySet(
+            trajectories=trajectories,
+            weights=np.ones(trajectories.shape[0], dtype=np.float64),
+            score_kind="uniform_uncalibrated",
+            dynamics_status="projected",
         )
+        self.cached_scenarios = result
+        self.cached_age_steps = 0
+        self.refresh_count += 1
+        self.step_index += 1
+        return result, (time.perf_counter() - started) * 1000.0, True, 0
 
     @staticmethod
     def _belief_reference(observation: dict[str, Any]) -> np.ndarray:
@@ -328,6 +361,7 @@ def run_episode(
     sampling_seed: int,
     projection_iterations: int,
     use_local_cbf: bool,
+    prediction_refresh_interval_steps: int = 1,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
@@ -387,6 +421,7 @@ def run_episode(
             sampling_steps=sampling_steps,
             sampling_seed=sampling_seed,
             projection_iterations=projection_iterations,
+            refresh_interval_steps=prediction_refresh_interval_steps,
             history_length=16,
         )
         runtime.reset()
@@ -409,7 +444,10 @@ def run_episode(
             candidate_weights = np.empty(0, dtype=np.float64)
         else:
             assert runtime is not None
-            scenarios, predictor_latency_ms = runtime.predict(observation, planner_config.horizon_steps)
+            scenarios, predictor_latency_ms, prediction_refreshed, prediction_age_steps = runtime.predict(
+                observation,
+                planner_config.horizon_steps,
+            )
             planner_config_for_method = MinimaxMPCConfig(
                 **{
                     **planner_config.__dict__,
@@ -501,6 +539,8 @@ def run_episode(
             {
                 "step": float(env.step_count),
                 "predictor_latency_ms": float(predictor_latency_ms),
+                "prediction_refreshed": 1.0 if method != "dynamic_encirclement" and prediction_refreshed else 0.0,
+                "prediction_age_steps": float(prediction_age_steps if method != "dynamic_encirclement" else 0.0),
                 "planner_latency_ms": float(planner_diagnostics.latency_ms),
                 "planner_status": 1.0 if planner_status == "success" else 0.0,
                 "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
@@ -553,6 +593,9 @@ def run_episode(
         "mean_observation_age_steps": float(final_info.get("mean_observation_age_steps", np.nan)),
         "mean_planner_latency_ms": float(np.nanmean([row["planner_latency_ms"] for row in step_rows])),
         "mean_predictor_latency_ms": float(np.nanmean([row["predictor_latency_ms"] for row in step_rows])),
+        "prediction_refresh_rate": float(np.mean([row["prediction_refreshed"] for row in step_rows])),
+        "mean_prediction_age_steps": float(np.mean([row["prediction_age_steps"] for row in step_rows])),
+        "max_prediction_age_steps": int(max(row["prediction_age_steps"] for row in step_rows)),
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
         "mean_total_control_latency_ms": float(
             np.nanmean([row["total_control_latency_ms"] for row in step_rows])
@@ -676,6 +719,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             "p95": percentile(predictor_latencies, 95),
             "p99": percentile(predictor_latencies, 99),
         },
+        "prediction_refresh_rate": finite_mean([row["prediction_refresh_rate"] for row in rows]),
+        "mean_prediction_age_steps": finite_mean([row["mean_prediction_age_steps"] for row in rows]),
+        "max_prediction_age_steps": int(max(row["max_prediction_age_steps"] for row in rows)),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -727,8 +773,18 @@ def main() -> None:
         if args.projection_iterations is not None
         else prediction_mapping.get("projection_iterations", 4)
     )
-    if num_samples <= 0 or sampling_steps <= 0 or projection_iterations <= 0:
-        raise ValueError("num_samples, sampling_steps and projection_iterations must be positive.")
+    prediction_refresh_interval_steps = int(
+        args.prediction_refresh_interval_steps
+        if args.prediction_refresh_interval_steps is not None
+        else prediction_mapping.get("refresh_interval_steps", 1)
+    )
+    if (
+        num_samples <= 0
+        or sampling_steps <= 0
+        or projection_iterations <= 0
+        or prediction_refresh_interval_steps <= 0
+    ):
+        raise ValueError("prediction sampling, projection and refresh settings must be positive.")
     if args.candidate_source == "checkpoint" and not args.checkpoint:
         raise ValueError("--checkpoint is required when --candidate-source=checkpoint.")
     checkpoint_data = model_from_checkpoint(args.checkpoint, device) if args.checkpoint else None
@@ -776,6 +832,7 @@ def main() -> None:
             "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
             "device": str(device),
             "use_local_cbf": use_local_cbf,
+            "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
         },
         "source_hashes": source_hashes(args.mpc_config),
     }
@@ -819,6 +876,7 @@ def main() -> None:
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
                     use_local_cbf=use_local_cbf,
+                    prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     distributed_config=distributed_config,
                 )
                 rows.append(row)
@@ -853,6 +911,9 @@ def main() -> None:
                     "mean_min_clearance_m",
                     "mean_planner_latency_ms",
                     "mean_predictor_latency_ms",
+                    "prediction_refresh_rate",
+                    "mean_prediction_age_steps",
+                    "max_prediction_age_steps",
                     "mean_safety_latency_ms",
                     "mean_total_control_latency_ms",
                     "planner_fallback_count",
@@ -899,6 +960,7 @@ def main() -> None:
                     "num_samples": num_samples,
                     "sampling_steps": sampling_steps,
                     "use_local_cbf": int(use_local_cbf),
+                    "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
                 },
                 {
                     "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),

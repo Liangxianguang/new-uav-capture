@@ -86,6 +86,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-steps", type=int)
     parser.add_argument("--sampling-seed", type=int)
     parser.add_argument("--projection-iterations", type=int)
+    parser.add_argument(
+        "--prediction-refresh-interval-steps",
+        type=int,
+        help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--without-local-cbf", action="store_true")
     return parser.parse_args()
@@ -265,8 +270,13 @@ def main() -> None:
         if args.projection_iterations is not None
         else prediction_config.get("projection_iterations", 4)
     )
-    if min(num_samples, sampling_steps, projection_iterations) <= 0:
-        raise ValueError("Prediction sampling and projection settings must be positive")
+    prediction_refresh_interval_steps = int(
+        args.prediction_refresh_interval_steps
+        if args.prediction_refresh_interval_steps is not None
+        else prediction_config.get("refresh_interval_steps", 1)
+    )
+    if min(num_samples, sampling_steps, projection_iterations, prediction_refresh_interval_steps) <= 0:
+        raise ValueError("Prediction sampling, projection and refresh settings must be positive")
 
     hashes = source_hashes_s3(protocol_path, args.mpc_config)
     if checkpoint is not None:
@@ -289,6 +299,7 @@ def main() -> None:
             "sampling_steps": sampling_steps,
             "sampling_seed": sampling_seed,
             "projection_iterations": projection_iterations,
+            "refresh_interval_steps": prediction_refresh_interval_steps,
         },
         "use_local_cbf": not args.without_local_cbf,
         "source_hashes": hashes,
@@ -376,6 +387,7 @@ def main() -> None:
                     sampling_steps=sampling_steps,
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
+                    prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     use_local_cbf=not args.without_local_cbf,
                     distributed_config=distributed_config,
                     scenario=scenario,
@@ -428,6 +440,9 @@ def main() -> None:
                     "min_clearance_m",
                     "mean_planner_latency_ms",
                     "mean_predictor_latency_ms",
+                    "prediction_refresh_rate",
+                    "mean_prediction_age_steps",
+                    "max_prediction_age_steps",
                     "mean_total_control_latency_ms",
                     "planner_fallback_count",
                     "planner_success_count",
