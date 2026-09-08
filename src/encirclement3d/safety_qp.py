@@ -123,6 +123,7 @@ class RobustCBFQPConfig:
     fallback_policy: str = "zero_action"
     execution_preview_horizon_steps: int = 5
     execution_linearization_backend: str = "analytic"
+    execution_linearization_active_margin_m: float = 0.5
     execution_linearization_iterations: int = 3
     execution_linearization_fd_step_mps: float = 1.0e-3
     execution_projection_iterations: int = 160
@@ -160,6 +161,10 @@ class RobustCBFQPConfig:
             raise ValueError("execution_preview_horizon_steps must be positive.")
         if str(self.execution_linearization_backend) not in {"analytic", "finite_difference"}:
             raise ValueError("execution_linearization_backend must be analytic or finite_difference.")
+        if not np.isfinite(float(self.execution_linearization_active_margin_m)) or float(
+            self.execution_linearization_active_margin_m
+        ) < 0.0:
+            raise ValueError("execution_linearization_active_margin_m must be finite and non-negative.")
         if int(self.execution_linearization_iterations) <= 0:
             raise ValueError("execution_linearization_iterations must be positive.")
         if int(self.execution_projection_iterations) <= 0:
@@ -211,6 +216,7 @@ class RobustCBFQPDiagnostics:
     solver_backend: str = "slsqp"
     linearization_iterations: int = 0
     linearization_evaluations: int = 0
+    linearization_active_constraints: int = 0
     command_authority: dict[str, Any] | None = None
     emergency_brake_requested: bool = False
     queue_override_slots: int = 0
@@ -241,6 +247,7 @@ class RobustCBFQPDiagnostics:
             "solver_backend": self.solver_backend,
             "linearization_iterations": self.linearization_iterations,
             "linearization_evaluations": self.linearization_evaluations,
+            "linearization_active_constraints": self.linearization_active_constraints,
             "command_authority": dict(self.command_authority or {}),
             "emergency_brake_requested": self.emergency_brake_requested,
             "queue_override_slots": self.queue_override_slots,
@@ -662,6 +669,7 @@ class RobustCBFQPFilter:
         last_values: dict[str, float] = {}
         last_residuals = np.empty(0, dtype=np.float64)
         last_message = "linearized projection did not converge"
+        last_active_constraints = 0
         action_shape = reference_actions.shape
 
         def values(flat_actions: np.ndarray) -> dict[str, float]:
@@ -690,6 +698,7 @@ class RobustCBFQPFilter:
                     safety_margin_m=float(self.config.safety_margin_m),
                     robust_margin_m=float(self.config.robust_margin_m),
                     horizon_steps=preview_steps,
+                    jacobian_active_margin_m=float(self.config.execution_linearization_active_margin_m),
                     command_authority=directive,
                 )
                 evaluations += 1
@@ -700,6 +709,14 @@ class RobustCBFQPFilter:
             base_map, analytic_jacobian = linearize(reference)
             names = list(base_map)
             base = np.asarray([float(base_map[name]) for name in names], dtype=np.float64)
+            active_mask = base <= (
+                float(self.config.execution_linearization_active_margin_m)
+                + float(self.config.solver_tolerance)
+            )
+            if not bool(np.any(active_mask)):
+                active_mask = np.ones_like(base, dtype=bool)
+            active_count = int(np.count_nonzero(active_mask))
+            last_active_constraints = active_count
             if not np.isfinite(base).all():
                 return {
                     "success": False,
@@ -709,8 +726,9 @@ class RobustCBFQPFilter:
                     "linearization_iterations": linearization_index,
                     "evaluations": evaluations,
                     "barrier_values": base_map,
-                    "residuals": base,
-                    "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
+                        "residuals": base,
+                        "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
+                        "linearization_active_constraints": active_count,
                 }
             if float(np.min(base, initial=np.inf)) >= -float(self.config.solver_tolerance):
                 return {
@@ -723,6 +741,7 @@ class RobustCBFQPFilter:
                     "barrier_values": base_map,
                     "residuals": base,
                     "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
+                    "linearization_active_constraints": active_count,
                 }
 
             if analytic_jacobian is not None:
@@ -738,6 +757,7 @@ class RobustCBFQPFilter:
                         "barrier_values": base_map,
                         "residuals": base,
                         "solver_backend": "analytic_rollout_jacobian",
+                        "linearization_active_constraints": active_count,
                     }
             else:
                 jacobian = np.zeros((len(names), reference.size), dtype=np.float64)
@@ -756,7 +776,9 @@ class RobustCBFQPFilter:
                         np.asarray([float(perturbed_map[name]) for name in names], dtype=np.float64) - base
                     ) / delta
 
-            lower_rhs = -base + jacobian @ reference
+            jacobian = jacobian[active_mask]
+            active_base = base[active_mask]
+            lower_rhs = -active_base + jacobian @ reference
             candidate, projection_success, projection_iterations, message = self._project_linearized_halfspaces(
                 reference,
                 jacobian,
@@ -780,6 +802,7 @@ class RobustCBFQPFilter:
                     "barrier_values": candidate_map,
                     "residuals": candidate_values,
                     "solver_backend": "analytic_rollout_jacobian" if analytic_jacobian is not None else "finite_difference_dykstra",
+                    "linearization_active_constraints": active_count,
                 }
             reference = candidate
 
@@ -793,6 +816,7 @@ class RobustCBFQPFilter:
             "barrier_values": last_values,
             "residuals": last_residuals,
             "solver_backend": "analytic_rollout_jacobian" if str(self.config.execution_linearization_backend) == "analytic" else "finite_difference_dykstra",
+            "linearization_active_constraints": last_active_constraints,
         }
 
     def _project_linearized_halfspaces(
@@ -887,6 +911,7 @@ class RobustCBFQPFilter:
             solver_backend=str(result.get("solver_backend", "sequential_linearized_dykstra")),
             linearization_iterations=int(result["linearization_iterations"]),
             linearization_evaluations=int(result["evaluations"]),
+            linearization_active_constraints=int(result.get("linearization_active_constraints", 0)),
             command_authority=directive.as_dict(),
             emergency_brake_requested=bool(directive.emergency_brake),
             queue_override_slots=int(certificate.assumptions.get("queue_override_slots", 0.0)),

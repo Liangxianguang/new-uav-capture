@@ -197,6 +197,11 @@ def test_config_rejects_unknown_execution_linearization_backend() -> None:
         RobustCBFQPConfig(execution_linearization_backend="unknown")
 
 
+def test_config_rejects_negative_execution_active_margin() -> None:
+    with pytest.raises(ValueError, match="execution_linearization_active_margin_m"):
+        RobustCBFQPConfig(execution_linearization_active_margin_m=-0.1)
+
+
 def test_qp_diagnostics_persist_barriers_and_residuals() -> None:
     env = _env()
     observation = _observation(

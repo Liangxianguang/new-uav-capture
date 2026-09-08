@@ -20,6 +20,7 @@ safety:
   fallback_policy: barrier_recovery
   execution_preview_horizon_steps: 5
   execution_linearization_backend: analytic
+  execution_linearization_active_margin_m: 0.5
   execution_linearization_iterations: 3
   execution_linearization_fd_step_mps: 0.001
   execution_projection_iterations: 160

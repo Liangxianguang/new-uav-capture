@@ -356,6 +356,9 @@ def run_episode(
                 "solver_backend": None if diagnostics is None else str(getattr(diagnostics, "solver_backend", "none")),
                 "linearization_iterations": None if diagnostics is None else int(getattr(diagnostics, "linearization_iterations", 0)),
                 "linearization_evaluations": None if diagnostics is None else int(getattr(diagnostics, "linearization_evaluations", 0)),
+                "linearization_active_constraints": None
+                if diagnostics is None
+                else int(getattr(diagnostics, "linearization_active_constraints", 0)),
                 "emergency_brake_requested": bool(info.get("emergency_brake_requested", False)),
                 "queue_override_slots": int(info.get("queue_override_slots", 0)),
                 "command_authority_mode": str(info.get("command_authority_mode", "immutable")),
@@ -469,6 +472,13 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "mean_linearization_evaluations": _finite_mean(
             [float(row["linearization_evaluations"]) for row in steps if row.get("linearization_evaluations") is not None]
         ),
+        "mean_linearization_active_constraints": _finite_mean(
+            [
+                float(row["linearization_active_constraints"])
+                for row in steps
+                if row.get("linearization_active_constraints") is not None
+            ]
+        ),
         "solver_backend_counts": backend_counts,
         "analytic_backend_step_rate": float(
             backend_counts.get("analytic_rollout_jacobian", 0) / max(len(steps), 1)
@@ -509,6 +519,9 @@ def log_tensorboard(
                 "execution_linearization_backend": str(
                     config["safety"].get("execution_linearization_backend", "analytic")
                 ),
+                "execution_linearization_active_margin_m": float(
+                    config["safety"].get("execution_linearization_active_margin_m", 0.0)
+                ),
                 "execution_linearization_iterations": int(
                     config["safety"].get("execution_linearization_iterations", 0)
                 ),
@@ -533,6 +546,9 @@ def log_tensorboard(
                     summary["actual_post_robust_state_safe_rate"]
                 ),
                 "hparam/analytic_backend_step_rate": float(summary["analytic_backend_step_rate"]),
+                "hparam/mean_linearization_active_constraints": float(
+                    summary["mean_linearization_active_constraints"]
+                ),
             },
         )
 

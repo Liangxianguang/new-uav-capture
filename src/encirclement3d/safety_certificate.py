@@ -506,6 +506,7 @@ def execution_barrier_values_with_action_jacobian(
     robust_margin_m: float,
     horizon_steps: int | None = None,
     swept_substeps: int = 4,
+    jacobian_active_margin_m: float | None = None,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], np.ndarray, dict[str, float]]:
     """Evaluate execution barriers with local action derivatives.
@@ -558,7 +559,10 @@ def execution_barrier_values_with_action_jacobian(
     def append_value(key: str, nominal: float, robust: float, gradient: np.ndarray) -> None:
         nominal_values[key] = float(nominal)
         robust_values[key] = float(robust)
-        gradients.append(np.asarray(gradient, dtype=np.float64).reshape(action_dimension))
+        if jacobian_active_margin_m is not None and robust > float(jacobian_active_margin_m):
+            gradients.append(np.zeros(action_dimension, dtype=np.float64))
+        else:
+            gradients.append(np.asarray(gradient, dtype=np.float64).reshape(action_dimension))
 
     for step_index, (future_positions, radii, endpoint_jacobian) in enumerate(
         zip(rollout_positions, uncertainty, position_jacobians), start=1
@@ -662,6 +666,9 @@ def execution_barrier_values_with_action_jacobian(
         ),
         "emergency_brake_requested": float(directive.emergency_brake),
         "queue_override_slots": float(overridden_slots),
+        "jacobian_active_margin_m": float(
+            -1.0 if jacobian_active_margin_m is None else jacobian_active_margin_m
+        ),
     }
     return nominal_values, robust_values, np.stack(gradients, axis=0), assumptions
 
