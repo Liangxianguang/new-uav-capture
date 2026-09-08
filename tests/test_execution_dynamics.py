@@ -17,6 +17,7 @@ from encirclement3d.execution_dynamics import (
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.safety_certificate import (
     check_execution_rollout_safety,
+    check_execution_continuous_segment_safety,
     check_execution_swept_volume_safety,
 )
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter
@@ -308,3 +309,39 @@ def test_execution_swept_volume_certificate_reports_sampling_contract() -> None:
     assert certificate.swept_volume_safe
     assert certificate.sample_count == 13
     assert certificate.subdivisions_per_step == 4
+
+
+def test_continuous_segment_certificate_detects_interagent_midsegment_crossing() -> None:
+    observation = {
+        "defender_positions": np.array([[-0.3, 0.0, 4.0], [0.3, 0.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 100.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    certificate = check_execution_continuous_segment_safety(
+        observation,
+        np.array([[5.0, 0.0, 0.0], [-5.0, 0.0, 0.0]], dtype=np.float64),
+        dt=0.1,
+        drone_radius=0.1,
+        safety_margin_m=0.0,
+        robust_margin_m=0.0,
+        horizon_steps=1,
+    )
+
+    assert not certificate.valid
+    assert not certificate.continuous_segment_safe
+    assert certificate.minimum_robust_barrier_m < 0.0

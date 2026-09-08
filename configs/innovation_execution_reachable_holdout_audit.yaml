@@ -1,0 +1,60 @@
+experiment_name: phase5_execution_reachable_holdout_audit
+base_environment_config: capture_radius_pursuit_central_v4_flee.yaml
+execution_audit_config: innovation_safety_execution.yaml
+reference_calibration_summary: ../results/phase5_execution_reachable_calibration_v2/summary.json
+seed: 441991
+calibration_samples_per_variant: 1024
+holdout_samples_per_variant: 1024
+sensitivity_samples_per_setting: 192
+horizon_steps: 5
+defenders: 4
+target_coverage: 0.99
+quantile: 0.99
+sensitivity:
+  command_noise_std_multiplier: [0.50, 0.75, 1.00, 1.25, 1.50]
+  velocity_time_constant_multiplier: [0.50, 0.75, 1.00, 1.25, 1.50]
+  mass_scale_multiplier: [0.80, 0.90, 1.00, 1.10, 1.20]
+  drag_coefficient_multiplier: [0.50, 0.75, 1.00, 1.25, 1.50]
+  action_delay_steps: [0, 1, 2, 3]
+out_of_calibration:
+  mild_delay_noise:
+    action_delay_steps: 2
+    command_noise_std: 0.05
+    velocity_time_constant_seconds: 0.35
+    max_speed_scale_range: [0.95, 1.02]
+    max_acceleration_scale_range: [0.80, 0.98]
+    mass_scale_range: [1.05, 1.20]
+    drag_coefficient_range: [0.10, 0.25]
+  hard_randomized_execution:
+    action_delay_steps: 3
+    command_noise_std: 0.12
+    velocity_time_constant_seconds: 0.60
+    max_speed_scale_range: [0.75, 0.84]
+    max_acceleration_scale_range: [0.55, 0.69]
+    mass_scale_range: [1.12, 1.25]
+    drag_coefficient_range: [0.21, 0.35]
+  mild_flush_pending_brake:
+    action_delay_steps: 2
+    command_noise_std: 0.05
+    velocity_time_constant_seconds: 0.35
+    max_speed_scale_range: [0.95, 1.02]
+    max_acceleration_scale_range: [0.80, 0.98]
+    mass_scale_range: [1.05, 1.20]
+    drag_coefficient_range: [0.10, 0.25]
+  hard_flush_pending_brake:
+    action_delay_steps: 3
+    command_noise_std: 0.12
+    velocity_time_constant_seconds: 0.60
+    max_speed_scale_range: [0.75, 0.84]
+    max_acceleration_scale_range: [0.55, 0.69]
+    mass_scale_range: [1.12, 1.25]
+    drag_coefficient_range: [0.21, 0.35]
+reporting:
+  tensorboard_required: true
+  preserve_calibration_samples_jsonl: true
+  preserve_holdout_samples_jsonl: true
+  preserve_sensitivity_jsonl: true
+  preserve_out_of_calibration_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true

@@ -177,6 +177,41 @@ class SweptVolumeCertificateResult:
         }
 
 
+@dataclass(frozen=True)
+class ContinuousSegmentCertificateResult:
+    """Conservative all-points check for piecewise-linear benchmark segments.
+
+    The lower bound follows from the 1-Lipschitz signed-distance and pairwise
+    separation barriers.  It certifies the interpolation implied by the
+    benchmark position update, not an unmodeled real-airframe trajectory.
+    """
+
+    valid: bool
+    status: str
+    current_state_safe: bool
+    continuous_segment_safe: bool
+    horizon_steps: int
+    segment_count: int
+    minimum_robust_barrier_m: float
+    minimum_nominal_barrier_m: float
+    violations: tuple[str, ...]
+    assumptions: dict[str, float]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "status": self.status,
+            "current_state_safe": self.current_state_safe,
+            "continuous_segment_safe": self.continuous_segment_safe,
+            "horizon_steps": self.horizon_steps,
+            "segment_count": self.segment_count,
+            "minimum_robust_barrier_m": self.minimum_robust_barrier_m,
+            "minimum_nominal_barrier_m": self.minimum_nominal_barrier_m,
+            "violations": list(self.violations),
+            "assumptions": dict(self.assumptions),
+        }
+
+
 def _barriers(
     positions: np.ndarray,
     obstacles: list[Any] | tuple[Any, ...],
@@ -606,11 +641,133 @@ def check_execution_swept_volume_safety(
     )
 
 
+def check_execution_continuous_segment_safety(
+    observation: Mapping[str, Any],
+    action: np.ndarray,
+    *,
+    dt: float,
+    drone_radius: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    horizon_steps: int | None = None,
+    tolerance: float = 1.0e-6,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
+) -> ContinuousSegmentCertificateResult:
+    """Certify every point on each linear segment of the benchmark rollout.
+
+    Each obstacle/boundary signed clearance is 1-Lipschitz in position.  The
+    pairwise separation barrier is 1-Lipschitz in relative position.  For a
+    segment, the midpoint can be at most half its path length from an endpoint;
+    subtracting that distance yields a lower bound over the entire segment.
+    """
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+    lower = np.asarray(observation["world_lower_bounds"], dtype=np.float64)
+    upper = np.asarray(observation["world_upper_bounds"], dtype=np.float64)
+    obstacles = list(observation.get("obstacles", ()))
+    parameters = parameters_from_observation(observation, dt)
+    queue = queue_from_observation(observation, positions.shape[0])
+    queue, directive, overridden_slots = apply_command_authority(
+        queue,
+        command_authority,
+        allowed_mode=command_authority_from_observation(observation),
+    )
+    preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
+    if preview_steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    rollout_positions, _rollout_velocities, _steps = rollout_execution(
+        positions,
+        velocities,
+        queue,
+        np.asarray(action, dtype=np.float64),
+        parameters,
+        horizon_steps=preview_steps,
+    )
+    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    effective_margin = float(safety_margin_m) + float(robust_margin_m)
+    initial = _barriers(positions, obstacles, lower, upper, float(drone_radius), effective_margin)
+    current_minimum = float(min(initial.values(), default=float("inf")))
+    robust_minimum = current_minimum
+    nominal_minimum = current_minimum
+    for step_index, endpoint in enumerate(rollout_positions):
+        start = positions if step_index == 0 else rollout_positions[step_index - 1]
+        # Use the end-of-step radius at both endpoints so uncertainty is valid
+        # everywhere on a segment under the nondecreasing tube contract.
+        nominal_start, robust_start = _robust_barriers(
+            start,
+            obstacles,
+            lower,
+            upper,
+            float(drone_radius),
+            effective_margin,
+            uncertainty[step_index],
+        )
+        nominal_end, robust_end = _robust_barriers(
+            endpoint,
+            obstacles,
+            lower,
+            upper,
+            float(drone_radius),
+            effective_margin,
+            uncertainty[step_index],
+        )
+        individual_lengths = np.linalg.norm(endpoint - start, axis=1)
+        for name, start_value in nominal_start.items():
+            if name.startswith("inter_agent["):
+                first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+                half_path_bound = 0.5 * (individual_lengths[int(first)] + individual_lengths[int(second)])
+            else:
+                defender_index = int(name.rsplit("/", 1)[-1])
+                half_path_bound = 0.5 * individual_lengths[defender_index]
+            nominal_lower = min(float(start_value), float(nominal_end[name])) - float(half_path_bound)
+            robust_lower = min(float(robust_start[name]), float(robust_end[name])) - float(half_path_bound)
+            nominal_minimum = min(nominal_minimum, nominal_lower)
+            robust_minimum = min(robust_minimum, robust_lower)
+    tolerance_value = float(tolerance)
+    current_safe = bool(current_minimum >= -tolerance_value)
+    continuous_safe = bool(robust_minimum >= -tolerance_value)
+    violations: list[str] = []
+    if not current_safe:
+        violations.append("current_state_outside_safe_set")
+    if not continuous_safe:
+        violations.append("continuous_segment_outside_robust_safe_set")
+    return ContinuousSegmentCertificateResult(
+        valid=not violations,
+        status="valid" if not violations else "invalid",
+        current_state_safe=current_safe,
+        continuous_segment_safe=continuous_safe,
+        horizon_steps=preview_steps,
+        segment_count=preview_steps,
+        minimum_robust_barrier_m=float(robust_minimum),
+        minimum_nominal_barrier_m=float(nominal_minimum),
+        violations=tuple(violations),
+        assumptions={
+            "dt_seconds": float(dt),
+            "horizon_steps": float(preview_steps),
+            "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+            "tracking_alpha": float(parameters.tracking_alpha),
+            "drag_gain": float(parameters.drag_gain),
+            "max_speed_mps": float(parameters.max_speed_mps),
+            "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+            "continuous_interpolation_contract": 1.0,
+            "signed_distance_lipschitz_bound": 1.0,
+            "command_authority_mode": float(
+                {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+            ),
+            "emergency_brake_requested": float(directive.emergency_brake),
+            "queue_override_slots": float(overridden_slots),
+        },
+    )
+
+
 __all__ = [
+    "ContinuousSegmentCertificateResult",
     "ExecutionRolloutCertificateResult",
     "SafetyCertificateResult",
     "SweptVolumeCertificateResult",
     "check_execution_rollout_safety",
+    "check_execution_continuous_segment_safety",
     "check_execution_swept_volume_safety",
     "check_one_step_safety",
     "execution_barrier_values",

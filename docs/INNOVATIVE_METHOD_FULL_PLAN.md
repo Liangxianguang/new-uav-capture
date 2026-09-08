@@ -3,7 +3,7 @@
 > 版本：v1.9（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动和 command-authority/linearized projection 扩展均未通过。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。held-out reachable-margin 覆盖率为 98.05--98.93%，不能接入主过滤器作为 99% 契约。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -474,19 +474,20 @@ s.t. discrete barrier constraints
 - [x] 完成 delayed/noisy/tracking/randomized execution 的 8-seed、2-variant、3-method multi-step audit；真实 post-step checker 已纳入，结果显示当前 robust CBF-QP 未通过执行扰动扩展，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
 - [x] 建立共享 execution-state contract：环境、过滤器、rollout 和独立 checker 使用同一执行动力学；加入 pending queue、五步 execution preview、四段 swept-volume 采样和 Lipschitz 位移修正，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
 - [x] 完成四种 execution variant、每种 2048 个样本的独立 reachable-set margin 经验校准；校准同时覆盖率为 99.023%，hard randomized variant 需要约 2 倍基础位置管半径，详见 `docs/PHASE5_REACHABLE_SET_CALIBRATION_REPORT.md`。
-- [ ] 继续完成 held-out execution-parameter calibration、覆盖敏感性、out-of-calibration policy、连续时间 swept-volume 和多步正向不变性分析；经验校准结果尚未接入主过滤器。
+- [x] 完成 held-out execution-parameter calibration、覆盖敏感性和 out-of-calibration policy；留出 simultaneous coverage 为 98.05--98.93%，未达到 99% gate，因此校准 margin 尚未接入主过滤器，详见 `docs/PHASE5_REACHABLE_HOLDOUT_CONTINUOUS_AUDIT_REPORT.md`。
+- [x] 完成 benchmark piecewise-linear continuous-segment lower-bound audit；连续段证书有效率为 17.68--43.30%，仍不能替代真实连续时间动力学证明或 forward-invariance proof。
 - [x] 完成 command-authority、emergency braking 和 bounded sequential linearized projection 审计；immutable 队列仍 No-Go，flush-pending 只形成安全--捕获--延迟 Pareto 点，详见 `docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md`。
 
 正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，执行扰动扩展见
 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md` 和
 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`，历史未分层结果见
-`docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。reachable-set calibration 的经验阶段已完成；下一阶段必须优先完成留出执行参数校准、覆盖敏感性分析、连续时间 swept-volume 和多步安全审计，再决定是否进入 P6。
+`docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。reachable-set calibration 的经验与留出审计、覆盖敏感性、越界拒绝策略和 benchmark 连续段下界检查已完成，但均未形成闭环证明；下一阶段必须优先解决执行契约、可验证 fallback、solver 成本和多步正向不变性，再决定是否进入 P6。完整结果见 `docs/PHASE5_REACHABLE_HOLDOUT_CONTINUOUS_AUDIT_REPORT.md`。
 
 执行扰动审计已完成但未通过：旧版 mild variant 的 robust CBF-QP safe capture 为 50.0%，hard randomized variant 为 0.0%；状态感知 v5 的对应结果为 37.5% 和 25.0%，实际 post-step contracted-set safety rate 为 90.78% 和 67.67%，fallback 为 54 和 505 次，过滤器 p95 为 671.36 ms 和 1945.74 ms。因此 P5 仍只在冻结 velocity-level 一步假设下 conditional pass，P6 learned CLBF 保持暂停。状态感知扩展不能被解释为 execution-invariant safety 或可部署安全层。
 
-P5 恢复必须在已实现的共享 execution-state contract 上继续验证延迟队列可干预性、emergency braking、线性化 QP 和经验 reachable-set margin；单纯增大静态 margin 不视为修复，经验校准也不能替代留出校准、连续时间覆盖和正向不变性分析。
+P5 恢复必须在已实现的共享 execution-state contract 上继续验证延迟队列可干预性、emergency braking、线性化 QP 和经验 reachable-set margin；本轮留出覆盖率与连续段审计仍未通过，单纯增大静态 margin 不视为修复，经验校准也不能替代连续时间动力学覆盖和正向不变性分析。
 
-本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约：mild `flush_pending` 的实际 post-step robust-state safety 为 100.0%、safe capture 为 62.5%，hard `flush_pending` 分别为 92.03% 和 50.0%，但 hard fallback 为 701 次、过滤器 p95 为 2554.09 ms。因此该扩展仍为 No-Go，下一步必须优先降低 solver 代价并校准 reachable-set margin。
+本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约：mild `flush_pending` 的实际 post-step robust-state safety 为 100.0%、safe capture 为 62.5%，但连续段证书有效率仅 39.09%；hard `flush_pending` 分别为 92.03%、50.0% 和 17.68%，fallback 为 701 次、过滤器 p95 为 2367.80 ms。因此该扩展仍为 No-Go，下一步必须优先降低 solver 代价、定义越界 fallback 并完成正向不变性证明。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 

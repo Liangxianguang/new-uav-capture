@@ -2,7 +2,7 @@
 
 > 版本：v3.1（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动和 command-authority/linearized projection 扩展均未通过。execution reachable-set margin 的经验校准已经完成，但尚未形成留出校准、连续时间覆盖或闭环证明。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
+> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。held-out reachable-margin 覆盖率为 98.05--98.93%，不能接入主过滤器作为 99% 契约。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -123,13 +123,14 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 
 - [x] execution delay/noise/acceleration/tracking perturbation Monte Carlo 和真实 post-step 多步审计；当前 robust CBF-QP 未通过，不能宣称 execution-invariant safety；
 - [x] 在共享 execution-state contract 上完成 sampled swept-volume safety 审计；该审计仍不能替代连续时间证明，且 execution gate 为 No-Go；
-- [ ] continuous-time swept-volume safety；
+- [x] 完成 benchmark piecewise-linear continuous-segment lower-bound audit；连续段证书有效率为 17.68--43.30%，不能替代真实连续时间动力学证明；
+- [ ] continuous-time safety proof under the actual execution dynamics；
 - [x] 首版 queue-aware emergency braking 和 pending-command authority model；结果仍 No-Go，需继续校准真实执行器可干预边界；
 - [x] 首版 sequential linearized bounded projection；结果仍 No-Go，需优化有限差分 Jacobian/专用 QP 后再复验；
 - [x] 完成四种 execution variant、每种 2048 个样本的 reachable-set margin 经验校准；99.023% simultaneous coverage 已记录，但尚未接入主安全过滤器；
-- [ ] held-out execution-parameter calibration、覆盖敏感性、out-of-calibration policy 与连续时间安全审计；
-- [ ] multi-step forward-invariance proof/audit under a filter contract that includes the execution state;
-- [ ] 理论上界或 held-out calibration set 支持的 robust margin coverage；当前仅完成独立经验校准样本上的 coverage；
+- [x] 完成 held-out execution-parameter calibration、覆盖敏感性和 out-of-calibration policy；留出 simultaneous coverage 为 98.05--98.93%，因此 margin 不接入主过滤器；
+- [x] 完成包含 execution state 的多步 post-step 与 continuous-segment audit；仍未完成 forward-invariance proof；
+- [ ] 理论上界或通过 99% gate 的 held-out calibration set 支持的 robust margin coverage；
 - [ ] 将 P4 locked-test、退化通信和未见自适应目标纳入联合安全评估。
 
 ### P4 locked-test 正式协议
@@ -148,7 +149,8 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 将延迟命令队列、执行速度/跟踪状态和随机执行参数纳入安全过滤器状态，而不是只在命令速度上加 margin。
 - [x] 让环境 `step()`、独立 dynamics rollout、QP 约束和 certificate checker 使用同一执行动力学。
 - [x] 完成首轮独立经验 calibration set 上的 observation/delay/tracking/noise margin 校准并报告覆盖率；
-- [ ] 由理论 reachable-set bound 或 held-out calibration set 冻结 margin，并报告对未见执行参数的覆盖率。
+- [x] 完成 held-out calibration set、敏感性和越界执行参数审计并报告覆盖率；越界策略为 `reject_or_fallback`；
+- [ ] 由理论 reachable-set bound 或通过安全 gate 的 held-out calibration set 冻结 margin，并报告对未见执行参数的覆盖率。
 - [x] 增加 sampled swept-volume 检查和多步 post-step audit；连续时间证明和 forward-invariance 仍未完成，命令证书不能替代实际执行证书。
 - [x] 在 mild 和 hard 两类扰动、固定 8 个 seed、三种方法上重跑，并报告 safe capture、termination、fallback、certificate invalid 和实际安全率；v5 execution gate 为 No-Go。
 - [x] 增加 queue-aware emergency braking，并明确 pending command 可干预/不可干预边界；flush authority 仅作为显式模拟对照。
