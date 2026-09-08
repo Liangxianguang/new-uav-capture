@@ -1,6 +1,7 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
 > P7 最新状态：已完成同一 P4 locked-test 上的 `worst_case DN-MPC + velocity-level robust CBF-QP` 联合审计；safe capture `50%`、collision `49%`、boundary violation `16%`，直接组合路径为 No-Go。模块化 P4 规划结果仍保留，正式分析见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
+> P7.1 诊断：已补齐 safety failure category、fallback reason、precondition、slack、active constraints 和 recoverability 的 JSONL/TensorBoard 记录；1,858/5,289 步 fallback 中 `precondition_invalid=1,225`、`qp_infeasible=350`、`inconsistent_action_bounds=283`，确认主问题是安全契约而非 planner。一次 L2-SLSQP 速度球修复 ablation 导致 safe capture 降至 1%，已拒绝并恢复原线性 QP 路径，详见 `docs/PHASE7_SAFETY_CONTRACT_DIAGNOSTIC_REPORT.md`。
 
 > 版本：v2.3（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  

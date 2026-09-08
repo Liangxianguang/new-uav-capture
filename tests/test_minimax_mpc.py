@@ -206,3 +206,7 @@ def test_joint_episode_records_velocity_level_robust_safety_metrics() -> None:
     assert row["safety_certificate_valid_rate"] == pytest.approx(1.0)
     assert row["safety_fallback_rate"] == pytest.approx(0.0)
     assert steps[0]["safety_layer"] == "robust_cbf_qp"
+    assert steps[0]["safety_status"] == "optimal"
+    assert steps[0]["safety_failure_category"] == "none"
+    assert steps[0]["safety_precondition_valid"] is True
+    assert row["safety_failure_category_counts"] == {}

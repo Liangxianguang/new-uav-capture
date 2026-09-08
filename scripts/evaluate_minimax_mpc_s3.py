@@ -492,6 +492,11 @@ def main() -> None:
                     "safety_certificate_valid_rate",
                     "safety_fallback_rate",
                     "safety_abort_required_rate",
+                    "safety_precondition_valid_rate",
+                    "safety_recovery_action_rate",
+                    "safety_maximum_slack_m",
+                    "safety_mean_active_constraint_count",
+                    "safety_mean_constraint_count",
                     "minimum_safety_barrier_m",
                     "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
@@ -517,6 +522,16 @@ def main() -> None:
             for key, value in overall.items():
                 if isinstance(value, (int, float)) and np.isfinite(float(value)):
                     writer.add_scalar(f"Summary/{key}", float(value), 0)
+            writer.add_text(
+                "Summary/SafetyFailureCategoryCounts",
+                json.dumps(overall.get("safety_failure_category_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/SafetyFallbackReasonCounts",
+                json.dumps(overall.get("safety_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
             for name, key in (
                 ("PlannerLatency", "planner_latency_ms"),
                 ("PredictorLatency", "predictor_latency_ms"),

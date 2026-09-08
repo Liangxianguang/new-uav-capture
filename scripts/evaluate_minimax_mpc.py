@@ -610,6 +610,32 @@ def run_episode(
                 "cbf_action_correction_norm": float(cbf_correction),
                 "safety_latency_ms": float(safety_latency_ms),
                 "safety_layer": resolved_safety_layer,
+                "safety_status": (
+                    None if safety_diagnostics is None else str(getattr(safety_diagnostics, "status", "unknown"))
+                ),
+                "safety_solver_message": (
+                    None if safety_diagnostics is None else str(getattr(safety_diagnostics, "solver_message", ""))
+                ),
+                "safety_failure_category": (
+                    None
+                    if safety_diagnostics is None
+                    else str(getattr(safety_diagnostics, "failure_category", "none"))
+                ),
+                "safety_fallback_reason": (
+                    None
+                    if safety_diagnostics is None or getattr(safety_diagnostics, "fallback_reason", None) is None
+                    else str(getattr(safety_diagnostics, "fallback_reason"))
+                ),
+                "safety_precondition_valid": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "precondition_valid")
+                    else bool(getattr(safety_diagnostics, "precondition_valid"))
+                ),
+                "safety_recovery_action_used": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "recovery_action_used")
+                    else bool(getattr(safety_diagnostics, "recovery_action_used"))
+                ),
                 "safety_solver_success": (
                     None
                     if safety_diagnostics is None or not hasattr(safety_diagnostics, "solver_success")
@@ -639,6 +665,43 @@ def run_episode(
                     None
                     if safety_diagnostics is None or not hasattr(safety_diagnostics, "maximum_constraint_violation")
                     else float(getattr(safety_diagnostics, "maximum_constraint_violation"))
+                ),
+                "safety_maximum_slack_m": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "maximum_safety_slack_m")
+                    else float(getattr(safety_diagnostics, "maximum_safety_slack_m"))
+                ),
+                "safety_active_constraint_count": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "active_constraint_count")
+                    else int(getattr(safety_diagnostics, "active_constraint_count"))
+                ),
+                "safety_constraint_count": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "constraint_count")
+                    else int(getattr(safety_diagnostics, "constraint_count"))
+                ),
+                "safety_recoverability_status": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "recoverability_status")
+                    else str(getattr(safety_diagnostics, "recoverability_status"))
+                ),
+                "safety_prefix_admissible": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "prefix_admissible")
+                    else bool(getattr(safety_diagnostics, "prefix_admissible"))
+                ),
+                "safety_immutable_prefix_horizon_steps": (
+                    None
+                    if safety_diagnostics is None
+                    or not hasattr(safety_diagnostics, "immutable_prefix_horizon_steps")
+                    else int(getattr(safety_diagnostics, "immutable_prefix_horizon_steps"))
+                ),
+                "safety_immutable_prefix_min_robust_barrier_m": (
+                    None
+                    if safety_diagnostics is None
+                    or not hasattr(safety_diagnostics, "immutable_prefix_min_robust_barrier_m")
+                    else float(getattr(safety_diagnostics, "immutable_prefix_min_robust_barrier_m"))
                 ),
                 "total_control_latency_ms": float(total_control_latency_ms),
                 "nearest_target_distance": float(final_info["nearest_target_distance"]),
@@ -684,6 +747,13 @@ def run_episode(
         "maximum_safety_constraint_violation_m": _diagnostic_max(
             step_rows, "safety_maximum_constraint_violation_m"
         ),
+        "safety_precondition_valid_rate": _diagnostic_rate(step_rows, "safety_precondition_valid"),
+        "safety_recovery_action_rate": _diagnostic_rate(step_rows, "safety_recovery_action_used"),
+        "safety_maximum_slack_m": _diagnostic_max(step_rows, "safety_maximum_slack_m"),
+        "safety_mean_active_constraint_count": _diagnostic_mean(step_rows, "safety_active_constraint_count"),
+        "safety_mean_constraint_count": _diagnostic_mean(step_rows, "safety_constraint_count"),
+        "safety_failure_category_counts": _diagnostic_category_counts(step_rows, "safety_failure_category"),
+        "safety_fallback_reason_counts": _diagnostic_category_counts(step_rows, "safety_fallback_reason"),
         "mean_total_control_latency_ms": float(
             np.nanmean([row["total_control_latency_ms"] for row in step_rows])
         ),
@@ -789,6 +859,22 @@ def _diagnostic_max(step_rows: list[dict[str, Any]], key: str) -> float:
     return float(np.max(values)) if values else float("nan")
 
 
+def _diagnostic_mean(step_rows: list[dict[str, Any]], key: str) -> float:
+    values = _diagnostic_values(step_rows, key)
+    return float(np.mean(values)) if values else float("nan")
+
+
+def _diagnostic_category_counts(step_rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in step_rows:
+        value = row.get(key)
+        if value is None or str(value) in {"", "none", "None"}:
+            continue
+        label = str(value)
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def finite_mean(values: list[float]) -> float:
     finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
     return float(np.mean(finite)) if finite.size else float("nan")
@@ -881,6 +967,13 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "maximum_safety_constraint_violation_m": _diagnostic_max(
             step_rows, "safety_maximum_constraint_violation_m"
         ),
+        "safety_precondition_valid_rate": _diagnostic_rate(step_rows, "safety_precondition_valid"),
+        "safety_recovery_action_rate": _diagnostic_rate(step_rows, "safety_recovery_action_used"),
+        "safety_maximum_slack_m": _diagnostic_max(step_rows, "safety_maximum_slack_m"),
+        "safety_mean_active_constraint_count": _diagnostic_mean(step_rows, "safety_active_constraint_count"),
+        "safety_mean_constraint_count": _diagnostic_mean(step_rows, "safety_constraint_count"),
+        "safety_failure_category_counts": _diagnostic_category_counts(step_rows, "safety_failure_category"),
+        "safety_fallback_reason_counts": _diagnostic_category_counts(step_rows, "safety_fallback_reason"),
         "total_control_latency_ms": {
             "p50": percentile(total_control_latencies, 50),
             "p95": percentile(total_control_latencies, 95),
@@ -1103,6 +1196,11 @@ def main() -> None:
                     "safety_certificate_valid_rate",
                     "safety_fallback_rate",
                     "safety_abort_required_rate",
+                    "safety_precondition_valid_rate",
+                    "safety_recovery_action_rate",
+                    "safety_maximum_slack_m",
+                    "safety_mean_active_constraint_count",
+                    "safety_mean_constraint_count",
                     "minimum_safety_barrier_m",
                     "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
@@ -1127,6 +1225,16 @@ def main() -> None:
             for key, value in summary.items():
                 if isinstance(value, (int, float)) and np.isfinite(float(value)):
                     writer.add_scalar(f"Summary/{key}", float(value), 0)
+            writer.add_text(
+                "Summary/SafetyFailureCategoryCounts",
+                json.dumps(summary.get("safety_failure_category_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/SafetyFallbackReasonCounts",
+                json.dumps(summary.get("safety_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar("Summary/PlannerLatency/p50_ms", summary["planner_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/PlannerLatency/p95_ms", summary["planner_latency_ms"]["p95"], 0)
             writer.add_scalar("Summary/PlannerLatency/p99_ms", summary["planner_latency_ms"]["p99"], 0)

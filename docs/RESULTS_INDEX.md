@@ -15,6 +15,7 @@ and TensorBoard event files locally for reproduction.
 | Phase 4 | Distributed DN-MPC and unseen adaptive-target locked test | Pass for modular planning | `PHASE4_DN_MPC_VALIDATION_REPORT.md`, `PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md` |
 | Phase 5 | Velocity-level robust CBF-QP | Conditional pass only | `PHASE5_STRATIFIED_VALIDATION_REPORT.md` and execution audit reports |
 | Phase 7 | DN-MPC + robust CBF-QP joint integration | No-Go on the frozen P4 reset | `PHASE7_JOINT_SAFETY_AUDIT_REPORT.md` |
+| Phase 7.1 | Safety-contract failure diagnosis and rejected L2-SLSQP ablation | Contract repair required; direct integration remains No-Go | `PHASE7_SAFETY_CONTRACT_DIAGNOSTIC_REPORT.md` |
 
 ## Formal Phase 7 Run
 
@@ -28,6 +29,16 @@ It contains the root and method `config.yaml`, protocol and scene records,
 episode/step JSONL, summary JSON, source hashes, and TensorBoard events. The
 run uses the P4 `adaptive_adversarial` 100-episode scene file and must be
 treated as the authoritative result for the direct robust-CBF-QP composition.
+
+The richer diagnostic rerun is retained separately at:
+
+```text
+results/phase7_joint_safety_locked_seed745101_robust_p4protocol_v2_diagnostics/
+```
+
+The `v3_l2speed` directory is a retained rejected ablation: it documents a
+nonlinear SLSQP speed-constraint replacement that regressed to 1% safe capture
+and must not be used as a formal result.
 
 ## TensorBoard Retention
 

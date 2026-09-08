@@ -1,6 +1,7 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
 > P7 最新状态：已完成同一 P4 locked-test 上的 `worst_case DN-MPC + velocity-level robust CBF-QP` 联合审计；safe capture `50%`、collision `49%`、boundary violation `16%`，直接组合路径为 No-Go。模块化 P4 规划结果仍保留，正式分析见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
+> P7.1 诊断已完成：1,858/5,289 safety fallback steps 已按 `precondition_invalid=1,225`、`qp_infeasible=350`、`inconsistent_action_bounds=283` 分类；L2-SLSQP 速度球替换 ablation 退化为 `1%` safe capture / `99%` collision，已拒绝，当前继续修复 reset/margin/fallback contract，不重开端到端 gate。
 
 > 版本：v3.7（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
@@ -36,6 +37,7 @@
 - Phase 5 active-set 优化：在 full nonlinear certificate 不变的前提下，仅将当前 robust barrier `<= 0.5 m` 的约束送入局部投影；四种 variant 的 p95 为 `106.27/80.98/139.85/411.43 ms`，episode/certificate/fallback 结果与上一轮一致，仍为 execution-invariant safety No-Go，详见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`。
 - Phase 5 recoverability contract：已将不可修改的 execution queue prefix 纳入共享 certificate、QP diagnostics、step JSONL、summary 和 TensorBoard；固定四 variant 的 immutable `abort_required` rate 为 `61.19%/71.84%`，flush 为 `0%/12.04%`，hard flush safety p95 为 `2489.98 ms`，结果仍 No-Go，详见 `docs/PHASE5_RECOVERABILITY_CONTRACT_AUDIT_REPORT.md`。
 - P7 联合安全审计：已将 `worst_case DN-MPC + robust CBF-QP` 接入同一份 100-episode `adaptive_adversarial` locked-test；相同场景 local-CBF baseline 为 `97%/1%` safe capture/collision，robust CBF-QP 为 `50%/49%`，另有 `16%` boundary violation，结果为直接组合 No-Go，详见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
+- P7.1 安全契约诊断：已将 failure category、fallback reason、precondition、slack、active constraints 和 recoverability 写入 JSONL/summary/TensorBoard；正式 diagnostic run 中 fallback 分类为 `precondition_invalid=1,225`、`qp_infeasible=350`、`inconsistent_action_bounds=283`，并保留一次失败的 L2-SLSQP ablation 作为 No-Go 证据，详见 `docs/PHASE7_SAFETY_CONTRACT_DIAGNOSTIC_REPORT.md`。
 - P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，严格 10 Hz 部署参考未满足，但作为工程权衡记录，不阻塞 P4 方法验证。
 
 ### 成功等级总览
