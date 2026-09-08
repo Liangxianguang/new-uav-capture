@@ -1,0 +1,20 @@
+experiment_name: phase5_execution_reachable_set_calibration
+base_environment_config: capture_radius_pursuit_central_v4_flee.yaml
+execution_audit_config: innovation_safety_execution.yaml
+seed: 913707
+samples_per_variant: 2048
+horizon_steps: 5
+defenders: 4
+target_coverage: 0.99
+quantile: 0.99
+variants:
+  - mild_delay_noise
+  - hard_randomized_execution
+  - mild_flush_pending_brake
+  - hard_flush_pending_brake
+reporting:
+  tensorboard_required: true
+  preserve_samples_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
