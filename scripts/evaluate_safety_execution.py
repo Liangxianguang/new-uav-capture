@@ -185,6 +185,11 @@ def run_episode(
         else:
             action, diagnostics = robust_filter.filter(desired, observation)
         filter_latency_ms = (time.perf_counter() - filter_started) * 1000.0
+        command_authority = (
+            None
+            if diagnostics is None
+            else dict(getattr(diagnostics, "command_authority", None) or {})
+        )
         pre_step = observation
         command_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
@@ -209,6 +214,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=qp_config.execution_preview_horizon_steps,
+            command_authority=command_authority,
         )
         swept_certificate = check_execution_swept_volume_safety(
             certificate_observation(pre_step, env),
@@ -219,8 +225,12 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             horizon_steps=qp_config.execution_preview_horizon_steps,
             subdivisions_per_step=int(swept_volume_subdivisions_per_step),
+            command_authority=command_authority,
         )
-        observation, _reward, terminated, truncated, info = env.step(action)
+        observation, _reward, terminated, truncated, info = env.step(
+            action,
+            command_authority=command_authority,
+        )
         executed_action = np.asarray(env.last_executed_actions, dtype=np.float64).copy()
         executed_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
@@ -314,6 +324,12 @@ def run_episode(
                 "solver_success": None if diagnostics is None else bool(getattr(diagnostics, "solver_success", False)),
                 "fallback_used": None if diagnostics is None else bool(getattr(diagnostics, "fallback_used", False)),
                 "failure_category": None if diagnostics is None else str(getattr(diagnostics, "failure_category", "none")),
+                "solver_backend": None if diagnostics is None else str(getattr(diagnostics, "solver_backend", "none")),
+                "linearization_iterations": None if diagnostics is None else int(getattr(diagnostics, "linearization_iterations", 0)),
+                "linearization_evaluations": None if diagnostics is None else int(getattr(diagnostics, "linearization_evaluations", 0)),
+                "emergency_brake_requested": bool(info.get("emergency_brake_requested", False)),
+                "queue_override_slots": int(info.get("queue_override_slots", 0)),
+                "command_authority_mode": str(info.get("command_authority_mode", "immutable")),
             }
         )
         if terminated or truncated or env.step_count >= max_steps:
@@ -399,11 +415,25 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "minimum_executed_next_barrier_m": float(np.min([row["minimum_executed_next_barrier_m"] for row in rows])),
         "minimum_actual_post_barrier_m": float(np.min([row["minimum_actual_post_barrier_m"] for row in rows])),
         "solver_fallback_count": int(sum(row["solver_fallback_count"] for row in rows)),
+        "emergency_brake_count": int(sum(bool(row.get("emergency_brake_requested", False)) for row in steps)),
+        "queue_override_slots": int(sum(int(row.get("queue_override_slots", 0)) for row in steps)),
+        "mean_linearization_iterations": _finite_mean(
+            [float(row["linearization_iterations"]) for row in steps if row.get("linearization_iterations") is not None]
+        ),
+        "mean_linearization_evaluations": _finite_mean(
+            [float(row["linearization_evaluations"]) for row in steps if row.get("linearization_evaluations") is not None]
+        ),
         "multi_step_step_count": len(steps),
     }
 
 
-def log_tensorboard(output: Path, config: dict[str, Any], rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
+def log_tensorboard(
+    output: Path,
+    config: dict[str, Any],
+    rows: list[dict[str, Any]],
+    steps: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> None:
     with require_summary_writer()(log_dir=str(output / "tensorboard"), flush_secs=5) as writer:
         writer.add_text("Evaluation/config", yaml.safe_dump(config, sort_keys=False), 0)
         writer.add_text("Evaluation/source_hashes", json.dumps(config["source_hashes"], indent=2), 0)
@@ -411,6 +441,10 @@ def log_tensorboard(output: Path, config: dict[str, Any], rows: list[dict[str, A
             for key, value in row.items():
                 if isinstance(value, (int, float, bool)) and np.isfinite(float(value)):
                     writer.add_scalar(f"Episode/{key}", float(value), index)
+        for index, row in enumerate(steps):
+            for key, value in row.items():
+                if isinstance(value, (int, float, bool)) and np.isfinite(float(value)):
+                    writer.add_scalar(f"Step/{key}", float(value), index)
         for key, value in summary.items():
             if isinstance(value, (int, float, bool)) and np.isfinite(float(value)):
                 writer.add_scalar(f"Summary/{key}", float(value), 0)
@@ -419,8 +453,18 @@ def log_tensorboard(output: Path, config: dict[str, Any], rows: list[dict[str, A
                 "method": str(config["evaluation"]["method"]),
                 "execution_variant": str(config["execution_variant"]),
                 "action_delay_steps": int(config["execution"]["action_delay_steps"]),
+                "pending_command_authority": str(config["execution"].get("pending_command_authority", "immutable")),
                 "command_noise_std": float(config["execution"]["command_noise_std"]),
                 "velocity_time_constant_seconds": float(config["execution"]["velocity_time_constant_seconds"]),
+                "execution_linearization_iterations": int(
+                    config["safety"].get("execution_linearization_iterations", 0)
+                ),
+                "execution_projection_iterations": int(
+                    config["safety"].get("execution_projection_iterations", 0)
+                ),
+                "execution_emergency_brake_enabled": bool(
+                    config["safety"].get("execution_emergency_brake_enabled", False)
+                ),
             },
             {
                 "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),
@@ -523,7 +567,7 @@ def main() -> None:
             method_output.joinpath("episodes.jsonl").write_text("".join(json.dumps(row, allow_nan=True) + "\n" for row in rows), encoding="utf-8")
             method_output.joinpath("steps.jsonl").write_text("".join(json.dumps(row, allow_nan=True) + "\n" for row in steps), encoding="utf-8")
             method_output.joinpath("summary.json").write_text(json.dumps(summary, indent=2, allow_nan=True), encoding="utf-8")
-            log_tensorboard(method_output, run_config, rows, summary)
+            log_tensorboard(method_output, run_config, rows, steps, summary)
             variant_summaries[method] = summary
         all_summaries[variant_name] = variant_summaries
     result = {

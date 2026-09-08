@@ -22,6 +22,7 @@ dynamics:
     enabled: false
     random_seed_offset: 104729
     action_delay_steps: 0
+    pending_command_authority: immutable
     command_noise_std: 0.0
     command_noise_bound_sigma: 3.0
     clip_command_noise: true

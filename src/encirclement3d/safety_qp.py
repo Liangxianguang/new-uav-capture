@@ -13,9 +13,14 @@ from time import perf_counter
 from typing import Any
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint, linprog, minimize
+from scipy.optimize import Bounds, LinearConstraint, linprog, minimize
 
-from encirclement3d.execution_dynamics import queue_from_observation
+from encirclement3d.execution_dynamics import (
+    CommandAuthorityDirective,
+    apply_command_authority,
+    command_authority_from_observation,
+    queue_from_observation,
+)
 from encirclement3d.safety_certificate import check_execution_rollout_safety, execution_barrier_values
 
 
@@ -113,6 +118,11 @@ class RobustCBFQPConfig:
     solver_max_iterations: int = 100
     fallback_policy: str = "zero_action"
     execution_preview_horizon_steps: int = 5
+    execution_linearization_iterations: int = 3
+    execution_linearization_fd_step_mps: float = 1.0e-3
+    execution_projection_iterations: int = 160
+    execution_projection_tolerance: float = 1.0e-7
+    execution_emergency_brake_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.gamma) <= 1.0:
@@ -143,6 +153,14 @@ class RobustCBFQPConfig:
             raise ValueError("solver_max_iterations must be positive.")
         if int(self.execution_preview_horizon_steps) <= 0:
             raise ValueError("execution_preview_horizon_steps must be positive.")
+        if int(self.execution_linearization_iterations) <= 0:
+            raise ValueError("execution_linearization_iterations must be positive.")
+        if int(self.execution_projection_iterations) <= 0:
+            raise ValueError("execution_projection_iterations must be positive.")
+        if float(self.execution_linearization_fd_step_mps) <= 0.0:
+            raise ValueError("execution_linearization_fd_step_mps must be positive.")
+        if float(self.execution_projection_tolerance) <= 0.0:
+            raise ValueError("execution_projection_tolerance must be positive.")
         if str(self.fallback_policy) not in {"zero_action", "nominal_clipped", "barrier_recovery"}:
             raise ValueError("Unsupported fallback_policy.")
 
@@ -183,6 +201,12 @@ class RobustCBFQPDiagnostics:
     recovery_action_used: bool = False
     barrier_values_m: dict[str, float] | None = None
     constraint_residuals_m: dict[str, float] | None = None
+    solver_backend: str = "slsqp"
+    linearization_iterations: int = 0
+    linearization_evaluations: int = 0
+    command_authority: dict[str, Any] | None = None
+    emergency_brake_requested: bool = False
+    queue_override_slots: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -207,6 +231,12 @@ class RobustCBFQPDiagnostics:
             "recovery_action_used": self.recovery_action_used,
             "barrier_values_m": dict(self.barrier_values_m or {}),
             "constraint_residuals_m": dict(self.constraint_residuals_m or {}),
+            "solver_backend": self.solver_backend,
+            "linearization_iterations": self.linearization_iterations,
+            "linearization_evaluations": self.linearization_evaluations,
+            "command_authority": dict(self.command_authority or {}),
+            "emergency_brake_requested": self.emergency_brake_requested,
+            "queue_override_slots": self.queue_override_slots,
         }
 
 
@@ -483,7 +513,14 @@ class RobustCBFQPFilter:
         observation: dict[str, Any],
         started: float,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
-        """Project commands against the queued, tracked, executed rollout."""
+        """Use a bounded sequential linearization for the execution rollout.
+
+        The previous nonlinear SLSQP formulation made a finite-difference
+        nested rollout the online solver.  This path explicitly linearizes the
+        queued execution barrier at a small number of operating points and
+        projects onto the resulting bounded halfspaces.  Every accepted result
+        is still checked against the original nonlinear rollout independently.
+        """
 
         safety_observation = dict(observation)
         safety_observation.setdefault("world_lower_bounds", np.asarray(self.env.lower, dtype=np.float64))
@@ -491,174 +528,388 @@ class RobustCBFQPFilter:
         safety_observation.setdefault("obstacles", list(getattr(self.env, "obstacles", ())))
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
-        action_dimension = int(desired.size)
         queue = queue_from_observation(observation, positions.shape[0])
         preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
-        nominal_values, robust_values, assumptions = execution_barrier_values(
-            safety_observation,
-            desired,
-            dt=float(self.env.dt),
-            drone_radius=float(self.env.agents["drone_radius"]),
-            safety_margin_m=float(self.config.safety_margin_m),
-            robust_margin_m=float(self.config.robust_margin_m),
-            horizon_steps=preview_steps,
-        )
-        names = list(robust_values)
-        barrier_values = [float(robust_values[name]) for name in names]
-        rows = [np.zeros(action_dimension, dtype=np.float64) for _ in names]
-        rhs = [-value for value in barrier_values]
+        authority_mode = command_authority_from_observation(safety_observation)
+        nominal_directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=False)
+        lower_action, upper_action = self._execution_action_bounds(velocities)
 
-        def fallback(reason: str, category: str, *, precondition_valid: bool) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
-            return self._fallback(
+        def rollout_certificate(
+            actions: np.ndarray,
+            directive: CommandAuthorityDirective,
+        ) -> Any:
+            return check_execution_rollout_safety(
+                safety_observation,
+                actions,
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                max_speed_mps=float(self.config.max_speed_mps),
+                max_acceleration_mps2=float(self.config.max_acceleration_mps2),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                tolerance=float(self.config.solver_tolerance),
+                action_change_limit_mps=self.config.action_change_limit_mps,
+                horizon_steps=preview_steps,
+                command_authority=directive,
+            )
+
+        current_probe = rollout_certificate(np.zeros_like(desired), nominal_directive)
+        if not current_probe.current_state_safe:
+            return self._execution_fallback(
                 desired,
                 observation,
-                barrier_values,
-                names,
-                rows,
-                rhs,
                 started,
-                reason,
-                failure_category=category,
-                precondition_valid=precondition_valid,
-            )
-
-        current_probe = check_execution_rollout_safety(
-            safety_observation,
-            np.zeros_like(desired),
-            dt=float(self.env.dt),
-            drone_radius=float(self.env.agents["drone_radius"]),
-            max_speed_mps=float(self.config.max_speed_mps),
-            max_acceleration_mps2=float(self.config.max_acceleration_mps2),
-            safety_margin_m=float(self.config.safety_margin_m),
-            robust_margin_m=float(self.config.robust_margin_m),
-            tolerance=float(self.config.solver_tolerance),
-            action_change_limit_mps=self.config.action_change_limit_mps,
-            horizon_steps=1,
-        )
-        if not current_probe.current_state_safe:
-            return fallback(
-                "current_state_outside_robust_safe_set_before_projection",
-                "execution_precondition_invalid",
+                reason="current_state_outside_robust_safe_set_before_projection",
+                category="execution_precondition_invalid",
                 precondition_valid=False,
+                directive=nominal_directive,
+            )
+        if np.any(lower_action > upper_action + 1.0e-12):
+            return self._execution_fallback(
+                desired,
+                observation,
+                started,
+                reason="inconsistent action bounds",
+                category="inconsistent_action_bounds",
+                precondition_valid=True,
+                directive=nominal_directive,
             )
 
-        lower_action = np.full(action_dimension, -self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
-        upper_action = np.full(action_dimension, self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        attempts = [(desired, nominal_directive, "nominal_command")]
+        if bool(self.config.execution_emergency_brake_enabled) and authority_mode != "immutable":
+            attempts.append(
+                (
+                    np.zeros_like(desired),
+                    CommandAuthorityDirective(mode=authority_mode, emergency_brake=True),
+                    "authorized_emergency_brake",
+                )
+            )
+
+        last_reason = "no bounded execution-safe command found"
+        last_directive = nominal_directive
+        for reference, directive, label in attempts:
+            result = self._solve_execution_linearized_projection(
+                safety_observation,
+                reference,
+                lower_action,
+                upper_action,
+                preview_steps=preview_steps,
+                directive=directive,
+            )
+            last_reason = str(result["message"])
+            last_directive = directive
+            actions = np.asarray(result["actions"], dtype=np.float64)
+            certificate = rollout_certificate(actions, directive)
+            if bool(result["success"]) and certificate.valid:
+                return actions, self._execution_diagnostics(
+                    desired,
+                    actions,
+                    certificate,
+                    result,
+                    started,
+                    directive,
+                    status="optimal" if not directive.emergency_brake else "optimal_emergency_brake",
+                    solver_message=label,
+                )
+            if not bool(result["success"]):
+                last_reason = f"{label}:{last_reason}"
+            elif not certificate.valid:
+                last_reason = f"{label}:independent_rollout_check_failed:{','.join(certificate.violations)}"
+
+        return self._execution_fallback(
+            desired,
+            observation,
+            started,
+            reason=last_reason,
+            category="execution_rollout_infeasible",
+            precondition_valid=True,
+            directive=last_directive,
+        )
+
+    def _execution_action_bounds(self, velocities: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        action_dimension = int(velocities.size)
+        lower = np.full(action_dimension, -self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        upper = np.full(action_dimension, self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
         change_limit = self.config.action_change_limit_mps
         if change_limit is None:
             change_limit = float(self.config.max_acceleration_mps2 * self.env.dt)
-        lower_action = np.maximum(lower_action, velocities.reshape(-1) - float(change_limit))
-        upper_action = np.minimum(upper_action, velocities.reshape(-1) + float(change_limit))
-        if np.any(lower_action > upper_action + 1.0e-12):
-            return fallback("inconsistent action bounds", "inconsistent_action_bounds", precondition_valid=True)
+        return (
+            np.maximum(lower, velocities.reshape(-1) - float(change_limit)),
+            np.minimum(upper, velocities.reshape(-1) + float(change_limit)),
+        )
 
-        def constraint_values(value: np.ndarray) -> np.ndarray:
+    def _solve_execution_linearized_projection(
+        self,
+        observation: dict[str, Any],
+        reference_actions: np.ndarray,
+        lower_action: np.ndarray,
+        upper_action: np.ndarray,
+        *,
+        preview_steps: int,
+        directive: CommandAuthorityDirective,
+    ) -> dict[str, Any]:
+        """Solve successive local linearizations with Dykstra projections."""
+
+        reference = np.clip(np.asarray(reference_actions, dtype=np.float64).reshape(-1), lower_action, upper_action)
+        evaluations = 0
+        last_values: dict[str, float] = {}
+        last_residuals = np.empty(0, dtype=np.float64)
+        last_message = "linearized projection did not converge"
+        action_shape = reference_actions.shape
+
+        def values(flat_actions: np.ndarray) -> dict[str, float]:
+            nonlocal evaluations
             _nominal, robust, _assumptions = execution_barrier_values(
-                safety_observation,
-                value[:action_dimension].reshape(desired.shape),
+                observation,
+                np.asarray(flat_actions, dtype=np.float64).reshape(action_shape),
                 dt=float(self.env.dt),
                 drone_radius=float(self.env.agents["drone_radius"]),
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
+                command_authority=directive,
             )
-            values = np.asarray([float(robust[name]) for name in names], dtype=np.float64)
-            if self.config.slack_enabled:
-                values = values + value[action_dimension:]
-            return values
+            evaluations += 1
+            return robust
 
-        slack_count = len(names) if self.config.slack_enabled else 0
-        variable_count = action_dimension + slack_count
-        initial = np.zeros(variable_count, dtype=np.float64)
-        initial[:action_dimension] = np.clip(desired.reshape(-1), lower_action, upper_action)
-        initial_values = constraint_values(initial)
-        if slack_count:
-            initial[action_dimension:] = np.maximum(-initial_values, 0.0)
-        nominal_flat = desired.reshape(-1)
+        for linearization_index in range(1, int(self.config.execution_linearization_iterations) + 1):
+            base_map = values(reference)
+            names = list(base_map)
+            base = np.asarray([float(base_map[name]) for name in names], dtype=np.float64)
+            if not np.isfinite(base).all():
+                return {
+                    "success": False,
+                    "actions": reference.reshape(action_shape),
+                    "message": "non_finite_execution_barrier",
+                    "projection_iterations": 0,
+                    "linearization_iterations": linearization_index,
+                    "evaluations": evaluations,
+                    "barrier_values": base_map,
+                    "residuals": base,
+                }
+            if float(np.min(base, initial=np.inf)) >= -float(self.config.solver_tolerance):
+                return {
+                    "success": True,
+                    "actions": reference.reshape(action_shape),
+                    "message": "reference_is_execution_safe",
+                    "projection_iterations": 0,
+                    "linearization_iterations": linearization_index,
+                    "evaluations": evaluations,
+                    "barrier_values": base_map,
+                    "residuals": base,
+                }
 
-        def objective(value: np.ndarray) -> float:
-            delta = value[:action_dimension] - nominal_flat
-            slack = value[action_dimension:] if slack_count else np.empty(0, dtype=np.float64)
-            return float(
-                0.5 * float(self.config.action_weight) * np.dot(delta, delta)
-                + 0.5 * float(self.config.slack_weight) * np.dot(slack, slack)
+            jacobian = np.zeros((len(names), reference.size), dtype=np.float64)
+            finite_difference = float(self.config.execution_linearization_fd_step_mps)
+            for index in range(reference.size):
+                perturbed = reference.copy()
+                perturbed[index] = min(upper_action[index], perturbed[index] + finite_difference)
+                delta = float(perturbed[index] - reference[index])
+                if delta <= 1.0e-12:
+                    perturbed[index] = max(lower_action[index], reference[index] - finite_difference)
+                    delta = float(perturbed[index] - reference[index])
+                if abs(delta) <= 1.0e-12:
+                    continue
+                perturbed_map = values(perturbed)
+                jacobian[:, index] = (
+                    np.asarray([float(perturbed_map[name]) for name in names], dtype=np.float64) - base
+                ) / delta
+
+            lower_rhs = -base + jacobian @ reference
+            candidate, projection_success, projection_iterations, message = self._project_linearized_halfspaces(
+                reference,
+                jacobian,
+                lower_rhs,
+                lower_action,
+                upper_action,
             )
+            candidate_map = values(candidate)
+            candidate_values = np.asarray([float(candidate_map[name]) for name in names], dtype=np.float64)
+            last_values = candidate_map
+            last_residuals = candidate_values
+            last_message = message
+            if projection_success and float(np.min(candidate_values, initial=np.inf)) >= -float(self.config.solver_tolerance):
+                return {
+                    "success": True,
+                    "actions": candidate.reshape(action_shape),
+                    "message": message,
+                    "projection_iterations": projection_iterations,
+                    "linearization_iterations": linearization_index,
+                    "evaluations": evaluations,
+                    "barrier_values": candidate_map,
+                    "residuals": candidate_values,
+                }
+            reference = candidate
 
-        def gradient(value: np.ndarray) -> np.ndarray:
-            result = np.zeros(variable_count, dtype=np.float64)
-            result[:action_dimension] = float(self.config.action_weight) * (value[:action_dimension] - nominal_flat)
-            if slack_count:
-                result[action_dimension:] = float(self.config.slack_weight) * value[action_dimension:]
-            return result
+        return {
+            "success": False,
+            "actions": reference.reshape(action_shape),
+            "message": last_message,
+            "projection_iterations": int(self.config.execution_projection_iterations),
+            "linearization_iterations": int(self.config.execution_linearization_iterations),
+            "evaluations": evaluations,
+            "barrier_values": last_values,
+            "residuals": last_residuals,
+        }
 
-        if slack_count:
-            lower_bounds = np.concatenate([lower_action, np.zeros(slack_count, dtype=np.float64)])
-            upper_bounds = np.concatenate([upper_action, np.full(slack_count, np.inf, dtype=np.float64)])
-        else:
-            lower_bounds = lower_action
-            upper_bounds = upper_action
-        try:
-            result = minimize(
-                objective,
-                initial,
-                jac=gradient,
-                method="SLSQP",
-                bounds=Bounds(lower_bounds, upper_bounds),
-                constraints=(NonlinearConstraint(constraint_values, 0.0, np.inf),),
-                options={
-                    "ftol": float(self.config.solver_tolerance),
-                    "maxiter": int(self.config.solver_max_iterations),
-                    "disp": False,
-                },
-            )
-        except (FloatingPointError, ValueError, RuntimeError) as error:
-            return fallback(str(error), "solver_failure", precondition_valid=True)
+    def _project_linearized_halfspaces(
+        self,
+        target: np.ndarray,
+        matrix: np.ndarray,
+        lower_rhs: np.ndarray,
+        lower_bounds: np.ndarray,
+        upper_bounds: np.ndarray,
+    ) -> tuple[np.ndarray, bool, int, str]:
+        """Dykstra projection for the Euclidean bounded linearized subproblem."""
 
-        if not bool(result.success) or not np.isfinite(result.x).all():
-            category = "execution_rollout_infeasible" if bool(np.isfinite(result.x).all()) else "solver_failure"
-            return fallback(str(result.message), category, precondition_valid=True)
-        solution = np.asarray(result.x, dtype=np.float64)
-        actions = solution[:action_dimension].reshape(desired.shape)
-        _nominal, final_robust, _final_assumptions = execution_barrier_values(
-            safety_observation,
-            actions,
-            dt=float(self.env.dt),
-            drone_radius=float(self.env.agents["drone_radius"]),
-            safety_margin_m=float(self.config.safety_margin_m),
-            robust_margin_m=float(self.config.robust_margin_m),
-            horizon_steps=preview_steps,
+        action = np.clip(np.asarray(target, dtype=np.float64), lower_bounds, upper_bounds)
+        if matrix.size == 0:
+            return action, True, 0, "no_execution_constraints"
+        norms = np.einsum("ij,ij->i", matrix, matrix)
+        static_violations = (norms <= 1.0e-18) & (lower_rhs > float(self.config.execution_projection_tolerance))
+        if bool(np.any(static_violations)):
+            return action, False, 0, "linearized_static_constraint_infeasible"
+        corrections = np.zeros((matrix.shape[0] + 1, action.size), dtype=np.float64)
+        tolerance = float(self.config.execution_projection_tolerance)
+        for iteration in range(1, int(self.config.execution_projection_iterations) + 1):
+            previous = action.copy()
+            for index, (row, norm_squared) in enumerate(zip(matrix, norms)):
+                shifted = action + corrections[index]
+                deficit = float(lower_rhs[index] - np.dot(row, shifted))
+                if norm_squared > 1.0e-18 and deficit > 0.0:
+                    projected = shifted + deficit / norm_squared * row
+                else:
+                    projected = shifted
+                corrections[index] = shifted - projected
+                action = projected
+            shifted = action + corrections[-1]
+            action = np.clip(shifted, lower_bounds, upper_bounds)
+            corrections[-1] = shifted - action
+            residuals = matrix @ action - lower_rhs
+            if float(np.min(residuals, initial=np.inf)) >= -tolerance and float(
+                np.max(np.abs(action - previous), initial=0.0)
+            ) <= tolerance:
+                return action, True, iteration, "sequential_linearized_dykstra"
+        residuals = matrix @ action - lower_rhs
+        return (
+            action,
+            bool(float(np.min(residuals, initial=np.inf)) >= -tolerance),
+            int(self.config.execution_projection_iterations),
+            "sequential_linearized_projection_max_iterations",
         )
-        residuals = np.asarray([float(final_robust[name]) for name in names], dtype=np.float64)
-        slack = solution[action_dimension:] if slack_count else np.empty(0, dtype=np.float64)
+
+    def _execution_diagnostics(
+        self,
+        desired: np.ndarray,
+        actions: np.ndarray,
+        certificate: Any,
+        result: dict[str, Any],
+        started: float,
+        directive: CommandAuthorityDirective,
+        *,
+        status: str,
+        solver_message: str,
+    ) -> RobustCBFQPDiagnostics:
+        barrier_values = {name: float(value) for name, value in result["barrier_values"].items()}
+        residuals = np.asarray(result["residuals"], dtype=np.float64)
         minimum_residual = float(np.min(residuals, initial=np.inf))
-        maximum_violation = float(max(0.0, -minimum_residual))
-        maximum_slack = float(np.max(slack, initial=0.0))
-        certificate_valid = bool(
-            maximum_violation <= float(self.config.solver_tolerance)
-            and maximum_slack <= float(self.config.slack_tolerance_m)
-        )
-        diagnostics = RobustCBFQPDiagnostics(
-            status="optimal" if certificate_valid else "optimal_with_slack",
+        residual_map = {
+            name: float(value)
+            for name, value in zip(barrier_values, residuals)
+        }
+        return RobustCBFQPDiagnostics(
+            status=status,
             solver_success=True,
-            solver_message=str(result.message),
-            solver_iterations=int(getattr(result, "nit", 0)),
+            solver_message=solver_message,
+            solver_iterations=int(result["projection_iterations"]),
             action_correction_norm=float(np.mean(np.linalg.norm(actions - desired, axis=1))),
-            minimum_barrier_value_m=float(min(barrier_values, default=float("inf"))),
+            minimum_barrier_value_m=float(min(barrier_values.values(), default=float("inf"))),
             minimum_constraint_residual=minimum_residual,
-            maximum_constraint_violation=maximum_violation,
-            maximum_safety_slack_m=maximum_slack,
-            active_constraint_count=int(np.count_nonzero(residuals <= max(float(self.config.solver_tolerance) * 10.0, 1.0e-7))),
-            constraint_count=len(names),
+            maximum_constraint_violation=float(max(0.0, -minimum_residual)),
+            maximum_safety_slack_m=0.0,
+            active_constraint_count=int(
+                np.count_nonzero(residuals <= max(float(self.config.solver_tolerance) * 10.0, 1.0e-7))
+            ),
+            constraint_count=len(barrier_values),
             fallback_used=False,
-            certificate_valid=certificate_valid,
+            certificate_valid=bool(certificate.valid),
             latency_ms=float((perf_counter() - started) * 1000.0),
-            assumptions={**self._assumption_dict(), **assumptions},
-            failure_category="none" if certificate_valid else "slack_violation",
+            assumptions={**self._assumption_dict(), **certificate.assumptions},
+            failure_category="none",
             fallback_reason=None,
             precondition_valid=True,
-            recovery_action_used=False,
-            barrier_values_m={name: float(value) for name, value in zip(names, barrier_values)},
-            constraint_residuals_m={name: float(value) for name, value in zip(names, residuals)},
+            recovery_action_used=bool(directive.emergency_brake),
+            barrier_values_m=barrier_values,
+            constraint_residuals_m=residual_map,
+            solver_backend="sequential_linearized_dykstra",
+            linearization_iterations=int(result["linearization_iterations"]),
+            linearization_evaluations=int(result["evaluations"]),
+            command_authority=directive.as_dict(),
+            emergency_brake_requested=bool(directive.emergency_brake),
+            queue_override_slots=int(certificate.assumptions.get("queue_override_slots", 0.0)),
+        )
+
+    def _execution_fallback(
+        self,
+        desired: np.ndarray,
+        observation: dict[str, Any],
+        started: float,
+        *,
+        reason: str,
+        category: str,
+        precondition_valid: bool,
+        directive: CommandAuthorityDirective,
+    ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
+        # A braking request must issue zero velocity as well as cancel only the
+        # queue entries that the configured authority can legally touch.
+        action = np.zeros_like(desired) if directive.emergency_brake else desired
+        safety_observation = dict(observation)
+        safety_observation.setdefault("world_lower_bounds", np.asarray(self.env.lower, dtype=np.float64))
+        safety_observation.setdefault("world_upper_bounds", np.asarray(self.env.upper, dtype=np.float64))
+        safety_observation.setdefault("obstacles", list(getattr(self.env, "obstacles", ())))
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        queue = queue_from_observation(observation, positions.shape[0])
+        _queue, _resolved, override_slots = apply_command_authority(
+            queue,
+            directive,
+            allowed_mode=command_authority_from_observation(safety_observation),
+        )
+        preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
+        try:
+            _nominal, robust, _assumptions = execution_barrier_values(
+                safety_observation,
+                action,
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                horizon_steps=preview_steps,
+                command_authority=directive,
+            )
+            names = list(robust)
+            barrier_values = [float(robust[name]) for name in names]
+            rows = [np.zeros(action.size, dtype=np.float64) for _ in names]
+            rhs = [-value for value in barrier_values]
+        except (FloatingPointError, ValueError, RuntimeError):
+            names = []
+            barrier_values = []
+            rows = []
+            rhs = []
+        actions, diagnostics = self._fallback(
+            action,
+            observation,
+            barrier_values,
+            names,
+            rows,
+            rhs,
+            started,
+            reason,
+            failure_category=category,
+            precondition_valid=precondition_valid,
+            command_authority=directive,
+            solver_backend="sequential_linearized_dykstra",
+            force_zero_action=bool(directive.emergency_brake),
+            queue_override_slots=int(override_slots),
         )
         return actions, diagnostics
 
@@ -676,10 +927,14 @@ class RobustCBFQPFilter:
         failure_category: str,
         precondition_valid: bool,
         solver_iterations: int = 0,
+        command_authority: CommandAuthorityDirective | None = None,
+        solver_backend: str = "slsqp",
+        force_zero_action: bool = False,
+        queue_override_slots: int = 0,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
-        if self.config.fallback_policy == "zero_action":
+        if force_zero_action or self.config.fallback_policy == "zero_action":
             actions = np.zeros_like(desired)
-            recovery_action_used = False
+            recovery_action_used = bool(force_zero_action)
         elif self.config.fallback_policy == "nominal_clipped":
             actions = _clip_rows(desired, self.config.max_speed_mps)
             recovery_action_used = False
@@ -718,6 +973,10 @@ class RobustCBFQPFilter:
             recovery_action_used=recovery_action_used,
             barrier_values_m={name: float(value) for name, value in zip(names, barrier_values)},
             constraint_residuals_m=residual_map,
+            solver_backend=solver_backend,
+            command_authority=None if command_authority is None else command_authority.as_dict(),
+            emergency_brake_requested=False if command_authority is None else bool(command_authority.emergency_brake),
+            queue_override_slots=int(queue_override_slots),
         )
         return actions, diagnostics
 

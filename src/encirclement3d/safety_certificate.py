@@ -15,6 +15,9 @@ from typing import Any, Mapping
 import numpy as np
 
 from encirclement3d.execution_dynamics import (
+    CommandAuthorityDirective,
+    apply_command_authority,
+    command_authority_from_observation,
     parameters_from_observation,
     position_uncertainty_radii,
     queue_from_observation,
@@ -333,6 +336,7 @@ def execution_barrier_values(
     robust_margin_m: float,
     horizon_steps: int | None = None,
     swept_substeps: int = 4,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return nominal and uncertainty-robust barriers along executed rollout."""
 
@@ -348,6 +352,11 @@ def execution_barrier_values(
     obstacles = list(observation.get("obstacles", ()))
     parameters = parameters_from_observation(observation, dt)
     queue = queue_from_observation(observation, positions.shape[0])
+    queue, directive, overridden_slots = apply_command_authority(
+        queue,
+        command_authority,
+        allowed_mode=command_authority_from_observation(observation),
+    )
     preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
     if preview_steps <= 0:
         raise ValueError("horizon_steps must be positive")
@@ -399,6 +408,11 @@ def execution_barrier_values(
         "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
         "mass_scale": float(parameters.mass_scale),
         "swept_substeps": float(swept_substeps),
+        "command_authority_mode": float(
+            {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+        ),
+        "emergency_brake_requested": float(directive.emergency_brake),
+        "queue_override_slots": float(overridden_slots),
     }
     return nominal_values, robust_values, assumptions
 
@@ -416,6 +430,7 @@ def check_execution_rollout_safety(
     tolerance: float = 1.0e-6,
     action_change_limit_mps: float | None = None,
     horizon_steps: int | None = None,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ExecutionRolloutCertificateResult:
     """Check the actual queued execution model over a finite preview horizon."""
 
@@ -439,6 +454,7 @@ def check_execution_rollout_safety(
         safety_margin_m=safety_margin_m,
         robust_margin_m=robust_margin_m,
         horizon_steps=horizon_steps,
+        command_authority=command_authority,
     )
     violations: list[str] = []
     tolerance_value = float(tolerance)
@@ -484,6 +500,7 @@ def check_execution_swept_volume_safety(
     horizon_steps: int | None = None,
     subdivisions_per_step: int = 4,
     tolerance: float = 1.0e-6,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> SweptVolumeCertificateResult:
     """Sample each executed motion segment, including obstacle volume crossing."""
 
@@ -496,6 +513,11 @@ def check_execution_swept_volume_safety(
     obstacles = list(observation.get("obstacles", ()))
     parameters = parameters_from_observation(observation, dt)
     queue = queue_from_observation(observation, positions.shape[0])
+    queue, directive, overridden_slots = apply_command_authority(
+        queue,
+        command_authority,
+        allowed_mode=command_authority_from_observation(observation),
+    )
     preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
     if preview_steps <= 0:
         raise ValueError("horizon_steps must be positive")
@@ -574,7 +596,12 @@ def check_execution_swept_volume_safety(
             "tracking_alpha": float(parameters.tracking_alpha),
             "drag_gain": float(parameters.drag_gain),
             "max_speed_mps": float(parameters.max_speed_mps),
-            "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+                "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+                "command_authority_mode": float(
+                    {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+                ),
+                "emergency_brake_requested": float(directive.emergency_brake),
+                "queue_override_slots": float(overridden_slots),
         },
     )
 

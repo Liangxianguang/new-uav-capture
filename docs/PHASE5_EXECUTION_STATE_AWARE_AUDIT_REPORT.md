@@ -154,3 +154,6 @@ an existing run.
    locked seeds and variants.
 5. Calibrate the noise and tracking reachable-set margin independently before
    making any forward-invariance claim.
+
+The follow-up command-authority and sequential-linearized projection audit is
+reported in `docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md`.

@@ -7,7 +7,9 @@ import pytest
 import yaml
 
 from encirclement3d.execution_dynamics import (
+    CommandAuthorityDirective,
     ExecutionParameters,
+    apply_command_authority,
     advance_execution,
     position_uncertainty_radii,
     rollout_execution,
@@ -64,6 +66,67 @@ def test_action_delay_is_applied_before_velocity_execution() -> None:
     np.testing.assert_allclose(env.defender_velocities, 0.0)
     env.step(actions)
     np.testing.assert_allclose(env.defender_velocities, actions)
+
+
+def test_command_authority_contract_only_replaces_authorized_queue_entries() -> None:
+    queued = [
+        np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64),
+        np.full((4, 3), [2.0, 0.0, 0.0], dtype=np.float64),
+    ]
+
+    immutable, directive, slots = apply_command_authority(
+        queued,
+        CommandAuthorityDirective(mode="immutable", emergency_brake=True),
+        allowed_mode="immutable",
+    )
+    np.testing.assert_allclose(immutable, queued)
+    assert directive.emergency_brake is True
+    assert slots == 0
+
+    tail, _directive, slots = apply_command_authority(
+        queued,
+        {"mode": "replace_nonexecuting", "emergency_brake": True},
+        allowed_mode="replace_nonexecuting",
+    )
+    np.testing.assert_allclose(tail[0], queued[0])
+    np.testing.assert_allclose(tail[1], 0.0)
+    assert slots == 1
+
+    flushed, _directive, slots = apply_command_authority(
+        queued,
+        {"mode": "flush_pending", "emergency_brake": True},
+        allowed_mode="flush_pending",
+    )
+    np.testing.assert_allclose(flushed, 0.0)
+    assert slots == 2
+    with pytest.raises(ValueError, match="escalation"):
+        apply_command_authority(
+            queued,
+            {"mode": "flush_pending", "emergency_brake": True},
+            allowed_mode="immutable",
+        )
+
+
+def test_environment_applies_only_configured_queue_flush_authority() -> None:
+    config = execution_config(
+        action_delay_steps=2,
+        pending_command_authority="flush_pending",
+        velocity_time_constant_seconds=0.0,
+        max_acceleration_scale=100.0,
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    env.reset(seed=730105)
+    forward = np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64)
+    env.step(forward)
+    env.step(forward)
+    _observation, _reward, _terminated, _truncated, info = env.step(
+        np.zeros_like(forward),
+        command_authority={"mode": "flush_pending", "emergency_brake": True},
+    )
+
+    np.testing.assert_allclose(env.last_delayed_actions, 0.0)
+    assert info["emergency_brake_requested"] is True
+    assert info["queue_override_slots"] == 2
 
 
 def test_execution_respects_acceleration_and_velocity_tracking() -> None:

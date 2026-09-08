@@ -15,10 +15,13 @@ from typing import Any
 import numpy as np
 
 from encirclement3d.execution_dynamics import (
+    apply_command_authority,
     advance_execution,
     clip_rows,
+    command_authority_directive,
     move_toward_velocity,
     parameters_from_observation,
+    validate_command_authority_mode,
 )
 
 TETRAHEDRON_DIRECTIONS = np.array(
@@ -126,6 +129,7 @@ _EXECUTION_DEFAULTS: dict[str, Any] = {
     "enabled": False,
     "random_seed_offset": 104729,
     "action_delay_steps": 0,
+    "pending_command_authority": "immutable",
     "command_noise_std": 0.0,
     "command_noise_bound_sigma": 3.0,
     "clip_command_noise": True,
@@ -271,6 +275,9 @@ def execution_settings(dynamics: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("dynamics.execution.random_seed_offset must be non-negative.")
     if int(settings["action_delay_steps"]) < 0:
         raise ValueError("dynamics.execution.action_delay_steps must be non-negative.")
+    settings["pending_command_authority"] = validate_command_authority_mode(
+        settings["pending_command_authority"]
+    )
     for name in (
         "command_noise_std",
         "command_noise_bound_sigma",
@@ -366,6 +373,9 @@ class CaptureRadiusPursuit3DEnv:
         self.last_desired_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.last_delayed_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.last_executed_actions = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.last_command_authority_mode = str(self.execution["pending_command_authority"])
+        self.last_emergency_brake_requested = False
+        self.last_queue_override_slots = 0
         self.action_execution_error_norm = 0.0
         self.action_execution_error_sum = 0.0
         self.action_execution_steps = 0
@@ -410,6 +420,9 @@ class CaptureRadiusPursuit3DEnv:
         self.last_desired_actions.fill(0.0)
         self.last_delayed_actions.fill(0.0)
         self.last_executed_actions.fill(0.0)
+        self.last_command_authority_mode = str(self.execution["pending_command_authority"])
+        self.last_emergency_brake_requested = False
+        self.last_queue_override_slots = 0
         self.action_execution_error_norm = 0.0
         self.action_execution_error_sum = 0.0
         self.action_execution_steps = 0
@@ -510,6 +523,10 @@ class CaptureRadiusPursuit3DEnv:
                 "enabled": bool(self.execution["enabled"]),
                 "action_delay_steps": int(self.execution["action_delay_steps"]),
                 "action_queue": [item.copy() for item in self.execution_action_queue],
+                "pending_command_authority": str(self.execution["pending_command_authority"]),
+                "last_command_authority_mode": str(self.last_command_authority_mode),
+                "last_emergency_brake_requested": bool(self.last_emergency_brake_requested),
+                "last_queue_override_slots": int(self.last_queue_override_slots),
                 "max_speed_mps": float(self.execution_max_speed),
                 "max_acceleration_mps2": float(self.execution_max_acceleration),
                 "mass_scale": float(self.execution_mass_scale),
@@ -665,13 +682,14 @@ class CaptureRadiusPursuit3DEnv:
         self,
         defender_actions: np.ndarray,
         record_history: bool = False,
+        command_authority: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         actions = np.asarray(defender_actions, dtype=np.float64)
         if actions.shape != (self.n_defenders, 3):
             raise ValueError(f"Expected actions with shape {(self.n_defenders, 3)}, got {actions.shape}.")
         previous_distance = self._target_distances().min()
         actions = self._clip_rows(actions, float(self.agents["defender_max_speed"]))
-        self._apply_defender_actions(actions)
+        self._apply_defender_actions(actions, command_authority=command_authority)
 
         target_action = self._target_action()
         self.target_velocity = self._move_toward_velocity(
@@ -767,21 +785,41 @@ class CaptureRadiusPursuit3DEnv:
             "last_desired_action_norm": float(np.mean(np.linalg.norm(self.last_desired_actions, axis=1))),
             "last_delayed_action_norm": float(np.mean(np.linalg.norm(self.last_delayed_actions, axis=1))),
             "last_executed_action_norm": float(np.mean(np.linalg.norm(self.last_executed_actions, axis=1))),
+            "command_authority_mode": str(self.last_command_authority_mode),
+            "emergency_brake_requested": bool(self.last_emergency_brake_requested),
+            "queue_override_slots": int(self.last_queue_override_slots),
         }
         return self.observe(), reward, terminated, truncated, info
 
-    def _apply_defender_actions(self, actions: np.ndarray) -> None:
+    def _apply_defender_actions(
+        self,
+        actions: np.ndarray,
+        *,
+        command_authority: dict[str, Any] | None = None,
+    ) -> None:
         desired = self._clip_rows(
             np.asarray(actions, dtype=np.float64),
             float(self.agents["defender_max_speed"]),
         )
         self.last_desired_actions = desired.copy()
+        directive = command_authority_directive(
+            command_authority,
+            allowed_mode=str(self.execution["pending_command_authority"]),
+        )
+        self.last_command_authority_mode = directive.mode
+        self.last_emergency_brake_requested = bool(directive.emergency_brake)
+        self.last_queue_override_slots = 0
         if not bool(self.execution["enabled"]):
             # Preserve the historical ideal velocity-level benchmark exactly
             # unless the experimental execution model is explicitly enabled.
             delayed = desired
             executed = desired.copy()
         else:
+            self.execution_action_queue, _resolved, self.last_queue_override_slots = apply_command_authority(
+                self.execution_action_queue,
+                directive,
+                allowed_mode=str(self.execution["pending_command_authority"]),
+            )
             if self.execution_action_queue:
                 self.execution_action_queue.append(desired.copy())
                 delayed = self.execution_action_queue.pop(0)

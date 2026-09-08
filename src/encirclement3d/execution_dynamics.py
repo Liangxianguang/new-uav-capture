@@ -14,6 +14,94 @@ from typing import Any, Mapping
 import numpy as np
 
 
+_COMMAND_AUTHORITY_MODES = frozenset({"immutable", "replace_nonexecuting", "flush_pending"})
+
+
+@dataclass(frozen=True)
+class CommandAuthorityDirective:
+    """Supervisor authority over commands that are already in the delay queue.
+
+    ``immutable`` can only append the newly selected command.  Under
+    ``replace_nonexecuting``, the command due this tick remains immutable while
+    later queued commands can be replaced with a braking command.  Under
+    ``flush_pending``, the benchmark grants the supervisor authority to cancel
+    every queued command before execution.  The latter is an explicit simulated
+    actuator contract, not an assumption about a physical flight controller.
+    """
+
+    mode: str
+    emergency_brake: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"mode": self.mode, "emergency_brake": bool(self.emergency_brake)}
+
+
+def validate_command_authority_mode(value: Any) -> str:
+    mode = str(value)
+    if mode not in _COMMAND_AUTHORITY_MODES:
+        allowed = ", ".join(sorted(_COMMAND_AUTHORITY_MODES))
+        raise ValueError(f"pending command authority must be one of: {allowed}")
+    return mode
+
+
+def command_authority_from_observation(observation: Mapping[str, Any]) -> str:
+    execution = observation.get("execution", {})
+    if not isinstance(execution, Mapping):
+        execution = {}
+    return validate_command_authority_mode(execution.get("pending_command_authority", "immutable"))
+
+
+def command_authority_directive(
+    value: CommandAuthorityDirective | Mapping[str, Any] | None,
+    *,
+    allowed_mode: str,
+) -> CommandAuthorityDirective:
+    """Resolve a request while preventing callers from escalating authority."""
+
+    permitted = validate_command_authority_mode(allowed_mode)
+    if value is None:
+        return CommandAuthorityDirective(mode=permitted, emergency_brake=False)
+    if isinstance(value, CommandAuthorityDirective):
+        requested_mode = value.mode
+        emergency_brake = value.emergency_brake
+    elif isinstance(value, Mapping):
+        requested_mode = value.get("mode", permitted)
+        emergency_brake = value.get("emergency_brake", False)
+    else:
+        raise ValueError("command authority directive must be a mapping or CommandAuthorityDirective")
+    requested = validate_command_authority_mode(requested_mode)
+    if requested != permitted:
+        raise ValueError(
+            f"command authority escalation is not permitted: requested={requested}, allowed={permitted}"
+        )
+    return CommandAuthorityDirective(mode=permitted, emergency_brake=bool(emergency_brake))
+
+
+def apply_command_authority(
+    action_queue: list[np.ndarray] | tuple[np.ndarray, ...],
+    directive: CommandAuthorityDirective | Mapping[str, Any] | None,
+    *,
+    allowed_mode: str,
+) -> tuple[list[np.ndarray], CommandAuthorityDirective, int]:
+    """Apply an authorized emergency brake to delayed commands.
+
+    The returned queue keeps the original shape and contains zero velocity
+    commands wherever authority permits cancellation.  The caller remains
+    responsible for appending the new command and advancing the actuator model.
+    """
+
+    queue = [np.asarray(item, dtype=np.float64).copy() for item in action_queue]
+    resolved = command_authority_directive(directive, allowed_mode=allowed_mode)
+    if not resolved.emergency_brake or not queue or resolved.mode == "immutable":
+        return queue, resolved, 0
+    start = 0 if resolved.mode == "flush_pending" else 1
+    overridden = 0
+    for index in range(start, len(queue)):
+        queue[index].fill(0.0)
+        overridden += 1
+    return queue, resolved, overridden
+
+
 def clip_rows(values: np.ndarray, max_norm: float) -> np.ndarray:
     rows = np.asarray(values, dtype=np.float64)
     norms = np.linalg.norm(rows, axis=-1, keepdims=True)
@@ -198,13 +286,18 @@ def position_uncertainty_radii(parameters: ExecutionParameters, defenders: int, 
 
 
 __all__ = [
+    "CommandAuthorityDirective",
     "ExecutionParameters",
     "ExecutionStep",
+    "apply_command_authority",
     "advance_execution",
     "clip_rows",
+    "command_authority_directive",
+    "command_authority_from_observation",
     "move_toward_velocity",
     "parameters_from_observation",
     "position_uncertainty_radii",
     "queue_from_observation",
     "rollout_execution",
+    "validate_command_authority_mode",
 ]

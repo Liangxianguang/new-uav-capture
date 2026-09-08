@@ -3,7 +3,7 @@
 > 版本：v1.9（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动和 command-authority/linearized projection 扩展均未通过。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -473,6 +473,7 @@ s.t. discrete barrier constraints
 - [x] 在窄通道、箱体拐角、边界和近距离机间状态上完成独立数值扫描；已完成共享 execution-state 下的 sampled swept-volume 和多步 post-step 审计，但连续时间证明和 forward-invariance 仍未完成。
 - [x] 完成 delayed/noisy/tracking/randomized execution 的 8-seed、2-variant、3-method multi-step audit；真实 post-step checker 已纳入，结果显示当前 robust CBF-QP 未通过执行扰动扩展，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
 - [x] 建立共享 execution-state contract：环境、过滤器、rollout 和独立 checker 使用同一执行动力学；加入 pending queue、五步 execution preview、四段 swept-volume 采样和 Lipschitz 位移修正，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
+- [x] 完成 command-authority、emergency braking 和 bounded sequential linearized projection 审计；immutable 队列仍 No-Go，flush-pending 只形成安全--捕获--延迟 Pareto 点，详见 `docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md`。
 
 正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，执行扰动扩展见
 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md` 和
@@ -482,6 +483,8 @@ s.t. discrete barrier constraints
 执行扰动审计已完成但未通过：旧版 mild variant 的 robust CBF-QP safe capture 为 50.0%，hard randomized variant 为 0.0%；状态感知 v5 的对应结果为 37.5% 和 25.0%，实际 post-step contracted-set safety rate 为 90.78% 和 67.67%，fallback 为 54 和 505 次，过滤器 p95 为 671.36 ms 和 1945.74 ms。因此 P5 仍只在冻结 velocity-level 一步假设下 conditional pass，P6 learned CLBF 保持暂停。状态感知扩展不能被解释为 execution-invariant safety 或可部署安全层。
 
 P5 恢复必须在已实现的共享 execution-state contract 上继续增加延迟队列可干预性、emergency braking、线性化 QP 和 reachable-set margin calibration；单纯增大静态 margin 不视为修复。
+
+本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约：mild `flush_pending` 的实际 post-step robust-state safety 为 100.0%、safe capture 为 62.5%，hard `flush_pending` 分别为 92.03% 和 50.0%，但 hard fallback 为 701 次、过滤器 p95 为 2554.09 ms。因此该扩展仍为 No-Go，下一步必须优先降低 solver 代价并校准 reachable-set margin。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 
