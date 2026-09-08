@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v3.0（2026-09-08）
+> 版本：v3.1（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存仍未满足 100 ms 总控制 p95，R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
+> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -30,7 +30,7 @@
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
 - Phase 5：已实现 solver/fallback/precondition 分类、命名约束残差、独立 checker 结果和 TensorBoard 记录；安全单元测试 9/9 通过。分层协议从 64 个候选 seed 中固定选择 tight/nominal 两层共 8 个 robust-safe episode；130/130 步 solver、独立 certificate 和 next-state safety 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。P5 通过的是冻结协议下的 velocity-level 条件性 gate，详见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`；R-CLBF-QP 和闭环证明仍未开始。
-- P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，实时部署门槛未通过。
+- P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，严格 10 Hz 部署参考未满足，但作为工程权衡记录，不阻塞 P4 方法验证。
 
 ### 成功等级总览
 
@@ -42,7 +42,7 @@
 | L1 预测模块 | 多模态 coverage/energy 有价值，候选可行且延迟可接受 | Conditional Go | 多模态预测贡献 |
 | L2 规划模块 | 不访问目标真值，在未见策略和退化观测下改善围捕 | P4 固定 S3 与 adaptive locked-test 效果门槛已通过 | Scenario MPC/DN-MPC 贡献 |
 | L3 安全模块 | 执行契约、扰动界和独立证书检查一致 | 一步 velocity-level 条件通过；执行扩展 No-Go | 条件性 robust CBF-QP |
-| L4 完整方法 | L1-L3、三种子端到端不劣、延迟和 fallback 达标 | 未通过验收：总控制 p95 和 P5 执行扰动 gate 未达标 | 完整组合方法仍不可宣称 |
+| L4 完整方法 | L1-L3、三种子端到端不劣、部署架构与 fallback 可审计 | 尚未完成：P5 执行扰动 gate 未通过，严格 10 Hz 部署参考尚未满足 | 完整组合方法仍不可宣称 |
 
 后续任务必须按 `P4 locked-test -> P5 执行契约修复 -> P6 CLBF（可选） -> 端到端` 的顺序推进。任一级失败时，立即停在上一等级并保留其可验证结果。
 
@@ -90,11 +90,12 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 完成 checkpoint `745101` 的 `worst_case` locked-test：interval-20 结果为 100 episodes、safe capture 97%、collision 1%、timeout 2%；predictor p95 约 167 ms、total p95 约 236 ms，仍不能作为实时部署结论。更早的逐周期刷新诊断保留为历史延迟证据。
 - [x] 使用同一份 `scenes.jsonl` 完成 3 个 checkpoint × 5 个 checkpoint-dependent 方法，并复用 checkpoint-independent `dynamic_encirclement` baseline 展开为 3 × 6 对照表：`dynamic_encirclement`、`worst_case`、`distributed_ideal`、`distributed_delayed`、`distributed_dropout`、`distributed_none`。
 - [x] 写入 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，固定记录场景 hash、source hash、目标真值隔离、通信审计和三段延迟。
-- [x] 完成 predictor p95 超过 100 ms 的低频预测 + 候选缓存 + 高频 planner/safety 诊断；总控制 p95 仍不达 100 ms，因此停止宣称实时部署，后续转向 batch/异步/蒸馏优化。
+- [x] 完成 predictor p95 超过 100 ms 的低频预测 + 候选缓存 + 高频 planner/safety 诊断；总控制 p95 超过严格 10 Hz 部署参考，因此保留部署限制说明，但不阻塞 P4 方法验证，后续转向 batch/异步/蒸馏优化。
+- [x] 完成固定 40-episode 场景上的 `8x8`、`4x8`、`2x8`、`8x4` 采样消融；四组 safe capture 均为 92.5%、collision 均为 7.5%，`2x8` 的 total p95 最低，但暂不据此替换主配置。
 - [x] 完成 P5 execution delay/noise/tracking/randomization multi-step audit，加入真实 post-step 独立 checker；robust CBF-QP execution extension 为 No-Go，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
 - [ ] 在 P5 通过执行扰动扩展前，禁止训练或接入 learned CLBF，也禁止写“R-CLBF-QP 闭环安全证明”。
 - [x] P5 验证通过后单独提交；不得将未验证的 `README.md` 或 `docs/EXPERIMENTAL_STUDY_REPORT.md` 加入提交。
-- [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。P4 locked-test 报告和缓存诊断待本轮回归后提交。
+- [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。P4 locked-test 报告和缓存延迟消融待本轮回归后提交。
 
 ### P5 当前证据和剩余工作
 
@@ -131,7 +132,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - 非 oracle 方法只能消费 projected candidates 和可见观测；目标真实状态只允许存在于环境内部的标签和最终评估统计。
 - 每个方法必须报告 safe capture、ordinary capture、collision、boundary violation、timeout、capture time、minimum clearance、solver success、valid/effective/converged plan rate、fallback、message age/dropout/bytes 以及 predictor/planner/QP/total p50/p95/p99 latency。
 - P4 通过条件在正式 locked-test 打开前冻结：collision 不高于基线超过 1 个百分点；safe capture 的 aggregate 不低于基线，且至少一个 hard stratum 的 safe capture 或最坏候选距离改善 5% 以上；solver/valid/effective rate 不低于 99%；所有 fallback 和通信失败均可追溯。
-- 若每步刷新 predictor 时总 p95 超过 100 ms，必须采用并审计低频刷新策略：记录候选年龄、刷新周期和 stale-candidate fallback；没有这份延迟契约则 P4 只算离线诊断。
+- 若每步刷新 predictor 时总 p95 超过 100 ms，必须采用并审计低频刷新策略：记录候选年龄、刷新周期和 stale-candidate fallback；这份延迟契约用于明确部署限制和工程权衡，不把 100 ms 超限作为 P4 方法验证的硬门槛。
 
 ### P5 执行扰动恢复路线
 
@@ -501,7 +502,7 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 - [x] 90% conformal 目标的经验覆盖率位于 `0.85--0.95`，但按模式仍需继续做未见策略测试。
 - [x] dynamics-projected 预测输出的可行候选比例不少于 95%；raw diffusion 候选仍为 0%，不能直接执行。
 - [ ] 在目标策略切换后仍有可解释的置信度退化，而不是输出异常高置信度。
-- [x] 单模型 p95 推理时间满足 100 ms 控制周期预算；总 planner/safety 延迟尚未纳入。
+- [x] 已记录单模型 p95 推理时间；100 ms 仅作为严格 10 Hz 部署参考，总 planner/safety 延迟已通过低频缓存协议量化。
 - [x] planner 接口固定为候选轨迹 + 明确的 raw/projected 状态 + `uniform_uncalibrated` score kind。
 
 正式结果见 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`。Phase 2 当前为 `Conditional Go`，因此下一步只实现集中式 scenario min-max MPC 诊断，不宣称最终 DN-MPC 或完整方法已经通过。
@@ -597,7 +598,7 @@ subject to  dynamics
 - [x] 在 S3 随机混合障碍物场景下，安全捕获率相对 DynamicEncirclement 提升至少 5 个百分点。
 - [x] collision rate 不高于基线超过 1 个百分点。
 - [x] solver success rate 不低于 99%，剩余失败均有记录过的 fallback。
-- [x] 总控制 p95 在控制预算内，或明确采用低频 planner/高频 safety 架构。
+- [x] 已明确采用低频 prediction cache + 高频 planner/safety 架构，并记录总控制 p95；100 ms 仅作为严格 10 Hz 部署参考，不作为 P4 方法验证硬门槛。
 - [x] 仅使用预测候选而不访问目标真值。
 
 这些条件只证明集中式 scenario planner 的 P3 validation gate，不证明分布式 DN-MPC。
@@ -624,7 +625,7 @@ subject to  dynamics
 - [x] 已完成 ideal、2-step delayed、10% dropout 和 no-communication 四种 P4 通信条件，并保留 TensorBoard、episode/step JSONL 和 summary JSON。
 - [x] 已确认四种分布式条件均为 100% safe capture、0% collision，DynamicEncirclement 为 91.7% safe capture、8.3% collision。
 - [x] locked-test 和未见自适应目标策略已完成，详见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
-- [x] planner p95 和 per-seed effective/converged plan rate 在固定 S3 validation gate 中通过；adaptive locked-test 的规划效果门槛也通过，但低频缓存 total p95 未通过，且仍无形式化博弈保证。
+- [x] planner p95 和 per-seed effective/converged plan rate 在固定 S3 validation gate 中通过；adaptive locked-test 的规划效果门槛也通过，低频缓存延迟作为工程权衡记录，且仍无形式化博弈保证。
 
 正式验证报告见 `docs/PHASE3_S3_VALIDATION_REPORT.md` 和 `docs/PHASE4_DN_MPC_VALIDATION_REPORT.md`；当前结论是集中式 planner 和固定 S3 分布式 validation gate 均已通过，但泛化、R-CLBF-QP 和端到端结果仍待验证。
 

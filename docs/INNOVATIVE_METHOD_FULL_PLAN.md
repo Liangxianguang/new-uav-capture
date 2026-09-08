@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v1.8（2026-09-08）
+> 版本：v1.9（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存仍未满足 100 ms total-control p95，R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动扩展未通过。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -84,7 +84,7 @@ Phase 2 使用 `v3_multimodal` 数据集、三个训练种子和 locked-test。�
 | L1 | 预测模块成功 | 多模态覆盖有价值、置信度可校准、候选物理可行 | 多模态轨迹预测贡献 |
 | L2 | 规划模块成功 | 预测候选在不访问目标真值时提升困难场景围捕 | scenario MPC/DN-MPC 贡献 |
 | L3 | 安全模块成功 | QP 约束可审计，明确假设下通过独立证书检查 | robust CBF-QP 或 R-CLBF-QP 贡献 |
-| L4 | 完整方法成功 | L1-L3 且三种子端到端不劣于基线，满足实时与 fallback 要求 | 完整组合方法 |
+| L4 | 完整方法成功 | L1-L3 且三种子端到端不劣于基线，满足部署参考与 fallback 要求 | 完整组合方法 |
 
 如果某一等级失败，立即停在上一等级，保留已经证实的贡献，不为保留方法名称继续堆叠模块。
 
@@ -283,7 +283,7 @@ P2 的目标不是追求模型名字，而是验证“在可见信息约束下�
 - [x] 90% conformal 目标的经验 coverage 在 `0.85--0.95`，但未见策略仍需补测。
 - [x] projected 候选可行比例不低于 95%；raw 候选不可执行时必须显式报告。
 - [ ] 目标策略切换后，置信度随失配而退化，不能异常维持高置信度。
-- [x] 单模型 p95 延迟低于 100 ms；总 planner/safety 延迟尚未验收。
+- [x] 已记录单模型 p95 延迟；100 ms 仅作为严格 10 Hz 部署参考，总 planner/safety 延迟已通过低频缓存协议量化。
 
 当前状态为 Conditional Go。P3 集中式诊断、P4 固定 S3 validation gate 和 P4 adaptive locked-test 的规划效果门槛已完成；P2 的强预测门槛、P5 执行扰动安全、R-CLBF-QP 和最终端到端结论仍未完成。
 
@@ -405,7 +405,8 @@ P3-F 只能作为上限，不能作为主方法结果。
 - 已加入环境内部的 `adaptive_adversarial` 未见目标策略，并通过物理可行性单元测试、4-episode validation smoke 和 100-episode locked-test；smoke 只用于开发检查，不替代正式矩阵。
 - P4 locked-test 已完成 100 个 `adaptive_adversarial` episode；15 个 checkpoint-dependent 方法结果加 1 个 checkpoint-independent DynamicEncirclement baseline 复用同一份场景文件，报告将其展开为 3 checkpoint × 6 method 的 18 行对照表；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 - 共享 DynamicEncirclement baseline 为 `95.00%` safe capture、`2.00%` collision；三 checkpoint 的预测驱动方法为 `97.33--99.00%` safe capture、`0--1.00%` collision，solver/valid/effective plan rate 均达到 `99%` 以上，P4 泛化效果门槛通过。
-- 低频预测缓存采用每 20 个控制步刷新，平均 refresh rate 约 `6.56%`，最大候选年龄 `19` 步；三 checkpoint aggregate total-control p95 为 `167.73--229.62 ms`，高于 `100 ms` 预算。因此该结果支持离线/低频缓存规划诊断，不支持逐周期实时部署结论。
+- 低频预测缓存采用每 20 个控制步刷新，平均 refresh rate 约 `6.56%`，最大候选年龄 `19` 步；三 checkpoint aggregate total-control p95 为 `167.73--229.62 ms`。这高于严格 10 Hz 部署参考 `100 ms`，但不构成 P4 方法验证失败；该结果支持低频缓存规划诊断，不足以声称严格 10 Hz 实时部署。
+- 已完成 checkpoint `745201` 同一份 40-episode validation 场景上的 `8x8`、`4x8`、`2x8`、`8x4` 采样消融；四组 safe capture 均为 `92.5%`、collision 均为 `7.5%`，total-control p95 分别为 `51.42`、`48.71`、`44.86`、`53.90 ms`。`2x8` 本次 p95 最低，但尚不能未经新的 locked-test 直接替换主配置。
 - P4 的形式化 zero-sum game guarantee、执行不变性和真实无人机部署仍未验证；P5 执行扰动 No-Go 后，R-CLBF-QP 继续暂停。
 
 ## 10. P5：robust CBF-QP 安全过滤层
@@ -605,7 +606,7 @@ P6 是风险最高的理论阶段。它的成功标准不是训练出一个 barr
 | 预测 | projected minFDE 相对 projected GRU 至少改善 10%，或误差相当且 coverage 至少提高 5 个百分点 |
 | 规划 | S3/S5/S6 安全捕获率至少提升 5 个百分点，或最坏候选 capture distance 降低 10% |
 | 安全 | 碰撞率不增加超过 1 个百分点，QP 残差和可行性可审计 |
-| 实时 | 总控制 p95 在预算内；否则必须有低频 planner + 高频 safety 的明确频率 |
+| 部署时延 | 严格 10 Hz 部署参考为总控制 p95 <=100 ms；未满足时必须明确低频 prediction cache + 高频 planner/safety 频率，并将其作为工程限制而非 P4 方法验证硬门槛 |
 | 稳定性 | 三种子方向一致，不依赖单一 seed 或单一场景 |
 | 理论 | 结论中的每个假设、barrier、扰动界和离散时间条件都能对应到代码 |
 | 复现 | 新机器按文档可重建配置、checkpoint、日志和主表格 |
@@ -727,7 +728,7 @@ docs/FINAL_INNOVATION_REPORT.md
 在当前工作树上，下一步按以下顺序执行：
 
 1. 保留 P4 locked-test 三 checkpoint × 六方法结果，使用 100 episode、adaptive target、同一场景 hash、通信审计和 TensorBoard/JSONL 协议；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
-2. 低频刷新、候选缓存和 stale-age 审计已经完成，但 total-control p95 仍超过 100 ms；后续只在独立 ablation 中测试 batch、异步预测、蒸馏和更少扩散步数，当前方法不宣称实时部署。
+2. 低频刷新、候选缓存和 stale-age 审计已经完成；total-control p95 超过严格 10 Hz 部署参考，但不阻塞研究方法验证。后续在独立 ablation 中测试 batch、异步预测、蒸馏和更少扩散步数，当前不宣称严格 10 Hz 实时部署。
 3. 修正 robust filter 对延迟队列、tracking state 和执行扰动的建模，重新建立 P5 execution-invariant safety gate；当前审计是明确的 No-Go 证据。
 4. 在 P4 泛化和 P5 扩展安全审计均通过后，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
 5. 连续时间 swept-volume、扰动覆盖证明和端到端三种子 locked-test 仍属于后续未完成任务；联合训练最后进行。

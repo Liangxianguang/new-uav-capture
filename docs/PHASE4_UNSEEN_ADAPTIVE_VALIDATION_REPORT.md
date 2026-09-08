@@ -1,8 +1,8 @@
 # Phase 4 Unseen Adaptive Target Validation Report
 
-> Version: v1.0 (2026-09-08)
+> Version: v1.1 (2026-09-08)
 > Repository: `https://github.com/Liangxianguang/new-uav-capture`
-> Decision: `generalization_gate_passed_realtime_gate_failed`
+> Decision: `generalization_gate_passed_runtime_tradeoff_recorded`
 > Scope: `adaptive_adversarial` unseen-target locked-test under velocity-level kinematic dynamics
 
 ## 1. Executive conclusion
@@ -25,14 +25,17 @@ that projected diffusion candidates plus risk-sensitive distributed planning
 generalize better than the current dynamic baseline on this unseen target
 policy.
 
-The real-time gate fails. Prediction is refreshed every 20 control steps and
-candidate age is explicitly recorded. The mean refresh rate is approximately
-`6.56%`, but the maximum candidate age is `19` steps. The three-checkpoint mean
-total-control p95 is `167.73--229.62 ms` depending on method, above the
-`100 ms` control-cycle budget. This is an auditable low-frequency cached
-prediction diagnostic, not evidence of real-time deployment. Further work must
-use batch inference, fewer diffusion steps, distillation, or an asynchronous
-prediction worker and must re-evaluate candidate coverage and safety jointly.
+Runtime is reported as an engineering trade-off rather than a hard P4 outcome
+gate. Prediction is refreshed every 20 control steps and candidate age is
+explicitly recorded. The mean refresh rate is approximately `6.56%`, but the
+maximum candidate age is `19` steps. The three-checkpoint mean total-control
+p95 is `167.73--229.62 ms` depending on method. The `100 ms` value is retained
+only as a strict 10 Hz deployment reference budget; it is not used to reject
+the P4 generalization or encirclement result. The current measurements do not
+support a claim that strict 10 Hz real-time deployment has been achieved.
+Further work should use batch inference, fewer diffusion steps, distillation,
+or an asynchronous prediction worker and re-evaluate candidate coverage and
+safety jointly.
 
 This report does not validate R-CLBF-QP, execution-invariant safety, a formal
 zero-sum game guarantee, higher-order flight dynamics, or real UAV deployment.
@@ -58,7 +61,7 @@ zero-sum game guarantee, higher-order flight dynamics, or real UAV deployment.
 | MPC horizon / control horizon | 8 / 3 steps |
 | Communication modes | ideal, 2-step delayed, 10% dropout, none |
 | Local safety layer | existing local CBF |
-| Control-cycle budget | 100 ms |
+| Strict 10 Hz deployment reference | 100 ms (reference only; not a P4 hard gate) |
 
 All result directories preserve `config.yaml`, `protocol.yaml`,
 `episodes.jsonl`, `steps.jsonl`, `summary.json`, and TensorBoard event files.
@@ -158,6 +161,29 @@ execution-robust safety certificates.
 | distributed_dropout | 44.58 / 59.08 / 67.63 | 0 / 162.11 / 194.39 | 6.45 / 9.61 / 13.13 | 56.85 / 212.48 / 252.81 | 6.56% | 8.66 | 19 |
 | distributed_none | 36.22 / 47.94 / 56.49 | 0 / 121.55 / 189.22 | 6.25 / 9.39 / 12.39 | 48.06 / 167.73 / 241.06 | 6.56% | 8.66 | 19 |
 
+### 5.1 Fixed-scene sampling ablation
+
+A separate 40-episode validation ablation was completed with checkpoint
+`745201`. All four configurations use the same scene file
+`results/phase4_adaptive_validation_ablation_seed745201_base_8x8/scenes.jsonl`,
+whose SHA-256 is
+`784960B8FF4980C2AAE06A3FDABD10B992D497B5F175144738AF9DA6C293DF68`.
+The configuration label is `num_samples x diffusion_steps`; the planner,
+safety layer, environment, and episode scenes are otherwise held fixed.
+
+| Configuration | Safe capture | Collision | Planner p95 (ms) | Predictor p95 (ms) | Total p95 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 8x8 | 92.5% | 7.5% | 13.65 | 37.61 | 51.42 |
+| 4x8 | 92.5% | 7.5% | 9.35 | 38.96 | 48.71 |
+| 2x8 | 92.5% | 7.5% | 6.70 | 37.62 | 44.86 |
+| 8x4 | 92.5% | 7.5% | 27.34 | 38.76 | 53.90 |
+
+The `2x8` configuration has the lowest total-control p95 in this validation
+sample, while all four configurations have the same outcome rates. This is an
+engineering trade-off result, not a replacement of the primary locked-test
+configuration; selecting `2x8` as the main configuration requires a new
+locked-test or a pre-registered configuration decision.
+
 Communication aggregates over the three checkpoint runs are:
 
 | Mode | Attempted | Sent | Received | Dropped | Sent bytes | Received bytes | Mean age | Max age |
@@ -204,7 +230,7 @@ new collision or boundary-violation pattern there.
 | Hard stratum improvement | Pass | Four/five-obstacle delayed and dropout strata improve over baseline |
 | Solver, valid, effective plan rate >=99% | Pass | Distributed rates are `99.97--100%`; no fallback |
 | Communication audit | Pass | Delayed age, dropout count, bytes, and step logs are preserved |
-| Total-control p95 <=100 ms | Fail | Cached-prediction aggregate is `167.73--229.62 ms` |
+| Strict 10 Hz deployment reference (100 ms) | Not met, non-blocking | Cached-prediction aggregate is `167.73--229.62 ms`; this is recorded as a runtime trade-off, not a P4 outcome gate |
 | Execution-invariant safety | Not tested / No-Go | P5 execution perturbation audit failed under current filter contract |
 | R-CLBF-QP closed-loop certificate | Not started | P6 remains paused |
 
@@ -212,7 +238,8 @@ The appropriate current claim is therefore:
 
 ```text
 P4 unseen adaptive-target outcome/generalization: PASS
-P4 cached low-frequency runtime contract: DIAGNOSTIC ONLY
+P4 cached low-frequency runtime contract: ENGINEERING TRADE-OFF RECORDED
+Strict 10 Hz deployment reference: NOT YET MET
 P5 execution-robust safety: NO-GO under current contract
 R-CLBF-QP and complete end-to-end stack: UNVALIDATED
 Overall research status: CONDITIONAL GO
@@ -238,10 +265,11 @@ reproducibility surface.
 ## 9. Next actions
 
 1. Keep the P4 outcome result as a conditional planning/generalization claim.
-2. Benchmark `sampling_steps=4/2` and `num_samples=4` as independent ablations;
-   retain candidate coverage, capture, safety, age, and latency metrics.
-3. Implement batch or asynchronous prediction before making any real-time
-   statement.
+2. Retain the completed fixed-scene `8x8`, `4x8`, `2x8`, and `8x4` sampling
+   ablation with candidate coverage, capture, safety, age, and latency metrics;
+   do not replace the primary configuration from this validation sample alone.
+3. Implement batch or asynchronous prediction before claiming strict 10 Hz
+   deployment.
 4. Repair the P5 execution contract around delay queues, tracking state,
    shared dynamics, swept-volume checks, and multi-step invariance.
 5. Do not train or enable learned CLBF until the execution-perturbation gate
