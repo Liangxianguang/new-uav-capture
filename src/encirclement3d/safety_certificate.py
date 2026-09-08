@@ -17,6 +17,7 @@ import numpy as np
 from encirclement3d.execution_dynamics import (
     CommandAuthorityDirective,
     apply_command_authority,
+    command_authority_directive,
     command_authority_from_observation,
     parameters_from_observation,
     position_uncertainty_radii,
@@ -251,6 +252,41 @@ class ContinuousSegmentCertificateResult:
             "segment_count": self.segment_count,
             "minimum_robust_barrier_m": self.minimum_robust_barrier_m,
             "minimum_nominal_barrier_m": self.minimum_nominal_barrier_m,
+            "violations": list(self.violations),
+            "assumptions": dict(self.assumptions),
+        }
+
+
+@dataclass(frozen=True)
+class ExecutionRecoverabilityResult:
+    """Certificate for the part of a queued execution that cannot be changed yet.
+
+    ``prefix_admissible`` only means that the immutable queue prefix remains
+    inside the current robust contract.  It is not a proof that a future
+    action exists for the complete preview horizon.
+    """
+
+    status: str
+    current_state_safe: bool
+    prefix_admissible: bool
+    abort_required: bool
+    immutable_prefix_horizon_steps: int
+    minimum_current_robust_barrier_m: float
+    minimum_prefix_robust_barrier_m: float
+    minimum_robust_barrier_m: float
+    violations: tuple[str, ...]
+    assumptions: dict[str, float]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "current_state_safe": self.current_state_safe,
+            "prefix_admissible": self.prefix_admissible,
+            "abort_required": self.abort_required,
+            "immutable_prefix_horizon_steps": self.immutable_prefix_horizon_steps,
+            "minimum_current_robust_barrier_m": self.minimum_current_robust_barrier_m,
+            "minimum_prefix_robust_barrier_m": self.minimum_prefix_robust_barrier_m,
+            "minimum_robust_barrier_m": self.minimum_robust_barrier_m,
             "violations": list(self.violations),
             "assumptions": dict(self.assumptions),
         }
@@ -494,6 +530,116 @@ def execution_barrier_values(
         "queue_override_slots": float(overridden_slots),
     }
     return nominal_values, robust_values, assumptions
+
+
+def assess_execution_recoverability(
+    observation: Mapping[str, Any],
+    *,
+    dt: float,
+    drone_radius: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    horizon_steps: int | None = None,
+    tolerance: float = 1.0e-6,
+    command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
+) -> ExecutionRecoverabilityResult:
+    """Classify whether an immutable queued prefix already requires abort.
+
+    Under immutable authority, every queued command is fixed until it is
+    executed.  A ``replace_nonexecuting`` emergency brake leaves only the
+    command due on the current tick fixed; ``flush_pending`` with an emergency
+    brake removes the fixed prefix.  Without an emergency directive, queued
+    commands remain fixed because no replacement has been authorized.  The
+    check evaluates exactly that prefix with the shared nonlinear execution
+    rollout and therefore avoids claiming that a future action can repair an
+    already committed command.
+    """
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    if positions.ndim != 2 or positions.shape[-1] != 3:
+        raise ValueError("defender_positions must have shape [defenders, 3]")
+    lower = np.asarray(observation["world_lower_bounds"], dtype=np.float64)
+    upper = np.asarray(observation["world_upper_bounds"], dtype=np.float64)
+    obstacles = list(observation.get("obstacles", ()))
+    queued = queue_from_observation(observation, positions.shape[0])
+    allowed_mode = command_authority_from_observation(observation)
+    directive = command_authority_directive(command_authority, allowed_mode=allowed_mode)
+    effective_queue, _resolved, overridden_slots = apply_command_authority(
+        queued,
+        directive,
+        allowed_mode=allowed_mode,
+    )
+    preview_steps = max(1, len(effective_queue) + 1) if horizon_steps is None else int(horizon_steps)
+    if preview_steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    if directive.emergency_brake:
+        if directive.mode == "flush_pending":
+            immutable_prefix_steps = 0
+        elif directive.mode == "replace_nonexecuting":
+            immutable_prefix_steps = min(len(queued), 1)
+        else:
+            immutable_prefix_steps = len(queued)
+    else:
+        immutable_prefix_steps = len(queued)
+    immutable_prefix_steps = min(int(immutable_prefix_steps), preview_steps)
+
+    current_values = _barriers(
+        positions,
+        obstacles,
+        lower,
+        upper,
+        float(drone_radius),
+        float(safety_margin_m) + float(robust_margin_m),
+    )
+    current_minimum = float(min(current_values.values(), default=float("inf")))
+    prefix_values: dict[str, float] = {}
+    if immutable_prefix_steps > 0:
+        _nominal, prefix_values, _assumptions = execution_barrier_values(
+            observation,
+            np.zeros_like(positions),
+            dt=dt,
+            drone_radius=drone_radius,
+            safety_margin_m=safety_margin_m,
+            robust_margin_m=robust_margin_m,
+            horizon_steps=immutable_prefix_steps,
+            command_authority=directive,
+        )
+    prefix_minimum = float(min(prefix_values.values(), default=float("inf")))
+    minimum = min(current_minimum, prefix_minimum)
+    tolerance_value = float(tolerance)
+    current_safe = current_minimum >= -tolerance_value
+    prefix_safe = prefix_minimum >= -tolerance_value
+    violations: list[str] = []
+    if not current_safe:
+        violations.append("current_state_outside_robust_safe_set")
+    if immutable_prefix_steps > 0 and not prefix_safe:
+        violations.append("immutable_execution_prefix_outside_robust_safe_set")
+    abort_required = bool(violations)
+    status = "abort_required" if abort_required else "prefix_admissible"
+    return ExecutionRecoverabilityResult(
+        status=status,
+        current_state_safe=current_safe,
+        prefix_admissible=bool(current_safe and prefix_safe),
+        abort_required=abort_required,
+        immutable_prefix_horizon_steps=int(immutable_prefix_steps),
+        minimum_current_robust_barrier_m=float(current_minimum),
+        minimum_prefix_robust_barrier_m=float(prefix_minimum),
+        minimum_robust_barrier_m=float(minimum),
+        violations=tuple(violations),
+        assumptions={
+            "dt_seconds": float(dt),
+            "horizon_steps": float(preview_steps),
+            "queued_command_count": float(len(queued)),
+            "immutable_prefix_horizon_steps": float(immutable_prefix_steps),
+            "pending_command_authority": float(
+                {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+            ),
+            "emergency_brake_requested": float(directive.emergency_brake),
+            "queue_override_slots": float(overridden_slots),
+            "current_min_robust_barrier_m": float(current_minimum),
+            "prefix_min_robust_barrier_m": float(prefix_minimum),
+        },
+    )
 
 
 def execution_barrier_values_with_action_jacobian(
@@ -984,6 +1130,7 @@ def check_execution_continuous_segment_safety(
 
 __all__ = [
     "ContinuousSegmentCertificateResult",
+    "ExecutionRecoverabilityResult",
     "ExecutionRolloutCertificateResult",
     "SafetyCertificateResult",
     "SweptVolumeCertificateResult",
@@ -991,6 +1138,7 @@ __all__ = [
     "check_execution_continuous_segment_safety",
     "check_execution_swept_volume_safety",
     "check_one_step_safety",
+    "assess_execution_recoverability",
     "execution_barrier_values",
     "execution_barrier_values_with_action_jacobian",
 ]

@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v2.2（2026-09-08）
+> 版本：v2.3（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块的原五模式正式结果未达到 10% minFDE 强门槛，但新增冻结 checkpoint 的未见 `adaptive_adversarial` 策略审计中，projected diffusion 相对 GRU 的 minFDE 相对改善为 40.63%，coverage 为 90.31%（候选权重仍为 `uniform_uncalibrated`）；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。最新 fallback 矩阵的 certified-fallback rate 仅为 0--8.33%，immutable collision 为 50--75%。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。预测未见策略审计见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`，完整规划 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`，fallback 审计见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块的原五模式正式结果未达到 10% minFDE 强门槛，但新增冻结 checkpoint 的未见 `adaptive_adversarial` 策略审计中，projected diffusion 相对 GRU 的 minFDE 相对改善为 40.63%，coverage 为 90.31%（候选权重仍为 `uniform_uncalibrated`）；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全、certified fallback 和 recoverability contract 扩展均未通过。新增 contract 已能审计 immutable queue prefix、`abort_required`、`prefix_admissible` 和 prefix barrier，但它是监督信号而非安全证书。最新 recoverability 矩阵的 immutable abort rate 为 61.19--71.84%，flush variants 为 0--12.04%，hard flush safety p95 为 2489.98 ms；因此仍不能宣称 execution-invariant safety。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。预测未见策略审计见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`，recoverability 审计见 `docs/PHASE5_RECOVERABILITY_CONTRACT_AUDIT_REPORT.md`，完整规划 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`，fallback 审计见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -28,7 +28,7 @@
 | R-CLBF-QP | 中低 | 当前只有 velocity-level robust CBF-QP 条件性 gate；完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 先报告条件性 robust CBF-QP；只有 P6 证据齐全才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
-当前阶段性判断为 `L2 partial + L3 conditional`：固定 S3 的规划结果不能替代未见自适应目标泛化；一步 velocity-level QP 结果不能替代包含执行状态的闭环安全证书。
+当前阶段性判断为 `L2 partial + L3 conditional`：固定 S3 的规划结果不能替代未见自适应目标泛化；一步 velocity-level QP 结果不能替代包含执行状态的闭环安全证书。新增 recoverability contract 只标记不可恢复的执行前缀，不改变这一判断。
 
 ### 1.1 当前正式证据
 
@@ -415,7 +415,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 
 P5 是 R-CLBF-QP 前的必要基线。先解决 QP 可行性、离散时间约束和执行误差，再讨论 learned CLBF。
 
-当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。分层协议从 64 个候选 seed 中按 tight/nominal 两个 robust-safe strata 固定选择 8 个 episode；8/8 初始状态有效，130/130 步独立 certificate、next-state safety 和 solver success 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。由此通过的是“在冻结 reset 和速度级假设下的条件性 P5 gate”，不是无条件闭环安全保证，也不是 R-CLBF-QP。后续 execution-state 扩展已统一延迟队列、tracking、噪声、阻力、加速度和质量参数，并加入五步 preview 与 sampled swept-volume checker，但扩展 gate 仍为 No-Go，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
+当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。分层协议从 64 个候选 seed 中按 tight/nominal 两个 robust-safe strata 固定选择 8 个 episode；8/8 初始状态有效，130/130 步独立 certificate、next-state safety 和 solver success 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。由此通过的是“在冻结 reset 和速度级假设下的条件性 P5 gate”，不是无条件闭环安全保证，也不是 R-CLBF-QP。后续 execution-state 扩展已统一延迟队列、tracking、噪声、阻力、加速度和质量参数，并加入五步 preview、sampled swept-volume checker 和 queue-aware recoverability contract；recoverability contract 已写入 `abort_required`、`prefix_admissible` 和 prefix barrier，但扩展 gate 仍为 No-Go，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md` 和 `docs/PHASE5_RECOVERABILITY_CONTRACT_AUDIT_REPORT.md`。
 
 当前配置禁用 slack，动作变化限制由 `max_acceleration * dt` 推导，鲁棒 margin 合计为 `0.46 m`，另加基础 safety margin `0.35 m`，不可行时使用经过独立 checker 的 `barrier_recovery` fallback。hard-case scan 已完成四类 robust-safe 状态和一个故意 unsafe reset 的诊断；soft-slack 结果仍只能作诊断，不能算作安全证书通过。
 
@@ -491,7 +491,7 @@ s.t. discrete barrier constraints
 
 P5 恢复必须在已实现的共享 execution-state contract 上继续验证延迟队列可干预性、emergency braking、线性化 QP 和经验 reachable-set margin；本轮留出覆盖率与连续段审计仍未通过，单纯增大静态 margin 不视为修复，经验校准也不能替代连续时间动力学覆盖和正向不变性分析。
 
-本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约。新增 barrier-direction recovery 与 candidate-level certificate 后，mild/hard immutable 的实际 post robust-state safety 为 87.90%/79.74%，但 collision 仍为 50%/75%，certified fallback 仅为 8.33%/1.44%；mild/hard flush 的实际 post robust-state safety 为 100.0%/99.55%，但 hard flush fallback 为 720 次、timeout 为 50%、过滤器 p95 为 460.16 ms。因此该扩展仍为 No-Go。observed-parameter reachable-margin 审计虽通过经验 99% 留出覆盖门槛，但不能替代执行误差、连续时间动力学和正向不变性证明；下一步仍必须降低 solver/fallback 代价并完成正向不变性证明。
+本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约。新增 barrier-direction recovery 与 candidate-level certificate 后，mild/hard immutable 的实际 post robust-state safety 为 87.90%/79.74%，但 collision 仍为 50%/75%，certified fallback 仅为 8.33%/1.44%；mild/hard flush 的实际 post robust-state safety 为 100.0%/99.55%，但 hard flush fallback 为 720 次、timeout 为 50%、过滤器 p95 为 460.16 ms。因此该扩展仍为 No-Go。随后新增的 recoverability contract 在同一固定矩阵上得到 immutable abort rate `61.19%/71.84%`、flush abort rate `0%/12.04%`，hard flush safety p95 `2489.98 ms`；它明确了不可修改前缀的失效边界，但没有解除 No-Go。observed-parameter reachable-margin 审计虽通过经验 99% 留出覆盖门槛，但不能替代执行误差、连续时间动力学和正向不变性证明；下一步仍必须降低 solver/fallback 代价并完成正向不变性证明。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 

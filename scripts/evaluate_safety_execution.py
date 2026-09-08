@@ -369,6 +369,21 @@ def run_episode(
                 "emergency_brake_requested": bool(info.get("emergency_brake_requested", False)),
                 "queue_override_slots": int(info.get("queue_override_slots", 0)),
                 "command_authority_mode": str(info.get("command_authority_mode", "immutable")),
+                "recoverability_status": None
+                if diagnostics is None
+                else str(getattr(diagnostics, "recoverability_status", "not_checked")),
+                "abort_required": None
+                if diagnostics is None
+                else bool(getattr(diagnostics, "abort_required", False)),
+                "prefix_admissible": None
+                if diagnostics is None
+                else bool(getattr(diagnostics, "prefix_admissible", True)),
+                "immutable_prefix_horizon_steps": None
+                if diagnostics is None
+                else int(getattr(diagnostics, "immutable_prefix_horizon_steps", 0)),
+                "immutable_prefix_min_robust_barrier_m": None
+                if diagnostics is None
+                else float(getattr(diagnostics, "immutable_prefix_min_robust_barrier_m", np.nan)),
             }
         )
         if terminated or truncated or env.step_count >= max_steps:
@@ -484,6 +499,24 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         ),
         "emergency_brake_count": int(sum(bool(row.get("emergency_brake_requested", False)) for row in steps)),
         "queue_override_slots": int(sum(int(row.get("queue_override_slots", 0)) for row in steps)),
+        "abort_required_count": int(sum(bool(row.get("abort_required", False)) for row in steps)),
+        "abort_required_rate": float(
+            np.mean([bool(row.get("abort_required", False)) for row in steps]) if steps else 0.0
+        ),
+        "prefix_admissible_rate": float(
+            np.mean([bool(row.get("prefix_admissible", True)) for row in steps]) if steps else 1.0
+        ),
+        "minimum_immutable_prefix_robust_barrier_m": float(
+            np.min(
+                [
+                    float(row["immutable_prefix_min_robust_barrier_m"])
+                    for row in steps
+                    if row.get("immutable_prefix_min_robust_barrier_m") is not None
+                    and np.isfinite(float(row["immutable_prefix_min_robust_barrier_m"]))
+                ],
+                initial=np.inf,
+            )
+        ),
         "mean_linearization_iterations": _finite_mean(
             [float(row["linearization_iterations"]) for row in steps if row.get("linearization_iterations") is not None]
         ),

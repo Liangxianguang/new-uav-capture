@@ -22,6 +22,7 @@ from encirclement3d.execution_dynamics import (
     queue_from_observation,
 )
 from encirclement3d.safety_certificate import (
+    assess_execution_recoverability,
     check_execution_rollout_safety,
     execution_barrier_values,
     execution_barrier_values_with_action_jacobian,
@@ -220,6 +221,11 @@ class RobustCBFQPDiagnostics:
     command_authority: dict[str, Any] | None = None
     emergency_brake_requested: bool = False
     queue_override_slots: int = 0
+    recoverability_status: str = "not_checked"
+    abort_required: bool = False
+    prefix_admissible: bool = True
+    immutable_prefix_horizon_steps: int = 0
+    immutable_prefix_min_robust_barrier_m: float = float("inf")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -251,6 +257,11 @@ class RobustCBFQPDiagnostics:
             "command_authority": dict(self.command_authority or {}),
             "emergency_brake_requested": self.emergency_brake_requested,
             "queue_override_slots": self.queue_override_slots,
+            "recoverability_status": self.recoverability_status,
+            "abort_required": self.abort_required,
+            "prefix_admissible": self.prefix_admissible,
+            "immutable_prefix_horizon_steps": self.immutable_prefix_horizon_steps,
+            "immutable_prefix_min_robust_barrier_m": self.immutable_prefix_min_robust_barrier_m,
         }
 
 
@@ -548,6 +559,28 @@ class RobustCBFQPFilter:
         nominal_directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=False)
         lower_action, upper_action = self._execution_action_bounds(velocities)
 
+        recoverability = assess_execution_recoverability(
+            safety_observation,
+            dt=float(self.env.dt),
+            drone_radius=float(self.env.agents["drone_radius"]),
+            safety_margin_m=float(self.config.safety_margin_m),
+            robust_margin_m=float(self.config.robust_margin_m),
+            horizon_steps=preview_steps,
+            tolerance=float(self.config.solver_tolerance),
+            command_authority=nominal_directive,
+        )
+        if "immutable_execution_prefix_outside_robust_safe_set" in recoverability.violations:
+            return self._execution_fallback(
+                desired,
+                observation,
+                started,
+                reason="abort_required:" + ",".join(recoverability.violations),
+                category="unrecoverable_pending_execution",
+                precondition_valid=False,
+                directive=nominal_directive,
+                force_zero_action=True,
+            )
+
         def rollout_certificate(
             actions: np.ndarray,
             directive: CommandAuthorityDirective,
@@ -622,6 +655,7 @@ class RobustCBFQPFilter:
                     result,
                     started,
                     directive,
+                    safety_observation,
                     status="optimal" if not directive.emergency_brake else "optimal_emergency_brake",
                     solver_message=label,
                 )
@@ -873,6 +907,7 @@ class RobustCBFQPFilter:
         result: dict[str, Any],
         started: float,
         directive: CommandAuthorityDirective,
+        observation: dict[str, Any],
         *,
         status: str,
         solver_message: str,
@@ -915,7 +950,43 @@ class RobustCBFQPFilter:
             command_authority=directive.as_dict(),
             emergency_brake_requested=bool(directive.emergency_brake),
             queue_override_slots=int(certificate.assumptions.get("queue_override_slots", 0.0)),
+            **self._recoverability_fields(observation, directive),
         )
+
+    def _recoverability_fields(
+        self,
+        observation: dict[str, Any],
+        directive: CommandAuthorityDirective,
+    ) -> dict[str, Any]:
+        try:
+            result = assess_execution_recoverability(
+                observation,
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                horizon_steps=max(
+                    int(self.config.execution_preview_horizon_steps),
+                    len(queue_from_observation(observation, len(observation["defender_positions"])) ) + 1,
+                ),
+                tolerance=float(self.config.solver_tolerance),
+                command_authority=directive,
+            )
+        except (FloatingPointError, ValueError, RuntimeError):
+            return {
+                "recoverability_status": "not_checked",
+                "abort_required": False,
+                "prefix_admissible": False,
+                "immutable_prefix_horizon_steps": 0,
+                "immutable_prefix_min_robust_barrier_m": float("nan"),
+            }
+        return {
+            "recoverability_status": result.status,
+            "abort_required": bool(result.abort_required),
+            "prefix_admissible": bool(result.prefix_admissible),
+            "immutable_prefix_horizon_steps": int(result.immutable_prefix_horizon_steps),
+            "immutable_prefix_min_robust_barrier_m": float(result.minimum_prefix_robust_barrier_m),
+        }
 
     def _execution_fallback(
         self,
@@ -927,10 +998,11 @@ class RobustCBFQPFilter:
         category: str,
         precondition_valid: bool,
         directive: CommandAuthorityDirective,
+        force_zero_action: bool = False,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
         # A braking request must issue zero velocity as well as cancel only the
         # queue entries that the configured authority can legally touch.
-        action = np.zeros_like(desired) if directive.emergency_brake else desired
+        action = np.zeros_like(desired) if directive.emergency_brake or force_zero_action else desired
         safety_observation = dict(observation)
         safety_observation.setdefault("world_lower_bounds", np.asarray(self.env.lower, dtype=np.float64))
         safety_observation.setdefault("world_upper_bounds", np.asarray(self.env.upper, dtype=np.float64))
@@ -981,6 +1053,7 @@ class RobustCBFQPFilter:
             barrier_values = []
             rows = []
             rhs = []
+        recoverability = self._recoverability_fields(safety_observation, directive)
         actions, diagnostics = self._fallback(
             action,
             observation,
@@ -998,15 +1071,16 @@ class RobustCBFQPFilter:
                 if str(self.config.execution_linearization_backend) == "analytic"
                 else "finite_difference_dykstra"
             ),
-            force_zero_action=bool(directive.emergency_brake),
+            force_zero_action=bool(directive.emergency_brake or force_zero_action),
             queue_override_slots=int(override_slots),
+            recoverability=recoverability,
         )
         # A fallback is only a command proposal until the same independent
         # execution certificate accepts it. Try a small, deterministic set of
         # conservative candidates so the diagnostic distinguishes a certified
         # fallback from a best-effort recovery command.
         candidates = [actions]
-        if not directive.emergency_brake:
+        if not directive.emergency_brake and not force_zero_action:
             candidates.append(np.zeros_like(actions))
             candidates.append(_clip_rows(desired, self.config.max_speed_mps))
         certified_action: np.ndarray | None = None
@@ -1063,6 +1137,7 @@ class RobustCBFQPFilter:
         solver_backend: str = "slsqp",
         force_zero_action: bool = False,
         queue_override_slots: int = 0,
+        recoverability: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
         if force_zero_action or self.config.fallback_policy == "zero_action":
             actions = np.zeros_like(desired)
@@ -1109,6 +1184,7 @@ class RobustCBFQPFilter:
             command_authority=None if command_authority is None else command_authority.as_dict(),
             emergency_brake_requested=False if command_authority is None else bool(command_authority.emergency_brake),
             queue_override_slots=int(queue_override_slots),
+            **dict(recoverability or {}),
         )
         return actions, diagnostics
 

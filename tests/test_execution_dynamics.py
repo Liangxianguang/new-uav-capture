@@ -16,6 +16,7 @@ from encirclement3d.execution_dynamics import (
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.safety_certificate import (
+    assess_execution_recoverability,
     check_execution_rollout_safety,
     check_execution_continuous_segment_safety,
     check_execution_swept_volume_safety,
@@ -130,6 +131,80 @@ def test_environment_applies_only_configured_queue_flush_authority() -> None:
     np.testing.assert_allclose(env.last_delayed_actions, 0.0)
     assert info["emergency_brake_requested"] is True
     assert info["queue_override_slots"] == 2
+
+
+def test_recoverability_contract_distinguishes_immutable_prefix_from_flush_authority() -> None:
+    obstacle = {
+        "shape": "cylinder",
+        "center_xy": np.array([0.0, 0.0]),
+        "radius": 1.0,
+        "height": 10.0,
+    }
+    base_observation = {
+        "defender_positions": np.array(
+            [[1.6, 0.0, 4.0], [-4.0, 4.0, 4.0]], dtype=np.float64
+        ),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [obstacle],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "action_queue": [np.array([[-5.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float64)],
+            "pending_command_authority": "immutable",
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 100.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    immutable = assess_execution_recoverability(
+        base_observation,
+        dt=0.1,
+        drone_radius=0.25,
+        safety_margin_m=0.10,
+        robust_margin_m=0.0,
+        horizon_steps=2,
+    )
+    assert immutable.status == "abort_required"
+    assert immutable.abort_required
+    assert not immutable.prefix_admissible
+    assert immutable.immutable_prefix_horizon_steps == 1
+
+    flush_observation = {**base_observation, "execution": {**base_observation["execution"], "pending_command_authority": "flush_pending"}}
+    flushed = assess_execution_recoverability(
+        flush_observation,
+        dt=0.1,
+        drone_radius=0.25,
+        safety_margin_m=0.10,
+        robust_margin_m=0.0,
+        horizon_steps=2,
+        command_authority={"mode": "flush_pending", "emergency_brake": True},
+    )
+    assert flushed.status == "prefix_admissible"
+    assert not flushed.abort_required
+    assert flushed.immutable_prefix_horizon_steps == 0
+
+    replace_observation = {
+        **base_observation,
+        "execution": {**base_observation["execution"], "pending_command_authority": "replace_nonexecuting"},
+    }
+    replaceable = assess_execution_recoverability(
+        replace_observation,
+        dt=0.1,
+        drone_radius=0.25,
+        safety_margin_m=0.10,
+        robust_margin_m=0.0,
+        horizon_steps=2,
+        command_authority={"mode": "replace_nonexecuting", "emergency_brake": True},
+    )
+    assert replaceable.immutable_prefix_horizon_steps == 1
+    assert replaceable.abort_required
 
 
 def test_execution_respects_acceleration_and_velocity_tracking() -> None:
@@ -268,6 +343,8 @@ def test_execution_aware_qp_and_certificate_share_queue_contract() -> None:
 
     assert diagnostics.solver_success
     assert diagnostics.certificate_valid
+    assert diagnostics.recoverability_status == "prefix_admissible"
+    assert not diagnostics.abort_required
     assert certificate.valid
     assert certificate.rollout_state_safe
 
@@ -321,6 +398,7 @@ def test_execution_fallback_uses_barrier_direction_for_recovery() -> None:
 
     assert diagnostics.fallback_used
     assert diagnostics.recovery_action_used
+    assert diagnostics.abort_required
     assert actions[0, 0] > 0.0
     assert diagnostics.action_correction_norm > 0.0
 
