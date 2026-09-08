@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v2.1（2026-09-08）
+> 版本：v2.2（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。最新 fallback 矩阵的 certified-fallback rate 仅为 0--8.33%，immutable collision 为 50--75%。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`，fallback 审计见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块的原五模式正式结果未达到 10% minFDE 强门槛，但新增冻结 checkpoint 的未见 `adaptive_adversarial` 策略审计中，projected diffusion 相对 GRU 的 minFDE 相对改善为 40.63%，coverage 为 90.31%（候选权重仍为 `uniform_uncalibrated`）；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。最新 fallback 矩阵的 certified-fallback rate 仅为 0--8.33%，immutable collision 为 50--75%。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。预测未见策略审计见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`，完整规划 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`，fallback 审计见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -24,7 +24,7 @@
 | 方向 | 当前判断 | 主要原因 | 最小可发表版本 |
 | --- | --- | --- | --- |
 | SSM + 条件扩散预测 | 中高，Conditional Go | 已有稳定多模态候选和较低 minFDE，但 raw 候选不可执行，且平均提升低于 10% 门槛 | portable SSM diffusion + dynamics projection + coverage/energy/latency 审计 |
-| 极小极大 DN-MPC | 中高（固定 S3 gate） | 已完成 warm start 后四种通信模式的固定 S3 验证，但 locked-test、未见自适应目标和形式化博弈泛化仍未知 | 在 locked-test 和未见自适应目标上复验 |
+| 极小极大 DN-MPC | 中高（P4 adaptive gate） | 固定 S3 和未见自适应目标 locked-test 已显示收益；真实飞行器和形式化博弈泛化仍未知 | 保留 P4 locked-test，补充联合安全评估 |
 | R-CLBF-QP | 中低 | 当前只有 velocity-level robust CBF-QP 条件性 gate；完整闭环证明需要统一动力学、扰动界、离散时间不变性和可行性证明 | 先报告条件性 robust CBF-QP；只有 P6 证据齐全才升级为 R-CLBF-QP |
 | 三者端到端组合 | 低到中 | 预测误差、求解延迟和安全保守性会累积 | 在困难场景安全捕获不劣于基线，并公开所有失败模式 |
 
@@ -42,6 +42,8 @@ Phase 2 使用 `v3_multimodal` 数据集、三个训练种子和 locked-test。�
 | portable SSM diffusion projected | **0.6802** | 1.6918 | 0.8874 | **0.9971** |
 
 结论：raw diffusion 相对 raw GRU 的 minFDE 改善为 6.54%，projected diffusion 相对 projected GRU 的改善为 3.87%，均未达到预注册的 10% 强门槛；但投影后的候选可行率达到 99.71%，说明它可以作为规划器的候选生成器继续诊断。预测单模块 p95 延迟约 21 ms，尚未包含 MPC 和安全层延迟。
+
+冻结 checkpoint 的补充未见策略审计使用 32 个 `adaptive_adversarial` episode（7,616 个窗口），不训练、不调参，也不使用该 split 的标签进行校准。此时 projected diffusion 的 minFDE 为 `0.5363 +/- 0.0071 m`，GRU 为 `0.9033 +/- 0.0648 m`；diffusion coverage 为 `90.31% +/- 0.03%`，GRU 为 `82.22% +/- 4.86%`。该策略分布偏移下 diffusion 的 projected minFDE 改善为 40.63%，但这不能覆盖原五模式 gate 的失败，也不能把 `uniform_uncalibrated` 写成已校准概率。详见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`。
 
 ### 1.2 必须避免的表述错误
 
@@ -273,14 +275,14 @@ P2 的目标不是追求模型名字，而是验证“在可见信息约束下�
 - [x] 候选 spread 与 mode collapse 检查。
 - [x] p50/p95/p99 单样本推理延迟。
 - [ ] CRPS 或等价分布质量指标。
-- [ ] nominal、delayed-noisy、丢包、未见策略的分层结果。
+- [x] 未见 `adaptive_adversarial` 策略的三 seed 冻结 checkpoint 审计；其余 nominal、delayed-noisy 和丢包 prediction-only 分层仍待补充。
 
 ### 7.4 P2 验收条件
 
 主门槛在新实验开始前冻结，建议为：
 
 - [ ] projected diffusion 在全部主测试条件下 minFDE 相对 projected GRU 改善至少 10%，或在误差相当时 coverage 提高至少 5 个百分点。
-- [x] 90% conformal 目标的经验 coverage 在 `0.85--0.95`，但未见策略仍需补测。
+- [x] 90% conformal 目标的经验 coverage 在 `0.85--0.95`；未见策略审计中 projected diffusion 为 `90.31% +/- 0.03%`，GRU 则降至 `82.22% +/- 4.86%`。
 - [x] projected 候选可行比例不低于 95%；raw 候选不可执行时必须显式报告。
 - [ ] 目标策略切换后，置信度随失配而退化，不能异常维持高置信度。
 - [x] 已记录单模型 p95 延迟；100 ms 仅作为严格 10 Hz 部署参考，总 planner/safety 延迟已通过低频缓存协议量化。

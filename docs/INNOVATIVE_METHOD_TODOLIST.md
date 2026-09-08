@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v3.5（2026-09-08）
+> 版本：v3.6（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。新增 analytic rollout Jacobian 与 0.5 m active-constraint projection 后，四种 variant 的 safety p95 为 80.98--411.43 ms；最新 certified-fallback 矩阵的 p95 为 126.23--460.16 ms，certified-fallback rate 为 0--8.33%，immutable collision 为 50--75%。旧 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%，而实际过滤器契约 `observed_execution_parameters` 在 q=.995、4096/4096 calibration/holdout 下的 runtime 覆盖率为 99.243--99.561%，但仍是经验审计，不是连续段证书或 forward-invariance 证明，也未接入主过滤器。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。详见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`、`docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md` 和 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
+> 当前结论：整体为 `Conditional Go`；预测模块的原五模式测试未达到 10% minFDE 强门槛，但冻结 checkpoint 在未见 `adaptive_adversarial` 策略上显示 projected diffusion 相对 GRU 的 minFDE 改善为 40.63%、coverage 为 90.31%，仍不能把 `uniform_uncalibrated` 候选权重解释为置信概率。P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。新增 analytic rollout Jacobian 与 0.5 m active-constraint projection 后，四种 variant 的 safety p95 为 80.98--411.43 ms；最新 certified-fallback 矩阵的 p95 为 126.23--460.16 ms，certified-fallback rate 为 0--8.33%，immutable collision 为 50--75%。旧 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%，而实际过滤器契约 `observed_execution_parameters` 在 q=.995、4096/4096 calibration/holdout 下的 runtime 覆盖率为 99.243--99.561%，但仍是经验审计，不是连续段证书或 forward-invariance 证明，也未接入主过滤器。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。预测审计见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`；安全细节见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`、`docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md` 和 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -25,7 +25,7 @@
 
 - Phase 0：历史回归和基线代码已存在；本轮代码修改后必须重新运行完整测试，并补齐正式 V5 基线重跑和锁定评估。
 - Phase 1：预测窗口、可见信息约束、六类目标模式、障碍物上下文、未来目标速度、数据元数据和数据集切分已经实现；自适应目标已通过物理约束单元测试和 smoke，统一高阶执行动力学仍未完成。
-- Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；结论为 `Conditional Go`，未达到 10% minFDE 强门槛。
+- Phase 2：正式三种训练种子、冻结 locked-test、按模式统计、conformal coverage、energy score、原始/投影候选可行性和 TensorBoard 工件均已完成；另完成不训练、不调参的三 seed 未见 `adaptive_adversarial` 审计，projected diffusion 的 minFDE 为 `0.5363 +/- 0.0071 m`、coverage 为 `90.31% +/- 0.03%`，优于 GRU 的 `0.9033 +/- 0.0648 m` 与 `82.22% +/- 4.86%`。结论仍为 `Conditional Go`，因为原五模式 10% 强门槛和已校准候选概率均未完成。
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
@@ -73,6 +73,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 按五种目标模式分层汇总；观测退化条件仍需作为 Phase 1/正式规划实验补充。
 - [x] 检查每个训练目录是否同时包含 checkpoint、TensorBoard event、config、metadata、history 和 source hash。
 - [x] 写入新的 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`；保留旧的 `docs/PHASE2_PREDICTION_REPORT.md` 作为历史 NO-GO 记录，不覆盖它。
+- [x] 对六个冻结 prediction checkpoint 运行独立输出的未见 `adaptive_adversarial` 策略审计；每个输出均保存评测配置、JSON 指标、源码 hash 和 TensorBoard event，正式结论见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`。
 - [x] 集中式 scenario min-max MPC 已在 S3 validation 上相对 DynamicEncirclement 提升 8.3 个百分点 safe capture，满足进入分布式 DN-MPC 的前置门槛。
 - [x] 在相同 12 个 S3 场景、三个 checkpoint seed 上完成 ideal、delayed、dropout、none 和 centralized oracle 对照。
 - [x] 记录消息发送、接收、丢包、字节数、消息年龄、planner 有效率、收敛率、局部失败和 fallback。
@@ -99,7 +100,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 完成 command-authority、emergency braking 和 bounded sequential linearized projection audit；immutable 队列仍 No-Go，flush-pending 仅形成 Pareto 诊断，详见 `docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md`。
 - [ ] 在 P5 通过执行扰动扩展前，禁止训练或接入 learned CLBF，也禁止写“R-CLBF-QP 闭环安全证明”。
 - [x] P5 验证通过后单独提交；不得将未验证的 `README.md` 或 `docs/EXPERIMENTAL_STUDY_REPORT.md` 加入提交。
-- [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。P4 locked-test 报告和缓存延迟消融待本轮回归后提交。
+- [x] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。本轮提交未见策略预测审计、工件隔离契约与回归测试。
 
 ### P5 当前证据和剩余工作
 
@@ -518,13 +519,13 @@ team_history -> {trajectory[k, 0:H, 3], score[k], covariance[k, 0:H, 3, 3]}
 建议采用以下 go/no-go 门槛：
 
 - [ ] 在所有测试模式上，Mamba-Diffusion 的 minFDE 至少比 GRU 基线降低 10%，或在相同误差下达到更高的 coverage；当前 locked-test 仅达到 raw `6.54%`、projected `3.87%` 的平均 minFDE 改善，且 coverage 略低。
-- [x] 90% conformal 目标的经验覆盖率位于 `0.85--0.95`，但按模式仍需继续做未见策略测试。
+- [x] 90% conformal 目标的经验覆盖率位于 `0.85--0.95`；冻结 checkpoint 的未见 `adaptive_adversarial` 审计中 projected diffusion 为 `90.31% +/- 0.03%`，但候选权重仍未校准。
 - [x] dynamics-projected 预测输出的可行候选比例不少于 95%；raw diffusion 候选仍为 0%，不能直接执行。
 - [ ] 在目标策略切换后仍有可解释的置信度退化，而不是输出异常高置信度。
 - [x] 已记录单模型 p95 推理时间；100 ms 仅作为严格 10 Hz 部署参考，总 planner/safety 延迟已通过低频缓存协议量化。
 - [x] planner 接口固定为候选轨迹 + 明确的 raw/projected 状态 + `uniform_uncalibrated` score kind。
 
-正式结果见 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md`。Phase 2 当前为 `Conditional Go`，因此下一步只实现集中式 scenario min-max MPC 诊断，不宣称最终 DN-MPC 或完整方法已经通过。
+正式结果见 `docs/PHASE2_FORMAL_ANALYSIS_REPORT.md` 和 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`。Phase 2 当前为 `Conditional Go`；未见策略的正向证据允许继续保留 projected candidates 的规划贡献，但不宣称最终 DN-MPC、候选概率校准或完整方法已经通过。
 
 如果只提升 ADE/FDE，却没有提升候选覆盖率或校准质量，则不能声称“多模态预测成功”，只能称为更强的点预测器。
 

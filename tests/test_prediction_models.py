@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import sys
+
 import torch
 import pytest
 
+from scripts.collect_prediction_dataset import TARGET_MOTION_MODES, parse_args as parse_collection_args
+from scripts.evaluate_prediction_models import main as evaluate_prediction_main
+from scripts.evaluate_prediction_models import parse_args as parse_evaluation_args
 from encirclement3d.prediction import (
     CandidateTrajectorySet,
     ConditionalDiffusionTrajectoryPredictor,
@@ -16,6 +21,56 @@ from encirclement3d.prediction import (
     prediction_metrics,
     project_candidate_trajectories,
 )
+
+
+def test_prediction_collector_accepts_adaptive_adversarial_target_mode(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    assert "adaptive_adversarial" in TARGET_MOTION_MODES
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collect_prediction_dataset.py",
+            "--output",
+            str(tmp_path / "adaptive_dataset"),
+            "--target-motion-mode",
+            "adaptive_adversarial",
+        ],
+    )
+    assert parse_collection_args().target_motion_mode == "adaptive_adversarial"
+
+
+def test_evaluator_keeps_independent_training_artifacts_read_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    training_output = tmp_path / "training"
+    training_output.mkdir()
+    training_output.joinpath("metadata.json").write_text('{"arguments": {}}', encoding="utf-8")
+    evaluation_output = tmp_path / "evaluation"
+    evaluation_output.mkdir()
+    sentinel = evaluation_output / "existing-evaluation-artifact.txt"
+    sentinel.write_text("preserve", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_prediction_models.py",
+            "--checkpoint",
+            str(tmp_path / "checkpoint.pt"),
+            "--validation-dataset",
+            str(tmp_path / "validation.npz"),
+            "--locked-test-dataset",
+            str(tmp_path / "locked_test.npz"),
+            "--output",
+            str(evaluation_output),
+            "--training-output",
+            str(training_output),
+        ],
+    )
+    args = parse_evaluation_args()
+    assert args.training_output == training_output
+    with pytest.raises(FileExistsError, match="non-empty evaluation output"):
+        evaluate_prediction_main()
+    assert sentinel.read_text(encoding="utf-8") == "preserve"
 
 
 def test_diagonal_ssm_is_linear_time_shape_preserving() -> None:

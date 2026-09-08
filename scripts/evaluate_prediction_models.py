@@ -45,7 +45,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--validation-dataset", type=Path, required=True)
     parser.add_argument("--locked-test-dataset", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True, help="Existing training output directory.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Evaluation artifact directory. It may be separate from the training output.",
+    )
+    parser.add_argument(
+        "--training-output",
+        type=Path,
+        help="Read-only training artifact directory. Defaults to --output for legacy evaluations.",
+    )
     parser.add_argument("--num-samples", type=int, default=None)
     parser.add_argument("--sampling-steps", type=int, default=None)
     parser.add_argument("--sampling-seed", type=int, default=745102)
@@ -267,6 +277,11 @@ def main() -> None:
     if args.batch_size <= 0 or args.projection_iterations <= 0:
         raise ValueError("batch-size and projection-iterations must be positive.")
     output = args.output.resolve()
+    training_output = (args.training_output or output).resolve()
+    if not training_output.joinpath("metadata.json").is_file():
+        raise FileNotFoundError(f"Training metadata is missing: {training_output / 'metadata.json'}")
+    if output != training_output and output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"Refusing to overwrite non-empty evaluation output directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
     device = select_device(args.device)
     validation = load_prediction_dataset(str(args.validation_dataset.resolve()))
@@ -275,7 +290,7 @@ def main() -> None:
     test_inputs = flatten_inputs(locked_test)
     model, model_kind, normalizer, checkpoint = load_model(args.checkpoint.resolve(), device)
     model_args = json.loads(json.dumps(checkpoint.get("final_metrics", {}), allow_nan=True))
-    train_config = json.loads(output.joinpath("metadata.json").read_text(encoding="utf-8"))
+    train_config = json.loads(training_output.joinpath("metadata.json").read_text(encoding="utf-8"))
     configured_args = train_config.get("arguments", {})
     num_samples = int(args.num_samples if args.num_samples is not None else configured_args.get("num_samples", 8))
     sampling_steps = int(
@@ -346,6 +361,8 @@ def main() -> None:
     latency = measure_latency(model, model_kind, normalizer, test_inputs, device, num_samples, sampling_steps)
     result = {
         "checkpoint": str(args.checkpoint.resolve()),
+        "training_output": str(training_output),
+        "evaluation_output": str(output),
         "validation_dataset": str(args.validation_dataset.resolve()),
         "locked_test_dataset": str(args.locked_test_dataset.resolve()),
         "model_kind": model_kind,

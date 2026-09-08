@@ -32,7 +32,14 @@ from encirclement3d.trajectory_dataset import (  # noqa: E402
 
 
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml"
-TARGET_MOTION_MODES = ("flee_persistence", "random_turn", "s_curve", "burst", "boundary_escape")
+TARGET_MOTION_MODES = (
+    "flee_persistence",
+    "random_turn",
+    "s_curve",
+    "burst",
+    "boundary_escape",
+    "adaptive_adversarial",
+)
 
 
 def parse_args() -> argparse.Namespace:
