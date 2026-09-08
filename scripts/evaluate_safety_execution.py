@@ -352,6 +352,13 @@ def run_episode(
                 "solver_status": None if diagnostics is None else str(getattr(diagnostics, "status", "unknown")),
                 "solver_success": None if diagnostics is None else bool(getattr(diagnostics, "solver_success", False)),
                 "fallback_used": None if diagnostics is None else bool(getattr(diagnostics, "fallback_used", False)),
+                "certificate_valid": None if diagnostics is None else bool(getattr(diagnostics, "certificate_valid", False)),
+                "fallback_certificate_valid": None
+                if diagnostics is None
+                else bool(
+                    getattr(diagnostics, "fallback_used", False)
+                    and getattr(diagnostics, "certificate_valid", False)
+                ),
                 "failure_category": None if diagnostics is None else str(getattr(diagnostics, "failure_category", "none")),
                 "solver_backend": None if diagnostics is None else str(getattr(diagnostics, "solver_backend", "none")),
                 "linearization_iterations": None if diagnostics is None else int(getattr(diagnostics, "linearization_iterations", 0)),
@@ -464,6 +471,17 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "minimum_executed_next_barrier_m": float(np.min([row["minimum_executed_next_barrier_m"] for row in rows])),
         "minimum_actual_post_barrier_m": float(np.min([row["minimum_actual_post_barrier_m"] for row in rows])),
         "solver_fallback_count": int(sum(row["solver_fallback_count"] for row in rows)),
+        "fallback_certificate_valid_rate": float(
+            np.mean(
+                [
+                    bool(row["fallback_certificate_valid"])
+                    for row in steps
+                    if row.get("fallback_used") is True
+                ]
+            )
+            if any(row.get("fallback_used") is True for row in steps)
+            else 1.0
+        ),
         "emergency_brake_count": int(sum(bool(row.get("emergency_brake_requested", False)) for row in steps)),
         "queue_override_slots": int(sum(int(row.get("queue_override_slots", 0)) for row in steps)),
         "mean_linearization_iterations": _finite_mean(
@@ -549,6 +567,7 @@ def log_tensorboard(
                 "hparam/mean_linearization_active_constraints": float(
                     summary["mean_linearization_active_constraints"]
                 ),
+                "hparam/fallback_certificate_valid_rate": float(summary["fallback_certificate_valid_rate"]),
             },
         )
 

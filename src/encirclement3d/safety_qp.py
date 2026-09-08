@@ -8,7 +8,7 @@ certificate module independently checks the resulting next positions.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any
 
@@ -956,7 +956,25 @@ class RobustCBFQPFilter:
             )
             names = list(robust)
             barrier_values = [float(robust[name]) for name in names]
-            rows = [np.zeros(action.size, dtype=np.float64) for _ in names]
+            if self.config.fallback_policy == "barrier_recovery" and names:
+                _nominal, robust_with_jacobian, jacobian, _assumptions = (
+                    execution_barrier_values_with_action_jacobian(
+                        safety_observation,
+                        action,
+                        dt=float(self.env.dt),
+                        drone_radius=float(self.env.agents["drone_radius"]),
+                        safety_margin_m=float(self.config.safety_margin_m),
+                        robust_margin_m=float(self.config.robust_margin_m),
+                        horizon_steps=preview_steps,
+                        jacobian_active_margin_m=None,
+                        command_authority=directive,
+                    )
+                )
+                names = list(robust_with_jacobian)
+                barrier_values = [float(robust_with_jacobian[name]) for name in names]
+                rows = [np.asarray(row, dtype=np.float64) for row in jacobian]
+            else:
+                rows = [np.zeros(action.size, dtype=np.float64) for _ in names]
             rhs = [-value for value in barrier_values]
         except (FloatingPointError, ValueError, RuntimeError):
             names = []
@@ -983,6 +1001,48 @@ class RobustCBFQPFilter:
             force_zero_action=bool(directive.emergency_brake),
             queue_override_slots=int(override_slots),
         )
+        # A fallback is only a command proposal until the same independent
+        # execution certificate accepts it. Try a small, deterministic set of
+        # conservative candidates so the diagnostic distinguishes a certified
+        # fallback from a best-effort recovery command.
+        candidates = [actions]
+        if not directive.emergency_brake:
+            candidates.append(np.zeros_like(actions))
+            candidates.append(_clip_rows(desired, self.config.max_speed_mps))
+        certified_action: np.ndarray | None = None
+        certified_certificate: Any | None = None
+        for candidate in candidates:
+            try:
+                candidate_certificate = check_execution_rollout_safety(
+                    safety_observation,
+                    candidate,
+                    dt=float(self.env.dt),
+                    drone_radius=float(self.env.agents["drone_radius"]),
+                    max_speed_mps=float(self.config.max_speed_mps),
+                    max_acceleration_mps2=float(self.config.max_acceleration_mps2),
+                    safety_margin_m=float(self.config.safety_margin_m),
+                    robust_margin_m=float(self.config.robust_margin_m),
+                    tolerance=float(self.config.solver_tolerance),
+                    action_change_limit_mps=self.config.action_change_limit_mps,
+                    horizon_steps=preview_steps,
+                    command_authority=directive,
+                )
+            except (FloatingPointError, ValueError, RuntimeError):
+                continue
+            if bool(candidate_certificate.valid):
+                certified_action = np.asarray(candidate, dtype=np.float64)
+                certified_certificate = candidate_certificate
+                break
+        if certified_action is not None and certified_certificate is not None:
+            actions = certified_action
+            diagnostics = replace(
+                diagnostics,
+                status="fallback_certified",
+                certificate_valid=True,
+                barrier_values_m=dict(certified_certificate.barrier_values_m),
+                minimum_barrier_value_m=float(certified_certificate.minimum_robust_barrier_m),
+                assumptions={**diagnostics.assumptions, **certified_certificate.assumptions},
+            )
         return actions, diagnostics
 
     def _fallback(

@@ -272,6 +272,114 @@ def test_execution_aware_qp_and_certificate_share_queue_contract() -> None:
     assert certificate.rollout_state_safe
 
 
+def test_execution_fallback_uses_barrier_direction_for_recovery() -> None:
+    config = load_config()
+    config["world"]["max_steps"] = 20
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    obstacle = {
+        "shape": "cylinder",
+        "center_xy": np.array([0.0, 0.0]),
+        "radius": 1.0,
+        "height": 10.0,
+    }
+    observation = {
+        "defender_positions": np.array(
+            [[1.30, 0.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+            dtype=np.float64,
+        ),
+        "defender_velocities": np.zeros((4, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [obstacle],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    qp_config = RobustCBFQPConfig(
+        safety_margin_m=0.10,
+        disturbance_margin_m=0.0,
+        observation_error_margin_m=0.0,
+        delay_margin_m=0.0,
+        execution_margin_m=0.0,
+        slack_enabled=False,
+        fallback_policy="barrier_recovery",
+    )
+
+    actions, diagnostics = RobustCBFQPFilter(env, qp_config).filter(
+        np.zeros((4, 3), dtype=np.float64), observation
+    )
+
+    assert diagnostics.fallback_used
+    assert diagnostics.recovery_action_used
+    assert actions[0, 0] > 0.0
+    assert diagnostics.action_correction_norm > 0.0
+
+
+def test_execution_fallback_marks_independently_certified_candidate() -> None:
+    config = load_config()
+    config["world"]["max_steps"] = 20
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    observation = {
+        "defender_positions": np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+            dtype=np.float64,
+        ),
+        "defender_velocities": np.zeros((4, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    filter_instance = RobustCBFQPFilter(
+        env,
+        RobustCBFQPConfig(
+            safety_margin_m=0.10,
+            disturbance_margin_m=0.0,
+            observation_error_margin_m=0.0,
+            delay_margin_m=0.0,
+            execution_margin_m=0.0,
+            slack_enabled=False,
+            fallback_policy="barrier_recovery",
+        ),
+    )
+    actions, diagnostics = filter_instance._execution_fallback(
+        np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64),
+        observation,
+        0.0,
+        reason="test_solver_failure",
+        category="execution_rollout_infeasible",
+        precondition_valid=True,
+        directive=CommandAuthorityDirective(mode="immutable", emergency_brake=False),
+    )
+
+    np.testing.assert_allclose(actions, 0.0)
+    assert diagnostics.fallback_used
+    assert diagnostics.certificate_valid
+    assert diagnostics.status == "fallback_certified"
+
+
 def test_execution_swept_volume_certificate_reports_sampling_contract() -> None:
     observation = {
         "defender_positions": np.array(

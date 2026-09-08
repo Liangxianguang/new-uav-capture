@@ -1,9 +1,9 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
-> 版本：v2.0（2026-09-08）
+> 版本：v2.1（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
-> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`。
+> 当前判断：整体方向为 **Conditional Go**。预测模块已有正式结果但未达到 10% minFDE 强门槛；集中式 Scenario MPC、固定 S3 validation 和未见 `adaptive_adversarial` locked-test 的围捕效果门槛已通过；P5 的分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全和 certified fallback 扩展均未通过。旧的 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%；在过滤器实际使用的 `observed_execution_parameters` 契约下，q=.995 的 runtime hold-out 覆盖率为 99.243--99.561%，但这仍是经验审计，不能替代连续时间 forward-invariance 证明。最新 fallback 矩阵的 certified-fallback rate 仅为 0--8.33%，immutable collision 为 50--75%。低频预测缓存尚未满足严格 10 Hz 部署参考（100 ms total-control p95），该参考不作为 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端验证仍未完成。完整 locked-test 结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，契约审计见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`，fallback 审计见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -478,6 +478,7 @@ s.t. discrete barrier constraints
 - [x] 完成 `observed_execution_parameters` 契约下的 q=.995 held-out/runtime margin audit；4096/4096 calibration/holdout 的 runtime coverage 为 99.243--99.561%，但仍属于经验契约审计，margin 尚未接入主过滤器，详见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`。
 - [x] 完成 benchmark piecewise-linear continuous-segment lower-bound audit；连续段证书有效率为 17.68--43.30%，仍不能替代真实连续时间动力学证明或 forward-invariance proof。
 - [x] 完成 command-authority、emergency braking 和 bounded sequential linearized projection 审计；immutable 队列仍 No-Go，flush-pending 只形成安全--捕获--延迟 Pareto 点，详见 `docs/PHASE5_AUTHORITY_LINEARIZED_AUDIT_REPORT.md`。
+- [x] 修复 execution fallback 的零约束行缺陷，改用 barrier-direction recovery，并对 recovery/zero/nominal 候选执行独立 nonlinear rollout certificate；新增 certified-fallback JSONL/TensorBoard 指标。固定矩阵中 certified-fallback rate 为 0--8.33%，执行 gate 仍 No-Go，详见 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
 
 正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，执行扰动扩展见
 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md` 和
@@ -488,7 +489,7 @@ s.t. discrete barrier constraints
 
 P5 恢复必须在已实现的共享 execution-state contract 上继续验证延迟队列可干预性、emergency braking、线性化 QP 和经验 reachable-set margin；本轮留出覆盖率与连续段审计仍未通过，单纯增大静态 margin 不视为修复，经验校准也不能替代连续时间动力学覆盖和正向不变性分析。
 
-本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约：mild `flush_pending` 的实际 post-step robust-state safety 为 100.0%、safe capture 为 62.5%，但连续段证书有效率仅 39.09%；hard `flush_pending` 分别为 92.03%、50.0% 和 17.68%，fallback 为 701 次、过滤器 p95 为 2367.80 ms。因此该扩展仍为 No-Go。新增 observed-parameter reachable-margin 审计虽通过经验 99% 留出覆盖门槛，但不能替代执行误差、连续时间动力学和正向不变性证明；下一步仍必须优先定义可验证 fallback、降低 solver 代价并完成正向不变性证明。
+本轮结果表明，command authority 能显著改变安全--捕获权衡，但不能替代真实执行器契约。新增 barrier-direction recovery 与 candidate-level certificate 后，mild/hard immutable 的实际 post robust-state safety 为 87.90%/79.74%，但 collision 仍为 50%/75%，certified fallback 仅为 8.33%/1.44%；mild/hard flush 的实际 post robust-state safety 为 100.0%/99.55%，但 hard flush fallback 为 720 次、timeout 为 50%、过滤器 p95 为 460.16 ms。因此该扩展仍为 No-Go。observed-parameter reachable-margin 审计虽通过经验 99% 留出覆盖门槛，但不能替代执行误差、连续时间动力学和正向不变性证明；下一步仍必须降低 solver/fallback 代价并完成正向不变性证明。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 
