@@ -365,6 +365,8 @@ def run_episode(
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
+    record_history: bool = False,
+    trajectory_path: Path | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     env = CaptureRadiusPursuit3DEnv(
         config,
@@ -372,13 +374,13 @@ def run_episode(
         target_speed_scale=float(config["experiments"][0]["target_speed_scale"]),
     )
     if scenario is None:
-        observation = env.reset(seed=seed)
+        observation = env.reset(seed=seed, record_history=record_history)
     else:
         observation = prepare_showcase_episode(
             env,
             scenario,
             seed=seed,
-            record_history=False,
+            record_history=record_history,
             validate_scenario=validate_scenario,
         )
     fallback_controller = DynamicEncirclementController(env)
@@ -531,7 +533,10 @@ def run_episode(
             safety_latency_ms = (time.perf_counter() - safety_started) * 1000.0
         safe_actions = env._clip_rows(safe_actions, float(env.agents["defender_max_speed"]))
         total_control_latency_ms = (time.perf_counter() - control_started) * 1000.0
-        observation, _reward, terminated, truncated, final_info = env.step(safe_actions)
+        observation, _reward, terminated, truncated, final_info = env.step(
+            safe_actions,
+            record_history=record_history,
+        )
         path_length += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
         previous_positions = env.defender_positions.copy()
         planner_status = str(planner_diagnostics.status)
@@ -635,7 +640,47 @@ def run_episode(
             sum(float(row["candidate_count"]) > 0.0 for row in step_rows)
         ),
     }
+    if trajectory_path is not None:
+        save_episode_trajectory(env, trajectory_path)
     return summary, step_rows
+
+
+def save_episode_trajectory(env: CaptureRadiusPursuit3DEnv, output_path: Path) -> None:
+    """Persist a replay-only trajectory without changing evaluation artifacts."""
+
+    if not env.history:
+        raise ValueError("Trajectory history is empty; call run_episode with record_history=True.")
+    output_path = output_path.resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    defenders = np.asarray([frame["defender_positions"] for frame in env.history], dtype=np.float64)
+    target = np.asarray([frame["target_position"] for frame in env.history], dtype=np.float64)
+    centers = np.asarray([item.center_xy for item in env.obstacles], dtype=np.float64)
+    radii = np.asarray([item.radius for item in env.obstacles], dtype=np.float64)
+    heights = np.asarray([item.height for item in env.obstacles], dtype=np.float64)
+    shapes = np.asarray([str(item.shape) for item in env.obstacles], dtype="U16")
+    half_extents = np.asarray(
+        [
+            np.array([item.radius, item.radius], dtype=np.float64)
+            if item.half_extents_xy is None
+            else np.asarray(item.half_extents_xy, dtype=np.float64)
+            for item in env.obstacles
+        ],
+        dtype=np.float64,
+    )
+    np.savez_compressed(
+        output_path,
+        defender_positions=defenders,
+        target_positions=target,
+        obstacle_centers_xy=centers,
+        obstacle_radii=radii,
+        obstacle_heights=heights,
+        obstacle_shapes=shapes,
+        obstacle_half_extents_xy=half_extents,
+        world_half_extent=float(np.max(np.abs(env.lower[:2]))),
+        world_height=float(env.upper[2]),
+        capture_radius=float(env.pursuit["capture_radius"]),
+        dt_seconds=float(env.dt),
+    )
 
 
 def percentile(values: list[float], quantile: float) -> float:
