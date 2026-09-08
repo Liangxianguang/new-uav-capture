@@ -88,7 +88,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 重新设计并冻结 robust-safe reset/stratified hard-case protocol；在初始有效层上完成 velocity-level formal gate。
 - [x] 加入 `adaptive_adversarial` 未见目标策略，完成物理约束单元测试、validation smoke 和 100-episode locked-test。
 - [x] 完成 checkpoint `745101` 的 `worst_case` locked-test：interval-20 结果为 100 episodes、safe capture 97%、collision 1%、timeout 2%；predictor p95 约 167 ms、total p95 约 236 ms，仍不能作为实时部署结论。更早的逐周期刷新诊断保留为历史延迟证据。
-- [x] 使用同一份 `scenes.jsonl` 完成 3 个 checkpoint × 6 个方法的 P4 locked-test：`dynamic_encirclement`、`worst_case`、`distributed_ideal`、`distributed_delayed`、`distributed_dropout`、`distributed_none`。
+- [x] 使用同一份 `scenes.jsonl` 完成 3 个 checkpoint × 5 个 checkpoint-dependent 方法，并复用 checkpoint-independent `dynamic_encirclement` baseline 展开为 3 × 6 对照表：`dynamic_encirclement`、`worst_case`、`distributed_ideal`、`distributed_delayed`、`distributed_dropout`、`distributed_none`。
 - [x] 写入 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`，固定记录场景 hash、source hash、目标真值隔离、通信审计和三段延迟。
 - [x] 完成 predictor p95 超过 100 ms 的低频预测 + 候选缓存 + 高频 planner/safety 诊断；总控制 p95 仍不达 100 ms，因此停止宣称实时部署，后续转向 batch/异步/蒸馏优化。
 - [x] 完成 P5 execution delay/noise/tracking/randomization multi-step audit，加入真实 post-step 独立 checker；robust CBF-QP execution extension 为 No-Go，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。

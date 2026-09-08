@@ -9,7 +9,8 @@
 
 The Phase 4 generalization experiment is complete. It uses 100 frozen
 `adaptive_adversarial` episodes, one shared scene file, three prediction
-checkpoints (`745101`, `745201`, `745301`), and six controller methods. The
+checkpoints (`745101`, `745201`, `745301`), five checkpoint-dependent controller
+methods, and one checkpoint-independent DynamicEncirclement baseline. The
 non-baseline methods never receive target ground truth; they consume only the
 visible observation, projected prediction candidates, local geometry, and
 permitted peer messages.
@@ -226,6 +227,7 @@ The formal results are stored locally under:
 - `results/phase4_unseen_adaptive_locked_seed745201_refresh20_v2_comm_batch/`
 - `results/phase4_unseen_adaptive_locked_seed745301_refresh20_v2_*`
 - `results/phase4_unseen_adaptive_locked_seed745301_refresh20_v2_comm_batch/`
+- `results/phase4_unseen_adaptive_locked_seed745101_refresh5/dynamic_encirclement/`
 
 Each completed method directory contains the configuration snapshot, protocol
 snapshot, episode JSONL, step JSONL, summary JSON, and TensorBoard event data.

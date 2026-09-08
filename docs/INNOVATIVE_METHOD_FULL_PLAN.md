@@ -403,7 +403,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 - 修复后的 distributed planner p95 均值为 8.72--12.47 ms，total-control p95 均值为 50.38--51.51 ms；三种 seed、四种通信模式的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
 - 因此 P4 固定 S3 validation gate 已通过；该结果不能单独外推为完整部署结论。`adaptive_adversarial` 泛化和通信复验的正式结果见下列 locked-test 条目。
 - 已加入环境内部的 `adaptive_adversarial` 未见目标策略，并通过物理可行性单元测试、4-episode validation smoke 和 100-episode locked-test；smoke 只用于开发检查，不替代正式矩阵。
-- P4 locked-test 已完成 100 个 `adaptive_adversarial` episode，三个 checkpoint × 六个方法共 18 个方法结果复用同一份场景文件；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
+- P4 locked-test 已完成 100 个 `adaptive_adversarial` episode；15 个 checkpoint-dependent 方法结果加 1 个 checkpoint-independent DynamicEncirclement baseline 复用同一份场景文件，报告将其展开为 3 checkpoint × 6 method 的 18 行对照表；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 - 共享 DynamicEncirclement baseline 为 `95.00%` safe capture、`2.00%` collision；三 checkpoint 的预测驱动方法为 `97.33--99.00%` safe capture、`0--1.00%` collision，solver/valid/effective plan rate 均达到 `99%` 以上，P4 泛化效果门槛通过。
 - 低频预测缓存采用每 20 个控制步刷新，平均 refresh rate 约 `6.56%`，最大候选年龄 `19` 步；三 checkpoint aggregate total-control p95 为 `167.73--229.62 ms`，高于 `100 ms` 预算。因此该结果支持离线/低频缓存规划诊断，不支持逐周期实时部署结论。
 - P4 的形式化 zero-sum game guarantee、执行不变性和真实无人机部署仍未验证；P5 执行扰动 No-Go 后，R-CLBF-QP 继续暂停。
