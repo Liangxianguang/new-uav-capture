@@ -1,0 +1,52 @@
+# Experiment Results Index
+
+This repository keeps generated experiment artifacts under `results/`. The
+directory is intentionally ignored by Git because it contains large JSONL,
+checkpoint, and TensorBoard files. Formal reports and source code remain
+versioned; each retained run keeps its configuration, source hashes, metrics,
+and TensorBoard event files locally for reproduction.
+
+## Current Evidence Levels
+
+| Phase | Evidence | Status | Authoritative report |
+| --- | --- | --- | --- |
+| Phase 2 | Portable SSM + conditional diffusion prediction | Conditional Go | `PHASE2_FORMAL_ANALYSIS_REPORT.md`, `PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md` |
+| Phase 3 | Centralized scenario MPC | Pass for the frozen validation gate | `PHASE3_S3_VALIDATION_REPORT.md` |
+| Phase 4 | Distributed DN-MPC and unseen adaptive-target locked test | Pass for modular planning | `PHASE4_DN_MPC_VALIDATION_REPORT.md`, `PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md` |
+| Phase 5 | Velocity-level robust CBF-QP | Conditional pass only | `PHASE5_STRATIFIED_VALIDATION_REPORT.md` and execution audit reports |
+| Phase 7 | DN-MPC + robust CBF-QP joint integration | No-Go on the frozen P4 reset | `PHASE7_JOINT_SAFETY_AUDIT_REPORT.md` |
+
+## Formal Phase 7 Run
+
+The current locked joint audit is retained in:
+
+```text
+results/phase7_joint_safety_locked_seed745101_robust_p4protocol/
+```
+
+It contains the root and method `config.yaml`, protocol and scene records,
+episode/step JSONL, summary JSON, source hashes, and TensorBoard events. The
+run uses the P4 `adaptive_adversarial` 100-episode scene file and must be
+treated as the authoritative result for the direct robust-CBF-QP composition.
+
+## TensorBoard Retention
+
+Training and evaluation scripts write TensorBoard event files alongside their
+run artifacts. Training runs also record the effective configuration,
+hyperparameters, source hashes, and checkpoint metadata. To inspect all local
+runs:
+
+```powershell
+.\scripts\start_tensorboard.ps1 -LogDir results -Port 6006
+```
+
+Do not delete a retained training or evaluation run merely because its output
+is ignored by Git. Smoke runs and failed intermediate runs are useful for
+debugging unless a later report explicitly supersedes them and the run has
+been classified as disposable.
+
+## Cleanup Policy
+
+Only generated caches (`__pycache__`, `.pytest_cache`) and empty temporary
+directories are disposable by default. Formal result directories, training
+logs, checkpoints, scene files, and TensorBoard event files are retained.

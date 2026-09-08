@@ -1,5 +1,7 @@
 # Mamba-SSM + Conditional Diffusion + DN-MPC + R-CLBF-QP 完整可行性计划书
 
+> P7 最新状态：已完成同一 P4 locked-test 上的 `worst_case DN-MPC + velocity-level robust CBF-QP` 联合审计；safe capture `50%`、collision `49%`、boundary violation `16%`，直接组合路径为 No-Go。模块化 P4 规划结果仍保留，正式分析见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
+
 > 版本：v2.3（2026-09-08）
 > 目标仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
 > 适用基准：四架追捕无人机、一个高机动目标、三维障碍物、部分观测与通信延迟  
@@ -571,6 +573,18 @@ P6 是风险最高的理论阶段。它的成功标准不是训练出一个 barr
 
 所有配置必须使用相同场景 seed、相同目标策略、相同观测退化和相同 episode 数量。
 
+### 12.4 当前联合审计结果
+
+已完成一个严格匹配 P4 locked-test 的 `worst_case DN-MPC + robust CBF-QP`
+联合审计：同一 100-episode `adaptive_adversarial` 场景、checkpoint
+`745101`、`phase4_dn_mpc.yaml` 和 20-step prediction cache。相同场景的
+local-CBF baseline 为 `97%` safe capture、`1%` collision；联合 robust
+CBF-QP 为 `50%` safe capture、`49%` collision、`16%` boundary violation，
+安全 certificate valid rate 为 `64.87%`，fallback 为 `35.13%`。因此直接
+组合路径为 No-Go，不继续把另外两个 checkpoint 的相同失败路径包装成完整
+方法成功。正式证据见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`；该结果
+只覆盖 velocity-level integration，不能替代 Phase 5 execution-state audit。
+
 ## 13. P8：正式实验、统计和 locked-test
 
 ### 13.1 场景分层
@@ -742,8 +756,8 @@ docs/FINAL_INNOVATION_REPORT.md
 1. 保留 P4 locked-test 三 checkpoint × 六方法结果，使用 100 episode、adaptive target、同一场景 hash、通信审计和 TensorBoard/JSONL 协议；正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`。
 2. 低频刷新、候选缓存和 stale-age 审计已经完成；total-control p95 超过严格 10 Hz 部署参考，但不阻塞研究方法验证。后续在独立 ablation 中测试 batch、异步预测、蒸馏和更少扩散步数，当前不宣称严格 10 Hz 实时部署。
 3. 修正 robust filter 对延迟队列、tracking state 和执行扰动的建模，重新建立 P5 execution-invariant safety gate；当前审计是明确的 No-Go 证据。
-4. 在 P4 泛化和 P5 扩展安全审计均通过后，才进入 P6 learned CLBF；若无法证明正向不变性，就将安全贡献限定为条件性 robust CBF-QP。
-5. 连续时间 swept-volume、扰动覆盖证明和端到端三种子 locked-test 仍属于后续未完成任务；联合训练最后进行。
+4. 当前 P7 联合审计已失败，停止继续堆叠 R-CLBF-QP 或联合训练；先修复 robust filter 的 reset/margin/fallback 契约，再决定是否重开三种子端到端 locked-test。
+5. 连续时间 swept-volume、扰动覆盖证明和三种子端到端 locked-test 仍属于后续未完成任务；联合训练最后进行。
 
 当前最重要的判断不是“能否把代码全部写出来”，而是：
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +17,8 @@ from encirclement3d.minimax_mpc import (
     evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
-from scripts.evaluate_minimax_mpc import PredictionRuntime
+from encirclement3d.safety_qp import RobustCBFQPConfig
+from scripts.evaluate_minimax_mpc import PredictionRuntime, run_episode
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -161,3 +163,46 @@ def test_prediction_runtime_reuses_cached_candidates_and_records_age() -> None:
     assert third_refreshed is True
     assert third_age == 0
     assert third is not first
+
+
+def test_joint_episode_records_velocity_level_robust_safety_metrics() -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(encoding="utf-8")
+    )
+    config = copy.deepcopy(config)
+    config["world"]["max_steps"] = 1
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.45)
+    safety_config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "innovation_safety.yaml").read_text(encoding="utf-8")
+    )
+    robust_config = RobustCBFQPConfig.from_mapping(
+        {
+            **dict(safety_config["safety"]),
+            "max_speed_mps": float(env.agents["defender_max_speed"]),
+            "max_acceleration_mps2": float(env.agents["defender_max_acceleration"]),
+            "safety_margin_m": float(env.pursuit["safety_margin"]),
+        }
+    )
+    planner_config = MinimaxMPCConfig(horizon_steps=2, control_horizon_steps=1, max_role_variants=1)
+    row, steps = run_episode(
+        config,
+        seed=648301,
+        method="dynamic_encirclement",
+        planner_config=planner_config,
+        candidate_source="belief",
+        checkpoint_data=None,
+        device=torch.device("cpu"),
+        num_samples=2,
+        sampling_steps=2,
+        sampling_seed=745102,
+        projection_iterations=1,
+        use_local_cbf=False,
+        safety_layer="robust_cbf_qp",
+        robust_safety_config=robust_config,
+    )
+
+    assert len(steps) == 1
+    assert row["safety_solver_success_rate"] == pytest.approx(1.0)
+    assert row["safety_certificate_valid_rate"] == pytest.approx(1.0)
+    assert row["safety_fallback_rate"] == pytest.approx(0.0)
+    assert steps[0]["safety_layer"] == "robust_cbf_qp"

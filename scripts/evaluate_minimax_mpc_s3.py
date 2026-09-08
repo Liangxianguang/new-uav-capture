@@ -37,6 +37,7 @@ from evaluate_minimax_mpc import (  # noqa: E402
     DEFAULT_ENVIRONMENT_CONFIG,
     DEFAULT_MPC_CONFIG,
     MinimaxMPCConfig,
+    RobustCBFQPConfig,
     load_yaml,
     model_from_checkpoint,
     run_episode,
@@ -44,7 +45,7 @@ from evaluate_minimax_mpc import (  # noqa: E402
     source_hashes,
     summarize_rows,
 )
-from evaluate_minimax_mpc import require_summary_writer  # noqa: E402
+from evaluate_minimax_mpc import add_safety_source_hashes, require_summary_writer  # noqa: E402
 from encirclement3d.distributed_dn_mpc import DistributedDNMPCConfig  # noqa: E402
 
 
@@ -92,6 +93,18 @@ def parse_args() -> argparse.Namespace:
         help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
     )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
+    parser.add_argument(
+        "--safety-layer",
+        choices=("local_cbf", "robust_cbf_qp"),
+        default="local_cbf",
+        help="Safety filter used after planning. robust_cbf_qp is velocity-level and conditional.",
+    )
+    parser.add_argument(
+        "--safety-config",
+        type=Path,
+        default=PROJECT_ROOT / "configs" / "innovation_safety.yaml",
+        help="Safety configuration used by --safety-layer robust_cbf_qp.",
+    )
     parser.add_argument("--without-local-cbf", action="store_true")
     return parser.parse_args()
 
@@ -278,7 +291,26 @@ def main() -> None:
     if min(num_samples, sampling_steps, projection_iterations, prediction_refresh_interval_steps) <= 0:
         raise ValueError("Prediction sampling, projection and refresh settings must be positive")
 
+    if args.safety_layer == "robust_cbf_qp" and args.without_local_cbf:
+        raise ValueError("--without-local-cbf cannot be combined with --safety-layer robust_cbf_qp")
+    safety_layer = args.safety_layer if not args.without_local_cbf else "none"
+    robust_safety_config: RobustCBFQPConfig | None = None
+    if safety_layer == "robust_cbf_qp":
+        safety_document = load_yaml(args.safety_config)
+        safety_mapping = dict(safety_document.get("safety", {}))
+        safety_probe = CaptureRadiusPursuit3DEnv(
+            copy.deepcopy(load_yaml(args.environment_config)),
+            obstacle_count=0,
+            target_speed_scale=float(protocol["s3"]["target_speed_scales"][0]),
+        )
+        safety_mapping.setdefault("max_speed_mps", float(safety_probe.agents["defender_max_speed"]))
+        safety_mapping.setdefault("max_acceleration_mps2", float(safety_probe.agents["defender_max_acceleration"]))
+        safety_mapping.setdefault("safety_margin_m", float(safety_probe.pursuit["safety_margin"]))
+        robust_safety_config = RobustCBFQPConfig.from_mapping(safety_mapping)
+
     hashes = source_hashes_s3(protocol_path, args.mpc_config)
+    if safety_layer == "robust_cbf_qp":
+        add_safety_source_hashes(hashes, args.safety_config)
     if checkpoint is not None:
         hashes["checkpoint_sha256"] = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
     run_config = {
@@ -301,7 +333,9 @@ def main() -> None:
             "projection_iterations": projection_iterations,
             "refresh_interval_steps": prediction_refresh_interval_steps,
         },
-        "use_local_cbf": not args.without_local_cbf,
+        "use_local_cbf": safety_layer == "local_cbf",
+        "safety_layer": safety_layer,
+        "safety_config": str(args.safety_config.resolve()) if safety_layer == "robust_cbf_qp" else None,
         "source_hashes": hashes,
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
@@ -350,6 +384,14 @@ def main() -> None:
     for method in methods:
         method_output = output / method
         method_output.mkdir(parents=True, exist_ok=True)
+        method_run_config = {
+            **run_config,
+            "methods": [method],
+            "method": method,
+        }
+        method_output.joinpath("config.yaml").write_text(
+            yaml.safe_dump(method_run_config, sort_keys=False), encoding="utf-8"
+        )
         rows: list[dict[str, Any]] = []
         all_steps: list[dict[str, Any]] = []
         with (
@@ -388,7 +430,9 @@ def main() -> None:
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
-                    use_local_cbf=not args.without_local_cbf,
+                    use_local_cbf=safety_layer == "local_cbf",
+                    safety_layer=safety_layer,
+                    robust_safety_config=robust_safety_config,
                     distributed_config=distributed_config,
                     scenario=scenario,
                     validate_scenario=False,
@@ -444,6 +488,12 @@ def main() -> None:
                     "mean_prediction_age_steps",
                     "max_prediction_age_steps",
                     "mean_total_control_latency_ms",
+                    "safety_solver_success_rate",
+                    "safety_certificate_valid_rate",
+                    "safety_fallback_rate",
+                    "safety_abort_required_rate",
+                    "minimum_safety_barrier_m",
+                    "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
                     "planner_success_count",
                     "planner_valid_count",
@@ -485,7 +535,8 @@ def main() -> None:
                     "control_horizon_steps": planner_config.control_horizon_steps,
                     "num_samples": num_samples,
                     "sampling_steps": sampling_steps,
-                    "use_local_cbf": int(not args.without_local_cbf),
+                    "use_local_cbf": int(safety_layer == "local_cbf"),
+                    "safety_layer": safety_layer,
                 },
                 {
                     "hparam/safe_capture_rate": float(overall["safe_capture_rate"]),

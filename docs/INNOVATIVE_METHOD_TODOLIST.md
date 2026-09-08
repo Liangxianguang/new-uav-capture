@@ -1,5 +1,7 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
+> P7 最新状态：已完成同一 P4 locked-test 上的 `worst_case DN-MPC + velocity-level robust CBF-QP` 联合审计；safe capture `50%`、collision `49%`、boundary violation `16%`，直接组合路径为 No-Go。模块化 P4 规划结果仍保留，正式分析见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
+
 > 版本：v3.7（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
 > 当前结论：整体为 `Conditional Go`；预测模块的原五模式测试未达到 10% minFDE 强门槛，但冻结 checkpoint 在未见 `adaptive_adversarial` 策略上显示 projected diffusion 相对 GRU 的 minFDE 改善为 40.63%、coverage 为 90.31%，仍不能把 `uniform_uncalibrated` 候选权重解释为置信概率。P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection、连续段执行安全、certified fallback 和 recoverability contract 扩展均未通过。新增 recoverability contract 已将 committed queue prefix、`abort_required`、`prefix_admissible` 和 prefix barrier 写入安全审计；immutable abort rate 为 61.19--71.84%，flush 为 0--12.04%，hard flush safety p95 为 2489.98 ms，因此仍不能宣称 execution-invariant safety。新增 analytic rollout Jacobian 与 0.5 m active-constraint projection 后，四种 variant 的 safety p95 为 80.98--411.43 ms；最新 certified-fallback 矩阵的 p95 为 126.23--460.16 ms，certified-fallback rate 为 0--8.33%，immutable collision 为 50--75%。旧 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%，而实际过滤器契约 `observed_execution_parameters` 在 q=.995、4096/4096 calibration/holdout 下的 runtime 覆盖率为 99.243--99.561%，但仍是经验审计，不是连续段证书或 forward-invariance 证明，也未接入主过滤器。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。预测审计见 `docs/PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md`；recoverability 审计见 `docs/PHASE5_RECOVERABILITY_CONTRACT_AUDIT_REPORT.md`；安全细节见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`、`docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md` 和 `docs/PHASE5_RECOVERY_FALLBACK_AUDIT_REPORT.md`。
@@ -33,6 +35,7 @@
 - Phase 5 solver 优化：已实现 deterministic execution rollout 的分支 Jacobian、半解析 geometry barrier Jacobian、analytic/finite-difference 可切换 backend，并完成固定 8-seed、4 execution variant、三种方法 formal audit；结果为性能 Pareto 改善但 execution-invariant safety 仍 No-Go，详见 `docs/PHASE5_ANALYTIC_JACOBIAN_AUDIT_REPORT.md`。
 - Phase 5 active-set 优化：在 full nonlinear certificate 不变的前提下，仅将当前 robust barrier `<= 0.5 m` 的约束送入局部投影；四种 variant 的 p95 为 `106.27/80.98/139.85/411.43 ms`，episode/certificate/fallback 结果与上一轮一致，仍为 execution-invariant safety No-Go，详见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`。
 - Phase 5 recoverability contract：已将不可修改的 execution queue prefix 纳入共享 certificate、QP diagnostics、step JSONL、summary 和 TensorBoard；固定四 variant 的 immutable `abort_required` rate 为 `61.19%/71.84%`，flush 为 `0%/12.04%`，hard flush safety p95 为 `2489.98 ms`，结果仍 No-Go，详见 `docs/PHASE5_RECOVERABILITY_CONTRACT_AUDIT_REPORT.md`。
+- P7 联合安全审计：已将 `worst_case DN-MPC + robust CBF-QP` 接入同一份 100-episode `adaptive_adversarial` locked-test；相同场景 local-CBF baseline 为 `97%/1%` safe capture/collision，robust CBF-QP 为 `50%/49%`，另有 `16%` boundary violation，结果为直接组合 No-Go，详见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
 - P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，严格 10 Hz 部署参考未满足，但作为工程权衡记录，不阻塞 P4 方法验证。
 
 ### 成功等级总览
@@ -137,7 +140,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 完成 candidate-level certified fallback audit；实际 post robust-state safety 为 79.74--100.0%，但 certified fallback rate 为 0--8.33%，immutable collision 仍为 50--75%，执行安全 gate 仍 No-Go；
 - [x] 完成包含 execution state 的多步 post-step 与 continuous-segment audit；仍未完成 forward-invariance proof；
 - [ ] 理论上界或通过 99% gate 的 held-out calibration set 支持的 robust margin coverage；
-- [ ] 将 P4 locked-test、退化通信和未见自适应目标纳入联合安全评估。
+- [x] 将 P4 locked-test、退化通信和未见自适应目标纳入联合安全评估；当前 `worst_case DN-MPC + robust CBF-QP` 未通过，直接组合路径停止扩展，详见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。
 
 ### P4 locked-test 正式协议
 

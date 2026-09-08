@@ -66,6 +66,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
 from encirclement3d.showcase import prepare_showcase_episode  # noqa: E402
 
 
@@ -110,6 +111,18 @@ def parse_args() -> argparse.Namespace:
         help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
     )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
+    parser.add_argument(
+        "--safety-layer",
+        choices=("local_cbf", "robust_cbf_qp"),
+        default="local_cbf",
+        help="Safety filter used after planning. robust_cbf_qp is velocity-level and conditional.",
+    )
+    parser.add_argument(
+        "--safety-config",
+        type=Path,
+        default=PROJECT_ROOT / "configs" / "innovation_safety.yaml",
+        help="Safety configuration used by --safety-layer robust_cbf_qp.",
+    )
     parser.add_argument("--without-local-cbf", action="store_true")
     return parser.parse_args()
 
@@ -147,6 +160,16 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         path = mpc_config_path.resolve()
         hashes[str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
     return hashes
+
+
+def add_safety_source_hashes(hashes: dict[str, str], safety_config_path: Path) -> None:
+    paths = (
+        PROJECT_ROOT / "src" / "encirclement3d" / "safety_qp.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "safety_certificate.py",
+        safety_config_path.resolve(),
+    )
+    for path in paths:
+        hashes[str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def weighted_belief_velocity(observation: dict[str, Any]) -> np.ndarray:
@@ -361,6 +384,8 @@ def run_episode(
     sampling_seed: int,
     projection_iterations: int,
     use_local_cbf: bool,
+    safety_layer: str | None = None,
+    robust_safety_config: RobustCBFQPConfig | None = None,
     prediction_refresh_interval_steps: int = 1,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
@@ -384,7 +409,17 @@ def run_episode(
             validate_scenario=validate_scenario,
         )
     fallback_controller = DynamicEncirclementController(env)
-    safety_filter = PursuitCBFSafetyFilter(env) if use_local_cbf else None
+    resolved_safety_layer = safety_layer or ("local_cbf" if use_local_cbf else "none")
+    if resolved_safety_layer not in {"none", "local_cbf", "robust_cbf_qp"}:
+        raise ValueError(f"Unsupported safety layer: {resolved_safety_layer}")
+    safety_filter = PursuitCBFSafetyFilter(env) if resolved_safety_layer == "local_cbf" else None
+    robust_safety_filter = (
+        RobustCBFQPFilter(env, robust_safety_config)
+        if resolved_safety_layer == "robust_cbf_qp"
+        else None
+    )
+    if resolved_safety_layer == "robust_cbf_qp" and robust_safety_config is None:
+        raise ValueError("robust_safety_config is required for the robust_cbf_qp safety layer")
     planner = ScenarioMinimaxMPC(planner_config)
     distributed_planner: DistributedMinimaxDNMPC | None = None
     previous_distributed_sequence: np.ndarray | None = None
@@ -523,14 +558,22 @@ def run_episode(
             candidate_expected_terminal = float("nan")
             candidate_worst_terminal = float("nan")
         if safety_filter is None:
-            safe_actions = np.asarray(nominal_actions, dtype=np.float64)
-            cbf_correction = 0.0
-            safety_latency_ms = 0.0
+            if robust_safety_filter is None:
+                safe_actions = np.asarray(nominal_actions, dtype=np.float64)
+                cbf_correction = 0.0
+                safety_latency_ms = 0.0
+                safety_diagnostics: Any = None
+            else:
+                safety_started = time.perf_counter()
+                safe_actions, safety_diagnostics = robust_safety_filter.filter(nominal_actions, observation)
+                safety_latency_ms = (time.perf_counter() - safety_started) * 1000.0
+                cbf_correction = float(safety_diagnostics.action_correction_norm)
         else:
             safety_started = time.perf_counter()
             safe_actions, cbf_diagnostics = safety_filter.filter(nominal_actions, observation)
             cbf_correction = float(cbf_diagnostics.action_correction_norm)
             safety_latency_ms = (time.perf_counter() - safety_started) * 1000.0
+            safety_diagnostics = cbf_diagnostics
         safe_actions = env._clip_rows(safe_actions, float(env.agents["defender_max_speed"]))
         total_control_latency_ms = (time.perf_counter() - control_started) * 1000.0
         observation, _reward, terminated, truncated, final_info = env.step(
@@ -566,6 +609,37 @@ def run_episode(
                 "worst_case_cost": float(planner_diagnostics.worst_case_cost),
                 "cbf_action_correction_norm": float(cbf_correction),
                 "safety_latency_ms": float(safety_latency_ms),
+                "safety_layer": resolved_safety_layer,
+                "safety_solver_success": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "solver_success")
+                    else bool(getattr(safety_diagnostics, "solver_success"))
+                ),
+                "safety_certificate_valid": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "certificate_valid")
+                    else bool(getattr(safety_diagnostics, "certificate_valid"))
+                ),
+                "safety_fallback_used": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "fallback_used")
+                    else bool(getattr(safety_diagnostics, "fallback_used"))
+                ),
+                "safety_abort_required": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "abort_required")
+                    else bool(getattr(safety_diagnostics, "abort_required"))
+                ),
+                "safety_minimum_barrier_m": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "minimum_barrier_value_m")
+                    else float(getattr(safety_diagnostics, "minimum_barrier_value_m"))
+                ),
+                "safety_maximum_constraint_violation_m": (
+                    None
+                    if safety_diagnostics is None or not hasattr(safety_diagnostics, "maximum_constraint_violation")
+                    else float(getattr(safety_diagnostics, "maximum_constraint_violation"))
+                ),
                 "total_control_latency_ms": float(total_control_latency_ms),
                 "nearest_target_distance": float(final_info["nearest_target_distance"]),
                 "candidate_count": float(candidate_minimum_distances.size),
@@ -602,6 +676,14 @@ def run_episode(
         "mean_prediction_age_steps": float(np.mean([row["prediction_age_steps"] for row in step_rows])),
         "max_prediction_age_steps": int(max(row["prediction_age_steps"] for row in step_rows)),
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
+        "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
+        "safety_certificate_valid_rate": _diagnostic_rate(step_rows, "safety_certificate_valid"),
+        "safety_fallback_rate": _diagnostic_rate(step_rows, "safety_fallback_used"),
+        "safety_abort_required_rate": _diagnostic_rate(step_rows, "safety_abort_required"),
+        "minimum_safety_barrier_m": _diagnostic_min(step_rows, "safety_minimum_barrier_m"),
+        "maximum_safety_constraint_violation_m": _diagnostic_max(
+            step_rows, "safety_maximum_constraint_violation_m"
+        ),
         "mean_total_control_latency_ms": float(
             np.nanmean([row["total_control_latency_ms"] for row in step_rows])
         ),
@@ -688,6 +770,25 @@ def percentile(values: list[float], quantile: float) -> float:
     return float(np.percentile(finite, quantile)) if finite.size else float("nan")
 
 
+def _diagnostic_values(step_rows: list[dict[str, Any]], key: str) -> list[float]:
+    return [float(row[key]) for row in step_rows if row.get(key) is not None and np.isfinite(float(row[key]))]
+
+
+def _diagnostic_rate(step_rows: list[dict[str, Any]], key: str) -> float:
+    values = _diagnostic_values(step_rows, key)
+    return float(np.mean(values)) if values else float("nan")
+
+
+def _diagnostic_min(step_rows: list[dict[str, Any]], key: str) -> float:
+    values = _diagnostic_values(step_rows, key)
+    return float(np.min(values)) if values else float("nan")
+
+
+def _diagnostic_max(step_rows: list[dict[str, Any]], key: str) -> float:
+    values = _diagnostic_values(step_rows, key)
+    return float(np.max(values)) if values else float("nan")
+
+
 def finite_mean(values: list[float]) -> float:
     finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
     return float(np.mean(finite)) if finite.size else float("nan")
@@ -772,6 +873,14 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             "p95": percentile(safety_latencies, 95),
             "p99": percentile(safety_latencies, 99),
         },
+        "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
+        "safety_certificate_valid_rate": _diagnostic_rate(step_rows, "safety_certificate_valid"),
+        "safety_fallback_rate": _diagnostic_rate(step_rows, "safety_fallback_used"),
+        "safety_abort_required_rate": _diagnostic_rate(step_rows, "safety_abort_required"),
+        "minimum_safety_barrier_m": _diagnostic_min(step_rows, "safety_minimum_barrier_m"),
+        "maximum_safety_constraint_violation_m": _diagnostic_max(
+            step_rows, "safety_maximum_constraint_violation_m"
+        ),
         "total_control_latency_ms": {
             "p50": percentile(total_control_latencies, 50),
             "p95": percentile(total_control_latencies, 95),
@@ -853,12 +962,30 @@ def main() -> None:
         if args.max_steps <= 0:
             raise ValueError("max-steps must be positive when supplied.")
         base_config["world"]["max_steps"] = int(args.max_steps)
-    use_local_cbf = not args.without_local_cbf
+    if args.safety_layer == "robust_cbf_qp" and args.without_local_cbf:
+        raise ValueError("--without-local-cbf cannot be combined with --safety-layer robust_cbf_qp")
+    use_local_cbf = args.safety_layer == "local_cbf" and not args.without_local_cbf
+    robust_safety_config: RobustCBFQPConfig | None = None
+    if args.safety_layer == "robust_cbf_qp":
+        safety_document = load_yaml(args.safety_config)
+        safety_mapping = dict(safety_document.get("safety", {}))
+        safety_probe = CaptureRadiusPursuit3DEnv(
+            copy.deepcopy(base_config),
+            obstacle_count=obstacle_count,
+            target_speed_scale=target_speed_scale,
+        )
+        safety_mapping.setdefault("max_speed_mps", float(safety_probe.agents["defender_max_speed"]))
+        safety_mapping.setdefault("max_acceleration_mps2", float(safety_probe.agents["defender_max_acceleration"]))
+        safety_mapping.setdefault("safety_margin_m", float(safety_probe.pursuit["safety_margin"]))
+        robust_safety_config = RobustCBFQPConfig.from_mapping(safety_mapping)
     serialized_arguments = {
         key: (str(value) if isinstance(value, Path) else value)
         for key, value in vars(args).items()
     }
     serialized_arguments["output_dir"] = str(output)
+    hashes = source_hashes(args.mpc_config)
+    if args.safety_layer == "robust_cbf_qp":
+        add_safety_source_hashes(hashes, args.safety_config)
     run_config = {
         "arguments": serialized_arguments,
         "environment_config": str(args.environment_config.resolve()),
@@ -877,15 +1004,24 @@ def main() -> None:
             "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
             "device": str(device),
             "use_local_cbf": use_local_cbf,
+            "safety_layer": args.safety_layer if use_local_cbf or args.safety_layer == "robust_cbf_qp" else "none",
+            "safety_config": str(args.safety_config.resolve()) if args.safety_layer == "robust_cbf_qp" else None,
             "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
         },
-        "source_hashes": source_hashes(args.mpc_config),
+        "source_hashes": hashes,
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
     all_summaries: dict[str, Any] = {}
     for method in methods:
         method_output = output / method
         method_output.mkdir(parents=True, exist_ok=True)
+        method_run_config = {
+            **run_config,
+            "evaluation": {**run_config["evaluation"], "method": method},
+        }
+        method_output.joinpath("config.yaml").write_text(
+            yaml.safe_dump(method_run_config, sort_keys=False), encoding="utf-8"
+        )
         rows: list[dict[str, Any]] = []
         all_step_rows: list[dict[str, float]] = []
         with (
@@ -921,6 +1057,8 @@ def main() -> None:
                     sampling_seed=sampling_seed + episode_index * 1000,
                     projection_iterations=projection_iterations,
                     use_local_cbf=use_local_cbf,
+                    safety_layer=(args.safety_layer if not args.without_local_cbf else "none"),
+                    robust_safety_config=robust_safety_config,
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     distributed_config=distributed_config,
                 )
@@ -961,6 +1099,12 @@ def main() -> None:
                     "max_prediction_age_steps",
                     "mean_safety_latency_ms",
                     "mean_total_control_latency_ms",
+                    "safety_solver_success_rate",
+                    "safety_certificate_valid_rate",
+                    "safety_fallback_rate",
+                    "safety_abort_required_rate",
+                    "minimum_safety_barrier_m",
+                    "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
                     "planner_success_count",
                     "planner_valid_count",
@@ -1005,6 +1149,7 @@ def main() -> None:
                     "num_samples": num_samples,
                     "sampling_steps": sampling_steps,
                     "use_local_cbf": int(use_local_cbf),
+                    "safety_layer": args.safety_layer if use_local_cbf or args.safety_layer == "robust_cbf_qp" else "none",
                     "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
                 },
                 {
