@@ -1,8 +1,8 @@
 # Mamba-Diffusion + DN-MPC + R-CLBF-QP 创新方法 TodoList
 
-> 版本：v3.3（2026-09-08）
+> 版本：v3.4（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`
-> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。新增 analytic rollout Jacobian 与 0.5 m active-constraint projection 后，四种 variant 的 safety p95 为 80.98--411.43 ms，held-out reachable-margin 覆盖率仍为 98.05--98.93%，连续段证书仍为 17.59--43.87%，不能接入主过滤器作为 99% 契约。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。详见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md`。
+> 当前结论：整体为 `Conditional Go`；预测模块未达到 10% minFDE 强门槛，P3 集中式 Scenario MPC、P4 固定 S3 validation 和 P4 未见自适应目标 locked-test 的围捕效果门槛已通过；P5 分层 robust-safe reset 已通过 velocity-level 条件性 gate，但执行扰动、command-authority/linearized projection 和连续段执行安全扩展均未通过。新增 analytic rollout Jacobian 与 0.5 m active-constraint projection 后，四种 variant 的 safety p95 为 80.98--411.43 ms；旧 `configured_nominal` held-out reachable-margin 覆盖率为 98.05--98.93%，而实际过滤器契约 `observed_execution_parameters` 在 q=.995、4096/4096 calibration/holdout 下的 runtime 覆盖率为 99.243--99.561%，但仍是经验审计，不是连续段证书或 forward-invariance 证明，也未接入主过滤器。低频预测缓存的严格 10 Hz 部署参考（100 ms 总控制 p95）尚未满足，但这不是 P4 方法验证的硬门槛；R-CLBF-QP 形式化结论和端到端完整结论尚未成立。详见 `docs/PHASE5_ACTIVE_JACOBIAN_AUDIT_REPORT.md` 和 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`。
 
 完整的研究问题、代码接口、阶段门槛、实验矩阵、Go/No-Go 规则和时间安排见：
 [`docs/INNOVATIVE_METHOD_FULL_PLAN.md`](INNOVATIVE_METHOD_FULL_PLAN.md)。本文档保留为日常执行清单。
@@ -130,7 +130,8 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 首版 queue-aware emergency braking 和 pending-command authority model；结果仍 No-Go，需继续校准真实执行器可干预边界；
 - [x] 首版 sequential linearized bounded projection；结果仍 No-Go，需优化有限差分 Jacobian/专用 QP 后再复验；
 - [x] 完成四种 execution variant、每种 2048 个样本的 reachable-set margin 经验校准；99.023% simultaneous coverage 已记录，但尚未接入主安全过滤器；
-- [x] 完成 held-out execution-parameter calibration、覆盖敏感性和 out-of-calibration policy；留出 simultaneous coverage 为 98.05--98.93%，因此 margin 不接入主过滤器；
+- [x] 完成 `configured_nominal` held-out execution-parameter calibration、覆盖敏感性和 out-of-calibration policy；保守口径留出 simultaneous coverage 为 98.05--98.93%，因此该口径 margin 不接入主过滤器；
+- [x] 完成 `observed_execution_parameters` 契约下的 q=.995、4096/4096 calibration/holdout runtime audit；runtime simultaneous coverage 为 99.243--99.561%，但这是经验契约证据，不是连续时间安全证明，margin 仍不自动接入主过滤器，详见 `docs/PHASE5_OBSERVED_PARAMETER_CONTRACT_AUDIT_REPORT.md`；
 - [x] 完成包含 execution state 的多步 post-step 与 continuous-segment audit；仍未完成 forward-invariance proof；
 - [ ] 理论上界或通过 99% gate 的 held-out calibration set 支持的 robust margin coverage；
 - [ ] 将 P4 locked-test、退化通信和未见自适应目标纳入联合安全评估。
@@ -161,7 +162,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 加入保守 active-constraint projection（阈值 `0.5 m`），重新完成固定 8-seed、4 variant robust formal audit；p95 显著下降但安全 gate 仍 No-Go。
 - [ ] 只有在执行扰动扩展通过后，才开始 learned CLBF；否则将安全贡献固定命名为条件性 robust CBF-QP。
 
-P5 恢复的停止条件：实际 post-step safety 低于 99%、QP/fallback 失败率高于 1%、或安全率提升以不可接受的 timeout/capture 损失为代价时，停止继续增大 margin，改为报告安全--效率 Pareto 或回退到可审计的一步过滤器。
+P5 恢复的停止条件：实际 post-step safety 低于 99%、QP/fallback 失败率高于 1%、或安全率提升以不可接受的 timeout/capture 损失为代价时，停止继续增大 margin，改为报告安全--效率 Pareto 或回退到可审计的一步过滤器。Observed-parameter 的经验 99% coverage 不能单独解除这些停止条件。
 
 ### 正式预测实验命令模板
 

@@ -10,6 +10,7 @@ horizon_steps: 5
 defenders: 4
 target_coverage: 0.99
 quantile: 0.99
+parameter_contract: configured_nominal
 sensitivity:
   command_noise_std_multiplier: [0.50, 0.75, 1.00, 1.25, 1.50]
   velocity_time_constant_multiplier: [0.50, 0.75, 1.00, 1.25, 1.50]

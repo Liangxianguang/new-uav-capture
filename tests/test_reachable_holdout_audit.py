@@ -42,6 +42,24 @@ def test_evaluate_margin_rejects_out_of_calibration_samples() -> None:
     assert summary["actionable_coverage"] is None
 
 
+def test_runtime_margin_uses_per_sample_base_radii() -> None:
+    errors = np.asarray([[0.5], [1.0]], dtype=np.float64)
+    base = np.asarray([[0.5], [0.5]], dtype=np.float64)
+    records = [{"in_calibration_domain": True}, {"in_calibration_domain": True}]
+    summary = evaluate_margin(
+        errors,
+        np.asarray([1.0], dtype=np.float64),
+        records=records,
+        target_coverage=0.9,
+        policy_decision="allow",
+        base_radii=base,
+        runtime_multiplier=2.0,
+    )
+    assert summary["runtime_multiplier"] == 2.0
+    assert summary["runtime_simultaneous_coverage"] == 1.0
+    assert summary["runtime_coverage_pass"] is True
+
+
 def test_declared_contract_rejects_changed_range_even_when_samples_overlap() -> None:
     calibration = {
         "action_delay_steps": 2,

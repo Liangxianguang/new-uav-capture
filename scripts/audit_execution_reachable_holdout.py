@@ -53,6 +53,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--calibration-samples", type=int)
     parser.add_argument("--holdout-samples", type=int)
     parser.add_argument("--sensitivity-samples", type=int)
+    parser.add_argument("--quantile", type=float)
+    parser.add_argument(
+        "--parameter-contract",
+        choices=("configured_nominal", "observed_execution_parameters"),
+        help="Parameter contract used by the no-noise reference rollout.",
+    )
     return parser.parse_args()
 
 
@@ -83,9 +89,13 @@ def _sample_rollout_error(
     rng: np.random.Generator,
     defenders: int,
     horizon_steps: int,
+    parameter_contract: str,
 ) -> tuple[np.ndarray, np.ndarray, ExecutionParameters, dict[str, Any]]:
     actual_parameters = _parameters(base_environment, variant, rng, randomized=True)
-    nominal_parameters = _parameters(base_environment, variant, rng, randomized=False)
+    if parameter_contract == "observed_execution_parameters":
+        nominal_parameters = actual_parameters
+    else:
+        nominal_parameters = _parameters(base_environment, variant, rng, randomized=False)
     action, action_queue = _sample_commands(
         rng,
         defenders=defenders,
@@ -184,6 +194,7 @@ def _draw_samples(
     seed: int,
     defenders: int,
     horizon_steps: int,
+    parameter_contract: str,
 ) -> tuple[np.ndarray, np.ndarray, list[dict[str, Any]]]:
     rng = np.random.default_rng(seed)
     errors = np.zeros((samples, horizon_steps), dtype=np.float64)
@@ -197,6 +208,7 @@ def _draw_samples(
             rng=rng,
             defenders=defenders,
             horizon_steps=horizon_steps,
+            parameter_contract=parameter_contract,
         )
         in_domain, out_of_domain_fields = _domain_status(parameters, calibration_domain)
         errors[sample_index] = error
@@ -209,6 +221,7 @@ def _draw_samples(
                 "parameter_values": parameter_record,
                 "in_calibration_domain": bool(in_domain),
                 "out_of_calibration_fields": out_of_domain_fields,
+                "parameter_contract": parameter_contract,
             }
         )
     return errors, base_radii, records
@@ -226,6 +239,9 @@ def fit_margin(
     simultaneous_ratios = np.max(errors / np.maximum(frozen_base[None, :], 1.0e-12), axis=1)
     multiplier = float(upper_quantile(simultaneous_ratios, quantile, axis=0))
     frozen_radius = frozen_base * multiplier
+    runtime_ratios = np.max(errors / np.maximum(base_radii, 1.0e-12), axis=1)
+    runtime_multiplier = float(upper_quantile(runtime_ratios, quantile, axis=0))
+    runtime_radius = base_radii * runtime_multiplier
     return {
         "quantile": float(quantile),
         "base_radius_quantile_m_by_step": frozen_base.tolist(),
@@ -235,6 +251,10 @@ def fit_margin(
         "calibration_horizon_coverage": np.mean(
             errors <= frozen_radius[None, :] + 1.0e-12, axis=0
         ).tolist(),
+        "runtime_multiplier": runtime_multiplier,
+        "runtime_calibration_coverage": float(
+            np.mean(np.all(errors <= runtime_radius + 1.0e-12, axis=1))
+        ),
     }
 
 
@@ -245,12 +265,14 @@ def evaluate_margin(
     records: list[dict[str, Any]],
     target_coverage: float,
     policy_decision: str,
+    base_radii: np.ndarray | None = None,
+    runtime_multiplier: float | None = None,
 ) -> dict[str, Any]:
     within = errors <= frozen_radius[None, :] + 1.0e-12
     simultaneous = np.all(within, axis=1)
     out_of_domain = np.asarray([not bool(record["in_calibration_domain"]) for record in records], dtype=bool)
     coverage = float(np.mean(simultaneous))
-    return {
+    summary = {
         "samples": int(errors.shape[0]),
         "simultaneous_coverage": coverage,
         "horizon_coverage": np.mean(within, axis=0).tolist(),
@@ -263,6 +285,23 @@ def evaluate_margin(
         "maximum_error_m": float(np.max(errors)),
         "maximum_normalized_error": float(np.max(errors / np.maximum(frozen_radius[None, :], 1.0e-12))),
     }
+    if base_radii is not None and runtime_multiplier is not None:
+        if base_radii.shape != errors.shape:
+            raise ValueError("base_radii must match errors when runtime margin is evaluated")
+        runtime_within = errors <= base_radii * float(runtime_multiplier) + 1.0e-12
+        runtime_simultaneous = np.all(runtime_within, axis=1)
+        summary.update(
+            {
+                "runtime_multiplier": float(runtime_multiplier),
+                "runtime_simultaneous_coverage": float(np.mean(runtime_simultaneous)),
+                "runtime_horizon_coverage": np.mean(runtime_within, axis=0).tolist(),
+                "runtime_coverage_pass": bool(np.mean(runtime_simultaneous) >= target_coverage),
+                "runtime_maximum_normalized_error": float(
+                    np.max(errors / np.maximum(base_radii * float(runtime_multiplier), 1.0e-12))
+                ),
+            }
+        )
+    return summary
 
 
 def _sensitivity_variant(variant: dict[str, Any], factor: str, level: float | int) -> dict[str, Any]:
@@ -334,6 +373,11 @@ def log_tensorboard(output: Path, config: dict[str, Any], summaries: dict[str, A
             prefix = f"HeldOut/{variant_name}"
             writer.add_scalar(f"{prefix}/calibration_coverage", summary["calibration"]["calibration_coverage"], 0)
             writer.add_scalar(f"{prefix}/holdout_coverage", summary["holdout"]["simultaneous_coverage"], 0)
+            writer.add_scalar(
+                f"{prefix}/holdout_runtime_coverage",
+                summary["holdout"].get("runtime_simultaneous_coverage", float("nan")),
+                0,
+            )
             writer.add_scalar(f"{prefix}/holdout_in_domain_rate", summary["holdout"]["in_calibration_domain_rate"], 0)
             writer.add_scalar(f"{prefix}/frozen_multiplier", summary["calibration"]["simultaneous_multiplier"], 0)
             writer.add_scalar(f"{prefix}/ood_coverage_observed", summary["out_of_calibration"]["simultaneous_coverage"], 0)
@@ -358,9 +402,15 @@ def log_tensorboard(output: Path, config: dict[str, Any], summaries: dict[str, A
                 "horizon_steps": int(config["horizon_steps"]),
                 "target_coverage": float(config["target_coverage"]),
                 "quantile": float(config["quantile"]),
+                "parameter_contract": str(config.get("parameter_contract", "configured_nominal")),
             },
             {
                 f"hparam/{name}/holdout_coverage": float(summary["holdout"]["simultaneous_coverage"])
+                for name, summary in summaries["variants"].items()
+            } | {
+                f"hparam/{name}/holdout_runtime_coverage": float(
+                    summary["holdout"].get("runtime_simultaneous_coverage", float("nan"))
+                )
                 for name, summary in summaries["variants"].items()
             },
         )
@@ -381,7 +431,12 @@ def main() -> None:
     sensitivity_samples = int(args.sensitivity_samples or document["sensitivity_samples_per_setting"])
     horizon_steps = int(document["horizon_steps"])
     defenders = int(document["defenders"])
-    quantile = float(document["quantile"])
+    parameter_contract = str(
+        args.parameter_contract or document.get("parameter_contract", "configured_nominal")
+    )
+    if parameter_contract not in {"configured_nominal", "observed_execution_parameters"}:
+        raise ValueError("parameter_contract must be configured_nominal or observed_execution_parameters")
+    quantile = float(args.quantile if args.quantile is not None else document["quantile"])
     target_coverage = float(document["target_coverage"])
     if min(calibration_samples, holdout_samples, sensitivity_samples, horizon_steps, defenders) <= 0:
         raise ValueError("sample counts, horizon_steps, and defenders must be positive")
@@ -402,6 +457,8 @@ def main() -> None:
         "calibration_samples": calibration_samples,
         "holdout_samples": holdout_samples,
         "sensitivity_samples": sensitivity_samples,
+        "quantile": quantile,
+        "parameter_contract": parameter_contract,
         "source_hashes": source_hashes((args.config.resolve(), base_path, execution_path, reference_path)),
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(config_snapshot, sort_keys=False), encoding="utf-8")
@@ -419,18 +476,20 @@ def main() -> None:
             seed=int(document["seed"]) + variant_index * 100003,
             defenders=defenders,
             horizon_steps=horizon_steps,
+            parameter_contract=parameter_contract,
         )
         margin = fit_margin(calibration_errors, calibration_base, quantile=quantile)
         frozen_radius = np.asarray(margin["frozen_radius_m_by_step"], dtype=np.float64)
         for record in records:
             calibration_records.append({"variant": variant_name, **record})
-        holdout_errors, _holdout_base, holdout = _draw_samples(
+        holdout_errors, holdout_base, holdout = _draw_samples(
             base_environment,
             variant,
             samples=holdout_samples,
             seed=int(document["seed"]) + 500000 + variant_index * 100003,
             defenders=defenders,
             horizon_steps=horizon_steps,
+            parameter_contract=parameter_contract,
         )
         for record in holdout:
             holdout_records.append({"variant": variant_name, **record})
@@ -440,13 +499,15 @@ def main() -> None:
             records=holdout,
             target_coverage=target_coverage,
             policy_decision="allow",
+            base_radii=holdout_base,
+            runtime_multiplier=float(margin["runtime_multiplier"]),
         )
         sensitivity_summary: dict[str, list[dict[str, Any]]] = {}
         for factor_index, (factor, levels) in enumerate(dict(document["sensitivity"]).items()):
             entries: list[dict[str, Any]] = []
             for level_index, level in enumerate(levels):
                 changed_variant = _sensitivity_variant(variant, factor, level)
-                errors, _base, setting_records = _draw_samples(
+                errors, base, setting_records = _draw_samples(
                     base_environment,
                     changed_variant,
                     domain_variant=variant,
@@ -458,6 +519,7 @@ def main() -> None:
                     + level_index * 17,
                     defenders=defenders,
                     horizon_steps=horizon_steps,
+                    parameter_contract=parameter_contract,
                 )
                 in_domain = float(np.mean([bool(item["in_calibration_domain"]) for item in setting_records]))
                 contract_in_domain = variant_matches_calibration_contract(changed_variant, variant)
@@ -472,6 +534,8 @@ def main() -> None:
                         records=setting_records,
                         target_coverage=target_coverage,
                         policy_decision=policy,
+                        base_radii=base,
+                        runtime_multiplier=float(margin["runtime_multiplier"]),
                     ),
                 }
                 entries.append(entry)
@@ -481,7 +545,7 @@ def main() -> None:
             base_environment,
             {**variant, **dict(document["out_of_calibration"][variant_name])},
         )
-        ood_errors, _ood_base, ood = _draw_samples(
+        ood_errors, ood_base, ood = _draw_samples(
             base_environment,
             ood_variant,
             domain_variant=variant,
@@ -489,6 +553,7 @@ def main() -> None:
             seed=int(document["seed"]) + 1300000 + variant_index * 100003,
             defenders=defenders,
             horizon_steps=horizon_steps,
+            parameter_contract=parameter_contract,
         )
         for record in ood:
             out_of_calibration_records.append({"variant": variant_name, **record})
@@ -498,6 +563,8 @@ def main() -> None:
             records=ood,
             target_coverage=target_coverage,
             policy_decision="reject_or_fallback",
+            base_radii=ood_base,
+            runtime_multiplier=float(margin["runtime_multiplier"]),
         )
         ood_summary["declared_contract_in_calibration_domain"] = bool(
             variant_matches_calibration_contract(ood_variant, variant)
