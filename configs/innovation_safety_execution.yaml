@@ -18,6 +18,7 @@ safety:
   solver_tolerance: 0.00000001
   solver_max_iterations: 100
   fallback_policy: barrier_recovery
+  execution_preview_horizon_steps: 5
 
 evaluation:
   episodes: 8
@@ -27,6 +28,7 @@ evaluation:
   max_steps: 250
   methods: [nominal, local_cbf, robust_cbf_qp]
   control_cycle_budget_ms: 100.0
+  swept_volume_subdivisions_per_step: 4
   robust_safe_seed_protocol:
     source_run: results/phase5_stratified_v8_seed649101
     episode_seeds: [649118, 649121, 649122, 649129, 649101, 649104, 649107, 649111]
@@ -37,6 +39,8 @@ variants:
     random_seed_offset: 104729
     action_delay_steps: 1
     command_noise_std: 0.03
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
     velocity_time_constant_seconds: 0.20
     drag_coefficient: 0.05
     max_speed_scale: 1.0
@@ -52,6 +56,8 @@ variants:
     random_seed_offset: 104729
     action_delay_steps: 2
     command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
     velocity_time_constant_seconds: 0.40
     drag_coefficient: 0.10
     max_speed_scale: 1.0

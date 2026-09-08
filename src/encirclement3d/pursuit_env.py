@@ -14,6 +14,13 @@ from typing import Any
 
 import numpy as np
 
+from encirclement3d.execution_dynamics import (
+    advance_execution,
+    clip_rows,
+    move_toward_velocity,
+    parameters_from_observation,
+)
+
 TETRAHEDRON_DIRECTIONS = np.array(
     [
         [1.0, 1.0, 1.0],
@@ -120,6 +127,8 @@ _EXECUTION_DEFAULTS: dict[str, Any] = {
     "random_seed_offset": 104729,
     "action_delay_steps": 0,
     "command_noise_std": 0.0,
+    "command_noise_bound_sigma": 3.0,
+    "clip_command_noise": True,
     "velocity_time_constant_seconds": 0.0,
     "drag_coefficient": 0.0,
     "max_speed_scale": 1.0,
@@ -262,7 +271,12 @@ def execution_settings(dynamics: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("dynamics.execution.random_seed_offset must be non-negative.")
     if int(settings["action_delay_steps"]) < 0:
         raise ValueError("dynamics.execution.action_delay_steps must be non-negative.")
-    for name in ("command_noise_std", "velocity_time_constant_seconds", "drag_coefficient"):
+    for name in (
+        "command_noise_std",
+        "command_noise_bound_sigma",
+        "velocity_time_constant_seconds",
+        "drag_coefficient",
+    ):
         if not np.isfinite(float(settings[name])) or float(settings[name]) < 0.0:
             raise ValueError(f"dynamics.execution.{name} must be finite and non-negative.")
     for name in ("max_speed_scale", "max_acceleration_scale", "mass_scale"):
@@ -495,10 +509,18 @@ class CaptureRadiusPursuit3DEnv:
             "execution": {
                 "enabled": bool(self.execution["enabled"]),
                 "action_delay_steps": int(self.execution["action_delay_steps"]),
+                "action_queue": [item.copy() for item in self.execution_action_queue],
                 "max_speed_mps": float(self.execution_max_speed),
                 "max_acceleration_mps2": float(self.execution_max_acceleration),
                 "mass_scale": float(self.execution_mass_scale),
                 "drag_coefficient": float(self.execution_drag_coefficient),
+                "velocity_time_constant_seconds": float(self.execution["velocity_time_constant_seconds"]),
+                "command_noise_std_mps": float(self.execution["command_noise_std"]),
+                "command_noise_bound_sigma": float(self.execution["command_noise_bound_sigma"]),
+                "command_noise_bound_mps": float(
+                    self.execution["command_noise_std"] * self.execution["command_noise_bound_sigma"]
+                ),
+                "clip_command_noise": bool(self.execution["clip_command_noise"]),
                 "action_execution_error_norm": float(self.action_execution_error_norm),
                 "mean_action_execution_error_norm": float(
                     self.action_execution_error_sum / max(self.action_execution_steps, 1)
@@ -766,29 +788,18 @@ class CaptureRadiusPursuit3DEnv:
             else:
                 delayed = desired
             self.last_delayed_actions = delayed.copy()
-            command = delayed + self.execution_rng.normal(
+            parameters = parameters_from_observation(self.observe(), self.dt)
+            noise = self.execution_rng.normal(
                 0.0,
                 float(self.execution["command_noise_std"]),
                 size=delayed.shape,
             )
-            command = self._clip_rows(command, float(self.execution_max_speed))
-            if float(self.execution["velocity_time_constant_seconds"]) <= 0.0:
-                tracked = command
-            else:
-                alpha = min(
-                    1.0,
-                    self.dt / float(self.execution["velocity_time_constant_seconds"]),
-                )
-                tracked = self.defender_velocities + alpha * (command - self.defender_velocities)
-            if float(self.execution_drag_coefficient) > 0.0:
-                tracked *= np.exp(-float(self.execution_drag_coefficient) * self.dt)
-            max_delta = (
-                float(self.execution_max_acceleration)
-                * self.dt
-                / max(float(self.execution_mass_scale), 1e-9)
-            )
-            executed = self._move_toward_velocity(self.defender_velocities, tracked, max_delta)
-            executed = self._clip_rows(executed, float(self.execution_max_speed))
+            executed = advance_execution(
+                self.defender_velocities,
+                delayed,
+                parameters,
+                noise=noise,
+            ).executed
 
         self.last_delayed_actions = delayed.copy()
         self.last_executed_actions = executed.copy()
@@ -1413,14 +1424,11 @@ class CaptureRadiusPursuit3DEnv:
 
     @staticmethod
     def _clip_rows(values: np.ndarray, max_norm: float) -> np.ndarray:
-        norms = np.linalg.norm(values, axis=1, keepdims=True)
-        return values * np.minimum(1.0, max_norm / np.maximum(norms, 1e-9))
+        return clip_rows(values, max_norm)
 
     @staticmethod
     def _move_toward_velocity(current: np.ndarray, desired: np.ndarray, max_delta: float) -> np.ndarray:
-        delta = desired - current
-        delta_norm = np.linalg.norm(delta, axis=1, keepdims=True)
-        return current + delta * np.minimum(1.0, max_delta / np.maximum(delta_norm, 1e-9))
+        return move_toward_velocity(current, desired, max_delta)
 
     def _record_history(self) -> None:
         self.history.append(

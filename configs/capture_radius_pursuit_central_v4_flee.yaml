@@ -23,6 +23,8 @@ dynamics:
     random_seed_offset: 104729
     action_delay_steps: 0
     command_noise_std: 0.0
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
     velocity_time_constant_seconds: 0.0
     drag_coefficient: 0.0
     max_speed_scale: 1.0

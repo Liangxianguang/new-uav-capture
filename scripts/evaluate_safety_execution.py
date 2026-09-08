@@ -31,7 +31,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from encirclement3d.pursuit_controllers import DynamicEncirclementController, PursuitCBFSafetyFilter  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
-from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
+from encirclement3d.safety_certificate import (  # noqa: E402
+    check_execution_rollout_safety,
+    check_execution_swept_volume_safety,
+    check_one_step_safety,
+)
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
 
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "innovation_safety_execution.yaml"
@@ -66,6 +70,7 @@ def source_hashes(config_path: Path) -> dict[str, str]:
         PROJECT_ROOT / "scripts" / "evaluate_safety_execution.py",
         PROJECT_ROOT / "scripts" / "evaluate_safety_qp.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "execution_dynamics.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "safety_qp.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "safety_certificate.py",
     )
@@ -145,6 +150,7 @@ def run_episode(
     obstacle_count: int,
     target_speed_scale: float,
     max_steps: int,
+    swept_volume_subdivisions_per_step: int,
     qp_config: RobustCBFQPConfig,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     env = CaptureRadiusPursuit3DEnv(config, obstacle_count=obstacle_count, target_speed_scale=target_speed_scale)
@@ -153,11 +159,16 @@ def run_episode(
     local_filter = PursuitCBFSafetyFilter(env)
     robust_filter = RobustCBFQPFilter(env, qp_config)
     command_valid = 0
+    command_execution_valid = 0
+    swept_volume_valid = 0
     executed_valid = 0
     command_next_safe = 0
     executed_next_safe = 0
     current_safe = 0
+    actual_robust_current_safe = 0
     command_barriers: list[float] = []
+    command_execution_barriers: list[float] = []
+    swept_volume_barriers: list[float] = []
     executed_barriers: list[float] = []
     execution_errors: list[float] = []
     safety_latencies: list[float] = []
@@ -186,6 +197,28 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             enforce_action_change=True,
+        )
+        execution_certificate = check_execution_rollout_safety(
+            certificate_observation(pre_step, env),
+            action,
+            dt=float(env.dt),
+            drone_radius=float(env.agents["drone_radius"]),
+            max_speed_mps=float(env.agents["defender_max_speed"]),
+            max_acceleration_mps2=float(env.agents["defender_max_acceleration"]),
+            safety_margin_m=float(env.pursuit["safety_margin"]),
+            robust_margin_m=float(qp_config.robust_margin_m),
+            action_change_limit_mps=qp_config.action_change_limit_mps,
+            horizon_steps=qp_config.execution_preview_horizon_steps,
+        )
+        swept_certificate = check_execution_swept_volume_safety(
+            certificate_observation(pre_step, env),
+            action,
+            dt=float(env.dt),
+            drone_radius=float(env.agents["drone_radius"]),
+            safety_margin_m=float(env.pursuit["safety_margin"]),
+            robust_margin_m=float(qp_config.robust_margin_m),
+            horizon_steps=qp_config.execution_preview_horizon_steps,
+            subdivisions_per_step=int(swept_volume_subdivisions_per_step),
         )
         observation, _reward, terminated, truncated, info = env.step(action)
         executed_action = np.asarray(env.last_executed_actions, dtype=np.float64).copy()
@@ -217,12 +250,29 @@ def run_episode(
             action_change_limit_mps=qp_config.action_change_limit_mps,
             enforce_action_change=False,
         )
+        actual_post_robust_certificate = check_execution_rollout_safety(
+            certificate_observation(observation, env),
+            np.zeros_like(executed_action),
+            dt=float(env.dt),
+            drone_radius=float(env.agents["drone_radius"]),
+            max_speed_mps=float(env.agents["defender_max_speed"]),
+            max_acceleration_mps2=float(env.agents["defender_max_acceleration"]),
+            safety_margin_m=float(env.pursuit["safety_margin"]),
+            robust_margin_m=float(qp_config.robust_margin_m),
+            action_change_limit_mps=qp_config.action_change_limit_mps,
+            horizon_steps=1,
+        )
         command_valid += int(command_certificate.valid)
+        command_execution_valid += int(execution_certificate.valid)
+        swept_volume_valid += int(swept_certificate.valid)
         executed_valid += int(executed_certificate.valid)
         command_next_safe += int(command_certificate.next_state_safe)
         executed_next_safe += int(executed_certificate.next_state_safe)
         current_safe += int(actual_post_certificate.current_state_safe)
+        actual_robust_current_safe += int(actual_post_robust_certificate.current_state_safe)
         command_barriers.append(float(command_certificate.next_min_barrier_m))
+        command_execution_barriers.append(float(execution_certificate.minimum_robust_barrier_m))
+        swept_volume_barriers.append(float(swept_certificate.minimum_robust_barrier_m))
         executed_barriers.append(float(executed_certificate.next_min_barrier_m))
         error_norm = float(np.mean(np.linalg.norm(executed_action - action, axis=1)))
         execution_errors.append(error_norm)
@@ -233,6 +283,18 @@ def run_episode(
                 "command_certificate_valid": bool(command_certificate.valid),
                 "command_next_state_safe": bool(command_certificate.next_state_safe),
                 "command_next_min_barrier_m": float(command_certificate.next_min_barrier_m),
+                "execution_rollout_certificate_valid": bool(execution_certificate.valid),
+                "execution_rollout_state_safe": bool(execution_certificate.rollout_state_safe),
+                "execution_rollout_min_robust_barrier_m": float(execution_certificate.minimum_robust_barrier_m),
+                "execution_rollout_min_nominal_barrier_m": float(execution_certificate.minimum_nominal_barrier_m),
+                "execution_rollout_horizon_steps": int(execution_certificate.horizon_steps),
+                "execution_rollout_violations": list(execution_certificate.violations),
+                "swept_volume_certificate_valid": bool(swept_certificate.valid),
+                "swept_volume_safe": bool(swept_certificate.swept_volume_safe),
+                "swept_volume_min_robust_barrier_m": float(swept_certificate.minimum_robust_barrier_m),
+                "swept_volume_min_nominal_barrier_m": float(swept_certificate.minimum_nominal_barrier_m),
+                "swept_volume_sample_count": int(swept_certificate.sample_count),
+                "swept_volume_violations": list(swept_certificate.violations),
                 "executed_certificate_valid": bool(executed_certificate.valid),
                 "executed_current_state_safe": bool(executed_certificate.current_state_safe),
                 "executed_next_state_safe": bool(executed_certificate.next_state_safe),
@@ -241,6 +303,9 @@ def run_episode(
                 "actual_post_state_safe": bool(actual_post_certificate.current_state_safe),
                 "actual_post_min_barrier_m": float(actual_post_certificate.current_min_barrier_m),
                 "actual_post_state_violations": list(actual_post_certificate.violations),
+                "actual_post_robust_state_safe": bool(actual_post_robust_certificate.current_state_safe),
+                "actual_post_robust_min_barrier_m": float(actual_post_robust_certificate.minimum_robust_barrier_m),
+                "actual_post_robust_violations": list(actual_post_robust_certificate.violations),
                 "command_action_norm_mps": float(np.max(np.linalg.norm(action, axis=1))),
                 "executed_action_norm_mps": float(np.max(np.linalg.norm(executed_action, axis=1))),
                 "action_execution_error_norm_mps": error_norm,
@@ -267,14 +332,19 @@ def run_episode(
             "capture_time_seconds": info.get("capture_time_seconds"),
             "min_clearance_m": float(info.get("min_clearance_so_far", info.get("min_clearance", np.nan))),
             "command_certificate_valid_rate": float(command_valid / max(len(step_rows), 1)),
+            "execution_rollout_certificate_valid_rate": float(command_execution_valid / max(len(step_rows), 1)),
+            "swept_volume_certificate_valid_rate": float(swept_volume_valid / max(len(step_rows), 1)),
             "executed_certificate_valid_rate": float(executed_valid / max(len(step_rows), 1)),
             "command_next_state_safe_rate": float(command_next_safe / max(len(step_rows), 1)),
             "executed_next_state_safe_rate": float(executed_next_safe / max(len(step_rows), 1)),
             "executed_current_state_safe_rate": float(current_safe / max(len(step_rows), 1)),
             "actual_post_state_safe_rate": float(current_safe / max(len(step_rows), 1)),
+            "actual_post_robust_state_safe_rate": float(actual_robust_current_safe / max(len(step_rows), 1)),
             "mean_action_execution_error_norm_mps": _finite_mean(execution_errors),
             "safety_latency_p95_ms": _percentile(safety_latencies, 95.0),
             "minimum_command_next_barrier_m": float(np.min(command_barriers, initial=np.inf)),
+            "minimum_execution_rollout_robust_barrier_m": float(np.min(command_execution_barriers, initial=np.inf)),
+            "minimum_swept_volume_robust_barrier_m": float(np.min(swept_volume_barriers, initial=np.inf)),
             "minimum_executed_next_barrier_m": float(np.min(executed_barriers, initial=np.inf)),
             "minimum_actual_post_barrier_m": float(
                 min((float(row["actual_post_min_barrier_m"]) for row in step_rows), default=float("inf"))
@@ -300,17 +370,32 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "mean_capture_time_seconds": _finite_mean([float(row["capture_time_seconds"]) for row in rows if row["capture_time_seconds"] is not None]),
         "mean_min_clearance_m": _finite_mean([float(row["min_clearance_m"]) for row in rows]),
         "command_certificate_valid_rate": _finite_mean([float(row["command_certificate_valid_rate"]) for row in rows]),
+        "execution_rollout_certificate_valid_rate": _finite_mean(
+            [float(row["execution_rollout_certificate_valid_rate"]) for row in rows]
+        ),
+        "swept_volume_certificate_valid_rate": _finite_mean(
+            [float(row["swept_volume_certificate_valid_rate"]) for row in rows]
+        ),
         "executed_certificate_valid_rate": _finite_mean([float(row["executed_certificate_valid_rate"]) for row in rows]),
         "command_next_state_safe_rate": _finite_mean([float(row["command_next_state_safe_rate"]) for row in rows]),
         "executed_next_state_safe_rate": _finite_mean([float(row["executed_next_state_safe_rate"]) for row in rows]),
         "executed_current_state_safe_rate": _finite_mean([float(row["executed_current_state_safe_rate"]) for row in rows]),
         "actual_post_state_safe_rate": _finite_mean([float(row["actual_post_state_safe_rate"]) for row in rows]),
+        "actual_post_robust_state_safe_rate": _finite_mean(
+            [float(row["actual_post_robust_state_safe_rate"]) for row in rows]
+        ),
         "mean_action_execution_error_norm_mps": _finite_mean([float(row["mean_action_execution_error_norm_mps"]) for row in rows]),
         "safety_latency_ms": {
             "p50": _percentile([float(row["safety_latency_ms"]) for row in steps], 50),
             "p95": _percentile([float(row["safety_latency_ms"]) for row in steps], 95),
         },
         "minimum_command_next_barrier_m": float(np.min([row["minimum_command_next_barrier_m"] for row in rows])),
+        "minimum_execution_rollout_robust_barrier_m": float(
+            np.min([row["minimum_execution_rollout_robust_barrier_m"] for row in rows])
+        ),
+        "minimum_swept_volume_robust_barrier_m": float(
+            np.min([row["minimum_swept_volume_robust_barrier_m"] for row in rows])
+        ),
         "minimum_executed_next_barrier_m": float(np.min([row["minimum_executed_next_barrier_m"] for row in rows])),
         "minimum_actual_post_barrier_m": float(np.min([row["minimum_actual_post_barrier_m"] for row in rows])),
         "solver_fallback_count": int(sum(row["solver_fallback_count"] for row in rows)),
@@ -341,6 +426,15 @@ def log_tensorboard(output: Path, config: dict[str, Any], rows: list[dict[str, A
                 "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),
                 "hparam/executed_next_state_safe_rate": float(summary["executed_next_state_safe_rate"]),
                 "hparam/executed_certificate_valid_rate": float(summary["executed_certificate_valid_rate"]),
+                "hparam/execution_rollout_certificate_valid_rate": float(
+                    summary["execution_rollout_certificate_valid_rate"]
+                ),
+                "hparam/swept_volume_certificate_valid_rate": float(
+                    summary["swept_volume_certificate_valid_rate"]
+                ),
+                "hparam/actual_post_robust_state_safe_rate": float(
+                    summary["actual_post_robust_state_safe_rate"]
+                ),
             },
         )
 
@@ -409,6 +503,9 @@ def main() -> None:
                     obstacle_count=int(evaluation["obstacle_count"]),
                     target_speed_scale=float(evaluation["target_speed_scale"]),
                     max_steps=max_steps,
+                    swept_volume_subdivisions_per_step=int(
+                        evaluation.get("swept_volume_subdivisions_per_step", 4)
+                    ),
                     qp_config=qp_config,
                 )
                 row["episode_index"] = episode_index

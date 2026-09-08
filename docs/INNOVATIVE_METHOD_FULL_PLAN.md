@@ -413,7 +413,7 @@ P3-F 只能作为上限，不能作为主方法结果。
 
 P5 是 R-CLBF-QP 前的必要基线。先解决 QP 可行性、离散时间约束和执行误差，再讨论 learned CLBF。
 
-当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。分层协议从 64 个候选 seed 中按 tight/nominal 两个 robust-safe strata 固定选择 8 个 episode；8/8 初始状态有效，130/130 步独立 certificate、next-state safety 和 solver success 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。由此通过的是“在冻结 reset 和速度级假设下的条件性 P5 gate”，不是无条件闭环安全保证，也不是 R-CLBF-QP。
+当前状态：`src/encirclement3d/safety_qp.py`、`src/encirclement3d/safety_certificate.py` 和 `scripts/evaluate_safety_qp.py` 已实现 velocity-level robust CBF-QP、独立一步 checker、环境评估、失败分类和 TensorBoard/JSONL 记录。分层协议从 64 个候选 seed 中按 tight/nominal 两个 robust-safe strata 固定选择 8 个 episode；8/8 初始状态有效，130/130 步独立 certificate、next-state safety 和 solver success 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。由此通过的是“在冻结 reset 和速度级假设下的条件性 P5 gate”，不是无条件闭环安全保证，也不是 R-CLBF-QP。后续 execution-state 扩展已统一延迟队列、tracking、噪声、阻力、加速度和质量参数，并加入五步 preview 与 sampled swept-volume checker，但扩展 gate 仍为 No-Go，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
 
 当前配置禁用 slack，动作变化限制由 `max_acceleration * dt` 推导，鲁棒 margin 合计为 `0.46 m`，另加基础 safety margin `0.35 m`，不可行时使用经过独立 checker 的 `barrier_recovery` fallback。hard-case scan 已完成四类 robust-safe 状态和一个故意 unsafe reset 的诊断；soft-slack 结果仍只能作诊断，不能算作安全证书通过。
 
@@ -470,16 +470,18 @@ s.t. discrete barrier constraints
 - [x] 将初始状态不在收缩安全集与 QP infeasible 分成两个 gate；分层正式结果为 8/8 初始状态有效、0 个 QP infeasible 步骤。
 - [x] 至少比较 hard-barrier、soft-slack diagnostic、local CBF 和 fallback 四种路径，并保留 certificate invalid 标记；结果见 `docs/PHASE5_HARD_CASE_SCAN_REPORT.md`。
 - [x] 为 zero-action 之外的 fallback 实现 `barrier_recovery`，fallback 仍经过独立 checker；当前 fallback 当步回到 robust set 的比例为 26.3%。
-- [x] 在窄通道、箱体拐角、边界和近距离机间状态上完成独立数值扫描；连续时间和多步执行压力测试仍未完成。
+- [x] 在窄通道、箱体拐角、边界和近距离机间状态上完成独立数值扫描；已完成共享 execution-state 下的 sampled swept-volume 和多步 post-step 审计，但连续时间证明和 forward-invariance 仍未完成。
 - [x] 完成 delayed/noisy/tracking/randomized execution 的 8-seed、2-variant、3-method multi-step audit；真实 post-step checker 已纳入，结果显示当前 robust CBF-QP 未通过执行扰动扩展，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
+- [x] 建立共享 execution-state contract：环境、过滤器、rollout 和独立 checker 使用同一执行动力学；加入 pending queue、五步 execution preview、四段 swept-volume 采样和 Lipschitz 位移修正，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
 
 正式结果见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`，执行扰动扩展见
-`docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`，历史未分层结果见
-`docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。下一阶段必须优先完成执行延迟/噪声、连续时间 swept-volume 和多步安全审计，再决定是否进入 P6。
+`docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md` 和
+`docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`，历史未分层结果见
+`docs/PHASE5_SAFETY_DIAGNOSTIC_REPORT.md`。下一阶段必须优先完成 queue-aware braking、command-authority、线性化 QP、reachable-set calibration，以及连续时间 swept-volume 和多步安全审计，再决定是否进入 P6。
 
-执行扰动审计已完成但未通过：mild variant 的 robust CBF-QP safe capture 为 50.0%，hard randomized variant 为 0.0%；实际 post-step contracted-set safety rate 分别为 74.84% 和 58.18%，fallback 分别为 117 和 200 次。因此 P5 仍只在冻结 velocity-level 一步假设下 conditional pass，P6 learned CLBF 保持暂停。
+执行扰动审计已完成但未通过：旧版 mild variant 的 robust CBF-QP safe capture 为 50.0%，hard randomized variant 为 0.0%；状态感知 v5 的对应结果为 37.5% 和 25.0%，实际 post-step contracted-set safety rate 为 90.78% 和 67.67%，fallback 为 54 和 505 次，过滤器 p95 为 671.36 ms 和 1945.74 ms。因此 P5 仍只在冻结 velocity-level 一步假设下 conditional pass，P6 learned CLBF 保持暂停。状态感知扩展不能被解释为 execution-invariant safety 或可部署安全层。
 
-P5 恢复必须将延迟命令队列、执行跟踪状态和随机参数纳入 filter state，并让 environment、rollout、QP 与独立 checker 共享同一执行动力学；单纯增大静态 margin 不视为修复。
+P5 恢复必须在已实现的共享 execution-state contract 上继续增加延迟队列可干预性、emergency braking、线性化 QP 和 reachable-set margin calibration；单纯增大静态 margin 不视为修复。
 
 如果 P5 只能证明“多数时候求解器找到较安全动作”，只能命名为 `robust CBF-QP safety filter`，不能升级为闭环形式化证明。
 

@@ -13,7 +13,10 @@ from time import perf_counter
 from typing import Any
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, linprog, minimize
+from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint, linprog, minimize
+
+from encirclement3d.execution_dynamics import queue_from_observation
+from encirclement3d.safety_certificate import check_execution_rollout_safety, execution_barrier_values
 
 
 def _unit(vector: np.ndarray, fallback: np.ndarray | None = None) -> np.ndarray:
@@ -109,6 +112,7 @@ class RobustCBFQPConfig:
     solver_tolerance: float = 1.0e-8
     solver_max_iterations: int = 100
     fallback_policy: str = "zero_action"
+    execution_preview_horizon_steps: int = 5
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.gamma) <= 1.0:
@@ -137,6 +141,8 @@ class RobustCBFQPConfig:
             raise ValueError("action_change_limit_mps must be positive when provided.")
         if int(self.solver_max_iterations) <= 0:
             raise ValueError("solver_max_iterations must be positive.")
+        if int(self.execution_preview_horizon_steps) <= 0:
+            raise ValueError("execution_preview_horizon_steps must be positive.")
         if str(self.fallback_policy) not in {"zero_action", "nominal_clipped", "barrier_recovery"}:
             raise ValueError("Unsupported fallback_policy.")
 
@@ -230,6 +236,10 @@ class RobustCBFQPFilter:
             raise ValueError("desired_actions must be finite with shape [defenders, 3]")
         desired = _clip_rows(desired, self.config.max_speed_mps)
         action_dimension = int(desired.size)
+
+        execution = observation.get("execution", {})
+        if isinstance(execution, dict) and bool(execution.get("enabled", False)):
+            return self._filter_with_execution_model(desired, observation, started)
 
         rows: list[np.ndarray] = []
         rhs: list[float] = []
@@ -466,6 +476,191 @@ class RobustCBFQPFilter:
             "max_speed_mps": float(self.config.max_speed_mps),
             "max_acceleration_mps2": float(self.config.max_acceleration_mps2),
         }
+
+    def _filter_with_execution_model(
+        self,
+        desired: np.ndarray,
+        observation: dict[str, Any],
+        started: float,
+    ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
+        """Project commands against the queued, tracked, executed rollout."""
+
+        safety_observation = dict(observation)
+        safety_observation.setdefault("world_lower_bounds", np.asarray(self.env.lower, dtype=np.float64))
+        safety_observation.setdefault("world_upper_bounds", np.asarray(self.env.upper, dtype=np.float64))
+        safety_observation.setdefault("obstacles", list(getattr(self.env, "obstacles", ())))
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+        action_dimension = int(desired.size)
+        queue = queue_from_observation(observation, positions.shape[0])
+        preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
+        nominal_values, robust_values, assumptions = execution_barrier_values(
+            safety_observation,
+            desired,
+            dt=float(self.env.dt),
+            drone_radius=float(self.env.agents["drone_radius"]),
+            safety_margin_m=float(self.config.safety_margin_m),
+            robust_margin_m=float(self.config.robust_margin_m),
+            horizon_steps=preview_steps,
+        )
+        names = list(robust_values)
+        barrier_values = [float(robust_values[name]) for name in names]
+        rows = [np.zeros(action_dimension, dtype=np.float64) for _ in names]
+        rhs = [-value for value in barrier_values]
+
+        def fallback(reason: str, category: str, *, precondition_valid: bool) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
+            return self._fallback(
+                desired,
+                observation,
+                barrier_values,
+                names,
+                rows,
+                rhs,
+                started,
+                reason,
+                failure_category=category,
+                precondition_valid=precondition_valid,
+            )
+
+        current_probe = check_execution_rollout_safety(
+            safety_observation,
+            np.zeros_like(desired),
+            dt=float(self.env.dt),
+            drone_radius=float(self.env.agents["drone_radius"]),
+            max_speed_mps=float(self.config.max_speed_mps),
+            max_acceleration_mps2=float(self.config.max_acceleration_mps2),
+            safety_margin_m=float(self.config.safety_margin_m),
+            robust_margin_m=float(self.config.robust_margin_m),
+            tolerance=float(self.config.solver_tolerance),
+            action_change_limit_mps=self.config.action_change_limit_mps,
+            horizon_steps=1,
+        )
+        if not current_probe.current_state_safe:
+            return fallback(
+                "current_state_outside_robust_safe_set_before_projection",
+                "execution_precondition_invalid",
+                precondition_valid=False,
+            )
+
+        lower_action = np.full(action_dimension, -self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        upper_action = np.full(action_dimension, self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        change_limit = self.config.action_change_limit_mps
+        if change_limit is None:
+            change_limit = float(self.config.max_acceleration_mps2 * self.env.dt)
+        lower_action = np.maximum(lower_action, velocities.reshape(-1) - float(change_limit))
+        upper_action = np.minimum(upper_action, velocities.reshape(-1) + float(change_limit))
+        if np.any(lower_action > upper_action + 1.0e-12):
+            return fallback("inconsistent action bounds", "inconsistent_action_bounds", precondition_valid=True)
+
+        def constraint_values(value: np.ndarray) -> np.ndarray:
+            _nominal, robust, _assumptions = execution_barrier_values(
+                safety_observation,
+                value[:action_dimension].reshape(desired.shape),
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                horizon_steps=preview_steps,
+            )
+            values = np.asarray([float(robust[name]) for name in names], dtype=np.float64)
+            if self.config.slack_enabled:
+                values = values + value[action_dimension:]
+            return values
+
+        slack_count = len(names) if self.config.slack_enabled else 0
+        variable_count = action_dimension + slack_count
+        initial = np.zeros(variable_count, dtype=np.float64)
+        initial[:action_dimension] = np.clip(desired.reshape(-1), lower_action, upper_action)
+        initial_values = constraint_values(initial)
+        if slack_count:
+            initial[action_dimension:] = np.maximum(-initial_values, 0.0)
+        nominal_flat = desired.reshape(-1)
+
+        def objective(value: np.ndarray) -> float:
+            delta = value[:action_dimension] - nominal_flat
+            slack = value[action_dimension:] if slack_count else np.empty(0, dtype=np.float64)
+            return float(
+                0.5 * float(self.config.action_weight) * np.dot(delta, delta)
+                + 0.5 * float(self.config.slack_weight) * np.dot(slack, slack)
+            )
+
+        def gradient(value: np.ndarray) -> np.ndarray:
+            result = np.zeros(variable_count, dtype=np.float64)
+            result[:action_dimension] = float(self.config.action_weight) * (value[:action_dimension] - nominal_flat)
+            if slack_count:
+                result[action_dimension:] = float(self.config.slack_weight) * value[action_dimension:]
+            return result
+
+        if slack_count:
+            lower_bounds = np.concatenate([lower_action, np.zeros(slack_count, dtype=np.float64)])
+            upper_bounds = np.concatenate([upper_action, np.full(slack_count, np.inf, dtype=np.float64)])
+        else:
+            lower_bounds = lower_action
+            upper_bounds = upper_action
+        try:
+            result = minimize(
+                objective,
+                initial,
+                jac=gradient,
+                method="SLSQP",
+                bounds=Bounds(lower_bounds, upper_bounds),
+                constraints=(NonlinearConstraint(constraint_values, 0.0, np.inf),),
+                options={
+                    "ftol": float(self.config.solver_tolerance),
+                    "maxiter": int(self.config.solver_max_iterations),
+                    "disp": False,
+                },
+            )
+        except (FloatingPointError, ValueError, RuntimeError) as error:
+            return fallback(str(error), "solver_failure", precondition_valid=True)
+
+        if not bool(result.success) or not np.isfinite(result.x).all():
+            category = "execution_rollout_infeasible" if bool(np.isfinite(result.x).all()) else "solver_failure"
+            return fallback(str(result.message), category, precondition_valid=True)
+        solution = np.asarray(result.x, dtype=np.float64)
+        actions = solution[:action_dimension].reshape(desired.shape)
+        _nominal, final_robust, _final_assumptions = execution_barrier_values(
+            safety_observation,
+            actions,
+            dt=float(self.env.dt),
+            drone_radius=float(self.env.agents["drone_radius"]),
+            safety_margin_m=float(self.config.safety_margin_m),
+            robust_margin_m=float(self.config.robust_margin_m),
+            horizon_steps=preview_steps,
+        )
+        residuals = np.asarray([float(final_robust[name]) for name in names], dtype=np.float64)
+        slack = solution[action_dimension:] if slack_count else np.empty(0, dtype=np.float64)
+        minimum_residual = float(np.min(residuals, initial=np.inf))
+        maximum_violation = float(max(0.0, -minimum_residual))
+        maximum_slack = float(np.max(slack, initial=0.0))
+        certificate_valid = bool(
+            maximum_violation <= float(self.config.solver_tolerance)
+            and maximum_slack <= float(self.config.slack_tolerance_m)
+        )
+        diagnostics = RobustCBFQPDiagnostics(
+            status="optimal" if certificate_valid else "optimal_with_slack",
+            solver_success=True,
+            solver_message=str(result.message),
+            solver_iterations=int(getattr(result, "nit", 0)),
+            action_correction_norm=float(np.mean(np.linalg.norm(actions - desired, axis=1))),
+            minimum_barrier_value_m=float(min(barrier_values, default=float("inf"))),
+            minimum_constraint_residual=minimum_residual,
+            maximum_constraint_violation=maximum_violation,
+            maximum_safety_slack_m=maximum_slack,
+            active_constraint_count=int(np.count_nonzero(residuals <= max(float(self.config.solver_tolerance) * 10.0, 1.0e-7))),
+            constraint_count=len(names),
+            fallback_used=False,
+            certificate_valid=certificate_valid,
+            latency_ms=float((perf_counter() - started) * 1000.0),
+            assumptions={**self._assumption_dict(), **assumptions},
+            failure_category="none" if certificate_valid else "slack_violation",
+            fallback_reason=None,
+            precondition_valid=True,
+            recovery_action_used=False,
+            barrier_values_m={name: float(value) for name, value in zip(names, barrier_values)},
+            constraint_residuals_m={name: float(value) for name, value in zip(names, residuals)},
+        )
+        return actions, diagnostics
 
     def _fallback(
         self,

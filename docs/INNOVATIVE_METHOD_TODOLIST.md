@@ -29,7 +29,7 @@
 - 正式数据集：已生成 `v3_multimodal` train/validation/locked-test，三个 split 的 episode seed 不重叠，metadata source hash 与当前代码一致。
 - Phase 3：集中式 Scenario MPC 已完成 formal-small 和 S3 validation；三个 prediction checkpoint seed 在同一组 12 个 S3 场景上均达到 100% safe capture、0% collision，已通过集中式规划门槛。
 - Phase 4：有限通信 sequential best-response DN-MPC、ideal/delayed/dropout/none 通信模式、fallback 和三种 checkpoint seed 的 S3 对照均已完成；四轮 best-response + shifted warm start 后 planner p95 为 8.72--12.47 ms、total-control p95 为 50.38--51.51 ms，四种模式和三个 seed 的 effective/converged plan rate 均为 100%，固定 S3 validation gate 已通过。
-- Phase 5：已实现 solver/fallback/precondition 分类、命名约束残差、独立 checker 结果和 TensorBoard 记录；安全单元测试 9/9 通过。分层协议从 64 个候选 seed 中固定选择 tight/nominal 两层共 8 个 robust-safe episode；130/130 步 solver、独立 certificate 和 next-state safety 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。P5 通过的是冻结协议下的 velocity-level 条件性 gate，详见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`；R-CLBF-QP 和闭环证明仍未开始。
+- Phase 5：已实现 solver/fallback/precondition 分类、命名约束残差、独立 checker 结果和 TensorBoard 记录；安全单元测试 9/9 通过。分层协议从 64 个候选 seed 中固定选择 tight/nominal 两层共 8 个 robust-safe episode；130/130 步 solver、独立 certificate 和 next-state safety 均通过，QP infeasible、solver failure、fallback、slack 和碰撞均为 0。P5 通过的是冻结协议下的 velocity-level 条件性 gate，详见 `docs/PHASE5_STRATIFIED_VALIDATION_REPORT.md`；R-CLBF-QP 和闭环证明仍未开始。后续 execution-state contract、五步 preview 和 sampled swept-volume 审计已完成，但扩展 gate 为 No-Go，详见 `docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`。
 - P4 未见自适应目标 locked-test：已完成同一份 100-episode 场景文件上的 3 checkpoint × 6 method 正式矩阵；共享 DynamicEncirclement baseline 为 95.00% safe capture、2.00% collision，预测驱动方法为 97.33--99.00% safe capture、0--1.00% collision，solver/valid/effective rate 均达到 99% 以上。正式结果见 `docs/PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md`；低频缓存的总控制 p95 为 167.73--229.62 ms，严格 10 Hz 部署参考未满足，但作为工程权衡记录，不阻塞 P4 方法验证。
 
 ### 成功等级总览
@@ -93,6 +93,7 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 - [x] 完成 predictor p95 超过 100 ms 的低频预测 + 候选缓存 + 高频 planner/safety 诊断；总控制 p95 超过严格 10 Hz 部署参考，因此保留部署限制说明，但不阻塞 P4 方法验证，后续转向 batch/异步/蒸馏优化。
 - [x] 完成固定 40-episode 场景上的 `8x8`、`4x8`、`2x8`、`8x4` 采样消融；四组 safe capture 均为 92.5%、collision 均为 7.5%，`2x8` 的 total p95 最低，但暂不据此替换主配置。
 - [x] 完成 P5 execution delay/noise/tracking/randomization multi-step audit，加入真实 post-step 独立 checker；robust CBF-QP execution extension 为 No-Go，详见 `docs/PHASE5_EXECUTION_PERTURBATION_AUDIT_REPORT.md`。
+- [x] 完成共享 execution-state contract、五步 execution preview 和 sampled swept-volume audit；状态感知 v5 仍为 No-Go，不能宣称 execution-invariant safety。
 - [ ] 在 P5 通过执行扰动扩展前，禁止训练或接入 learned CLBF，也禁止写“R-CLBF-QP 闭环安全证明”。
 - [x] P5 验证通过后单独提交；不得将未验证的 `README.md` 或 `docs/EXPERIMENTAL_STUDY_REPORT.md` 加入提交。
 - [ ] 每完成一个重大阶段，单独提交到 `origin/main`；提交前不 stage 用户已有的 `README.md` 或实验总结。P4 locked-test 报告和缓存延迟消融待本轮回归后提交。
@@ -120,7 +121,11 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 当前 P5 结论是 **conditional pass**，不是无条件安全保证。执行扰动扩展已经完成但未通过。仍需完成：
 
 - [x] execution delay/noise/acceleration/tracking perturbation Monte Carlo 和真实 post-step 多步审计；当前 robust CBF-QP 未通过，不能宣称 execution-invariant safety；
+- [x] 在共享 execution-state contract 上完成 sampled swept-volume safety 审计；该审计仍不能替代连续时间证明，且 execution gate 为 No-Go；
 - [ ] continuous-time swept-volume safety；
+- [ ] queue-aware emergency braking 和 pending-command authority model；
+- [ ] sequential linearized QP/有界求解器，降低当前 nonlinear projection 的 fallback 与延迟；
+- [ ] reachable-set margin calibration 与连续时间安全审计；
 - [ ] multi-step forward-invariance proof/audit under a filter contract that includes the execution state;
 - [ ] 理论/独立校准集支持的 robust margin coverage；
 - [ ] 将 P4 locked-test、退化通信和未见自适应目标纳入联合安全评估。
@@ -136,13 +141,15 @@ Phase 2 的 Conditional Go 只允许先做集中式诊断；集中式 P3 validat
 
 ### P5 执行扰动恢复路线
 
-当前审计已经证明静态 margin 不能覆盖延迟、tracking 和实际 post-step 状态。恢复路线如下：
+当前审计已经证明静态 margin 不能覆盖延迟、tracking 和实际 post-step 状态。execution-state contract 已实现，但 queued command authority、恢复动作和求解器效率仍不足。恢复路线如下：
 
-- [ ] 将延迟命令队列、执行速度/跟踪状态和随机执行参数纳入安全过滤器状态，而不是只在命令速度上加 margin。
-- [ ] 让环境 `step()`、独立 dynamics rollout、QP 约束和 certificate checker 使用同一执行动力学。
+- [x] 将延迟命令队列、执行速度/跟踪状态和随机执行参数纳入安全过滤器状态，而不是只在命令速度上加 margin。
+- [x] 让环境 `step()`、独立 dynamics rollout、QP 约束和 certificate checker 使用同一执行动力学。
 - [ ] 由理论 reachable-set bound 或独立 calibration set 冻结 observation/delay/tracking/noise 的 margin，并报告覆盖率。
-- [ ] 增加 swept-volume 连续时间检查和多步 post-step forward-invariance audit；命令证书不能替代实际执行证书。
-- [ ] 在 mild 和 hard 两类扰动、窄通道、障碍拐角、边界、近距离机间场景上重跑 8 个固定 seed，并报告 safe capture、termination、fallback、certificate invalid 和实际安全率。
+- [x] 增加 sampled swept-volume 检查和多步 post-step audit；连续时间证明和 forward-invariance 仍未完成，命令证书不能替代实际执行证书。
+- [x] 在 mild 和 hard 两类扰动、固定 8 个 seed、三种方法上重跑，并报告 safe capture、termination、fallback、certificate invalid 和实际安全率；v5 execution gate 为 No-Go。
+- [ ] 增加 queue-aware emergency braking，并明确 pending command 可干预/不可干预边界。
+- [ ] 将 nonlinear SLSQP projection 替换为 sequential linearized QP 或其他有界在线求解器，重新审计相同锁定矩阵。
 - [ ] 只有在执行扰动扩展通过后，才开始 learned CLBF；否则将安全贡献固定命名为条件性 robust CBF-QP。
 
 P5 恢复的停止条件：实际 post-step safety 低于 99%、QP/fallback 失败率高于 1%、或安全率提升以不可接受的 timeout/capture 损失为代价时，停止继续增大 margin，改为报告安全--效率 Pareto 或回退到可审计的一步过滤器。

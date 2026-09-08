@@ -88,6 +88,14 @@ from a validated reachable-set bound. Simply increasing the static CBF margin
 is not sufficient without rechecking QP feasibility and capture performance.
 P6 learned CLBF work remains paused until this boundary is addressed.
 
+The follow-up state-aware contract, five-step execution preview, and sampled
+swept-volume audit are documented in
+`docs/PHASE5_EXECUTION_STATE_AWARE_AUDIT_REPORT.md`. That follow-up shares the
+execution dynamics between the environment, filter, and independent checker,
+but its execution-invariant P5 gate is also No-Go because queued commands can
+become unrecoverable and the nonlinear projection is too slow and frequently
+falls back.
+
 ## 5. Reproduction artifacts
 
 ```powershell

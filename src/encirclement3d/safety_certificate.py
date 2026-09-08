@@ -14,6 +14,13 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from encirclement3d.execution_dynamics import (
+    parameters_from_observation,
+    position_uncertainty_radii,
+    queue_from_observation,
+    rollout_execution,
+)
+
 
 def _unit(value: np.ndarray, fallback: np.ndarray | None = None) -> np.ndarray:
     vector = np.asarray(value, dtype=np.float64)
@@ -98,6 +105,70 @@ class SafetyCertificateResult:
             "maximum_action_norm_mps": self.maximum_action_norm_mps,
             "maximum_action_change_mps": self.maximum_action_change_mps,
             "barrier_values_m": dict(self.barrier_values_m),
+            "violations": list(self.violations),
+            "assumptions": dict(self.assumptions),
+        }
+
+
+@dataclass(frozen=True)
+class ExecutionRolloutCertificateResult:
+    """Independent multi-step certificate for the shared execution contract."""
+
+    valid: bool
+    status: str
+    current_state_safe: bool
+    rollout_state_safe: bool
+    horizon_steps: int
+    minimum_robust_barrier_m: float
+    minimum_nominal_barrier_m: float
+    barrier_values_m: dict[str, float]
+    nominal_barrier_values_m: dict[str, float]
+    violations: tuple[str, ...]
+    assumptions: dict[str, float]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "status": self.status,
+            "current_state_safe": self.current_state_safe,
+            "rollout_state_safe": self.rollout_state_safe,
+            "horizon_steps": self.horizon_steps,
+            "minimum_robust_barrier_m": self.minimum_robust_barrier_m,
+            "minimum_nominal_barrier_m": self.minimum_nominal_barrier_m,
+            "barrier_values_m": dict(self.barrier_values_m),
+            "nominal_barrier_values_m": dict(self.nominal_barrier_values_m),
+            "violations": list(self.violations),
+            "assumptions": dict(self.assumptions),
+        }
+
+
+@dataclass(frozen=True)
+class SweptVolumeCertificateResult:
+    """Continuous-time sampled swept-volume safety certificate."""
+
+    valid: bool
+    status: str
+    current_state_safe: bool
+    swept_volume_safe: bool
+    horizon_steps: int
+    subdivisions_per_step: int
+    sample_count: int
+    minimum_robust_barrier_m: float
+    minimum_nominal_barrier_m: float
+    violations: tuple[str, ...]
+    assumptions: dict[str, float]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "status": self.status,
+            "current_state_safe": self.current_state_safe,
+            "swept_volume_safe": self.swept_volume_safe,
+            "horizon_steps": self.horizon_steps,
+            "subdivisions_per_step": self.subdivisions_per_step,
+            "sample_count": self.sample_count,
+            "minimum_robust_barrier_m": self.minimum_robust_barrier_m,
+            "minimum_nominal_barrier_m": self.minimum_nominal_barrier_m,
             "violations": list(self.violations),
             "assumptions": dict(self.assumptions),
         }
@@ -231,4 +302,289 @@ def check_one_step_safety(
     )
 
 
-__all__ = ["SafetyCertificateResult", "check_one_step_safety"]
+def _robust_barriers(
+    positions: np.ndarray,
+    obstacles: list[Any] | tuple[Any, ...],
+    lower: np.ndarray,
+    upper: np.ndarray,
+    radius: float,
+    effective_margin: float,
+    uncertainty_radii: np.ndarray,
+) -> tuple[dict[str, float], dict[str, float]]:
+    nominal = _barriers(positions, obstacles, lower, upper, radius, effective_margin)
+    robust: dict[str, float] = {}
+    for name, value in nominal.items():
+        if name.startswith("inter_agent["):
+            indices = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+            uncertainty = float(uncertainty_radii[int(indices[0])] + uncertainty_radii[int(indices[1])])
+        else:
+            uncertainty = float(uncertainty_radii[int(name.rsplit("/", 1)[-1])])
+        robust[name] = float(value - uncertainty)
+    return nominal, robust
+
+
+def execution_barrier_values(
+    observation: Mapping[str, Any],
+    action: np.ndarray,
+    *,
+    dt: float,
+    drone_radius: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    horizon_steps: int | None = None,
+    swept_substeps: int = 4,
+) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    """Return nominal and uncertainty-robust barriers along executed rollout."""
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+    actions = np.asarray(action, dtype=np.float64)
+    if positions.ndim != 2 or positions.shape[-1] != 3 or velocities.shape != positions.shape:
+        raise ValueError("defender positions and velocities must have shape [defenders, 3]")
+    if actions.shape != positions.shape:
+        raise ValueError("action must have shape [defenders, 3]")
+    lower = np.asarray(observation["world_lower_bounds"], dtype=np.float64)
+    upper = np.asarray(observation["world_upper_bounds"], dtype=np.float64)
+    obstacles = list(observation.get("obstacles", ()))
+    parameters = parameters_from_observation(observation, dt)
+    queue = queue_from_observation(observation, positions.shape[0])
+    preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
+    if preview_steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    if int(swept_substeps) <= 0:
+        raise ValueError("swept_substeps must be positive")
+    rollout_positions, _rollout_velocities, _steps = rollout_execution(
+        positions,
+        velocities,
+        queue,
+        actions,
+        parameters,
+        horizon_steps=preview_steps,
+    )
+    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    nominal_values: dict[str, float] = {}
+    robust_values: dict[str, float] = {}
+    for step_index, (future_positions, radii) in enumerate(zip(rollout_positions, uncertainty), start=1):
+        previous_positions = positions if step_index == 1 else rollout_positions[step_index - 2]
+        individual_gaps = np.linalg.norm(future_positions - previous_positions, axis=1) / float(swept_substeps)
+        for subdivision in range(1, int(swept_substeps) + 1):
+            fraction = float(subdivision) / float(swept_substeps)
+            sample_positions = previous_positions + fraction * (future_positions - previous_positions)
+            nominal, robust = _robust_barriers(
+                sample_positions,
+                obstacles,
+                lower,
+                upper,
+                float(drone_radius),
+                float(safety_margin_m) + float(robust_margin_m),
+                radii,
+            )
+            for name, value in nominal.items():
+                if name.startswith("inter_agent["):
+                    first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+                    gap = float(individual_gaps[int(first)] + individual_gaps[int(second)])
+                else:
+                    gap = float(individual_gaps[int(name.rsplit("/", 1)[-1])])
+                key = f"step[{step_index}]/sweep[{subdivision}]/{name}"
+                nominal_values[key] = float(value - gap)
+                robust_values[key] = float(robust[name] - gap)
+    assumptions = {
+        "dt_seconds": float(dt),
+        "horizon_steps": float(preview_steps),
+        "action_delay_steps": float(parameters.action_delay_steps),
+        "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+        "tracking_alpha": float(parameters.tracking_alpha),
+        "drag_gain": float(parameters.drag_gain),
+        "max_speed_mps": float(parameters.max_speed_mps),
+        "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+        "mass_scale": float(parameters.mass_scale),
+        "swept_substeps": float(swept_substeps),
+    }
+    return nominal_values, robust_values, assumptions
+
+
+def check_execution_rollout_safety(
+    observation: Mapping[str, Any],
+    action: np.ndarray,
+    *,
+    dt: float,
+    drone_radius: float,
+    max_speed_mps: float,
+    max_acceleration_mps2: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    tolerance: float = 1.0e-6,
+    action_change_limit_mps: float | None = None,
+    horizon_steps: int | None = None,
+) -> ExecutionRolloutCertificateResult:
+    """Check the actual queued execution model over a finite preview horizon."""
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+    actions = np.asarray(action, dtype=np.float64)
+    current = _barriers(
+        positions,
+        list(observation.get("obstacles", ())),
+        np.asarray(observation["world_lower_bounds"], dtype=np.float64),
+        np.asarray(observation["world_upper_bounds"], dtype=np.float64),
+        float(drone_radius),
+        float(safety_margin_m) + float(robust_margin_m),
+    )
+    current_minimum = float(min(current.values(), default=float("inf")))
+    nominal_values, robust_values, assumptions = execution_barrier_values(
+        observation,
+        actions,
+        dt=dt,
+        drone_radius=drone_radius,
+        safety_margin_m=safety_margin_m,
+        robust_margin_m=robust_margin_m,
+        horizon_steps=horizon_steps,
+    )
+    violations: list[str] = []
+    tolerance_value = float(tolerance)
+    if current_minimum < -tolerance_value:
+        violations.append("current_state_outside_safe_set")
+    robust_minimum = float(min(robust_values.values(), default=float("inf")))
+    nominal_minimum = float(min(nominal_values.values(), default=float("inf")))
+    if robust_minimum < -tolerance_value:
+        violations.append("execution_rollout_outside_robust_safe_set")
+    if not np.isfinite(actions).all():
+        violations.append("non_finite_action")
+    action_norm = float(np.max(np.linalg.norm(actions, axis=1), initial=0.0))
+    if action_norm > float(max_speed_mps) + tolerance_value:
+        violations.append("speed_limit")
+    change_limit = float(max_acceleration_mps2) * float(dt) if action_change_limit_mps is None else float(action_change_limit_mps)
+    action_change = float(np.max(np.abs(actions - velocities), initial=0.0))
+    if action_change > change_limit + tolerance_value:
+        violations.append("action_change_limit")
+    valid = not violations
+    return ExecutionRolloutCertificateResult(
+        valid=valid,
+        status="valid" if valid else "invalid",
+        current_state_safe=bool(current_minimum >= -tolerance_value),
+        rollout_state_safe=bool(robust_minimum >= -tolerance_value),
+        horizon_steps=int(assumptions["horizon_steps"]),
+        minimum_robust_barrier_m=robust_minimum,
+        minimum_nominal_barrier_m=nominal_minimum,
+        barrier_values_m=robust_values,
+        nominal_barrier_values_m=nominal_values,
+        violations=tuple(violations),
+        assumptions=assumptions,
+    )
+
+
+def check_execution_swept_volume_safety(
+    observation: Mapping[str, Any],
+    action: np.ndarray,
+    *,
+    dt: float,
+    drone_radius: float,
+    safety_margin_m: float,
+    robust_margin_m: float,
+    horizon_steps: int | None = None,
+    subdivisions_per_step: int = 4,
+    tolerance: float = 1.0e-6,
+) -> SweptVolumeCertificateResult:
+    """Sample each executed motion segment, including obstacle volume crossing."""
+
+    if int(subdivisions_per_step) <= 0:
+        raise ValueError("subdivisions_per_step must be positive")
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+    lower = np.asarray(observation["world_lower_bounds"], dtype=np.float64)
+    upper = np.asarray(observation["world_upper_bounds"], dtype=np.float64)
+    obstacles = list(observation.get("obstacles", ()))
+    parameters = parameters_from_observation(observation, dt)
+    queue = queue_from_observation(observation, positions.shape[0])
+    preview_steps = max(1, len(queue) + 1) if horizon_steps is None else int(horizon_steps)
+    if preview_steps <= 0:
+        raise ValueError("horizon_steps must be positive")
+    rollout_positions, _rollout_velocities, _steps = rollout_execution(
+        positions,
+        velocities,
+        queue,
+        np.asarray(action, dtype=np.float64),
+        parameters,
+        horizon_steps=preview_steps,
+    )
+    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    initial_barriers = _barriers(
+        positions,
+        obstacles,
+        lower,
+        upper,
+        float(drone_radius),
+        float(safety_margin_m) + float(robust_margin_m),
+    )
+    nominal_minimum = float(min(initial_barriers.values(), default=float("inf")))
+    robust_minimum = nominal_minimum
+    sample_count = 1
+    for step_index, endpoint in enumerate(rollout_positions):
+        start = positions if step_index == 0 else rollout_positions[step_index - 1]
+        individual_gaps = np.linalg.norm(endpoint - start, axis=1) / float(subdivisions_per_step)
+        for subdivision in range(1, int(subdivisions_per_step) + 1):
+            fraction = float(subdivision) / float(subdivisions_per_step)
+            sample = start + fraction * (endpoint - start)
+            nominal, robust = _robust_barriers(
+                sample,
+                obstacles,
+                lower,
+                upper,
+                float(drone_radius),
+                float(safety_margin_m) + float(robust_margin_m),
+                uncertainty[step_index],
+            )
+            nominal_adjusted: list[float] = []
+            robust_adjusted: list[float] = []
+            for name, value in nominal.items():
+                if name.startswith("inter_agent["):
+                    first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+                    gap = float(individual_gaps[int(first)] + individual_gaps[int(second)])
+                else:
+                    gap = float(individual_gaps[int(name.rsplit("/", 1)[-1])])
+                nominal_adjusted.append(float(value - gap))
+                robust_adjusted.append(float(robust[name] - gap))
+            nominal_minimum = min(nominal_minimum, float(min(nominal_adjusted, default=float("inf"))))
+            robust_minimum = min(robust_minimum, float(min(robust_adjusted, default=float("inf"))))
+            sample_count += 1
+    tolerance_value = float(tolerance)
+    current_safe = bool(min(initial_barriers.values(), default=float("inf")) >= -tolerance_value)
+    swept_safe = bool(robust_minimum >= -tolerance_value)
+    violations: list[str] = []
+    if not current_safe:
+        violations.append("current_state_outside_safe_set")
+    if not swept_safe:
+        violations.append("swept_volume_outside_robust_safe_set")
+    return SweptVolumeCertificateResult(
+        valid=not violations,
+        status="valid" if not violations else "invalid",
+        current_state_safe=current_safe,
+        swept_volume_safe=swept_safe,
+        horizon_steps=preview_steps,
+        subdivisions_per_step=int(subdivisions_per_step),
+        sample_count=sample_count,
+        minimum_robust_barrier_m=float(robust_minimum),
+        minimum_nominal_barrier_m=float(nominal_minimum),
+        violations=tuple(violations),
+        assumptions={
+            "dt_seconds": float(dt),
+            "horizon_steps": float(preview_steps),
+            "subdivisions_per_step": float(subdivisions_per_step),
+            "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+            "tracking_alpha": float(parameters.tracking_alpha),
+            "drag_gain": float(parameters.drag_gain),
+            "max_speed_mps": float(parameters.max_speed_mps),
+            "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+        },
+    )
+
+
+__all__ = [
+    "ExecutionRolloutCertificateResult",
+    "SafetyCertificateResult",
+    "SweptVolumeCertificateResult",
+    "check_execution_rollout_safety",
+    "check_execution_swept_volume_safety",
+    "check_one_step_safety",
+    "execution_barrier_values",
+]
