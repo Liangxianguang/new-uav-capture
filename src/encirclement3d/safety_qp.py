@@ -1405,16 +1405,32 @@ class RobustCBFQPFilter:
                             np.asarray(progress_result["actions"], dtype=np.float64),
                         )
                     )
-            candidate_horizons = [preview_steps]
-            if (
+            receding_certificate_enabled = (
                 bool(self.config.execution_fallback_receding_step_enabled)
                 and candidate_directive.mode != "immutable"
                 and bool(recoverability.get("prefix_admissible", False))
-            ):
-                candidate_horizons.append(1)
+            )
+            if receding_certificate_enabled:
+                # A full-horizon rollout contains the same first step.  A
+                # failed one-step certificate therefore cannot become valid at
+                # a longer horizon.  Screen candidates cheaply first, then
+                # evaluate the full horizon only for one-step-safe candidates.
+                candidate_horizons = [1]
+                if preview_steps != 1:
+                    candidate_horizons.append(preview_steps)
+            else:
+                candidate_horizons = [preview_steps]
+            one_step_valid_labels: set[str] = set()
             for horizon in candidate_horizons:
                 scope = "full_horizon" if horizon == preview_steps else "one_step_receding"
-                for candidate_label, candidate in directive_candidates:
+                candidate_pool = directive_candidates
+                if horizon == preview_steps and receding_certificate_enabled:
+                    candidate_pool = [
+                        (candidate_label, candidate)
+                        for candidate_label, candidate in directive_candidates
+                        if candidate_label in one_step_valid_labels
+                    ]
+                for candidate_label, candidate in candidate_pool:
                     try:
                         candidate_certificate = check_execution_rollout_safety(
                             safety_observation,
@@ -1436,6 +1452,8 @@ class RobustCBFQPFilter:
                     except (FloatingPointError, ValueError, RuntimeError):
                         continue
                     if bool(candidate_certificate.valid):
+                        if horizon == 1 and preview_steps != 1:
+                            one_step_valid_labels.add(candidate_label)
                         try:
                             progress = self._goal_progress(observation, candidate, candidate_directive)
                         except (FloatingPointError, ValueError, RuntimeError):
