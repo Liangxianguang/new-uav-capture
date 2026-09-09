@@ -1,0 +1,30 @@
+# Diagnostic-only configuration for the P7 integration audit.
+#
+# The Phase 4 locked scenes were generated for the base 0.35 m clearance, not
+# the 0.81 m robust clearance assumed by innovation_safety.yaml.  This file
+# removes unmodelled execution, delay, disturbance, and observation margins so
+# the velocity-level filter can be evaluated on the same state-set contract.
+# It is not evidence of robustness to those effects and must not be reported as
+# an R-CLBF safety guarantee.
+experiment_name: phase7_joint_safety_matched_margin_diagnostic
+
+safety:
+  gamma: 0.25
+  safety_margin_m: 0.35
+  disturbance_margin_m: 0.0
+  observation_error_margin_m: 0.0
+  delay_margin_m: 0.0
+  execution_margin_m: 0.0
+  max_speed_mps: 5.0
+  max_acceleration_mps2: 6.0
+  # Ideal velocity-level P7 does not model actuator acceleration. Keep this
+  # disabled here; execution-dynamics audits use a separate contract.
+  action_change_limit_mps: null
+  enforce_action_change: false
+  slack_enabled: false
+  action_weight: 1.0
+  slack_weight: 1000000.0
+  slack_tolerance_m: 0.000001
+  solver_tolerance: 0.00000001
+  solver_max_iterations: 100
+  fallback_policy: barrier_recovery

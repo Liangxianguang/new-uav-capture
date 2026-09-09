@@ -595,7 +595,10 @@ def run_episode(
             action_change_limit_mps=(
                 None if robust_safety_config is None else robust_safety_config.action_change_limit_mps
             ),
-            enforce_action_change=resolved_safety_layer == "robust_cbf_qp",
+            enforce_action_change=(
+                resolved_safety_layer == "robust_cbf_qp"
+                and bool(robust_safety_config.enforce_action_change)
+            ),
         )
         safe_actions = env._clip_rows(safe_actions, float(env.agents["defender_max_speed"]))
         total_control_latency_ms = (time.perf_counter() - control_started) * 1000.0

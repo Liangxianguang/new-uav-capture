@@ -1,0 +1,62 @@
+{
+  "artifact_set": "formal_phase2_v3",
+  "purpose": "Frozen checkpoints for the formal Mamba-style portable SSM diffusion versus GRU prediction comparison.",
+  "backend_note": "The diffusion checkpoints use the portable_diagonal_ssm backend. They are not official mamba_ssm CUDA-kernel checkpoints.",
+  "evaluation_note": "These models are retained because the formal unseen adaptive-target audit is favorable. The original five-mode locked test did not meet the preregistered 10% projected-minFDE improvement gate, so this artifact set must not be presented as a fully passed prediction claim.",
+  "artifacts": [
+    {
+      "file": "ssm_diffusion_seed745101.pt",
+      "source": "results/phase2_formal_diffusion_seed745101/checkpoint.pt",
+      "model_family": "conditional_diffusion",
+      "sequence_backend": "portable_diagonal_ssm",
+      "seed": 745101,
+      "bytes": 716597,
+      "sha256": "41ab7cef31c3afa53735dd96569c7a4d4247eac9c84fb01fa874933b904a36e8"
+    },
+    {
+      "file": "ssm_diffusion_seed745201.pt",
+      "source": "results/phase2_formal_diffusion_seed745201/checkpoint.pt",
+      "model_family": "conditional_diffusion",
+      "sequence_backend": "portable_diagonal_ssm",
+      "seed": 745201,
+      "bytes": 716597,
+      "sha256": "b667afb7f9aa6292348e6dbccb809f083191e6ebdb6b6d94d28dcf451f852d27"
+    },
+    {
+      "file": "ssm_diffusion_seed745301.pt",
+      "source": "results/phase2_formal_diffusion_seed745301/checkpoint.pt",
+      "model_family": "conditional_diffusion",
+      "sequence_backend": "portable_diagonal_ssm",
+      "seed": 745301,
+      "bytes": 716597,
+      "sha256": "4947e7648675087472ac9aa7fcb493c3a7841508480d0f03fd684e20738a5ef2"
+    },
+    {
+      "file": "gru_baseline_seed745101.pt",
+      "source": "results/phase2_formal_gru_seed745101/checkpoint.pt",
+      "model_family": "gru_baseline",
+      "sequence_backend": "gru",
+      "seed": 745101,
+      "bytes": 1098168,
+      "sha256": "080da639e22fbca574de3a62694adb23c0a98845fdde24d5479107b53b261b40"
+    },
+    {
+      "file": "gru_baseline_seed745201.pt",
+      "source": "results/phase2_formal_gru_seed745201/checkpoint.pt",
+      "model_family": "gru_baseline",
+      "sequence_backend": "gru",
+      "seed": 745201,
+      "bytes": 1098168,
+      "sha256": "79add1f7c7db5dabced9ed33237671f60d758a0ea3206aa886fa33d5092c62c6"
+    },
+    {
+      "file": "gru_baseline_seed745301.pt",
+      "source": "results/phase2_formal_gru_seed745301/checkpoint.pt",
+      "model_family": "gru_baseline",
+      "sequence_backend": "gru",
+      "seed": 745301,
+      "bytes": 1098168,
+      "sha256": "f72c5c1140a4e7ec8d047db10794869d4c13c58c91e547f4b42af04cf07ec491"
+    }
+  ]
+}

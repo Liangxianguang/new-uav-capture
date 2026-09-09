@@ -19,3 +19,8 @@ results/*
 
 # The released development checkpoint is intentionally versioned.
 !models/v5_development_exact_reactive_seed661606.pt
+
+# Frozen Phase 2 checkpoints used by the formal prediction comparison.
+!models/formal_phase2_v3/
+!models/formal_phase2_v3/*.pt
+!models/formal_phase2_v3/manifest.json

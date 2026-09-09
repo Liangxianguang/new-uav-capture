@@ -87,6 +87,33 @@ def test_projected_scenario_planner_returns_common_bounded_action() -> None:
     assert len(plan.diagnostics.scenario_costs) == candidates.candidate_count
 
 
+def test_planner_can_match_hard_action_change_contract() -> None:
+    observation = _observation()
+    candidates = make_belief_candidate_set(
+        observation,
+        horizon_steps=4,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        candidate_count=4,
+    )
+    planner = ScenarioMinimaxMPC(
+        MinimaxMPCConfig(
+            horizon_steps=4,
+            control_horizon_steps=2,
+            action_change_limit_mps=0.6,
+            max_role_variants=2,
+            perimeter_scales=(1.0,),
+        )
+    )
+    plan = planner.plan(observation, candidates, fallback_actions=np.zeros((4, 3)))
+    changes = np.diff(
+        np.concatenate([observation["defender_velocities"][None, :], plan.action_sequence], axis=0),
+        axis=0,
+    )
+    assert float(np.max(np.linalg.norm(changes, axis=-1))) <= 0.6 * np.sqrt(3.0) + 1.0e-8
+    assert float(np.max(np.linalg.norm(plan.action_sequence, axis=-1))) <= 5.0 + 1.0e-8
+
+
 def test_belief_candidate_generation_is_deterministic_and_policy_safe() -> None:
     observation = _observation()
     first = make_belief_candidate_set(

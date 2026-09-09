@@ -97,6 +97,7 @@ class MinimaxMPCConfig:
     horizon_steps: int = 8
     control_horizon_steps: int = 3
     max_speed_mps: float = 5.0
+    action_change_limit_mps: float | None = None
     capture_radius_m: float = 0.8
     drone_radius_m: float = 0.25
     safety_margin_m: float = 0.35
@@ -137,6 +138,11 @@ class MinimaxMPCConfig:
                 raise ValueError(f"{name} must be finite and positive.")
         if self.control_horizon_steps > self.horizon_steps:
             raise ValueError("control_horizon_steps cannot exceed horizon_steps.")
+        if self.action_change_limit_mps is not None and (
+            not np.isfinite(float(self.action_change_limit_mps))
+            or float(self.action_change_limit_mps) <= 0.0
+        ):
+            raise ValueError("action_change_limit_mps must be finite and positive when provided.")
         if self.risk_mode not in {"expected", "worst_case", "cvar"}:
             raise ValueError("risk_mode must be expected, worst_case, or cvar.")
         if not 0.0 <= float(self.cvar_alpha) < 1.0:
@@ -224,6 +230,35 @@ def _clip_rows(values: np.ndarray, max_norm: float) -> np.ndarray:
     rows = np.asarray(values, dtype=np.float64)
     norms = np.linalg.norm(rows, axis=-1, keepdims=True)
     return rows * np.minimum(1.0, float(max_norm) / np.maximum(norms, 1e-12))
+
+
+def _project_actions(
+    desired: np.ndarray,
+    previous: np.ndarray,
+    *,
+    max_speed_mps: float,
+    action_change_limit_mps: float | None,
+) -> np.ndarray:
+    """Project commands onto the shared speed and command-increment contract."""
+
+    action = np.asarray(desired, dtype=np.float64)
+    previous_action = np.asarray(previous, dtype=np.float64)
+    if action.shape != previous_action.shape or action.shape[-1] != 3:
+        raise ValueError("desired and previous actions must share a final xyz dimension.")
+    if action_change_limit_mps is None:
+        return _clip_rows(action, max_speed_mps)
+
+    # Alternating projection onto the per-axis change box and the Euclidean
+    # speed ball. Their intersection contains the observed velocity under the
+    # environment contract, and the small fixed budget is deterministic.
+    limit = float(action_change_limit_mps)
+    lower = previous_action - limit
+    upper = previous_action + limit
+    projected = action.copy()
+    for _ in range(12):
+        projected = np.clip(projected, lower, upper)
+        projected = _clip_rows(projected, max_speed_mps)
+    return np.clip(projected, lower, upper)
 
 
 def _belief_reference(observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
@@ -407,6 +442,7 @@ class ScenarioMinimaxMPC:
         if scenarios.dynamics_status != "projected":
             return self._fallback(
                 positions,
+                velocities,
                 fallback_actions,
                 started,
                 scenarios,
@@ -415,6 +451,7 @@ class ScenarioMinimaxMPC:
         if scenarios.horizon_steps < self.config.horizon_steps:
             return self._fallback(
                 positions,
+                velocities,
                 fallback_actions,
                 started,
                 scenarios,
@@ -422,7 +459,7 @@ class ScenarioMinimaxMPC:
             )
         try:
             candidates = scenarios.truncate(self.config.horizon_steps)
-            sequences = self._candidate_action_sequences(observation, candidates)
+            sequences = self._candidate_action_sequences(observation, candidates, velocities)
             if not sequences:
                 raise RuntimeError("finite-shooting candidate set is empty")
             scenario_cost_matrix, constraint_violations = self._scenario_cost_matrix(
@@ -484,11 +521,12 @@ class ScenarioMinimaxMPC:
                 diagnostics=diagnostics,
             )
         except (FloatingPointError, RuntimeError, ValueError, KeyError, IndexError) as error:
-            return self._fallback(positions, fallback_actions, started, scenarios, str(error))
+            return self._fallback(positions, velocities, fallback_actions, started, scenarios, str(error))
 
     def _fallback(
         self,
         positions: np.ndarray,
+        velocities: np.ndarray,
         fallback_actions: np.ndarray | None,
         started: float,
         scenarios: ScenarioTrajectorySet,
@@ -507,7 +545,12 @@ class ScenarioMinimaxMPC:
             actions = np.asarray(fallback_actions, dtype=np.float64)
             if actions.shape != positions.shape or not np.isfinite(actions).all():
                 actions = np.zeros_like(positions)
-        actions = _clip_rows(actions, self.config.max_speed_mps)
+        actions = _project_actions(
+            actions,
+            np.asarray(velocities, dtype=np.float64),
+            max_speed_mps=self.config.max_speed_mps,
+            action_change_limit_mps=self.config.action_change_limit_mps,
+        )
         sequence = np.repeat(actions[None, :, :], self.config.horizon_steps, axis=0)
         diagnostics = MinimaxMPCDiagnostics(
             status="fallback",
@@ -529,6 +572,7 @@ class ScenarioMinimaxMPC:
         self,
         observation: dict[str, Any],
         scenarios: ScenarioTrajectorySet,
+        initial_velocity: np.ndarray,
     ) -> list[np.ndarray]:
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         _belief, belief_velocity = _belief_reference(observation)
@@ -547,6 +591,7 @@ class ScenarioMinimaxMPC:
                     sequences.append(
                         self._track_path(
                             positions,
+                            initial_velocity,
                             belief_velocity,
                             target_path,
                             interceptor_id,
@@ -558,12 +603,14 @@ class ScenarioMinimaxMPC:
     def _track_path(
         self,
         initial_positions: np.ndarray,
+        initial_velocity: np.ndarray,
         target_velocity: np.ndarray,
         target_path: np.ndarray,
         interceptor_id: int,
         perimeter_scale: float,
     ) -> np.ndarray:
         positions = np.asarray(initial_positions, dtype=np.float64).copy()
+        previous_action = np.asarray(initial_velocity, dtype=np.float64).copy()
         target_path = np.asarray(target_path, dtype=np.float64)
         actions: list[np.ndarray] = []
         perimeter = self.config.role_perimeter_m * float(perimeter_scale)
@@ -586,9 +633,15 @@ class ScenarioMinimaxMPC:
                     desired = self.config.slot_gain * (target_point - position)
                     desired += self.config.target_velocity_gain * target_velocity_step
                     action[defender_id] = desired
-                action = _clip_rows(action, self.config.max_speed_mps)
+                action = _project_actions(
+                    action,
+                    previous_action,
+                    max_speed_mps=self.config.max_speed_mps,
+                    action_change_limit_mps=self.config.action_change_limit_mps,
+                )
             actions.append(action)
             positions = positions + action * self.config.dt_seconds
+            previous_action = action
         return np.stack(actions, axis=0)
 
     def _scenario_cost_matrix(
@@ -623,7 +676,12 @@ class ScenarioMinimaxMPC:
             lower = np.full(3, -np.inf, dtype=np.float64)
             upper = np.full(3, np.inf, dtype=np.float64)
         for timestep in range(horizon):
-            action = _clip_rows(sequences[:, timestep], self.config.max_speed_mps)
+            action = _project_actions(
+                sequences[:, timestep],
+                previous_action,
+                max_speed_mps=self.config.max_speed_mps,
+                action_change_limit_mps=self.config.action_change_limit_mps,
+            )
             positions += action * self.config.dt_seconds
             target = paths[:, timestep]
             delta = positions[:, None, :, :] - target[None, :, None, :]

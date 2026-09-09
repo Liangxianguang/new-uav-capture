@@ -13,7 +13,7 @@ from time import perf_counter
 from typing import Any
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, linprog, minimize
+from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint, linprog, minimize
 
 from encirclement3d.execution_dynamics import (
     CommandAuthorityDirective,
@@ -115,6 +115,7 @@ class RobustCBFQPConfig:
     max_speed_mps: float = 5.0
     max_acceleration_mps2: float = 6.0
     action_change_limit_mps: float | None = None
+    enforce_action_change: bool = True
     slack_enabled: bool = True
     action_weight: float = 1.0
     slack_weight: float = 1.0e6
@@ -362,13 +363,18 @@ class RobustCBFQPFilter:
             matrix[:, :action_dimension] = np.stack(rows, axis=0)
             if slack_count:
                 matrix[:, action_dimension:] = np.eye(barrier_count, dtype=np.float64)
-        lower_action = np.full(action_dimension, -self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
-        upper_action = np.full(action_dimension, self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        # The simulator and independent certificate constrain each defender by
+        # its Euclidean speed norm. A +/- v_max/sqrt(3) component box is only
+        # an inscribed approximation and can make legal axis-aligned commands
+        # appear incompatible with the action-change bounds.
+        lower_action = np.full(action_dimension, -self.config.max_speed_mps, dtype=np.float64)
+        upper_action = np.full(action_dimension, self.config.max_speed_mps, dtype=np.float64)
         change_limit = self.config.action_change_limit_mps
         if change_limit is None:
             change_limit = float(self.config.max_acceleration_mps2 * dt)
-        lower_action = np.maximum(lower_action, (velocities.reshape(-1) - float(change_limit)))
-        upper_action = np.minimum(upper_action, (velocities.reshape(-1) + float(change_limit)))
+        if self.config.enforce_action_change:
+            lower_action = np.maximum(lower_action, (velocities.reshape(-1) - float(change_limit)))
+            upper_action = np.minimum(upper_action, (velocities.reshape(-1) + float(change_limit)))
         if np.any(lower_action > upper_action + 1e-12):
             return self._fallback(
                 desired,
@@ -424,8 +430,28 @@ class RobustCBFQPFilter:
                 result[action_dimension:] = slack_weight * value[action_dimension:]
             return result
 
-        constraints = () if not barrier_count else (
+        constraints: tuple[Any, ...] = () if not barrier_count else (
             LinearConstraint(matrix, np.asarray(rhs, dtype=np.float64), np.full(barrier_count, np.inf)),
+        )
+
+        def speed_budget(value: np.ndarray) -> np.ndarray:
+            actions = np.asarray(value[:action_dimension], dtype=np.float64).reshape(-1, 3)
+            return float(self.config.max_speed_mps) ** 2 - np.sum(actions * actions, axis=1)
+
+        def speed_budget_jacobian(value: np.ndarray) -> np.ndarray:
+            action = np.asarray(value[:action_dimension], dtype=np.float64).reshape(-1, 3)
+            jacobian = np.zeros((action.shape[0], variable_count), dtype=np.float64)
+            for index, row in enumerate(action):
+                jacobian[index, index * 3 : index * 3 + 3] = -2.0 * row
+            return jacobian
+
+        constraints += (
+            NonlinearConstraint(
+                speed_budget,
+                np.zeros(positions.shape[0], dtype=np.float64),
+                np.full(positions.shape[0], np.inf, dtype=np.float64),
+                jac=speed_budget_jacobian,
+            ),
         )
         if slack_count:
             lower_bounds = np.concatenate([lower_action, np.zeros(slack_count, dtype=np.float64)])
@@ -530,6 +556,7 @@ class RobustCBFQPFilter:
             "robust_margin_m": float(self.config.robust_margin_m),
             "max_speed_mps": float(self.config.max_speed_mps),
             "max_acceleration_mps2": float(self.config.max_acceleration_mps2),
+            "action_change_constraint_enabled": float(bool(self.config.enforce_action_change)),
         }
 
     def _filter_with_execution_model(

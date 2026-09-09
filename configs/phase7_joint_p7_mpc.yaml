@@ -1,0 +1,43 @@
+# P7 centralized DN-MPC configuration for the velocity-level QP contract.
+# The published Phase 4 configuration remains unchanged.
+experiment_name: phase7_joint_dn_mpc_contract_matched
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+planner:
+  implementation: finite_shooting_sequential_best_response
+  dt_seconds: 0.1
+  horizon_steps: 8
+  control_horizon_steps: 3
+  max_speed_mps: 5.0
+  # The ideal velocity-level environment does not model acceleration. The
+  # execution-dynamics audit enables this constraint in its own protocol.
+  action_change_limit_mps: null
+  capture_radius_m: 0.80
+  drone_radius_m: 0.25
+  safety_margin_m: 0.35
+  minimum_inter_agent_distance_m: 1.00
+  risk_mode: worst_case
+  cvar_alpha: 0.75
+  role_perimeter_m: 1.40
+  slot_gain: 2.5
+  target_velocity_gain: 1.0
+  weight_distance: 1.0
+  weight_terminal_distance: 3.0
+  weight_capture_hinge: 1.5
+  weight_formation: 0.25
+  weight_control: 0.015
+  weight_control_change: 0.02
+  weight_obstacle: 25.0
+  weight_boundary: 25.0
+  weight_inter_agent: 25.0
+  weight_relative_speed: 0.02
+  max_role_variants: 4
+  perimeter_scales: [0.75, 1.0]
+
+prediction:
+  candidate_source: checkpoint
+  candidate_status_required: projected
+  num_samples: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4

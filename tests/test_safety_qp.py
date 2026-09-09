@@ -129,6 +129,52 @@ def test_qp_projects_action_inside_world_boundary() -> None:
     assert certificate.next_min_barrier_m >= -1.0e-6
 
 
+def test_qp_accepts_legal_axis_aligned_speed_under_euclidean_bound() -> None:
+    env = _env()
+    observation = _observation(
+        np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+        ),
+        velocities=np.array(
+            [[4.4, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        ),
+    )
+    desired = np.array(
+        [[5.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        dtype=np.float64,
+    )
+    actions, diagnostics = RobustCBFQPFilter(env, _filter_config()).filter(desired, observation)
+
+    assert diagnostics.solver_success
+    assert not diagnostics.fallback_used
+    assert float(np.linalg.norm(actions[0])) <= 5.0 + 1.0e-6
+    np.testing.assert_allclose(actions[0], desired[0], atol=1.0e-5)
+
+
+def test_velocity_level_filter_can_disable_unmodelled_action_change_limit() -> None:
+    env = _env()
+    observation = _observation(
+        np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+        ),
+        velocities=np.array(
+            [[4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        ),
+    )
+    desired = np.array(
+        [[-4.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        dtype=np.float64,
+    )
+    actions, diagnostics = RobustCBFQPFilter(
+        env,
+        _filter_config(enforce_action_change=False),
+    ).filter(desired, observation)
+
+    assert diagnostics.solver_success
+    assert not diagnostics.fallback_used
+    np.testing.assert_allclose(actions, desired, atol=1.0e-5)
+
+
 def test_qp_separates_close_defenders() -> None:
     env = _env()
     observation = _observation(
