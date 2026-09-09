@@ -81,33 +81,6 @@ def test_execution_projection_recovers_feasible_linearized_point_after_dykstra_l
     assert np.min(matrix @ action - lower_rhs) >= -1.0e-7
 
 
-def test_execution_projection_uses_euclidean_speed_ball_not_inscribed_box() -> None:
-    env = _env()
-    filter_instance = RobustCBFQPFilter(
-        env,
-        _filter_config(enforce_action_change=False, max_speed_mps=5.0),
-    )
-    velocities = np.zeros((4, 3), dtype=np.float64)
-    lower, upper = filter_instance._execution_action_bounds(velocities)
-
-    np.testing.assert_allclose(lower, -5.0)
-    np.testing.assert_allclose(upper, 5.0)
-    target = np.zeros(12, dtype=np.float64)
-    target[:3] = [5.0, 5.0, 0.0]
-    action, success, _iterations, _message = filter_instance._project_linearized_halfspaces(
-        target,
-        np.empty((0, 12), dtype=np.float64),
-        np.empty(0, dtype=np.float64),
-        lower,
-        upper,
-        speed_max_mps=5.0,
-    )
-
-    assert success
-    assert np.linalg.norm(action[:3]) == pytest.approx(5.0)
-    assert np.max(np.linalg.norm(action.reshape(-1, 3), axis=1)) <= 5.0 + 1.0e-9
-
-
 def test_qp_preserves_nominal_action_when_all_barriers_are_inactive() -> None:
     env = _env()
     observation = _observation(

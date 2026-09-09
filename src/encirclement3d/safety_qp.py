@@ -839,19 +839,15 @@ class RobustCBFQPFilter:
 
     def _execution_action_bounds(self, velocities: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         action_dimension = int(velocities.size)
-        # Keep the component bounds wide enough for the Euclidean speed ball.
-        # The speed ball is enforced explicitly by the projection routine;
-        # using +/-v_max/sqrt(3) here incorrectly rejects legal axis-aligned
-        # commands before the nonlinear certificate can inspect them.
-        lower = np.full(action_dimension, -self.config.max_speed_mps, dtype=np.float64)
-        upper = np.full(action_dimension, self.config.max_speed_mps, dtype=np.float64)
-        if self.config.enforce_action_change:
-            change_limit = self.config.action_change_limit_mps
-            if change_limit is None:
-                change_limit = float(self.config.max_acceleration_mps2 * self.env.dt)
-            lower = np.maximum(lower, velocities.reshape(-1) - float(change_limit))
-            upper = np.minimum(upper, velocities.reshape(-1) + float(change_limit))
-        return lower, upper
+        lower = np.full(action_dimension, -self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        upper = np.full(action_dimension, self.config.max_speed_mps / np.sqrt(3.0), dtype=np.float64)
+        change_limit = self.config.action_change_limit_mps
+        if change_limit is None:
+            change_limit = float(self.config.max_acceleration_mps2 * self.env.dt)
+        return (
+            np.maximum(lower, velocities.reshape(-1) - float(change_limit)),
+            np.minimum(upper, velocities.reshape(-1) + float(change_limit)),
+        )
 
     def _solve_execution_linearized_projection(
         self,
@@ -992,7 +988,6 @@ class RobustCBFQPFilter:
                 lower_rhs,
                 lower_action,
                 upper_action,
-                speed_max_mps=float(self.config.max_speed_mps),
             )
             candidate_map = values(candidate)
             candidate_values = np.asarray([float(candidate_map[name]) for name in names], dtype=np.float64)
@@ -1034,20 +1029,10 @@ class RobustCBFQPFilter:
         lower_rhs: np.ndarray,
         lower_bounds: np.ndarray,
         upper_bounds: np.ndarray,
-        *,
-        speed_max_mps: float | None = None,
     ) -> tuple[np.ndarray, bool, int, str]:
-        """Dykstra projection for halfspaces, bounds, and speed balls."""
+        """Dykstra projection for the Euclidean bounded linearized subproblem."""
 
         action = np.clip(np.asarray(target, dtype=np.float64), lower_bounds, upper_bounds)
-        speed_corrections = None
-        if speed_max_mps is not None:
-            if not np.isfinite(float(speed_max_mps)) or float(speed_max_mps) <= 0.0:
-                raise ValueError("speed_max_mps must be finite and positive when provided")
-            speed_corrections = np.zeros_like(action)
-            rows = action.reshape(-1, 3)
-            norms = np.linalg.norm(rows, axis=1, keepdims=True)
-            rows *= np.minimum(1.0, float(speed_max_mps) / np.maximum(norms, 1.0e-12))
         if matrix.size == 0:
             return action, True, 0, "no_execution_constraints"
         norms = np.einsum("ij,ij->i", matrix, matrix)
@@ -1070,34 +1055,13 @@ class RobustCBFQPFilter:
             shifted = action + corrections[-1]
             action = np.clip(shifted, lower_bounds, upper_bounds)
             corrections[-1] = shifted - action
-            if speed_corrections is not None:
-                shifted_rows = (action.reshape(-1, 3) + speed_corrections).copy()
-                speed_norms = np.linalg.norm(shifted_rows, axis=1, keepdims=True)
-                projected_rows = shifted_rows * np.minimum(
-                    1.0,
-                    float(speed_max_mps) / np.maximum(speed_norms, 1.0e-12),
-                )
-                speed_corrections = shifted_rows - projected_rows
-                action = projected_rows.reshape(-1)
             residuals = matrix @ action - lower_rhs
-            speed_violation = 0.0
-            if speed_max_mps is not None:
-                speed_violation = float(
-                    np.max(np.maximum(np.linalg.norm(action.reshape(-1, 3), axis=1) - float(speed_max_mps), 0.0), initial=0.0)
-                )
-            if (
-                float(np.min(residuals, initial=np.inf)) >= -tolerance
-                and speed_violation <= tolerance
-                and float(np.max(np.abs(action - previous), initial=0.0)) <= tolerance
-            ):
+            if float(np.min(residuals, initial=np.inf)) >= -tolerance and float(
+                np.max(np.abs(action - previous), initial=0.0)
+            ) <= tolerance:
                 return action, True, iteration, "sequential_linearized_dykstra"
         residuals = matrix @ action - lower_rhs
-        speed_violation = 0.0
-        if speed_max_mps is not None:
-            speed_violation = float(
-                np.max(np.maximum(np.linalg.norm(action.reshape(-1, 3), axis=1) - float(speed_max_mps), 0.0), initial=0.0)
-            )
-        if float(np.min(residuals, initial=np.inf)) >= -tolerance and speed_violation <= tolerance:
+        if float(np.min(residuals, initial=np.inf)) >= -tolerance:
             return (
                 action,
                 True,
@@ -1110,28 +1074,27 @@ class RobustCBFQPFilter:
         # Recover a feasible point for the same linearized contract before
         # declaring the action infeasible. The independent nonlinear
         # certificate remains the acceptance gate at the caller.
-        if speed_max_mps is None:
-            try:
-                feasibility = linprog(
-                    np.zeros(action.size, dtype=np.float64),
-                    A_ub=-np.asarray(matrix, dtype=np.float64),
-                    b_ub=-np.asarray(lower_rhs, dtype=np.float64),
-                    bounds=list(zip(np.asarray(lower_bounds, dtype=np.float64), np.asarray(upper_bounds, dtype=np.float64))),
-                    method="highs",
+        try:
+            feasibility = linprog(
+                np.zeros(action.size, dtype=np.float64),
+                A_ub=-np.asarray(matrix, dtype=np.float64),
+                b_ub=-np.asarray(lower_rhs, dtype=np.float64),
+                bounds=list(zip(np.asarray(lower_bounds, dtype=np.float64), np.asarray(upper_bounds, dtype=np.float64))),
+                method="highs",
+            )
+        except (FloatingPointError, ValueError, RuntimeError):
+            feasibility = None
+        if feasibility is not None and bool(feasibility.success) and np.isfinite(feasibility.x).all():
+            feasible_action = np.asarray(feasibility.x, dtype=np.float64)
+            feasible_residuals = matrix @ feasible_action - lower_rhs
+            if float(np.min(feasible_residuals, initial=np.inf)) >= -tolerance:
+                return (
+                    feasible_action,
+                    True,
+                    int(self.config.execution_projection_iterations)
+                    + int(getattr(feasibility, "nit", 0)),
+                    "highs_linearized_feasibility_recovery",
                 )
-            except (FloatingPointError, ValueError, RuntimeError):
-                feasibility = None
-            if feasibility is not None and bool(feasibility.success) and np.isfinite(feasibility.x).all():
-                feasible_action = np.asarray(feasibility.x, dtype=np.float64)
-                feasible_residuals = matrix @ feasible_action - lower_rhs
-                if float(np.min(feasible_residuals, initial=np.inf)) >= -tolerance:
-                    return (
-                        feasible_action,
-                        True,
-                        int(self.config.execution_projection_iterations)
-                        + int(getattr(feasibility, "nit", 0)),
-                        "highs_linearized_feasibility_recovery",
-                    )
 
         return (
             action,
