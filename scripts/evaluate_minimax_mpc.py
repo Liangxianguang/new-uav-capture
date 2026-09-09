@@ -66,6 +66,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
 from encirclement3d.showcase import prepare_showcase_episode  # noqa: E402
 
@@ -574,6 +575,28 @@ def run_episode(
             cbf_correction = float(cbf_diagnostics.action_correction_norm)
             safety_latency_ms = (time.perf_counter() - safety_started) * 1000.0
             safety_diagnostics = cbf_diagnostics
+        certificate_observation = dict(observation)
+        certificate_observation.setdefault("world_lower_bounds", np.asarray(env.lower, dtype=np.float64))
+        certificate_observation.setdefault("world_upper_bounds", np.asarray(env.upper, dtype=np.float64))
+        certificate_observation.setdefault("obstacles", list(getattr(env, "obstacles", ())))
+        independent_certificate = check_one_step_safety(
+            certificate_observation,
+            np.asarray(safe_actions, dtype=np.float64),
+            dt=float(env.dt),
+            drone_radius=float(env.agents["drone_radius"]),
+            max_speed_mps=float(env.agents["defender_max_speed"]),
+            max_acceleration_mps2=float(env.agents["defender_max_acceleration"]),
+            safety_margin_m=float(env.pursuit["safety_margin"]),
+            robust_margin_m=(
+                float(robust_safety_config.robust_margin_m)
+                if resolved_safety_layer == "robust_cbf_qp" and robust_safety_config is not None
+                else 0.0
+            ),
+            action_change_limit_mps=(
+                None if robust_safety_config is None else robust_safety_config.action_change_limit_mps
+            ),
+            enforce_action_change=resolved_safety_layer == "robust_cbf_qp",
+        )
         safe_actions = env._clip_rows(safe_actions, float(env.agents["defender_max_speed"]))
         total_control_latency_ms = (time.perf_counter() - control_started) * 1000.0
         observation, _reward, terminated, truncated, final_info = env.step(
@@ -610,6 +633,16 @@ def run_episode(
                 "cbf_action_correction_norm": float(cbf_correction),
                 "safety_latency_ms": float(safety_latency_ms),
                 "safety_layer": resolved_safety_layer,
+                "safety_independent_certificate_valid": bool(independent_certificate.valid),
+                "safety_independent_certificate_status": str(independent_certificate.status),
+                "safety_independent_current_state_safe": bool(independent_certificate.current_state_safe),
+                "safety_independent_next_state_safe": bool(independent_certificate.next_state_safe),
+                "safety_independent_current_min_barrier_m": float(independent_certificate.current_min_barrier_m),
+                "safety_independent_next_min_barrier_m": float(independent_certificate.next_min_barrier_m),
+                "safety_independent_max_action_change_mps": float(
+                    independent_certificate.maximum_action_change_mps
+                ),
+                "safety_independent_violations": list(independent_certificate.violations),
                 "safety_status": (
                     None if safety_diagnostics is None else str(getattr(safety_diagnostics, "status", "unknown"))
                 ),
@@ -754,6 +787,24 @@ def run_episode(
         "safety_mean_constraint_count": _diagnostic_mean(step_rows, "safety_constraint_count"),
         "safety_failure_category_counts": _diagnostic_category_counts(step_rows, "safety_failure_category"),
         "safety_fallback_reason_counts": _diagnostic_category_counts(step_rows, "safety_fallback_reason"),
+        "safety_independent_certificate_valid_rate": _diagnostic_rate(
+            step_rows, "safety_independent_certificate_valid"
+        ),
+        "safety_independent_current_state_safe_rate": _diagnostic_rate(
+            step_rows, "safety_independent_current_state_safe"
+        ),
+        "safety_independent_next_state_safe_rate": _diagnostic_rate(
+            step_rows, "safety_independent_next_state_safe"
+        ),
+        "safety_independent_current_min_barrier_m": _diagnostic_min(
+            step_rows, "safety_independent_current_min_barrier_m"
+        ),
+        "safety_independent_next_min_barrier_m": _diagnostic_min(
+            step_rows, "safety_independent_next_min_barrier_m"
+        ),
+        "safety_independent_violation_counts": _diagnostic_violation_counts(
+            step_rows, "safety_independent_violations"
+        ),
         "mean_total_control_latency_ms": float(
             np.nanmean([row["total_control_latency_ms"] for row in step_rows])
         ),
@@ -875,6 +926,15 @@ def _diagnostic_category_counts(step_rows: list[dict[str, Any]], key: str) -> di
     return dict(sorted(counts.items()))
 
 
+def _diagnostic_violation_counts(step_rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in step_rows:
+        for value in row.get(key) or []:
+            label = str(value)
+            counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def finite_mean(values: list[float]) -> float:
     finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
     return float(np.mean(finite)) if finite.size else float("nan")
@@ -974,6 +1034,24 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "safety_mean_constraint_count": _diagnostic_mean(step_rows, "safety_constraint_count"),
         "safety_failure_category_counts": _diagnostic_category_counts(step_rows, "safety_failure_category"),
         "safety_fallback_reason_counts": _diagnostic_category_counts(step_rows, "safety_fallback_reason"),
+        "safety_independent_certificate_valid_rate": _diagnostic_rate(
+            step_rows, "safety_independent_certificate_valid"
+        ),
+        "safety_independent_current_state_safe_rate": _diagnostic_rate(
+            step_rows, "safety_independent_current_state_safe"
+        ),
+        "safety_independent_next_state_safe_rate": _diagnostic_rate(
+            step_rows, "safety_independent_next_state_safe"
+        ),
+        "safety_independent_current_min_barrier_m": _diagnostic_min(
+            step_rows, "safety_independent_current_min_barrier_m"
+        ),
+        "safety_independent_next_min_barrier_m": _diagnostic_min(
+            step_rows, "safety_independent_next_min_barrier_m"
+        ),
+        "safety_independent_violation_counts": _diagnostic_violation_counts(
+            step_rows, "safety_independent_violations"
+        ),
         "total_control_latency_ms": {
             "p50": percentile(total_control_latencies, 50),
             "p95": percentile(total_control_latencies, 95),
@@ -1201,6 +1279,11 @@ def main() -> None:
                     "safety_maximum_slack_m",
                     "safety_mean_active_constraint_count",
                     "safety_mean_constraint_count",
+                    "safety_independent_certificate_valid_rate",
+                    "safety_independent_current_state_safe_rate",
+                    "safety_independent_next_state_safe_rate",
+                    "safety_independent_current_min_barrier_m",
+                    "safety_independent_next_min_barrier_m",
                     "minimum_safety_barrier_m",
                     "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
@@ -1233,6 +1316,11 @@ def main() -> None:
             writer.add_text(
                 "Summary/SafetyFallbackReasonCounts",
                 json.dumps(summary.get("safety_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/SafetyIndependentViolationCounts",
+                json.dumps(summary.get("safety_independent_violation_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar("Summary/PlannerLatency/p50_ms", summary["planner_latency_ms"]["p50"], 0)

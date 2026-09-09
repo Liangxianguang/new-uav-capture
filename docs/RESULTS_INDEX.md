@@ -8,6 +8,11 @@ and TensorBoard event files locally for reproduction.
 
 ## Current Evidence Levels
 
+The current consolidated status and executable follow-up plan are in
+`EXPERIMENT_STATUS_AND_NEXT_TODOLIST.md`. It is the latest decision snapshot;
+the phase reports below remain the authoritative source for each individual
+metric.
+
 | Phase | Evidence | Status | Authoritative report |
 | --- | --- | --- | --- |
 | Phase 2 | Portable SSM + conditional diffusion prediction | Conditional Go | `PHASE2_FORMAL_ANALYSIS_REPORT.md`, `PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md` |

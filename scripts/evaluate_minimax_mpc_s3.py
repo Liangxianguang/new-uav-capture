@@ -497,6 +497,11 @@ def main() -> None:
                     "safety_maximum_slack_m",
                     "safety_mean_active_constraint_count",
                     "safety_mean_constraint_count",
+                    "safety_independent_certificate_valid_rate",
+                    "safety_independent_current_state_safe_rate",
+                    "safety_independent_next_state_safe_rate",
+                    "safety_independent_current_min_barrier_m",
+                    "safety_independent_next_min_barrier_m",
                     "minimum_safety_barrier_m",
                     "maximum_safety_constraint_violation_m",
                     "planner_fallback_count",
@@ -530,6 +535,11 @@ def main() -> None:
             writer.add_text(
                 "Summary/SafetyFallbackReasonCounts",
                 json.dumps(overall.get("safety_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/SafetyIndependentViolationCounts",
+                json.dumps(overall.get("safety_independent_violation_counts", {}), sort_keys=True),
                 0,
             )
             for name, key in (

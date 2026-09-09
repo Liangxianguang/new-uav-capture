@@ -210,3 +210,6 @@ def test_joint_episode_records_velocity_level_robust_safety_metrics() -> None:
     assert steps[0]["safety_failure_category"] == "none"
     assert steps[0]["safety_precondition_valid"] is True
     assert row["safety_failure_category_counts"] == {}
+    assert steps[0]["safety_independent_certificate_valid"] is True
+    assert steps[0]["safety_independent_next_state_safe"] is True
+    assert row["safety_independent_violation_counts"] == {}
