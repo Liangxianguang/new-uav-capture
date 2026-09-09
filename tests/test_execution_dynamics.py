@@ -19,6 +19,11 @@ from encirclement3d.execution_dynamics import (
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.safety_certificate import (
+    _barrier_position_gradients,
+    _barriers,
+    _barriers_with_position_gradients,
+    _robust_barriers,
+    _robustify_barriers,
     assess_execution_recoverability,
     check_execution_rollout_safety,
     check_execution_continuous_segment_safety,
@@ -42,6 +47,96 @@ def execution_config(**overrides: object) -> dict:
     config = load_config()
     config["dynamics"]["execution"].update({"enabled": True, **overrides})
     return config
+
+
+def test_combined_continuous_geometry_helper_preserves_barrier_contract() -> None:
+    positions = np.array(
+        [[-1.2, 0.4, 2.0], [1.0, -0.7, 2.4], [0.2, 1.6, 3.1]],
+        dtype=np.float64,
+    )
+    obstacles = [
+        {
+            "shape": "cylinder",
+            "center_xy": np.array([0.0, 0.0], dtype=np.float64),
+            "radius": 0.4,
+            "height": 2.5,
+        },
+        {
+            "shape": "box",
+            "center_xy": np.array([2.0, -1.0], dtype=np.float64),
+            "radius": 0.6,
+            "height": 3.0,
+            "half_extents_xy": np.array([0.7, 0.5], dtype=np.float64),
+        },
+    ]
+    lower = np.array([-5.0, -5.0, 0.5], dtype=np.float64)
+    upper = np.array([5.0, 5.0, 5.0], dtype=np.float64)
+    radius = 0.2
+    effective_margin = 0.3
+    uncertainty = np.array([0.12, 0.18, 0.09], dtype=np.float64)
+
+    expected_nominal = _barriers(positions, obstacles, lower, upper, radius, effective_margin)
+    expected_robust = _robust_barriers(
+        positions,
+        obstacles,
+        lower,
+        upper,
+        radius,
+        effective_margin,
+        uncertainty,
+    )[1]
+    nominal, gradients = _barriers_with_position_gradients(
+        positions,
+        obstacles,
+        lower,
+        upper,
+        radius,
+        effective_margin,
+        include_gradients=True,
+    )
+
+    assert list(nominal) == list(expected_nominal)
+    np.testing.assert_allclose(
+        [nominal[name] for name in nominal],
+        [expected_nominal[name] for name in expected_nominal],
+        atol=1.0e-12,
+    )
+    np.testing.assert_allclose(
+        list(_robustify_barriers(nominal, uncertainty).values()),
+        list(expected_robust.values()),
+        atol=1.0e-12,
+    )
+    assert gradients is not None
+    np.testing.assert_allclose(
+        gradients,
+        _barrier_position_gradients(
+            positions,
+            list(expected_nominal),
+            obstacles,
+            lower,
+            upper,
+            radius,
+            effective_margin,
+        ),
+        atol=1.0e-12,
+    )
+
+    values_without_gradients, gradients_without = _barriers_with_position_gradients(
+        positions,
+        obstacles,
+        lower,
+        upper,
+        radius,
+        effective_margin,
+        include_gradients=False,
+    )
+    assert gradients_without is None
+    assert list(values_without_gradients) == list(expected_nominal)
+    np.testing.assert_allclose(
+        list(values_without_gradients.values()),
+        list(expected_nominal.values()),
+        atol=1.0e-12,
+    )
 
 
 def test_disabled_execution_preserves_ideal_velocity_contract() -> None:

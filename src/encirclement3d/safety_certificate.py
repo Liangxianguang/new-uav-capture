@@ -481,6 +481,121 @@ def _barrier_position_gradients(
     return gradients
 
 
+def _barriers_with_position_gradients(
+    positions: np.ndarray,
+    obstacles: list[Any] | tuple[Any, ...],
+    lower: np.ndarray,
+    upper: np.ndarray,
+    radius: float,
+    effective_margin: float,
+    *,
+    include_gradients: bool,
+) -> tuple[dict[str, float], np.ndarray | None]:
+    """Evaluate geometric barriers and, optionally, their position gradients.
+
+    The continuous-segment contract evaluates the same geometry repeatedly at
+    adjacent segment endpoints.  Keeping the value and gradient calculation in
+    one pass avoids recomputing obstacle geometry and pairwise normals while
+    preserving the ordering used by ``_barriers`` and the QP Jacobian.
+    """
+
+    points = np.asarray(positions, dtype=np.float64)
+    values: dict[str, float] = {}
+    gradient_rows: list[np.ndarray] = []
+    point_dimension = int(points.size)
+
+    def append(name: str, value: float, gradient: np.ndarray | None = None) -> None:
+        values[name] = float(value)
+        if include_gradients:
+            assert gradient is not None
+            gradient_rows.append(np.asarray(gradient, dtype=np.float64).reshape(point_dimension))
+
+    for defender_index, position in enumerate(points):
+        for obstacle_index, obstacle in enumerate(obstacles):
+            if include_gradients:
+                clearance, clearance_gradient = _signed_obstacle_clearance_and_gradient(position, obstacle)
+            else:
+                clearance = _signed_obstacle_clearance(position, obstacle)
+                clearance_gradient = None
+            append(
+                f"obstacle[{obstacle_index}]/{defender_index}",
+                clearance - float(radius) - float(effective_margin),
+                _embed_position_gradient(
+                    defender_index,
+                    clearance_gradient,
+                    point_dimension,
+                ) if include_gradients else None,
+            )
+        for axis in range(3):
+            lower_gradient = np.zeros(point_dimension, dtype=np.float64) if include_gradients else None
+            upper_gradient = np.zeros(point_dimension, dtype=np.float64) if include_gradients else None
+            if include_gradients:
+                assert lower_gradient is not None and upper_gradient is not None
+                lower_gradient[defender_index * 3 + axis] = 1.0
+                upper_gradient[defender_index * 3 + axis] = -1.0
+            append(
+                f"boundary_lower[{axis}]/{defender_index}",
+                position[axis] - lower[axis] - float(radius) - float(effective_margin),
+                lower_gradient,
+            )
+            append(
+                f"boundary_upper[{axis}]/{defender_index}",
+                upper[axis] - position[axis] - float(radius) - float(effective_margin),
+                upper_gradient,
+            )
+
+    minimum_distance = 2.0 * float(radius) + float(effective_margin)
+    for first in range(len(points)):
+        for second in range(first + 1, len(points)):
+            relative = points[first] - points[second]
+            separation = float(np.linalg.norm(relative))
+            if include_gradients:
+                normal = _unit(relative, fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64))
+                pair_gradient = np.zeros(point_dimension, dtype=np.float64)
+                pair_gradient[first * 3 : first * 3 + 3] = normal
+                pair_gradient[second * 3 : second * 3 + 3] = -normal
+            else:
+                pair_gradient = None
+            append(
+                f"inter_agent[{first},{second}]",
+                separation - minimum_distance,
+                pair_gradient,
+            )
+
+    gradients = None if not include_gradients else np.stack(gradient_rows, axis=0)
+    return values, gradients
+
+
+def _embed_position_gradient(
+    defender_index: int,
+    local_gradient: np.ndarray | None,
+    point_dimension: int,
+) -> np.ndarray:
+    """Embed a 3D obstacle gradient in the flattened defender state."""
+
+    assert local_gradient is not None
+    embedded = np.zeros(point_dimension, dtype=np.float64)
+    embedded[defender_index * 3 : defender_index * 3 + 3] = local_gradient
+    return embedded
+
+
+def _robustify_barriers(
+    nominal: dict[str, float],
+    uncertainty_radii: np.ndarray,
+) -> dict[str, float]:
+    """Subtract the per-defender reachable-tube radii from barrier values."""
+
+    robust: dict[str, float] = {}
+    for name, value in nominal.items():
+        if name.startswith("inter_agent["):
+            indices = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+            uncertainty = float(uncertainty_radii[int(indices[0])] + uncertainty_radii[int(indices[1])])
+        else:
+            uncertainty = float(uncertainty_radii[int(name.rsplit("/", 1)[-1])])
+        robust[name] = float(value - uncertainty)
+    return robust
+
+
 def _continuous_segment_barrier_data(
     positions: np.ndarray,
     rollout_positions: list[np.ndarray] | tuple[np.ndarray, ...],
@@ -526,46 +641,63 @@ def _continuous_segment_barrier_data(
         endpoint_jacobian = None if position_jacobians is None else np.asarray(position_jacobians[step_index])
         assert previous_jacobian is not None or position_jacobians is None
         motion = endpoint - previous
+        endpoint_delta_jacobian = (
+            None
+            if position_jacobians is None
+            else endpoint_jacobian - previous_jacobian
+        )
+        # Cache all internal sample geometries once.  Adjacent subsegments
+        # share endpoints, so this removes the previous 2*N endpoint passes.
+        sample_positions: list[np.ndarray] = []
+        sample_jacobians: list[np.ndarray] | None = [] if position_jacobians is not None else None
+        sample_nominal: list[dict[str, float]] = []
+        sample_robust: list[dict[str, float]] = []
+        sample_gradients: list[np.ndarray] | None = [] if position_jacobians is not None else None
+        for sample_index in range(subdivisions + 1):
+            fraction = float(sample_index) / float(subdivisions)
+            sample_position = previous + fraction * motion
+            sample_positions.append(sample_position)
+            if position_jacobians is None:
+                sample_jacobian = None
+            else:
+                assert endpoint_delta_jacobian is not None and previous_jacobian is not None
+                sample_jacobian = previous_jacobian + fraction * endpoint_delta_jacobian
+                assert sample_jacobians is not None
+                sample_jacobians.append(sample_jacobian)
+            nominal, gradients_at_position = _barriers_with_position_gradients(
+                sample_position,
+                obstacles,
+                lower,
+                upper,
+                float(radius),
+                float(effective_margin),
+                include_gradients=position_jacobians is not None,
+            )
+            sample_nominal.append(nominal)
+            sample_robust.append(_robustify_barriers(nominal, uncertainty[step_index]))
+            if position_jacobians is not None:
+                assert sample_gradients is not None and gradients_at_position is not None
+                sample_gradients.append(gradients_at_position)
+
         for subdivision in range(1, subdivisions + 1):
-            start_fraction = float(subdivision - 1) / float(subdivisions)
-            end_fraction = float(subdivision) / float(subdivisions)
-            segment_start = previous + start_fraction * motion
-            segment_end = previous + end_fraction * motion
+            segment_start = sample_positions[subdivision - 1]
+            segment_end = sample_positions[subdivision]
+            start_nominal = sample_nominal[subdivision - 1]
+            end_nominal = sample_nominal[subdivision]
+            start_robust = sample_robust[subdivision - 1]
+            end_robust = sample_robust[subdivision]
             if position_jacobians is None:
                 segment_start_jacobian = segment_end_jacobian = None
             else:
-                assert endpoint_jacobian is not None and previous_jacobian is not None
-                endpoint_delta_jacobian = endpoint_jacobian - previous_jacobian
-                segment_start_jacobian = previous_jacobian + start_fraction * endpoint_delta_jacobian
-                segment_end_jacobian = previous_jacobian + end_fraction * endpoint_delta_jacobian
-
-            start_nominal, start_robust = _robust_barriers(
-                segment_start,
-                obstacles,
-                lower,
-                upper,
-                float(radius),
-                float(effective_margin),
-                uncertainty[step_index],
-            )
-            end_nominal, end_robust = _robust_barriers(
-                segment_end,
-                obstacles,
-                lower,
-                upper,
-                float(radius),
-                float(effective_margin),
-                uncertainty[step_index],
-            )
+                assert sample_jacobians is not None
+                segment_start_jacobian = sample_jacobians[subdivision - 1]
+                segment_end_jacobian = sample_jacobians[subdivision]
             names = list(end_nominal)
-            start_position_gradients = _barrier_position_gradients(
-                segment_start, names, obstacles, lower, upper, radius, effective_margin
-            )
-            end_position_gradients = _barrier_position_gradients(
-                segment_end, names, obstacles, lower, upper, radius, effective_margin
-            )
             if position_jacobians is not None:
                 assert segment_start_jacobian is not None and segment_end_jacobian is not None
+                assert sample_gradients is not None
+                start_position_gradients = sample_gradients[subdivision - 1]
+                end_position_gradients = sample_gradients[subdivision]
                 start_action_jacobian = start_position_gradients @ segment_start_jacobian
                 end_action_jacobian = end_position_gradients @ segment_end_jacobian
             else:
