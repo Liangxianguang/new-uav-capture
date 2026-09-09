@@ -74,6 +74,17 @@ tail latency. It must not be presented as a completed robust controller.
 - Keep the empirical reachable-tube multiplier at `2.1` until a new holdout
   justifies a change; this profile is not a calibration set.
 
+### 4.1 Rejected h1 progress-QP ablation
+
+The eight-seed run
+`results/phase10_hard_flush_horizon1_progress_v1/` used horizon 1,
+`progress_qp`, and disabled full-horizon emergency braking. It regressed to
+`12.5%` safe capture, `50.0%` collision, `25.0%` boundary violation, and
+`67.3%` actual post-state safety. The Wilson interval for safe capture was
+`[2.2%, 47.1%]`; latency was `391.96 / 1212.73 / 1524.28 ms` at p50/p95/p99.
+This is a rejected ablation. It demonstrates that one-step progress recovery
+cannot bypass the queue-prefix/current-state safety contract.
+
 Evidence directories:
 
 - `results/phase10_hard_authority_profile_v1/`
