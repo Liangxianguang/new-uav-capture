@@ -85,6 +85,12 @@ The eight-seed run
 This is a rejected ablation. It demonstrates that one-step progress recovery
 cannot bypass the queue-prefix/current-state safety contract.
 
+A two-seed follow-up kept `progress_qp` but re-enabled emergency braking. It
+had `0/2` safe captures, `0%` collision and boundary failure, `100%` actual
+post-state safety, and `100%` continuous certificate validity. It therefore
+restores the conservative safety behavior but does not restore task progress;
+it remains a profiling result rather than a candidate final controller.
+
 Evidence directories:
 
 - `results/phase10_hard_authority_profile_v1/`
