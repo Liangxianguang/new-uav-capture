@@ -192,7 +192,12 @@ class RobustCBFQPConfig:
             or float(self.execution_reachable_tube_multiplier) < 1.0
         ):
             raise ValueError("execution_reachable_tube_multiplier must be finite and at least one.")
-        if str(self.fallback_policy) not in {"zero_action", "nominal_clipped", "barrier_recovery"}:
+        if str(self.fallback_policy) not in {
+            "zero_action",
+            "nominal_clipped",
+            "barrier_recovery",
+            "progress_qp",
+        }:
             raise ValueError("Unsupported fallback_policy.")
 
     @property
@@ -1181,6 +1186,7 @@ class RobustCBFQPFilter:
         safety_observation.setdefault("world_upper_bounds", np.asarray(self.env.upper, dtype=np.float64))
         safety_observation.setdefault("obstacles", list(getattr(self.env, "obstacles", ())))
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
         queue = queue_from_observation(observation, positions.shape[0])
         _queue, _resolved, override_slots = apply_command_authority(
             queue,
@@ -1283,6 +1289,29 @@ class RobustCBFQPFilter:
             tuple[str, np.ndarray, Any, tuple[float, float, float] | None, int, str, CommandAuthorityDirective]
         ] = []
         for candidate_directive, directive_label in directive_specs:
+            directive_candidates = list(candidate_specs)
+            if (
+                self.config.fallback_policy == "progress_qp"
+                and not force_zero_action
+                and bool(recoverability.get("prefix_admissible", False))
+            ):
+                lower_action, upper_action = self._execution_action_bounds(velocities)
+                progress_result = self._solve_execution_linearized_projection(
+                    safety_observation,
+                    desired,
+                    lower_action,
+                    upper_action,
+                    preview_steps=1,
+                    directive=candidate_directive,
+                )
+                if bool(progress_result.get("success", False)):
+                    directive_candidates.insert(
+                        0,
+                        (
+                            "progress_qp" if directive_label == "selected" else f"progress_qp_{directive_label}",
+                            np.asarray(progress_result["actions"], dtype=np.float64),
+                        )
+                    )
             candidate_horizons = [preview_steps]
             if (
                 bool(self.config.execution_fallback_receding_step_enabled)
@@ -1292,7 +1321,7 @@ class RobustCBFQPFilter:
                 candidate_horizons.append(1)
             for horizon in candidate_horizons:
                 scope = "full_horizon" if horizon == preview_steps else "one_step_receding"
-                for candidate_label, candidate in candidate_specs:
+                for candidate_label, candidate in directive_candidates:
                     try:
                         candidate_certificate = check_execution_rollout_safety(
                             safety_observation,

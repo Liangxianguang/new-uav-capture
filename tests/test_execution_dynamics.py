@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -622,6 +623,25 @@ def test_flush_pending_fallback_preserves_certified_goal_progress() -> None:
     assert diagnostics.fallback_candidate_type == "nominal_clipped"
     assert diagnostics.fallback_goal_progress_m > 0.0
     assert actions[0, 0] > 0.0
+
+    progress_filter = RobustCBFQPFilter(
+        env,
+        replace(filter_instance.config, fallback_policy="progress_qp"),
+    )
+    progress_actions, progress_diagnostics = progress_filter._execution_fallback(
+        np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64),
+        observation,
+        0.0,
+        reason="test_solver_failure",
+        category="execution_rollout_infeasible",
+        precondition_valid=True,
+        directive=CommandAuthorityDirective(mode="flush_pending", emergency_brake=True),
+    )
+
+    assert progress_diagnostics.certificate_valid
+    assert progress_diagnostics.fallback_candidate_type == "progress_qp"
+    assert progress_diagnostics.fallback_goal_progress_m > 0.0
+    assert progress_actions[0, 0] > 0.0
 
 
 def test_execution_swept_volume_certificate_reports_sampling_contract() -> None:
