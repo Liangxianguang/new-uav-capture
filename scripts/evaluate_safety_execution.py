@@ -96,7 +96,10 @@ def certificate_observation(observation: dict[str, Any], env: CaptureRadiusPursu
 
 def apply_execution_variant(config: dict[str, Any], variant: dict[str, Any]) -> dict[str, Any]:
     updated = copy.deepcopy(config)
-    updated.setdefault("dynamics", {})["execution"] = copy.deepcopy(variant)
+    execution_variant = copy.deepcopy(variant)
+    # Tube calibration belongs to the safety contract, not the plant parser.
+    execution_variant.pop("reachable_tube_multiplier", None)
+    updated.setdefault("dynamics", {})["execution"] = execution_variant
     return updated
 
 
@@ -222,6 +225,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=qp_config.execution_preview_horizon_steps,
+            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
             command_authority=command_authority,
         )
         swept_certificate = check_execution_swept_volume_safety(
@@ -233,6 +237,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             horizon_steps=qp_config.execution_preview_horizon_steps,
             subdivisions_per_step=int(swept_volume_subdivisions_per_step),
+            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
             command_authority=command_authority,
         )
         continuous_segment_certificate = check_execution_continuous_segment_safety(
@@ -243,6 +248,7 @@ def run_episode(
             safety_margin_m=float(env.pursuit["safety_margin"]),
             robust_margin_m=float(qp_config.robust_margin_m),
             horizon_steps=qp_config.execution_preview_horizon_steps,
+            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
             command_authority=command_authority,
         )
         observation, _reward, terminated, truncated, info = env.step(
@@ -289,6 +295,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=1,
+            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
         )
         command_valid += int(command_certificate.valid)
         command_execution_valid += int(execution_certificate.valid)
@@ -582,6 +589,9 @@ def log_tensorboard(
                 "execution_emergency_brake_enabled": bool(
                     config["safety"].get("execution_emergency_brake_enabled", False)
                 ),
+                "execution_reachable_tube_multiplier": float(
+                    config["safety"].get("execution_reachable_tube_multiplier", 1.0)
+                ),
             },
             {
                 "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),
@@ -618,7 +628,6 @@ def main() -> None:
     safety_mapping.setdefault("max_speed_mps", float(env_probe.agents["defender_max_speed"]))
     safety_mapping.setdefault("max_acceleration_mps2", float(env_probe.agents["defender_max_acceleration"]))
     safety_mapping.setdefault("safety_margin_m", float(env_probe.pursuit["safety_margin"]))
-    qp_config = RobustCBFQPConfig.from_mapping(safety_mapping)
     seed_protocol = dict(evaluation["robust_safe_seed_protocol"])
     seeds = [int(seed) for seed in seed_protocol["episode_seeds"]]
     if int(evaluation["episodes"]) != len(seeds):
@@ -649,12 +658,18 @@ def main() -> None:
         variant = dict(variants[variant_name])
         variant_config = apply_execution_variant(base_config, variant)
         variant_config.setdefault("world", {})["max_steps"] = max_steps
+        variant_safety_mapping = dict(safety_mapping)
+        if "reachable_tube_multiplier" in variant:
+            variant_safety_mapping["execution_reachable_tube_multiplier"] = float(
+                variant["reachable_tube_multiplier"]
+            )
+        variant_qp_config = RobustCBFQPConfig.from_mapping(variant_safety_mapping)
         audits = audit_initial_seeds(
             variant_config,
             seeds=seeds,
             obstacle_count=int(evaluation["obstacle_count"]),
             target_speed_scale=float(evaluation["target_speed_scale"]),
-            qp_config=qp_config,
+            qp_config=variant_qp_config,
         )
         variant_output = output / variant_name
         variant_output.mkdir(parents=True, exist_ok=True)
@@ -675,13 +690,14 @@ def main() -> None:
                     swept_volume_subdivisions_per_step=int(
                         evaluation.get("swept_volume_subdivisions_per_step", 4)
                     ),
-                    qp_config=qp_config,
+                    qp_config=variant_qp_config,
                 )
                 row["episode_index"] = episode_index
                 rows.append(row)
                 steps.extend({"episode_index": episode_index, **step} for step in episode_steps)
             run_config = {
                 **root_config,
+                "safety": variant_safety_mapping,
                 "execution_variant": variant_name,
                 "execution": variant,
                 "evaluation": {**evaluation, "method": method, "episode_seeds": seeds, "max_steps": max_steps},

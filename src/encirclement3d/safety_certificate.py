@@ -20,7 +20,7 @@ from encirclement3d.execution_dynamics import (
     command_authority_directive,
     command_authority_from_observation,
     parameters_from_observation,
-    position_uncertainty_radii,
+    reachable_tube_radii,
     queue_from_observation,
     rollout_execution,
     rollout_execution_with_action_jacobian,
@@ -451,6 +451,7 @@ def execution_barrier_values(
     robust_margin_m: float,
     horizon_steps: int | None = None,
     swept_substeps: int = 4,
+    reachable_tube_multiplier: float = 1.0,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return nominal and uncertainty-robust barriers along executed rollout."""
@@ -485,7 +486,12 @@ def execution_barrier_values(
         parameters,
         horizon_steps=preview_steps,
     )
-    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    uncertainty = reachable_tube_radii(
+        parameters,
+        positions.shape[0],
+        preview_steps,
+        multiplier=reachable_tube_multiplier,
+    )
     nominal_values: dict[str, float] = {}
     robust_values: dict[str, float] = {}
     for step_index, (future_positions, radii) in enumerate(zip(rollout_positions, uncertainty), start=1):
@@ -528,6 +534,7 @@ def execution_barrier_values(
         ),
         "emergency_brake_requested": float(directive.emergency_brake),
         "queue_override_slots": float(overridden_slots),
+        "reachable_tube_multiplier": float(reachable_tube_multiplier),
     }
     return nominal_values, robust_values, assumptions
 
@@ -540,6 +547,7 @@ def assess_execution_recoverability(
     safety_margin_m: float,
     robust_margin_m: float,
     horizon_steps: int | None = None,
+    reachable_tube_multiplier: float = 1.0,
     tolerance: float = 1.0e-6,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ExecutionRecoverabilityResult:
@@ -602,6 +610,7 @@ def assess_execution_recoverability(
             safety_margin_m=safety_margin_m,
             robust_margin_m=robust_margin_m,
             horizon_steps=immutable_prefix_steps,
+            reachable_tube_multiplier=reachable_tube_multiplier,
             command_authority=directive,
         )
     prefix_minimum = float(min(prefix_values.values(), default=float("inf")))
@@ -638,6 +647,7 @@ def assess_execution_recoverability(
             "queue_override_slots": float(overridden_slots),
             "current_min_robust_barrier_m": float(current_minimum),
             "prefix_min_robust_barrier_m": float(prefix_minimum),
+            "reachable_tube_multiplier": float(reachable_tube_multiplier),
         },
     )
 
@@ -653,6 +663,7 @@ def execution_barrier_values_with_action_jacobian(
     horizon_steps: int | None = None,
     swept_substeps: int = 4,
     jacobian_active_margin_m: float | None = None,
+    reachable_tube_multiplier: float = 1.0,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], np.ndarray, dict[str, float]]:
     """Evaluate execution barriers with local action derivatives.
@@ -695,7 +706,12 @@ def execution_barrier_values_with_action_jacobian(
             horizon_steps=preview_steps,
         )
     )
-    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    uncertainty = reachable_tube_radii(
+        parameters,
+        positions.shape[0],
+        preview_steps,
+        multiplier=reachable_tube_multiplier,
+    )
     nominal_values: dict[str, float] = {}
     robust_values: dict[str, float] = {}
     gradients: list[np.ndarray] = []
@@ -815,6 +831,7 @@ def execution_barrier_values_with_action_jacobian(
         "jacobian_active_margin_m": float(
             -1.0 if jacobian_active_margin_m is None else jacobian_active_margin_m
         ),
+        "reachable_tube_multiplier": float(reachable_tube_multiplier),
     }
     return nominal_values, robust_values, np.stack(gradients, axis=0), assumptions
 
@@ -832,6 +849,7 @@ def check_execution_rollout_safety(
     tolerance: float = 1.0e-6,
     action_change_limit_mps: float | None = None,
     horizon_steps: int | None = None,
+    reachable_tube_multiplier: float = 1.0,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ExecutionRolloutCertificateResult:
     """Check the actual queued execution model over a finite preview horizon."""
@@ -856,6 +874,7 @@ def check_execution_rollout_safety(
         safety_margin_m=safety_margin_m,
         robust_margin_m=robust_margin_m,
         horizon_steps=horizon_steps,
+        reachable_tube_multiplier=reachable_tube_multiplier,
         command_authority=command_authority,
     )
     violations: list[str] = []
@@ -901,6 +920,7 @@ def check_execution_swept_volume_safety(
     robust_margin_m: float,
     horizon_steps: int | None = None,
     subdivisions_per_step: int = 4,
+    reachable_tube_multiplier: float = 1.0,
     tolerance: float = 1.0e-6,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> SweptVolumeCertificateResult:
@@ -931,7 +951,12 @@ def check_execution_swept_volume_safety(
         parameters,
         horizon_steps=preview_steps,
     )
-    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    uncertainty = reachable_tube_radii(
+        parameters,
+        positions.shape[0],
+        preview_steps,
+        multiplier=reachable_tube_multiplier,
+    )
     initial_barriers = _barriers(
         positions,
         obstacles,
@@ -1004,6 +1029,7 @@ def check_execution_swept_volume_safety(
                 ),
                 "emergency_brake_requested": float(directive.emergency_brake),
                 "queue_override_slots": float(overridden_slots),
+                "reachable_tube_multiplier": float(reachable_tube_multiplier),
         },
     )
 
@@ -1017,6 +1043,7 @@ def check_execution_continuous_segment_safety(
     safety_margin_m: float,
     robust_margin_m: float,
     horizon_steps: int | None = None,
+    reachable_tube_multiplier: float = 1.0,
     tolerance: float = 1.0e-6,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ContinuousSegmentCertificateResult:
@@ -1051,7 +1078,12 @@ def check_execution_continuous_segment_safety(
         parameters,
         horizon_steps=preview_steps,
     )
-    uncertainty = position_uncertainty_radii(parameters, positions.shape[0], preview_steps)
+    uncertainty = reachable_tube_radii(
+        parameters,
+        positions.shape[0],
+        preview_steps,
+        multiplier=reachable_tube_multiplier,
+    )
     effective_margin = float(safety_margin_m) + float(robust_margin_m)
     initial = _barriers(positions, obstacles, lower, upper, float(drone_radius), effective_margin)
     current_minimum = float(min(initial.values(), default=float("inf")))
@@ -1124,6 +1156,7 @@ def check_execution_continuous_segment_safety(
             ),
             "emergency_brake_requested": float(directive.emergency_brake),
             "queue_override_slots": float(overridden_slots),
+            "reachable_tube_multiplier": float(reachable_tube_multiplier),
         },
     )
 

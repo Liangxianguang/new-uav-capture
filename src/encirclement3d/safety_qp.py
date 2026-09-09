@@ -131,6 +131,7 @@ class RobustCBFQPConfig:
     execution_projection_iterations: int = 160
     execution_projection_tolerance: float = 1.0e-7
     execution_emergency_brake_enabled: bool = True
+    execution_reachable_tube_multiplier: float = 1.0
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.gamma) <= 1.0:
@@ -175,6 +176,11 @@ class RobustCBFQPConfig:
             raise ValueError("execution_linearization_fd_step_mps must be positive.")
         if float(self.execution_projection_tolerance) <= 0.0:
             raise ValueError("execution_projection_tolerance must be positive.")
+        if (
+            not np.isfinite(float(self.execution_reachable_tube_multiplier))
+            or float(self.execution_reachable_tube_multiplier) < 1.0
+        ):
+            raise ValueError("execution_reachable_tube_multiplier must be finite and at least one.")
         if str(self.fallback_policy) not in {"zero_action", "nominal_clipped", "barrier_recovery"}:
             raise ValueError("Unsupported fallback_policy.")
 
@@ -557,6 +563,7 @@ class RobustCBFQPFilter:
             "max_speed_mps": float(self.config.max_speed_mps),
             "max_acceleration_mps2": float(self.config.max_acceleration_mps2),
             "action_change_constraint_enabled": float(bool(self.config.enforce_action_change)),
+            "execution_reachable_tube_multiplier": float(self.config.execution_reachable_tube_multiplier),
         }
 
     def _filter_with_execution_model(
@@ -593,6 +600,7 @@ class RobustCBFQPFilter:
             safety_margin_m=float(self.config.safety_margin_m),
             robust_margin_m=float(self.config.robust_margin_m),
             horizon_steps=preview_steps,
+            reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
             tolerance=float(self.config.solver_tolerance),
             command_authority=nominal_directive,
         )
@@ -624,6 +632,7 @@ class RobustCBFQPFilter:
                 tolerance=float(self.config.solver_tolerance),
                 action_change_limit_mps=self.config.action_change_limit_mps,
                 horizon_steps=preview_steps,
+                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                 command_authority=directive,
             )
 
@@ -743,6 +752,7 @@ class RobustCBFQPFilter:
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
+                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                 command_authority=directive,
             )
             evaluations += 1
@@ -760,6 +770,7 @@ class RobustCBFQPFilter:
                     robust_margin_m=float(self.config.robust_margin_m),
                     horizon_steps=preview_steps,
                     jacobian_active_margin_m=float(self.config.execution_linearization_active_margin_m),
+                    reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                     command_authority=directive,
                 )
                 evaluations += 1
@@ -996,6 +1007,7 @@ class RobustCBFQPFilter:
                     int(self.config.execution_preview_horizon_steps),
                     len(queue_from_observation(observation, len(observation["defender_positions"])) ) + 1,
                 ),
+                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                 tolerance=float(self.config.solver_tolerance),
                 command_authority=directive,
             )
@@ -1051,6 +1063,7 @@ class RobustCBFQPFilter:
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
+                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                 command_authority=directive,
             )
             names = list(robust)
@@ -1066,6 +1079,7 @@ class RobustCBFQPFilter:
                         robust_margin_m=float(self.config.robust_margin_m),
                         horizon_steps=preview_steps,
                         jacobian_active_margin_m=None,
+                        reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                         command_authority=directive,
                     )
                 )
@@ -1126,6 +1140,7 @@ class RobustCBFQPFilter:
                     tolerance=float(self.config.solver_tolerance),
                     action_change_limit_mps=self.config.action_change_limit_mps,
                     horizon_steps=preview_steps,
+                    reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
                     command_authority=directive,
                 )
             except (FloatingPointError, ValueError, RuntimeError):

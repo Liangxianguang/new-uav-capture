@@ -472,6 +472,27 @@ def position_uncertainty_radii(parameters: ExecutionParameters, defenders: int, 
     return np.stack(radii, axis=0)
 
 
+def reachable_tube_radii(
+    parameters: ExecutionParameters,
+    defenders: int,
+    horizon_steps: int,
+    *,
+    multiplier: float = 1.0,
+) -> np.ndarray:
+    """Return a preview-indexed position tube with an audited calibration factor.
+
+    ``position_uncertainty_radii`` is the analytic noise-only tube shared by
+    the execution model and certificates.  The multiplier permits a separate
+    calibration experiment to cover bounded tracking and parameter mismatch.
+    It is explicitly an empirical calibration factor unless a reachability
+    proof for the execution model supplies it.
+    """
+
+    if not np.isfinite(float(multiplier)) or float(multiplier) < 1.0:
+        raise ValueError("reachable-tube multiplier must be finite and at least one.")
+    return float(multiplier) * position_uncertainty_radii(parameters, defenders, horizon_steps)
+
+
 __all__ = [
     "CommandAuthorityDirective",
     "ExecutionParameters",
@@ -484,6 +505,7 @@ __all__ = [
     "move_toward_velocity",
     "parameters_from_observation",
     "position_uncertainty_radii",
+    "reachable_tube_radii",
     "queue_from_observation",
     "rollout_execution",
     "rollout_execution_with_action_jacobian",

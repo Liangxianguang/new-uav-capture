@@ -12,6 +12,7 @@ from encirclement3d.execution_dynamics import (
     apply_command_authority,
     advance_execution,
     position_uncertainty_radii,
+    reachable_tube_radii,
     rollout_execution,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
@@ -24,6 +25,7 @@ from encirclement3d.safety_certificate import (
     execution_barrier_values_with_action_jacobian,
 )
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter
+from scripts.evaluate_safety_execution import apply_execution_variant
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +54,59 @@ def test_disabled_execution_preserves_ideal_velocity_contract() -> None:
     assert info["execution_enabled"] is False
     assert info["action_execution_error_norm"] == pytest.approx(0.0)
     assert info["mean_action_execution_error_norm"] == pytest.approx(0.0)
+
+
+def test_reachable_tube_multiplier_scales_each_preview_step() -> None:
+    parameters = ExecutionParameters(
+        enabled=True,
+        dt_seconds=0.1,
+        action_delay_steps=1,
+        command_noise_std_mps=0.03,
+        command_noise_bound_mps=0.09,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.2,
+        drag_coefficient=0.05,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        mass_scale=1.0,
+    )
+    base = position_uncertainty_radii(parameters, defenders=4, horizon_steps=5)
+    calibrated = reachable_tube_radii(parameters, defenders=4, horizon_steps=5, multiplier=2.1)
+    np.testing.assert_allclose(calibrated, 2.1 * base)
+    assert np.all(calibrated[1:] >= calibrated[:-1])
+
+
+def test_reachable_tube_multiplier_rejects_under_one() -> None:
+    parameters = ExecutionParameters(
+        enabled=True,
+        dt_seconds=0.1,
+        action_delay_steps=0,
+        command_noise_std_mps=0.0,
+        command_noise_bound_mps=0.0,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.0,
+        drag_coefficient=0.0,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        mass_scale=1.0,
+    )
+    with pytest.raises(ValueError, match="at least one"):
+        reachable_tube_radii(parameters, defenders=4, horizon_steps=1, multiplier=0.99)
+
+
+def test_variant_tube_multiplier_stays_out_of_execution_settings() -> None:
+    config = {"dynamics": {"execution": {"enabled": False}}}
+    variant = {
+        "reachable_tube_multiplier": 2.1,
+        "enabled": True,
+        "action_delay_steps": 2,
+    }
+
+    updated = apply_execution_variant(config, variant)
+
+    assert "reachable_tube_multiplier" not in updated["dynamics"]["execution"]
+    assert updated["dynamics"]["execution"]["action_delay_steps"] == 2
+    assert "reachable_tube_multiplier" in variant
 
 
 def test_action_delay_is_applied_before_velocity_execution() -> None:
