@@ -56,6 +56,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-steps", type=int)
     parser.add_argument("--max-episodes", type=int, help="Limit the configured seed list for profiling runs.")
+    parser.add_argument(
+        "--seed-start",
+        type=int,
+        help="Override the configured episode seeds with a consecutive holdout block starting here.",
+    )
+    parser.add_argument(
+        "--seed-count",
+        type=int,
+        help="Number of seeds in the holdout block requested with --seed-start.",
+    )
     return parser.parse_args()
 
 
@@ -103,6 +113,32 @@ def apply_execution_variant(config: dict[str, Any], variant: dict[str, Any]) -> 
     execution_variant.pop("reachable_tube_multiplier", None)
     updated.setdefault("dynamics", {})["execution"] = execution_variant
     return updated
+
+
+def resolve_episode_seeds(
+    evaluation: dict[str, Any],
+    *,
+    seed_start: int | None = None,
+    seed_count: int | None = None,
+    max_episodes: int | None = None,
+) -> list[int]:
+    """Resolve configured or consecutive holdout seeds for an evaluation."""
+
+    seed_protocol = dict(evaluation["robust_safe_seed_protocol"])
+    seeds = [int(seed) for seed in seed_protocol["episode_seeds"]]
+    if (seed_start is None) != (seed_count is None):
+        raise ValueError("seed_start and seed_count must be provided together")
+    if seed_start is not None and seed_count is not None:
+        if int(seed_count) <= 0:
+            raise ValueError("seed_count must be positive")
+        seeds = [int(seed_start) + offset for offset in range(int(seed_count))]
+    if max_episodes is not None:
+        if int(max_episodes) <= 0:
+            raise ValueError("max_episodes must be positive")
+        seeds = seeds[: int(max_episodes)]
+    if not seeds:
+        raise ValueError("episode seed list must not be empty")
+    return seeds
 
 
 def audit_initial_seeds(
@@ -843,12 +879,12 @@ def main() -> None:
     safety_mapping.setdefault("max_speed_mps", float(env_probe.agents["defender_max_speed"]))
     safety_mapping.setdefault("max_acceleration_mps2", float(env_probe.agents["defender_max_acceleration"]))
     safety_mapping.setdefault("safety_margin_m", float(env_probe.pursuit["safety_margin"]))
-    seed_protocol = dict(evaluation["robust_safe_seed_protocol"])
-    seeds = [int(seed) for seed in seed_protocol["episode_seeds"]]
-    if args.max_episodes is not None:
-        if int(args.max_episodes) <= 0:
-            raise ValueError("--max-episodes must be positive")
-        seeds = seeds[: int(args.max_episodes)]
+    seeds = resolve_episode_seeds(
+        evaluation,
+        seed_start=args.seed_start,
+        seed_count=args.seed_count,
+        max_episodes=args.max_episodes,
+    )
     if int(evaluation["episodes"]) != len(seeds):
         evaluation["episodes"] = len(seeds)
     variants = dict(document["variants"])

@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,3 +70,16 @@ def test_execution_summary_reports_p99_latency_and_wilson_metrics() -> None:
     assert summary["safety_latency_ms"]["p99"] == 10.0
     assert summary["wilson_95"]["safe_capture_rate"]["trials"] == 1
     assert summary["wilson_95"]["safe_capture_rate"]["successes"] == 1
+
+
+def test_resolve_episode_seeds_supports_reproducible_holdout_blocks() -> None:
+    module = _metrics_module()
+    evaluation = {"robust_safe_seed_protocol": {"episode_seeds": [10, 20, 30]}}
+
+    assert module.resolve_episode_seeds(evaluation) == [10, 20, 30]
+    assert module.resolve_episode_seeds(evaluation, seed_start=700001, seed_count=4) == [700001, 700002, 700003, 700004]
+    assert module.resolve_episode_seeds(evaluation, seed_start=700001, seed_count=4, max_episodes=2) == [700001, 700002]
+    with pytest.raises(ValueError, match="provided together"):
+        module.resolve_episode_seeds(evaluation, seed_start=700001)
+    with pytest.raises(ValueError, match="positive"):
+        module.resolve_episode_seeds(evaluation, seed_start=700001, seed_count=0)
