@@ -493,6 +493,44 @@ def test_execution_aware_qp_and_certificate_share_queue_contract() -> None:
     assert certificate.rollout_state_safe
 
 
+def test_execution_rollout_state_snapshot_can_skip_action_change_check() -> None:
+    observation = {
+        "defender_positions": np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+            dtype=np.float64,
+        ),
+        "defender_velocities": np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [],
+        "execution": {"enabled": False, "action_queue": []},
+    }
+    action = np.zeros((4, 3), dtype=np.float64)
+    common = {
+        "dt": 0.1,
+        "drone_radius": 0.25,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "safety_margin_m": 0.1,
+        "robust_margin_m": 0.0,
+        "action_change_limit_mps": 0.2,
+    }
+
+    command_certificate = check_execution_rollout_safety(observation, action, **common)
+    state_certificate = check_execution_rollout_safety(
+        observation,
+        action,
+        **common,
+        enforce_action_change=False,
+    )
+
+    assert not command_certificate.valid
+    assert "action_change_limit" in command_certificate.violations
+    assert state_certificate.valid
+    assert state_certificate.current_state_safe
+    assert state_certificate.assumptions["action_change_check_enabled"] == 0.0
+
+
 def test_execution_fallback_uses_barrier_direction_for_recovery() -> None:
     config = load_config()
     config["world"]["max_steps"] = 20

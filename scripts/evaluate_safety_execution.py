@@ -420,6 +420,7 @@ def run_episode(
             reachable_tube_multiplier=post_tube_multiplier,
             continuous_segment_constraints=bool(qp_config.execution_continuous_segment_constraints),
             continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
+            enforce_action_change=False,
         )
         command_valid += int(command_certificate.valid)
         command_execution_valid += int(execution_certificate.valid)

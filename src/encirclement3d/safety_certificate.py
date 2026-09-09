@@ -1125,6 +1125,7 @@ def check_execution_rollout_safety(
     continuous_segment_constraints: bool = False,
     continuous_segment_subdivisions: int = 4,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
+    enforce_action_change: bool = True,
 ) -> ExecutionRolloutCertificateResult:
     """Check the actual queued execution model over a finite preview horizon."""
 
@@ -1166,10 +1167,17 @@ def check_execution_rollout_safety(
     action_norm = float(np.max(np.linalg.norm(actions, axis=1), initial=0.0))
     if action_norm > float(max_speed_mps) + tolerance_value:
         violations.append("speed_limit")
-    change_limit = float(max_acceleration_mps2) * float(dt) if action_change_limit_mps is None else float(action_change_limit_mps)
-    action_change = float(np.max(np.abs(actions - velocities), initial=0.0))
-    if action_change > change_limit + tolerance_value:
-        violations.append("action_change_limit")
+    if enforce_action_change:
+        change_limit = (
+            float(max_acceleration_mps2) * float(dt)
+            if action_change_limit_mps is None
+            else float(action_change_limit_mps)
+        )
+        action_change = float(np.max(np.abs(actions - velocities), initial=0.0))
+        if action_change > change_limit + tolerance_value:
+            violations.append("action_change_limit")
+    else:
+        change_limit = float("nan")
     valid = not violations
     return ExecutionRolloutCertificateResult(
         valid=valid,
@@ -1182,7 +1190,11 @@ def check_execution_rollout_safety(
         barrier_values_m=robust_values,
         nominal_barrier_values_m=nominal_values,
         violations=tuple(violations),
-        assumptions=assumptions,
+        assumptions={
+            **assumptions,
+            "action_change_check_enabled": float(bool(enforce_action_change)),
+            "action_change_limit_mps": float(change_limit),
+        },
     )
 
 
