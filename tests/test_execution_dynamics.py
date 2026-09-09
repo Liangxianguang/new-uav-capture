@@ -14,6 +14,7 @@ from encirclement3d.execution_dynamics import (
     advance_execution,
     position_uncertainty_radii,
     reachable_tube_radii,
+    resolve_reachable_tube_multiplier,
     rollout_execution,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
@@ -93,6 +94,42 @@ def test_reachable_tube_multiplier_rejects_under_one() -> None:
     )
     with pytest.raises(ValueError, match="at least one"):
         reachable_tube_radii(parameters, defenders=4, horizon_steps=1, multiplier=0.99)
+
+
+def test_queue_aware_reachable_tube_multiplier_is_explicit_and_monotone() -> None:
+    parameters = ExecutionParameters(
+        enabled=True,
+        dt_seconds=0.1,
+        action_delay_steps=2,
+        command_noise_std_mps=0.08,
+        command_noise_bound_mps=0.24,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.4,
+        drag_coefficient=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        mass_scale=1.0,
+    )
+    velocity = np.full((4, 3), 2.0, dtype=np.float64)
+    fixed = resolve_reachable_tube_multiplier(
+        parameters,
+        queue_length=2,
+        current_velocity=velocity,
+        base_multiplier=2.1,
+    )
+    adaptive = resolve_reachable_tube_multiplier(
+        parameters,
+        queue_length=4,
+        current_velocity=velocity,
+        base_multiplier=2.1,
+        policy="queue_aware",
+        delay_gain=0.2,
+        queue_gain=0.3,
+        speed_gain=0.1,
+        uncertainty_gain=0.2,
+    )
+    assert fixed == pytest.approx(2.1)
+    assert adaptive >= fixed
 
 
 def test_variant_tube_multiplier_stays_out_of_execution_settings() -> None:
@@ -719,6 +756,8 @@ def test_continuous_segment_certificate_detects_interagent_midsegment_crossing()
     assert not certificate.valid
     assert not certificate.continuous_segment_safe
     assert certificate.minimum_robust_barrier_m < 0.0
+    assert certificate.segment_count == 5
+    assert certificate.assumptions["continuous_segment_internal_samples"] == pytest.approx(4.0)
 
 
 def test_analytic_execution_barrier_jacobian_matches_finite_difference() -> None:
@@ -845,3 +884,45 @@ def test_continuous_segment_qp_barrier_jacobian_matches_certificate_contract() -
             dtype=np.float64,
         )
     np.testing.assert_allclose(jacobian, finite_difference, atol=2.0e-5, rtol=2.0e-5)
+
+
+def test_continuous_segment_internal_samples_reach_qp_contract() -> None:
+    observation = {
+        "defender_positions": np.array([[-4.0, -4.0, 4.0], [4.0, 4.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    kwargs = {
+        "dt": 0.1,
+        "drone_radius": 0.25,
+        "safety_margin_m": 0.1,
+        "robust_margin_m": 0.0,
+        "horizon_steps": 2,
+        "continuous_segment_constraints": True,
+    }
+    action = np.array([[0.7, -0.4, 0.2], [-0.5, 0.3, -0.1]], dtype=np.float64)
+    _nominal, sampled_values, assumptions = execution_barrier_values(
+        observation,
+        action,
+        continuous_segment_subdivisions=4,
+        **kwargs,
+    )
+    assert assumptions["continuous_segment_internal_samples"] == pytest.approx(4.0)
+    assert assumptions["continuous_segment_subsegments"] == pytest.approx(5.0)
+    assert any("segment[5]/continuous/" in name for name in sampled_values)
+    assert len(sampled_values) == 2 * 5 * 13

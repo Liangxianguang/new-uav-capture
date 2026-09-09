@@ -58,6 +58,29 @@ def _filter_config(**overrides: object) -> RobustCBFQPConfig:
     return RobustCBFQPConfig(**values)
 
 
+def test_execution_projection_recovers_feasible_linearized_point_after_dykstra_limit() -> None:
+    env = _env()
+    filter_instance = RobustCBFQPFilter(
+        env,
+        _filter_config(execution_projection_iterations=1),
+    )
+    target = np.zeros(2, dtype=np.float64)
+    matrix = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, -1.0]], dtype=np.float64)
+    lower_rhs = np.array([1.0, 1.0, 3.0, 2.0], dtype=np.float64)
+    action, success, iterations, message = filter_instance._project_linearized_halfspaces(
+        target,
+        matrix,
+        lower_rhs,
+        np.full(2, -10.0),
+        np.full(2, 10.0),
+    )
+
+    assert success
+    assert message == "highs_linearized_feasibility_recovery"
+    assert iterations >= 1
+    assert np.min(matrix @ action - lower_rhs) >= -1.0e-7
+
+
 def test_qp_preserves_nominal_action_when_all_barriers_are_inactive() -> None:
     env = _env()
     observation = _observation(
@@ -236,6 +259,14 @@ def test_certificate_rejects_action_that_leaves_safe_set() -> None:
 def test_config_rejects_invalid_fallback_policy() -> None:
     with pytest.raises(ValueError, match="fallback_policy"):
         RobustCBFQPConfig(fallback_policy="ignore")
+
+
+def test_config_records_full_horizon_brake_policy_explicitly() -> None:
+    enabled = RobustCBFQPConfig(execution_emergency_brake_on_full_horizon_failure=True)
+    disabled = RobustCBFQPConfig(execution_emergency_brake_on_full_horizon_failure=False)
+
+    assert enabled.execution_emergency_brake_on_full_horizon_failure is True
+    assert disabled.execution_emergency_brake_on_full_horizon_failure is False
 
 
 def test_config_rejects_unknown_execution_linearization_backend() -> None:

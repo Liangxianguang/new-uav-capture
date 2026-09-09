@@ -21,6 +21,7 @@ from encirclement3d.execution_dynamics import (
     command_authority_from_observation,
     parameters_from_observation,
     queue_from_observation,
+    resolve_reachable_tube_multiplier,
     rollout_execution,
 )
 from encirclement3d.safety_certificate import (
@@ -136,9 +137,17 @@ class RobustCBFQPConfig:
     execution_reachable_tube_multiplier: float = 1.0
     execution_continuous_segment_constraints: bool = False
     execution_continuous_segment_subdivisions: int = 4
+    execution_reachable_tube_policy: str = "fixed"
+    execution_reachable_tube_delay_gain: float = 0.0
+    execution_reachable_tube_queue_gain: float = 0.0
+    execution_reachable_tube_speed_gain: float = 0.0
+    execution_reachable_tube_uncertainty_gain: float = 0.0
+    execution_reachable_tube_reference_delay_steps: int = 2
+    execution_emergency_brake_on_full_horizon_failure: bool = True
     fallback_progress_weight: float = 1.0
     fallback_barrier_weight: float = 0.05
     execution_fallback_receding_step_enabled: bool = True
+    fallback_prefer_full_horizon_certificate: bool = True
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.gamma) <= 1.0:
@@ -187,6 +196,18 @@ class RobustCBFQPConfig:
             raise ValueError("execution_linearization_fd_step_mps must be positive.")
         if float(self.execution_projection_tolerance) <= 0.0:
             raise ValueError("execution_projection_tolerance must be positive.")
+        if str(self.execution_reachable_tube_policy) not in {"fixed", "queue_aware"}:
+            raise ValueError("execution_reachable_tube_policy must be fixed or queue_aware.")
+        if int(self.execution_reachable_tube_reference_delay_steps) <= 0:
+            raise ValueError("execution_reachable_tube_reference_delay_steps must be positive.")
+        for name in (
+            "execution_reachable_tube_delay_gain",
+            "execution_reachable_tube_queue_gain",
+            "execution_reachable_tube_speed_gain",
+            "execution_reachable_tube_uncertainty_gain",
+        ):
+            if not np.isfinite(float(getattr(self, name))) or float(getattr(self, name)) < 0.0:
+                raise ValueError(f"{name} must be finite and non-negative.")
         if (
             not np.isfinite(float(self.execution_reachable_tube_multiplier))
             or float(self.execution_reachable_tube_multiplier) < 1.0
@@ -207,6 +228,26 @@ class RobustCBFQPConfig:
             + self.observation_error_margin_m
             + self.delay_margin_m
             + self.execution_margin_m
+        )
+
+    def execution_tube_multiplier(self, observation: dict[str, Any], dt: float) -> float:
+        """Resolve the empirical tube multiplier for the current context."""
+
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+        parameters = parameters_from_observation(observation, float(dt))
+        queue_length = len(queue_from_observation(observation, positions.shape[0]))
+        return resolve_reachable_tube_multiplier(
+            parameters,
+            queue_length=queue_length,
+            current_velocity=velocities,
+            base_multiplier=float(self.execution_reachable_tube_multiplier),
+            policy=str(self.execution_reachable_tube_policy),
+            delay_gain=float(self.execution_reachable_tube_delay_gain),
+            queue_gain=float(self.execution_reachable_tube_queue_gain),
+            speed_gain=float(self.execution_reachable_tube_speed_gain),
+            uncertainty_gain=float(self.execution_reachable_tube_uncertainty_gain),
+            reference_delay_steps=int(self.execution_reachable_tube_reference_delay_steps),
         )
 
     @classmethod
@@ -592,6 +633,16 @@ class RobustCBFQPFilter:
             "max_acceleration_mps2": float(self.config.max_acceleration_mps2),
             "action_change_constraint_enabled": float(bool(self.config.enforce_action_change)),
             "execution_reachable_tube_multiplier": float(self.config.execution_reachable_tube_multiplier),
+            "execution_reachable_tube_policy": float(
+                {"fixed": 0, "queue_aware": 1}[str(self.config.execution_reachable_tube_policy)]
+            ),
+            "execution_reachable_tube_delay_gain": float(self.config.execution_reachable_tube_delay_gain),
+            "execution_reachable_tube_queue_gain": float(self.config.execution_reachable_tube_queue_gain),
+            "execution_reachable_tube_speed_gain": float(self.config.execution_reachable_tube_speed_gain),
+            "execution_reachable_tube_uncertainty_gain": float(self.config.execution_reachable_tube_uncertainty_gain),
+            "execution_emergency_brake_on_full_horizon_failure": float(
+                bool(self.config.execution_emergency_brake_on_full_horizon_failure)
+            ),
             "execution_continuous_segment_constraints": float(
                 bool(self.config.execution_continuous_segment_constraints)
             ),
@@ -602,6 +653,9 @@ class RobustCBFQPFilter:
             "fallback_barrier_weight": float(self.config.fallback_barrier_weight),
             "execution_fallback_receding_step_enabled": float(
                 bool(self.config.execution_fallback_receding_step_enabled)
+            ),
+            "fallback_prefer_full_horizon_certificate": float(
+                bool(self.config.fallback_prefer_full_horizon_certificate)
             ),
         }
 
@@ -643,7 +697,7 @@ class RobustCBFQPFilter:
             safety_margin_m=float(self.config.safety_margin_m),
             robust_margin_m=float(self.config.robust_margin_m),
             horizon_steps=preview_steps,
-            reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+            reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
             tolerance=float(self.config.solver_tolerance),
             command_authority=nominal_directive,
         )
@@ -662,7 +716,7 @@ class RobustCBFQPFilter:
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
-                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                 tolerance=float(self.config.solver_tolerance),
                 command_authority=selected_directive,
             )
@@ -694,7 +748,7 @@ class RobustCBFQPFilter:
                 tolerance=float(self.config.solver_tolerance),
                 action_change_limit_mps=self.config.action_change_limit_mps,
                 horizon_steps=preview_steps,
-                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                 continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                 continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
@@ -728,6 +782,10 @@ class RobustCBFQPFilter:
             bool(self.config.execution_emergency_brake_enabled)
             and authority_mode != "immutable"
             and not last_emergency_brake
+            and (
+                bool(self.config.execution_emergency_brake_on_full_horizon_failure)
+                or not bool(recoverability.prefix_admissible)
+            )
         ):
             attempts.append(
                 (
@@ -821,7 +879,7 @@ class RobustCBFQPFilter:
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
-                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(observation, self.env.dt),
                 continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                 continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
@@ -841,7 +899,7 @@ class RobustCBFQPFilter:
                     robust_margin_m=float(self.config.robust_margin_m),
                     horizon_steps=preview_steps,
                     jacobian_active_margin_m=float(self.config.execution_linearization_active_margin_m),
-                    reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                    reachable_tube_multiplier=self.config.execution_tube_multiplier(observation, self.env.dt),
                     continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                     continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                     command_authority=directive,
@@ -1003,9 +1061,44 @@ class RobustCBFQPFilter:
             ) <= tolerance:
                 return action, True, iteration, "sequential_linearized_dykstra"
         residuals = matrix @ action - lower_rhs
+        if float(np.min(residuals, initial=np.inf)) >= -tolerance:
+            return (
+                action,
+                True,
+                int(self.config.execution_projection_iterations),
+                "sequential_linearized_projection_max_iterations",
+            )
+
+        # Dykstra is used for the cheap nominal path, but a dense set of
+        # nearly parallel continuous-segment half-spaces can converge slowly.
+        # Recover a feasible point for the same linearized contract before
+        # declaring the action infeasible. The independent nonlinear
+        # certificate remains the acceptance gate at the caller.
+        try:
+            feasibility = linprog(
+                np.zeros(action.size, dtype=np.float64),
+                A_ub=-np.asarray(matrix, dtype=np.float64),
+                b_ub=-np.asarray(lower_rhs, dtype=np.float64),
+                bounds=list(zip(np.asarray(lower_bounds, dtype=np.float64), np.asarray(upper_bounds, dtype=np.float64))),
+                method="highs",
+            )
+        except (FloatingPointError, ValueError, RuntimeError):
+            feasibility = None
+        if feasibility is not None and bool(feasibility.success) and np.isfinite(feasibility.x).all():
+            feasible_action = np.asarray(feasibility.x, dtype=np.float64)
+            feasible_residuals = matrix @ feasible_action - lower_rhs
+            if float(np.min(feasible_residuals, initial=np.inf)) >= -tolerance:
+                return (
+                    feasible_action,
+                    True,
+                    int(self.config.execution_projection_iterations)
+                    + int(getattr(feasibility, "nit", 0)),
+                    "highs_linearized_feasibility_recovery",
+                )
+
         return (
             action,
-            bool(float(np.min(residuals, initial=np.inf)) >= -tolerance),
+            False,
             int(self.config.execution_projection_iterations),
             "sequential_linearized_projection_max_iterations",
         )
@@ -1080,7 +1173,7 @@ class RobustCBFQPFilter:
                     int(self.config.execution_preview_horizon_steps),
                     len(queue_from_observation(observation, len(observation["defender_positions"])) ) + 1,
                 ),
-                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(observation, self.env.dt),
                 tolerance=float(self.config.solver_tolerance),
                 command_authority=directive,
             )
@@ -1203,7 +1296,7 @@ class RobustCBFQPFilter:
                 safety_margin_m=float(self.config.safety_margin_m),
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
-                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                 continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                 continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
@@ -1221,7 +1314,7 @@ class RobustCBFQPFilter:
                         robust_margin_m=float(self.config.robust_margin_m),
                         horizon_steps=preview_steps,
                         jacobian_active_margin_m=None,
-                        reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                        reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                         continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                         continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                         command_authority=directive,
@@ -1335,7 +1428,7 @@ class RobustCBFQPFilter:
                             tolerance=float(self.config.solver_tolerance),
                             action_change_limit_mps=self.config.action_change_limit_mps,
                             horizon_steps=horizon,
-                            reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                            reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                             continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                             continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                             command_authority=candidate_directive,
@@ -1359,6 +1452,12 @@ class RobustCBFQPFilter:
                             )
                         )
         if certified_candidates:
+            if bool(self.config.fallback_prefer_full_horizon_certificate):
+                full_horizon_candidates = [
+                    item for item in certified_candidates if int(item[4]) == int(preview_steps)
+                ]
+                if full_horizon_candidates:
+                    certified_candidates = full_horizon_candidates
             if any(item[3] is not None for item in certified_candidates):
                 def candidate_score(
                     item: tuple[

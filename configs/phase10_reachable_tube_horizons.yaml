@@ -1,0 +1,16 @@
+experiment_name: phase10_reachable_tube_horizon_holdout
+base_environment_config: capture_radius_pursuit_central_v4_flee.yaml
+execution_audit_config: innovation_safety_execution.yaml
+seed: 20260909
+calibration_samples_per_variant: 1024
+holdout_samples_per_variant: 2048
+horizon_steps: [1, 2, 3, 5]
+defenders: 4
+target_coverage: 0.99
+quantile: 0.995
+parameter_contract: observed_execution_parameters
+variants:
+  - mild_delay_noise
+  - hard_randomized_execution
+  - mild_flush_pending_brake
+  - hard_flush_pending_brake

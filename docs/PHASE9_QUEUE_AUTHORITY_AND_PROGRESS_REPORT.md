@@ -27,9 +27,22 @@ Completed:
 - horizon 3, 4, and 5 locked-seed ablations were executed.
 - a one-step progress-QP fallback was implemented and evaluated with and
   without continuous-segment constraints.
+- continuous-segment constraints now use four explicit internal samples per
+  action segment (five local subsegments) in both the QP Jacobian path and the
+  independent certificate;
+- step-level diagnostics now retain queue depth, pending-command norms, the
+  first failed barrier, and the effective tube multiplier.
 
 The one-step receding fallback is an operational recovery policy. It is not a
 replacement for a full closed-loop multi-step proof.
+
+The first unified-contract profiling smoke (hard + flush, horizon 1, two
+locked seeds, 50 steps per episode) produced 100% QP continuous-segment
+certificate validity, 100% independent continuous-segment validity, and 100%
+actual post-state safety. It also produced 95% prefix admissibility, 5%
+abort-required, and 762.5 ms p95 safety latency. This is a profiling result,
+not a locked-matrix performance claim; it shows that the contracts now agree
+and that the remaining immediate problem is projection cost and task progress.
 
 ## 3. Locked-Seed Results
 
@@ -66,6 +79,29 @@ improves capture. The continuous-segment option improves p95 relative to this
 particular run but still has poor episode-level safety and capture. These rows
 are therefore negative ablations, not candidate final models.
 
+### 3.2 Queue-authority ablation
+
+The earlier locked matrix compares all three queue permissions on the same
+eight seeds. The authority mode is an execution-system assumption: it cannot
+be changed by a software safety filter unless the actuator queue actually
+supports that operation.
+
+| Variant | Safe capture | Abort required | Prefix admissible | Solver fallbacks | Actual post-state safety | Collision | p95 latency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| mild + immutable | 37.5% | 61.19% | 38.81% | 1007 | 55.50% | 0% | 107.5 ms |
+| mild + replace nonexecuting | 100.0% | 0% | 100.0% | 46 | 100.0% | 0% | 201.4 ms |
+| mild + flush pending | 75.0% | 0% | 100.0% | 22 | 100.0% | 0% | 160.7 ms |
+| hard + immutable | 12.5% | 81.98% | 18.02% | 1598 | 27.40% | 0% | 110.6 ms |
+| hard + replace nonexecuting | 12.5% | 8.55% | 91.45% | 1488 | 91.70% | 0% | 272.5 ms |
+| hard + flush pending | 25.0% | 0.49% | 99.51% | 1291 | 99.55% | 0% | 247.6 ms |
+
+This matrix does not meet the hard-scene capture target under any authority
+mode. `replace_nonexecuting` and `flush_pending` meet the queue-feasibility
+targets in the locked sample, but they are only valid conclusions for an
+actuator that exposes the corresponding queue operation. `immutable` is the
+only conservative software assumption until the real executor contract is
+verified; under that assumption the hard scenario is a clear no-go.
+
 ## 4. Interpretation
 
 The dominant bottleneck is still contract feasibility, not collision avoidance:
@@ -87,6 +123,10 @@ The dominant bottleneck is still contract feasibility, not collision avoidance:
 - the gap between command/certificate safety and actual post-state safety is
   now an explicit failure signal, rather than evidence that the fallback is
   working.
+- queue permission is a first-order variable: the hard locked sample moves
+  from 81.98% abort-required under `immutable` to 0.49% under `flush_pending`,
+  while safe capture only moves from 12.5% to 25.0%; queue feasibility alone
+  does not recover the task objective.
 
 The result must not be described as a complete formal closed-loop safety proof.
 In particular, the one-step receding fallback proves only the reported
@@ -119,12 +159,20 @@ preserves the required holdout coverage separately for mild and hard variants.
 Any reduction of 2.1 must be justified by a new holdout set; it must not be
 chosen only because it raises capture rate.
 
+Phase 10 now provides an independent horizon 1/2/3/5 audit with Wilson
+intervals and an opt-in `queue_aware` multiplier resolver. The resolver remains
+disabled by default until its gains are fitted and frozen on a separate
+calibration split.
+
 ### P9.3 Tighten the continuous-segment model
 
 Separate endpoint, swept-volume, and continuous-segment contracts in the
-report. Replace the current half-path-length bound with an exact or tighter
-segment clearance bound for cylinders, boxes, boundaries, and inter-agent
-separation, then rerun the Jacobian and invariance tests.
+report. The implementation now uses configured internal samples and a local
+Lipschitz bound for each subsegment, rather than applying half of the whole
+action path to every segment. Rerun the matched authority matrix and verify
+that the independent certificate and QP use identical internal-sample
+constraints; this remains an empirical continuous-segment contract, not a
+real-airframe invariance proof.
 
 ### P9.4 Re-run unseen seeds only after the diagnostic gate
 

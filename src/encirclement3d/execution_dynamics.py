@@ -493,6 +493,57 @@ def reachable_tube_radii(
     return float(multiplier) * position_uncertainty_radii(parameters, defenders, horizon_steps)
 
 
+def resolve_reachable_tube_multiplier(
+    parameters: ExecutionParameters,
+    *,
+    queue_length: int,
+    current_velocity: np.ndarray,
+    base_multiplier: float,
+    policy: str = "fixed",
+    delay_gain: float = 0.0,
+    queue_gain: float = 0.0,
+    speed_gain: float = 0.0,
+    uncertainty_gain: float = 0.0,
+    reference_delay_steps: int = 2,
+) -> float:
+    """Resolve a fixed or context-aware empirical tube multiplier.
+
+    The queue-aware policy is a calibrated parameterization, not a reachability
+    proof.  Gains are deliberately explicit so a holdout audit can fit and
+    freeze them before deployment.  With ``policy='fixed'`` this returns the
+    configured multiplier exactly.
+    """
+
+    base = float(base_multiplier)
+    if not np.isfinite(base) or base < 1.0:
+        raise ValueError("base_multiplier must be finite and at least one")
+    mode = str(policy)
+    if mode == "fixed":
+        return base
+    if mode != "queue_aware":
+        raise ValueError("policy must be fixed or queue_aware")
+    gains = (delay_gain, queue_gain, speed_gain, uncertainty_gain)
+    if not np.isfinite(np.asarray(gains, dtype=np.float64)).all() or any(float(value) < 0.0 for value in gains):
+        raise ValueError("queue-aware tube gains must be finite and non-negative")
+    reference_delay = max(int(reference_delay_steps), 1)
+    delay_excess = max(int(parameters.action_delay_steps) - reference_delay, 0) / float(reference_delay)
+    queue_excess = max(int(queue_length) - reference_delay, 0) / float(reference_delay)
+    velocity = np.asarray(current_velocity, dtype=np.float64)
+    if velocity.ndim != 2 or velocity.shape[-1] != 3 or not np.isfinite(velocity).all():
+        raise ValueError("current_velocity must have finite shape [defenders, 3]")
+    speed_ratio = float(np.mean(np.linalg.norm(velocity, axis=1))) / max(float(parameters.max_speed_mps), 1.0e-12)
+    speed_ratio = float(np.clip(speed_ratio, 0.0, 1.0))
+    uncertainty_ratio = float(parameters.command_noise_bound_mps) / max(float(parameters.max_speed_mps), 1.0e-12)
+    context_factor = (
+        1.0
+        + float(delay_gain) * delay_excess
+        + float(queue_gain) * queue_excess
+        + float(speed_gain) * speed_ratio
+        + float(uncertainty_gain) * max(uncertainty_ratio, 0.0)
+    )
+    return max(1.0, base * context_factor)
+
+
 __all__ = [
     "CommandAuthorityDirective",
     "ExecutionParameters",
@@ -506,6 +557,7 @@ __all__ = [
     "parameters_from_observation",
     "position_uncertainty_radii",
     "reachable_tube_radii",
+    "resolve_reachable_tube_multiplier",
     "queue_from_observation",
     "rollout_execution",
     "rollout_execution_with_action_jacobian",

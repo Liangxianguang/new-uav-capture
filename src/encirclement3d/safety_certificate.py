@@ -491,15 +491,25 @@ def _continuous_segment_barrier_data(
     radius: float,
     effective_margin: float,
     *,
+    continuous_segment_subdivisions: int = 4,
     position_jacobians: list[np.ndarray] | tuple[np.ndarray, ...] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], np.ndarray | None]:
     """Build the conservative continuous-segment barrier contract.
 
-    The bound is the minimum of the robust endpoint barriers minus half the
-    relative path length.  The same bound is used by the independent
-    certificate, while optional endpoint Jacobians expose its local gradient
-    to the execution-aware QP.
+    Each action segment receives ``continuous_segment_subdivisions`` internal
+    samples and is therefore split into one more linear subsegments. For each
+    subsegment the lower bound is the minimum of its robust endpoint barriers
+    minus half the local relative path length.
+    This is a 1-Lipschitz bound for the geometric barriers and is materially
+    tighter than applying half of the full action-segment path to every step.
+    The same sampled contract is used by the independent certificate and the
+    optional local Jacobian exposed to the execution-aware QP.
     """
+
+    internal_samples = int(continuous_segment_subdivisions)
+    if internal_samples <= 0:
+        raise ValueError("continuous_segment_subdivisions must be positive")
+    subdivisions = internal_samples + 1
 
     nominal_values: dict[str, float] = {}
     robust_values: dict[str, float] = {}
@@ -514,87 +524,98 @@ def _continuous_segment_barrier_data(
     for step_index, endpoint_value in enumerate(rollout_positions):
         endpoint = np.asarray(endpoint_value, dtype=np.float64)
         endpoint_jacobian = None if position_jacobians is None else np.asarray(position_jacobians[step_index])
-        start_nominal, start_robust = _robust_barriers(
-            previous,
-            obstacles,
-            lower,
-            upper,
-            float(radius),
-            float(effective_margin),
-            uncertainty[step_index],
-        )
-        end_nominal, end_robust = _robust_barriers(
-            endpoint,
-            obstacles,
-            lower,
-            upper,
-            float(radius),
-            float(effective_margin),
-            uncertainty[step_index],
-        )
-        names = list(end_nominal)
-        start_position_gradients = _barrier_position_gradients(
-            previous, names, obstacles, lower, upper, radius, effective_margin
-        )
-        end_position_gradients = _barrier_position_gradients(
-            endpoint, names, obstacles, lower, upper, radius, effective_margin
-        )
-        if position_jacobians is not None:
-            assert endpoint_jacobian is not None and previous_jacobian is not None
-            start_action_jacobian = start_position_gradients @ previous_jacobian
-            end_action_jacobian = start_position_gradients * 0.0
-            end_action_jacobian = end_position_gradients @ endpoint_jacobian
-            segment_jacobian = endpoint_jacobian - previous_jacobian
-        else:
-            start_action_jacobian = end_action_jacobian = None
-            segment_jacobian = None
+        assert previous_jacobian is not None or position_jacobians is None
         motion = endpoint - previous
-        motion_norms = np.linalg.norm(motion, axis=1)
-
-        for name in names:
-            if name.startswith("inter_agent["):
-                first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
-                first_index, second_index = int(first), int(second)
-                half_path = 0.5 * float(motion_norms[first_index] + motion_norms[second_index])
-                if segment_jacobian is None:
-                    half_path_gradient = None
-                else:
-                    first_gradient = np.zeros(action_dimension, dtype=np.float64)
-                    second_gradient = np.zeros(action_dimension, dtype=np.float64)
-                    if motion_norms[first_index] > 1.0e-12:
-                        first_gradient = (motion[first_index] / motion_norms[first_index]) @ segment_jacobian[
-                            first_index * 3 : first_index * 3 + 3
-                        ]
-                    if motion_norms[second_index] > 1.0e-12:
-                        second_gradient = (motion[second_index] / motion_norms[second_index]) @ segment_jacobian[
-                            second_index * 3 : second_index * 3 + 3
-                        ]
-                    half_path_gradient = 0.5 * (first_gradient + second_gradient)
+        for subdivision in range(1, subdivisions + 1):
+            start_fraction = float(subdivision - 1) / float(subdivisions)
+            end_fraction = float(subdivision) / float(subdivisions)
+            segment_start = previous + start_fraction * motion
+            segment_end = previous + end_fraction * motion
+            if position_jacobians is None:
+                segment_start_jacobian = segment_end_jacobian = None
             else:
-                defender_index = int(name.rsplit("/", 1)[-1])
-                half_path = 0.5 * float(motion_norms[defender_index])
-                if segment_jacobian is None or motion_norms[defender_index] <= 1.0e-12:
-                    half_path_gradient = (
-                        None if segment_jacobian is None else np.zeros(action_dimension, dtype=np.float64)
-                    )
-                else:
-                    half_path_gradient = 0.5 * (motion[defender_index] / motion_norms[defender_index]) @ segment_jacobian[
-                        defender_index * 3 : defender_index * 3 + 3
-                    ]
-            robust_start_value = float(start_robust[name])
-            robust_end_value = float(end_robust[name])
-            nominal_start_value = float(start_nominal[name])
-            nominal_end_value = float(end_nominal[name])
-            use_start = robust_start_value <= robust_end_value
-            nominal_values[f"step[{step_index + 1}]/continuous/{name}"] = float(
-                min(nominal_start_value, nominal_end_value) - half_path
+                assert endpoint_jacobian is not None and previous_jacobian is not None
+                endpoint_delta_jacobian = endpoint_jacobian - previous_jacobian
+                segment_start_jacobian = previous_jacobian + start_fraction * endpoint_delta_jacobian
+                segment_end_jacobian = previous_jacobian + end_fraction * endpoint_delta_jacobian
+
+            start_nominal, start_robust = _robust_barriers(
+                segment_start,
+                obstacles,
+                lower,
+                upper,
+                float(radius),
+                float(effective_margin),
+                uncertainty[step_index],
             )
-            robust_values[f"step[{step_index + 1}]/continuous/{name}"] = float(
-                min(robust_start_value, robust_end_value) - half_path
+            end_nominal, end_robust = _robust_barriers(
+                segment_end,
+                obstacles,
+                lower,
+                upper,
+                float(radius),
+                float(effective_margin),
+                uncertainty[step_index],
+            )
+            names = list(end_nominal)
+            start_position_gradients = _barrier_position_gradients(
+                segment_start, names, obstacles, lower, upper, radius, effective_margin
+            )
+            end_position_gradients = _barrier_position_gradients(
+                segment_end, names, obstacles, lower, upper, radius, effective_margin
             )
             if position_jacobians is not None:
-                base_gradient = start_action_jacobian[names.index(name)] if use_start else end_action_jacobian[names.index(name)]
-                gradients.append(np.asarray(base_gradient, dtype=np.float64) - half_path_gradient)
+                assert segment_start_jacobian is not None and segment_end_jacobian is not None
+                start_action_jacobian = start_position_gradients @ segment_start_jacobian
+                end_action_jacobian = end_position_gradients @ segment_end_jacobian
+            else:
+                start_action_jacobian = end_action_jacobian = None
+
+            local_motion = segment_end - segment_start
+            local_motion_norms = np.linalg.norm(local_motion, axis=1)
+            for name_index, name in enumerate(names):
+                if name.startswith("inter_agent["):
+                    first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+                    first_index, second_index = int(first), int(second)
+                    half_path = 0.5 * float(
+                        local_motion_norms[first_index] + local_motion_norms[second_index]
+                    )
+                    if position_jacobians is None:
+                        half_path_gradient = None
+                    else:
+                        first_gradient = np.zeros(action_dimension, dtype=np.float64)
+                        second_gradient = np.zeros(action_dimension, dtype=np.float64)
+                        if local_motion_norms[first_index] > 1.0e-12:
+                            first_gradient = (
+                                local_motion[first_index] / local_motion_norms[first_index]
+                            ) @ (segment_end_jacobian[first_index * 3 : first_index * 3 + 3] - segment_start_jacobian[first_index * 3 : first_index * 3 + 3])
+                        if local_motion_norms[second_index] > 1.0e-12:
+                            second_gradient = (
+                                local_motion[second_index] / local_motion_norms[second_index]
+                            ) @ (segment_end_jacobian[second_index * 3 : second_index * 3 + 3] - segment_start_jacobian[second_index * 3 : second_index * 3 + 3])
+                        half_path_gradient = 0.5 * (first_gradient + second_gradient)
+                else:
+                    defender_index = int(name.rsplit("/", 1)[-1])
+                    half_path = 0.5 * float(local_motion_norms[defender_index])
+                    if position_jacobians is None or local_motion_norms[defender_index] <= 1.0e-12:
+                        half_path_gradient = (
+                            None if position_jacobians is None else np.zeros(action_dimension, dtype=np.float64)
+                        )
+                    else:
+                        half_path_gradient = 0.5 * (
+                            local_motion[defender_index] / local_motion_norms[defender_index]
+                        ) @ (segment_end_jacobian[defender_index * 3 : defender_index * 3 + 3] - segment_start_jacobian[defender_index * 3 : defender_index * 3 + 3])
+                robust_start_value = float(start_robust[name])
+                robust_end_value = float(end_robust[name])
+                nominal_start_value = float(start_nominal[name])
+                nominal_end_value = float(end_nominal[name])
+                use_start = robust_start_value <= robust_end_value
+                key = f"step[{step_index + 1}]/segment[{subdivision}]/continuous/{name}"
+                nominal_values[key] = float(min(nominal_start_value, nominal_end_value) - half_path)
+                robust_values[key] = float(min(robust_start_value, robust_end_value) - half_path)
+                if position_jacobians is not None:
+                    base_gradient = start_action_jacobian[name_index] if use_start else end_action_jacobian[name_index]
+                    gradients.append(np.asarray(base_gradient, dtype=np.float64) - half_path_gradient)
         previous = endpoint
         previous_jacobian = endpoint_jacobian
     jacobian = None if position_jacobians is None else np.stack(gradients, axis=0)
@@ -657,6 +678,8 @@ def execution_barrier_values(
     if continuous_segment_constraints:
         if int(continuous_segment_subdivisions) <= 0:
             raise ValueError("continuous_segment_subdivisions must be positive")
+        internal_samples = int(continuous_segment_subdivisions)
+        subsegments = internal_samples + 1
         nominal_values, robust_values, _ = _continuous_segment_barrier_data(
             positions,
             rollout_positions,
@@ -666,6 +689,7 @@ def execution_barrier_values(
             upper,
             float(drone_radius),
             float(safety_margin_m) + float(robust_margin_m),
+            continuous_segment_subdivisions=int(continuous_segment_subdivisions),
         )
         assumptions = {
             "dt_seconds": float(dt),
@@ -678,7 +702,9 @@ def execution_barrier_values(
             "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
             "mass_scale": float(parameters.mass_scale),
             "continuous_segment_constraints": 1.0,
-            "continuous_segment_subdivisions": float(continuous_segment_subdivisions),
+            "continuous_segment_subdivisions": float(internal_samples),
+            "continuous_segment_internal_samples": float(internal_samples),
+            "continuous_segment_subsegments": float(subsegments),
             "command_authority_mode": float(
                 {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
             ),
@@ -912,6 +938,8 @@ def execution_barrier_values_with_action_jacobian(
     if continuous_segment_constraints:
         if int(continuous_segment_subdivisions) <= 0:
             raise ValueError("continuous_segment_subdivisions must be positive")
+        internal_samples = int(continuous_segment_subdivisions)
+        subsegments = internal_samples + 1
         nominal_values, robust_values, jacobian = _continuous_segment_barrier_data(
             positions,
             rollout_positions,
@@ -921,6 +949,7 @@ def execution_barrier_values_with_action_jacobian(
             upper,
             float(drone_radius),
             float(safety_margin_m) + float(robust_margin_m),
+            continuous_segment_subdivisions=int(continuous_segment_subdivisions),
             position_jacobians=position_jacobians,
         )
         assert jacobian is not None
@@ -941,7 +970,9 @@ def execution_barrier_values_with_action_jacobian(
             "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
             "mass_scale": float(parameters.mass_scale),
             "continuous_segment_constraints": 1.0,
-            "continuous_segment_subdivisions": float(continuous_segment_subdivisions),
+            "continuous_segment_subdivisions": float(internal_samples),
+            "continuous_segment_internal_samples": float(internal_samples),
+            "continuous_segment_subsegments": float(subsegments),
             "command_authority_mode": float(
                 {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
             ),
@@ -1289,15 +1320,17 @@ def check_execution_continuous_segment_safety(
     robust_margin_m: float,
     horizon_steps: int | None = None,
     reachable_tube_multiplier: float = 1.0,
+    continuous_segment_subdivisions: int = 4,
     tolerance: float = 1.0e-6,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ContinuousSegmentCertificateResult:
     """Certify every point on each linear segment of the benchmark rollout.
 
-    Each obstacle/boundary signed clearance is 1-Lipschitz in position.  The
-    pairwise separation barrier is 1-Lipschitz in relative position.  For a
-    segment, the midpoint can be at most half its path length from an endpoint;
-    subtracting that distance yields a lower bound over the entire segment.
+    Each obstacle/boundary signed clearance is 1-Lipschitz in position. The
+    pairwise separation barrier is 1-Lipschitz in relative position. The
+    certificate uses the same internal-sample and local Lipschitz contract as
+    the execution-aware QP, so the independent audit does not silently apply a
+    different continuous-segment bound.
     """
 
     positions = np.asarray(observation["defender_positions"], dtype=np.float64)
@@ -1332,42 +1365,19 @@ def check_execution_continuous_segment_safety(
     effective_margin = float(safety_margin_m) + float(robust_margin_m)
     initial = _barriers(positions, obstacles, lower, upper, float(drone_radius), effective_margin)
     current_minimum = float(min(initial.values(), default=float("inf")))
-    robust_minimum = current_minimum
-    nominal_minimum = current_minimum
-    for step_index, endpoint in enumerate(rollout_positions):
-        start = positions if step_index == 0 else rollout_positions[step_index - 1]
-        # Use the end-of-step radius at both endpoints so uncertainty is valid
-        # everywhere on a segment under the nondecreasing tube contract.
-        nominal_start, robust_start = _robust_barriers(
-            start,
-            obstacles,
-            lower,
-            upper,
-            float(drone_radius),
-            effective_margin,
-            uncertainty[step_index],
-        )
-        nominal_end, robust_end = _robust_barriers(
-            endpoint,
-            obstacles,
-            lower,
-            upper,
-            float(drone_radius),
-            effective_margin,
-            uncertainty[step_index],
-        )
-        individual_lengths = np.linalg.norm(endpoint - start, axis=1)
-        for name, start_value in nominal_start.items():
-            if name.startswith("inter_agent["):
-                first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
-                half_path_bound = 0.5 * (individual_lengths[int(first)] + individual_lengths[int(second)])
-            else:
-                defender_index = int(name.rsplit("/", 1)[-1])
-                half_path_bound = 0.5 * individual_lengths[defender_index]
-            nominal_lower = min(float(start_value), float(nominal_end[name])) - float(half_path_bound)
-            robust_lower = min(float(robust_start[name]), float(robust_end[name])) - float(half_path_bound)
-            nominal_minimum = min(nominal_minimum, nominal_lower)
-            robust_minimum = min(robust_minimum, robust_lower)
+    nominal_values, robust_values, _ = _continuous_segment_barrier_data(
+        positions,
+        rollout_positions,
+        uncertainty,
+        obstacles,
+        lower,
+        upper,
+        float(drone_radius),
+        effective_margin,
+        continuous_segment_subdivisions=int(continuous_segment_subdivisions),
+    )
+    nominal_minimum = min(current_minimum, min(nominal_values.values(), default=float("inf")))
+    robust_minimum = min(current_minimum, min(robust_values.values(), default=float("inf")))
     tolerance_value = float(tolerance)
     current_safe = bool(current_minimum >= -tolerance_value)
     continuous_safe = bool(robust_minimum >= -tolerance_value)
@@ -1382,7 +1392,7 @@ def check_execution_continuous_segment_safety(
         current_state_safe=current_safe,
         continuous_segment_safe=continuous_safe,
         horizon_steps=preview_steps,
-        segment_count=preview_steps,
+        segment_count=preview_steps * (int(continuous_segment_subdivisions) + 1),
         minimum_robust_barrier_m=float(robust_minimum),
         minimum_nominal_barrier_m=float(nominal_minimum),
         violations=tuple(violations),
@@ -1396,6 +1406,8 @@ def check_execution_continuous_segment_safety(
             "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
             "continuous_interpolation_contract": 1.0,
             "signed_distance_lipschitz_bound": 1.0,
+            "continuous_segment_internal_samples": float(continuous_segment_subdivisions),
+            "continuous_segment_subsegments": float(int(continuous_segment_subdivisions) + 1),
             "command_authority_mode": float(
                 {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
             ),

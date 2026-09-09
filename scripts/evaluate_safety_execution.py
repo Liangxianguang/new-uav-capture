@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+from math import sqrt
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
         help="Override the execution-aware safety linearization backend.",
     )
     parser.add_argument("--max-steps", type=int)
+    parser.add_argument("--max-episodes", type=int, help="Limit the configured seed list for profiling runs.")
     return parser.parse_args()
 
 
@@ -151,6 +153,90 @@ def _percentile(values: list[float], quantile: float) -> float:
     return float(np.percentile(finite, quantile)) if finite.size else float("nan")
 
 
+def _wilson_interval(values: list[bool], confidence_z: float = 1.959963984540054) -> dict[str, float | int]:
+    """Return a Wilson score interval for a Bernoulli episode-level metric."""
+
+    sample_count = len(values)
+    successes = int(sum(bool(value) for value in values))
+    if sample_count <= 0:
+        return {"successes": 0, "trials": 0, "rate": float("nan"), "lower": float("nan"), "upper": float("nan")}
+    proportion = successes / sample_count
+    z = float(confidence_z)
+    denominator = 1.0 + z * z / sample_count
+    center = (proportion + z * z / (2.0 * sample_count)) / denominator
+    half_width = z * sqrt(
+        proportion * (1.0 - proportion) / sample_count + z * z / (4.0 * sample_count * sample_count)
+    ) / denominator
+    return {
+        "successes": successes,
+        "trials": sample_count,
+        "rate": float(proportion),
+        "lower": float(max(0.0, center - half_width)),
+        "upper": float(min(1.0, center + half_width)),
+    }
+
+
+def queue_snapshot(observation: dict[str, Any]) -> tuple[int, float, float]:
+    """Return queue depth and pending-command norms before the step."""
+
+    execution = observation.get("execution", {})
+    queued = observation.get("execution_action_queue")
+    if queued is None and isinstance(execution, dict):
+        queued = execution.get("action_queue", [])
+    queue = np.asarray(queued if queued is not None else [], dtype=np.float64)
+    if queue.size == 0:
+        return 0, 0.0, 0.0
+    if queue.ndim != 3 or queue.shape[-1] != 3:
+        return int(queue.shape[0]), float("nan"), float("nan")
+    norms = np.linalg.norm(queue, axis=2)
+    return int(queue.shape[0]), float(np.max(norms, initial=0.0)), float(np.mean(norms))
+
+
+def first_failed_barrier(*certificates: tuple[str, Any]) -> str | None:
+    """Identify the most negative named barrier across independent checks."""
+
+    candidates: list[tuple[float, str]] = []
+    for source, certificate in certificates:
+        values = getattr(certificate, "barrier_values_m", None)
+        if isinstance(values, dict):
+            for name, value in values.items():
+                numeric = float(value)
+                if np.isfinite(numeric):
+                    candidates.append((numeric, f"{source}:{name}"))
+        minimum = getattr(certificate, "minimum_robust_barrier_m", None)
+        if minimum is not None and np.isfinite(float(minimum)):
+            candidates.append((float(minimum), f"{source}:minimum_robust_barrier"))
+    violated = [item for item in candidates if item[0] < 0.0]
+    if violated:
+        return min(violated, key=lambda item: item[0])[1]
+    for source, certificate in certificates:
+        violations = tuple(getattr(certificate, "violations", ()))
+        if violations:
+            barrier_like = next(
+                (
+                    violation
+                    for violation in violations
+                    if any(
+                        token in str(violation)
+                        for token in (
+                            "barrier",
+                            "safe_set",
+                            "state_outside",
+                            "segment",
+                            "swept",
+                            "obstacle",
+                            "boundary",
+                            "inter_agent",
+                        )
+                    )
+                ),
+                None,
+            )
+            if barrier_like is not None:
+                return f"{source}:{barrier_like}"
+    return None
+
+
 def belief_target_distance(observation: dict[str, Any]) -> float:
     """Return nearest-defender distance to the belief-only team target."""
 
@@ -226,6 +312,8 @@ def run_episode(
         )
         pre_step = observation
         target_distance_before = belief_target_distance(pre_step)
+        queue_depth, queued_max_action_norm, queued_mean_action_norm = queue_snapshot(pre_step)
+        tube_multiplier = qp_config.execution_tube_multiplier(pre_step, env.dt)
         command_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
             action,
@@ -249,7 +337,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=qp_config.execution_preview_horizon_steps,
-            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            reachable_tube_multiplier=tube_multiplier,
             continuous_segment_constraints=bool(qp_config.execution_continuous_segment_constraints),
             continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
             command_authority=command_authority,
@@ -263,7 +351,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             horizon_steps=qp_config.execution_preview_horizon_steps,
             subdivisions_per_step=int(swept_volume_subdivisions_per_step),
-            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            reachable_tube_multiplier=tube_multiplier,
             command_authority=command_authority,
         )
         continuous_segment_certificate = check_execution_continuous_segment_safety(
@@ -274,7 +362,8 @@ def run_episode(
             safety_margin_m=float(env.pursuit["safety_margin"]),
             robust_margin_m=float(qp_config.robust_margin_m),
             horizon_steps=qp_config.execution_preview_horizon_steps,
-            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            reachable_tube_multiplier=tube_multiplier,
+            continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
             command_authority=command_authority,
         )
         observation, _reward, terminated, truncated, info = env.step(
@@ -288,6 +377,7 @@ def run_episode(
             if np.isfinite(target_distance_before) and np.isfinite(target_distance_after)
             else float("nan")
         )
+        post_tube_multiplier = qp_config.execution_tube_multiplier(observation, env.dt)
         executed_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
             executed_action,
@@ -327,7 +417,7 @@ def run_episode(
             robust_margin_m=float(qp_config.robust_margin_m),
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=1,
-            reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            reachable_tube_multiplier=post_tube_multiplier,
             continuous_segment_constraints=bool(qp_config.execution_continuous_segment_constraints),
             continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
         )
@@ -351,6 +441,11 @@ def run_episode(
         step_rows.append(
             {
                 "step": int(env.step_count),
+                "queue_depth_before_step": queue_depth,
+                "queued_max_action_norm_mps": queued_max_action_norm,
+                "queued_mean_action_norm_mps": queued_mean_action_norm,
+                "reachable_tube_multiplier": float(tube_multiplier),
+                "post_reachable_tube_multiplier": float(post_tube_multiplier),
                 "command_certificate_valid": bool(command_certificate.valid),
                 "command_next_state_safe": bool(command_certificate.next_state_safe),
                 "command_next_min_barrier_m": float(command_certificate.next_min_barrier_m),
@@ -386,6 +481,13 @@ def run_episode(
                 "actual_post_robust_state_safe": bool(actual_post_robust_certificate.current_state_safe),
                 "actual_post_robust_min_barrier_m": float(actual_post_robust_certificate.minimum_robust_barrier_m),
                 "actual_post_robust_violations": list(actual_post_robust_certificate.violations),
+                "first_failed_barrier": first_failed_barrier(
+                    ("rollout", execution_certificate),
+                    ("swept", swept_certificate),
+                    ("continuous", continuous_segment_certificate),
+                    ("executed", executed_certificate),
+                    ("actual_post_robust", actual_post_robust_certificate),
+                ),
                 "command_action_norm_mps": float(np.max(np.linalg.norm(action, axis=1))),
                 "executed_action_norm_mps": float(np.max(np.linalg.norm(executed_action, axis=1))),
                 "action_execution_error_norm_mps": error_norm,
@@ -514,6 +616,7 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
     backend_counts: dict[str, int] = {}
     fallback_candidate_counts: dict[str, int] = {}
     fallback_certificate_scope_counts: dict[str, int] = {}
+    first_failed_barrier_counts: dict[str, int] = {}
     for row in steps:
         backend = str(row.get("solver_backend", "none"))
         backend_counts[backend] = backend_counts.get(backend, 0) + 1
@@ -522,7 +625,22 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
             fallback_candidate_counts[candidate] = fallback_candidate_counts.get(candidate, 0) + 1
             scope = str(row.get("fallback_certificate_scope", "unknown"))
             fallback_certificate_scope_counts[scope] = fallback_certificate_scope_counts.get(scope, 0) + 1
+        failed_barrier = row.get("first_failed_barrier")
+        if failed_barrier:
+            failed_barrier = str(failed_barrier)
+            first_failed_barrier_counts[failed_barrier] = first_failed_barrier_counts.get(failed_barrier, 0) + 1
 
+    episode_rate_keys = {
+        "safe_capture_rate": "safe_capture_success",
+        "capture_rate": "capture_event",
+        "collision_rate": "collision",
+        "boundary_violation_rate": "boundary_violation",
+        "timeout_rate": "timeout",
+    }
+    wilson_intervals = {
+        metric: _wilson_interval([bool(row[key]) for row in rows])
+        for metric, key in episode_rate_keys.items()
+    }
     return {
         "episodes": len(rows),
         "safe_capture_rate": rate("safe_capture_success"),
@@ -530,6 +648,7 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "collision_rate": rate("collision"),
         "boundary_violation_rate": rate("boundary_violation"),
         "timeout_rate": rate("timeout"),
+        "wilson_95": wilson_intervals,
         "mean_capture_time_seconds": _finite_mean([float(row["capture_time_seconds"]) for row in rows if row["capture_time_seconds"] is not None]),
         "mean_min_clearance_m": _finite_mean([float(row["min_clearance_m"]) for row in rows]),
         "command_certificate_valid_rate": _finite_mean([float(row["command_certificate_valid_rate"]) for row in rows]),
@@ -560,6 +679,7 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "safety_latency_ms": {
             "p50": _percentile([float(row["safety_latency_ms"]) for row in steps], 50),
             "p95": _percentile([float(row["safety_latency_ms"]) for row in steps], 95),
+            "p99": _percentile([float(row["safety_latency_ms"]) for row in steps], 99),
         },
         "minimum_command_next_barrier_m": float(np.min([row["minimum_command_next_barrier_m"] for row in rows])),
         "minimum_execution_rollout_robust_barrier_m": float(
@@ -576,6 +696,9 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "solver_fallback_count": int(sum(row["solver_fallback_count"] for row in rows)),
         "fallback_candidate_counts": dict(sorted(fallback_candidate_counts.items())),
         "fallback_certificate_scope_counts": dict(sorted(fallback_certificate_scope_counts.items())),
+        "first_failed_barrier_counts": dict(
+            sorted(first_failed_barrier_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
         "fallback_certificate_valid_rate": float(
             np.mean(
                 [
@@ -589,6 +712,14 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         ),
         "emergency_brake_count": int(sum(bool(row.get("emergency_brake_requested", False)) for row in steps)),
         "queue_override_slots": int(sum(int(row.get("queue_override_slots", 0)) for row in steps)),
+        "mean_queue_depth": _finite_mean([float(row.get("queue_depth_before_step", 0.0)) for row in steps]),
+        "maximum_queue_depth": int(max((int(row.get("queue_depth_before_step", 0)) for row in steps), default=0)),
+        "mean_reachable_tube_multiplier": _finite_mean(
+            [float(row.get("reachable_tube_multiplier", np.nan)) for row in steps]
+        ),
+        "maximum_reachable_tube_multiplier": float(
+            max((float(row.get("reachable_tube_multiplier", np.nan)) for row in steps), default=float("nan"))
+        ),
         "abort_required_count": int(sum(bool(row.get("abort_required", False)) for row in steps)),
         "abort_required_rate": float(
             np.mean([bool(row.get("abort_required", False)) for row in steps]) if steps else 0.0
@@ -713,8 +844,12 @@ def main() -> None:
     safety_mapping.setdefault("safety_margin_m", float(env_probe.pursuit["safety_margin"]))
     seed_protocol = dict(evaluation["robust_safe_seed_protocol"])
     seeds = [int(seed) for seed in seed_protocol["episode_seeds"]]
+    if args.max_episodes is not None:
+        if int(args.max_episodes) <= 0:
+            raise ValueError("--max-episodes must be positive")
+        seeds = seeds[: int(args.max_episodes)]
     if int(evaluation["episodes"]) != len(seeds):
-        raise ValueError("evaluation.episodes must equal robust_safe_seed_protocol.episode_seeds length")
+        evaluation["episodes"] = len(seeds)
     variants = dict(document["variants"])
     selected_variants = list(args.variants or variants)
     methods = list(args.methods or evaluation["methods"])
