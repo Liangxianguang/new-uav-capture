@@ -64,19 +64,20 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
 
 
 def _project(points: np.ndarray, extent: float, world_height: float) -> tuple[np.ndarray, np.ndarray]:
-    """Project world coordinates through a fixed elevated perspective camera."""
+    """Project world coordinates through a fixed, lightly overhead camera."""
     values = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-    azimuth = np.deg2rad(-52.0)
-    elevation = np.deg2rad(25.0)
+    azimuth = np.deg2rad(-48.0)
+    elevation = np.deg2rad(48.0)
     x_rot = np.cos(azimuth) * values[:, 0] - np.sin(azimuth) * values[:, 1]
     depth_axis = np.sin(azimuth) * values[:, 0] + np.cos(azimuth) * values[:, 1]
-    y_rot = np.cos(elevation) * depth_axis - np.sin(elevation) * values[:, 2]
-    depth = np.sin(elevation) * depth_axis + np.cos(elevation) * values[:, 2]
-    camera_distance = 31.0
-    scale = 26.0 * min(1.0, 10.0 / max(extent, 1e-6))
+    # Positive world z must map upward on screen, where smaller y is higher.
+    y_rot = np.cos(elevation) * depth_axis + np.sin(elevation) * values[:, 2]
+    depth = -np.sin(elevation) * depth_axis + np.cos(elevation) * values[:, 2]
+    camera_distance = 34.0
+    scale = 22.0 * min(1.0, 10.0 / max(extent, 1e-6))
     perspective = camera_distance / np.maximum(6.0, camera_distance + depth)
-    screen_x = 455.0 + x_rot * scale * perspective
-    screen_y = 512.0 - y_rot * scale * perspective
+    screen_x = 640.0 + x_rot * scale * perspective
+    screen_y = 454.0 - y_rot * scale * perspective
     return np.column_stack((screen_x, screen_y)), depth
 
 
@@ -86,7 +87,7 @@ def _line(draw: ImageDraw.ImageDraw, points: np.ndarray, fill: tuple[int, int, i
 
 
 def _draw_grid(draw: ImageDraw.ImageDraw, extent: float, world_height: float) -> None:
-    grid = (112, 136, 161, 75)
+    grid = (188, 201, 213, 150)
     for coordinate in np.linspace(-extent, extent, 9):
         projected, _ = _project(np.array([[coordinate, -extent, 0.0], [coordinate, extent, 0.0]]), extent, world_height)
         _line(draw, projected, grid)
@@ -102,10 +103,7 @@ def _draw_grid(draw: ImageDraw.ImageDraw, extent: float, world_height: float) ->
         ]
     )
     projected, _ = _project(outline, extent, world_height)
-    _line(draw, projected, (176, 198, 218, 150), width=2)
-    for corner in outline[:-1]:
-        projected, _ = _project(np.vstack((corner, corner + np.array([0.0, 0.0, world_height]))), extent, world_height)
-        _line(draw, projected, (122, 149, 176, 85), width=1)
+    _line(draw, projected, (142, 160, 177, 190), width=2)
 
 
 def _draw_prism(
@@ -124,11 +122,12 @@ def _draw_prism(
     vertices = np.vstack((ground, top))
     projected, depth = _project(vertices, extent, world_height)
     faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-    for face in sorted(faces, key=lambda indices: float(np.mean(depth[list(indices)]))):
+    for face in sorted(faces, key=lambda indices: float(np.mean(depth[list(indices)])), reverse=True):
         polygon = [tuple(map(float, projected[index])) for index in face]
-        shade = 0.72 + 0.20 * (face == (4, 5, 6, 7))
-        fill = tuple(int(channel * shade) for channel in color) + (185,)
-        draw.polygon(polygon, fill=fill, outline=(214, 228, 239, 195))
+        shade = 0.76 + 0.18 * (face == (4, 5, 6, 7))
+        fill = tuple(int(channel * shade) for channel in color) + (118,)
+        outline = tuple(max(0, int(channel * 0.72)) for channel in color) + (180,)
+        draw.polygon(polygon, fill=fill, outline=outline)
 
 
 def _draw_cylinder(
@@ -144,12 +143,19 @@ def _draw_cylinder(
     ring_xy = np.column_stack((center[0] + radius * np.cos(theta), center[1] + radius * np.sin(theta)))
     bottom = np.column_stack((ring_xy, np.zeros(len(theta))))
     top = bottom + np.array([0.0, 0.0, height])
-    top_projected, _ = _project(top, extent, world_height)
-    bottom_projected, _ = _project(bottom, extent, world_height)
-    draw.polygon([tuple(map(float, point)) for point in top_projected], fill=color + (175,), outline=(218, 231, 241, 200))
-    for index in range(0, len(theta), 4):
-        _line(draw, np.vstack((bottom_projected[index], top_projected[index])), color + (165,), width=2)
-    _line(draw, np.vstack((top_projected, top_projected[0])), (219, 232, 243, 220), width=2)
+    vertices = np.vstack((bottom, top))
+    projected, depth = _project(vertices, extent, world_height)
+    top_projected = projected[len(theta) :]
+    outline = tuple(max(0, int(channel * 0.72)) for channel in color) + (185,)
+    faces = [
+        (index, (index + 1) % len(theta), (index + 1) % len(theta) + len(theta), index + len(theta))
+        for index in range(len(theta))
+    ]
+    for face in sorted(faces, key=lambda indices: float(np.mean(depth[list(indices)])), reverse=True):
+        polygon = [tuple(map(float, projected[index])) for index in face]
+        draw.polygon(polygon, fill=color + (82,), outline=outline)
+    draw.polygon([tuple(map(float, point)) for point in top_projected], fill=color + (132,), outline=outline)
+    _line(draw, np.vstack((top_projected, top_projected[0])), outline, width=2)
 
 
 def _draw_obstacles(draw: ImageDraw.ImageDraw, data: dict[str, Any]) -> None:
@@ -160,7 +166,7 @@ def _draw_obstacles(draw: ImageDraw.ImageDraw, data: dict[str, Any]) -> None:
     half_extents = data["half_extents"]
     extent = data["extent"]
     world_height = data["world_height"]
-    colors = {"cylinder": (83, 111, 140), "box": (81, 105, 134), "wall": (106, 88, 125)}
+    colors = {"cylinder": (76, 129, 186), "box": (65, 169, 162), "wall": (226, 119, 104)}
     ordering: list[tuple[float, int]] = []
     for index, center in enumerate(centers):
         _, depth = _project(np.array([[center[0], center[1], 0.0]]), extent, world_height)
@@ -174,18 +180,89 @@ def _draw_obstacles(draw: ImageDraw.ImageDraw, data: dict[str, Any]) -> None:
             _draw_prism(draw, centers[index], half_extents[index], float(heights[index]), extent, world_height, color)
 
 
-def _draw_frame(data: dict[str, Any], frame_index: int, tail_length: int, safe_capture: bool, final_frame: bool) -> Image.Image:
-    image = Image.new("RGBA", (1280, 760), (12, 20, 32, 255))
+def _heading_on_screen(
+    trajectory: np.ndarray,
+    frame_index: int,
+    extent: float,
+    world_height: float,
+) -> np.ndarray:
+    """Infer an icon heading from the nearest non-stationary trajectory segment."""
+    current = np.asarray(trajectory[frame_index], dtype=np.float64)
+    for offset in range(1, 6):
+        for candidate_index in (frame_index + offset, frame_index - offset):
+            if 0 <= candidate_index < len(trajectory):
+                candidate = np.asarray(trajectory[candidate_index], dtype=np.float64)
+                if candidate_index < frame_index:
+                    delta = current - candidate
+                else:
+                    delta = candidate - current
+                if float(np.linalg.norm(delta)) > 1e-6:
+                    projected, _ = _project(np.vstack((current, current + delta)), extent, world_height)
+                    direction = projected[1] - projected[0]
+                    magnitude = float(np.linalg.norm(direction))
+                    if magnitude > 1e-6:
+                        return direction / magnitude
+    return np.array([0.0, -1.0], dtype=np.float64)
+
+
+def _draw_drone(
+    draw: ImageDraw.ImageDraw,
+    point: np.ndarray,
+    heading: np.ndarray,
+    color: tuple[int, int, int],
+    label: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+) -> None:
+    """Draw a compact aircraft icon whose nose points along the trajectory."""
+    forward = np.asarray(heading, dtype=np.float64)
+    forward /= max(float(np.linalg.norm(forward)), 1e-6)
+    lateral = np.array([-forward[1], forward[0]], dtype=np.float64)
+    nose = point + 12.0 * forward
+    tail = point - 9.0 * forward
+    body = [
+        tuple(nose),
+        tuple(point + 6.0 * lateral),
+        tuple(tail + 2.0 * lateral),
+        tuple(tail),
+        tuple(tail - 2.0 * lateral),
+        tuple(point - 6.0 * lateral),
+    ]
+    draw.polygon(body, fill=color + (255,), outline=(43, 61, 76, 230))
+    wing_start = point - 1.5 * forward
+    _line(draw, np.vstack((wing_start - 9.0 * lateral, wing_start + 9.0 * lateral)), (43, 61, 76, 230), width=2)
+    _line(draw, np.vstack((tail - 3.0 * lateral, tail + 3.0 * lateral)), (43, 61, 76, 220), width=1)
+    label_point = point + 11.0 * lateral - 8.0 * forward
+    draw.text(tuple(label_point), label, font=font, fill=(37, 54, 69, 255), stroke_width=1, stroke_fill=(255, 255, 255, 235))
+
+
+def _status_text(safe_capture: bool, final_frame: bool, termination_reason: str | None) -> tuple[str, tuple[int, int, int]]:
+    if final_frame and safe_capture:
+        return "CAPTURE CONFIRMED", (24, 132, 116)
+    if final_frame and termination_reason == "timeout":
+        return "TIMEOUT", (183, 104, 31)
+    if final_frame and termination_reason:
+        return "SAFETY TERMINATION", (187, 67, 68)
+    return "INTERCEPTION IN PROGRESS", (57, 101, 145)
+
+
+def _draw_frame(
+    data: dict[str, Any],
+    frame_index: int,
+    tail_length: int,
+    safe_capture: bool,
+    final_frame: bool,
+    termination_reason: str | None = None,
+) -> Image.Image:
+    image = Image.new("RGBA", (1280, 760), (248, 250, 252, 255))
     draw = ImageDraw.Draw(image, "RGBA")
-    title_font, body_font, small_font = _font(24, True), _font(15), _font(12)
-    draw.rectangle((0, 0, 1280, 78), fill=(18, 30, 47, 255))
-    draw.line((0, 78, 1280, 78), fill=(84, 113, 143, 180), width=1)
-    draw.text((34, 19), "3-D COOPERATIVE PURSUIT", font=title_font, fill=(237, 246, 255, 255))
-    draw.text((36, 51), "PERSPECTIVE OBSTACLE-VOLUME REPLAY", font=small_font, fill=(151, 177, 205, 255))
-    draw.rounded_rectangle((896, 19, 1246, 58), radius=6, fill=(27, 54, 64, 255), outline=(91, 235, 190, 220) if safe_capture and final_frame else (255, 213, 91, 210), width=1)
-    status = "CAPTURE CONFIRMED" if safe_capture and final_frame else "PURSUIT ACTIVE"
-    status_color = (91, 235, 190, 255) if safe_capture and final_frame else (255, 213, 91, 255)
-    draw.text((918, 31), status, font=body_font, fill=status_color)
+    title_font, body_font, small_font = _font(23, True), _font(15), _font(12)
+    draw.rectangle((0, 0, 1280, 78), fill=(255, 255, 255, 255))
+    draw.line((0, 78, 1280, 78), fill=(209, 219, 228, 255), width=1)
+    draw.text((34, 18), "MULTI-UAV INTERCEPTION REPLAY", font=title_font, fill=(35, 54, 69, 255))
+    draw.text((36, 50), "FIXED-CAMERA 3-D TRAJECTORY", font=small_font, fill=(101, 120, 137, 255))
+    status, status_color = _status_text(safe_capture, final_frame, termination_reason)
+    draw.rectangle((936, 20, 1246, 56), fill=(255, 255, 255, 255), outline=status_color + (255,), width=2)
+    draw.text((956, 30), status, font=body_font, fill=status_color + (255,))
 
     _draw_grid(draw, data["extent"], data["world_height"])
     _draw_obstacles(draw, data)
@@ -193,12 +270,12 @@ def _draw_frame(data: dict[str, Any], frame_index: int, tail_length: int, safe_c
     defenders = data["defenders"]
     target = data["target"]
     start = 0 if tail_length == 0 else max(0, frame_index - tail_length)
-    colors = ((32, 205, 245), (255, 174, 54), (123, 231, 94), (192, 130, 255))
+    colors = ((41, 123, 190), (224, 128, 49), (70, 151, 100), (135, 95, 174))
     for defender_index in range(defenders.shape[1]):
         projected, _ = _project(defenders[start : frame_index + 1, defender_index], data["extent"], data["world_height"])
-        _line(draw, projected, colors[defender_index % len(colors)] + (215,), width=3)
+        _line(draw, projected, colors[defender_index % len(colors)] + (205,), width=3)
     target_projected, _ = _project(target[start : frame_index + 1], data["extent"], data["world_height"])
-    _line(draw, target_projected, (255, 74, 94, 235), width=4)
+    _line(draw, target_projected, (205, 61, 72, 235), width=4)
 
     target_position = target[frame_index]
     target_screen, _ = _project(target_position[None, :], data["extent"], data["world_height"])
@@ -208,23 +285,24 @@ def _draw_frame(data: dict[str, Any], frame_index: int, tail_length: int, safe_c
         data["world_height"],
     )
     capture_px = max(12, int(np.mean(np.linalg.norm(radius_points - target_screen[0], axis=1))))
-    capture_color = (91, 235, 190, 215) if safe_capture and final_frame else (255, 213, 91, 220)
+    capture_color = (205, 61, 72, 230)
     point = target_screen[0]
     draw.ellipse((point[0] - capture_px, point[1] - capture_px, point[0] + capture_px, point[1] + capture_px), outline=capture_color, width=3)
-    draw.ellipse((point[0] - 8, point[1] - 8, point[0] + 8, point[1] + 8), fill=(255, 74, 94, 255), outline=(255, 236, 240, 255), width=2)
+    draw.ellipse((point[0] - 7, point[1] - 7, point[0] + 7, point[1] + 7), fill=(205, 61, 72, 255), outline=(255, 255, 255, 255), width=2)
 
     for defender_index, position in enumerate(defenders[frame_index]):
         projected, _ = _project(position[None, :], data["extent"], data["world_height"])
         point = projected[0]
         color = colors[defender_index % len(colors)]
-        draw.ellipse((point[0] - 9, point[1] - 9, point[0] + 9, point[1] + 9), fill=color + (255,), outline=(239, 249, 255, 255), width=2)
-        draw.text((point[0] + 11, point[1] - 7), f"D{defender_index + 1}", font=small_font, fill=color + (255,))
+        heading = _heading_on_screen(defenders[:, defender_index], frame_index, data["extent"], data["world_height"])
+        _draw_drone(draw, point, heading, color, f"D{defender_index + 1}", small_font)
 
     distances = np.linalg.norm(defenders[frame_index] - target_position[None, :], axis=1)
-    draw.rounded_rectangle((34, 632, 715, 724), radius=7, fill=(21, 35, 53, 235), outline=(84, 113, 143, 180), width=1)
-    draw.text((54, 650), f"t = {frame_index * 0.1:05.1f} s", font=body_font, fill=(237, 246, 255, 255))
-    draw.text((54, 681), f"nearest defender = {float(np.min(distances)):.2f} m     capture radius = {data['capture_radius']:.2f} m", font=body_font, fill=(185, 209, 235, 255))
-    draw.text((749, 690), "solid volumes = obstacles  |  colored paths = defenders  |  red path = target", font=small_font, fill=(164, 187, 212, 235))
+    draw.rectangle((32, 680, 1248, 730), fill=(255, 255, 255, 238), outline=(209, 219, 228, 255), width=1)
+    draw.text((54, 693), f"TIME  {frame_index * 0.1:05.1f} s", font=body_font, fill=(35, 54, 69, 255))
+    draw.text((318, 693), f"NEAREST DEFENDER  {float(np.min(distances)):.2f} m", font=body_font, fill=(35, 54, 69, 255))
+    draw.text((710, 693), f"CAPTURE RADIUS  {data['capture_radius']:.2f} m", font=body_font, fill=(35, 54, 69, 255))
+    draw.text((1010, 693), "TARGET", font=body_font, fill=(205, 61, 72, 255))
     return image.convert("RGB")
 
 
@@ -249,7 +327,14 @@ def _load_scene(trajectory_path: Path) -> dict[str, Any]:
 def render_static_perspective(trajectory_path: Path, output_path: Path, result: dict[str, Any]) -> None:
     """Write the final-frame perspective used by legacy replay output."""
     scene = _load_scene(trajectory_path)
-    image = _draw_frame(scene, len(scene["target"]) - 1, 0, bool(result.get("safe_capture_success")), True)
+    image = _draw_frame(
+        scene,
+        len(scene["target"]) - 1,
+        0,
+        bool(result.get("safe_capture_success")),
+        True,
+        str(result.get("termination_reason", "")),
+    )
     image.save(output_path)
 
 
@@ -279,7 +364,14 @@ def render_animation(trajectory_path: Path, result_path: Path, output_dir: Path,
     if indices[-1] != len(scene["target"]) - 1:
         indices = np.append(indices, len(scene["target"]) - 1)
     frames = [
-        _draw_frame(scene, int(index), tail_length, safe_capture, int(index) == len(scene["target"]) - 1)
+        _draw_frame(
+            scene,
+            int(index),
+            tail_length,
+            safe_capture,
+            int(index) == len(scene["target"]) - 1,
+            str(result.get("termination_reason", "")),
+        )
         for index in indices
     ]
     if safe_capture and freeze_seconds > 0:
