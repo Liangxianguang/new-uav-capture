@@ -316,7 +316,7 @@ def _draw_frame(
     draw.rectangle((0, 0, 1280, 78), fill=(255, 255, 255, 255))
     draw.line((0, 78, 1280, 78), fill=(209, 219, 228, 255), width=1)
     draw.text((34, 18), "MULTI-UAV INTERCEPTION REPLAY", font=title_font, fill=(35, 54, 69, 255))
-    draw.text((36, 50), "ORTHOGRAPHIC 3-D  ·  ALTITUDE +Z UP", font=small_font, fill=(101, 120, 137, 255))
+    draw.text((36, 50), "ORTHOGRAPHIC 3-D  |  ALTITUDE +Z UP", font=small_font, fill=(101, 120, 137, 255))
     status, status_color = _status_text(safe_capture, final_frame, termination_reason)
     draw.rectangle((936, 20, 1246, 56), fill=(255, 255, 255, 255), outline=status_color + (255,), width=2)
     draw.text((956, 30), status, font=body_font, fill=status_color + (255,))
