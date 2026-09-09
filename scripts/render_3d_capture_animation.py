@@ -64,20 +64,18 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
 
 
 def _project(points: np.ndarray, extent: float, world_height: float) -> tuple[np.ndarray, np.ndarray]:
-    """Project world coordinates through a fixed, lightly overhead camera."""
+    """Project coordinates with an oblique camera and an explicit vertical axis.
+
+    Keeping altitude screen-vertical makes the scene readable as a volume. An
+    orthographic scale also keeps the aircraft icons stable while they move.
+    """
     values = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-    azimuth = np.deg2rad(-48.0)
-    elevation = np.deg2rad(48.0)
-    x_rot = np.cos(azimuth) * values[:, 0] - np.sin(azimuth) * values[:, 1]
-    depth_axis = np.sin(azimuth) * values[:, 0] + np.cos(azimuth) * values[:, 1]
-    # Positive world z must map upward on screen, where smaller y is higher.
-    y_rot = np.cos(elevation) * depth_axis + np.sin(elevation) * values[:, 2]
-    depth = -np.sin(elevation) * depth_axis + np.cos(elevation) * values[:, 2]
-    camera_distance = 34.0
-    scale = 22.0 * min(1.0, 10.0 / max(extent, 1e-6))
-    perspective = camera_distance / np.maximum(6.0, camera_distance + depth)
-    screen_x = 640.0 + x_rot * scale * perspective
-    screen_y = 454.0 - y_rot * scale * perspective
+    del world_height
+    scale = 30.0 * min(1.0, 10.0 / max(extent, 1e-6))
+    # x is horizontal; y recedes down-right; +z rises straight up.
+    screen_x = 640.0 + (values[:, 0] + 0.56 * values[:, 1]) * scale
+    screen_y = 535.0 + (0.26 * values[:, 1] - 1.12 * values[:, 2]) * scale
+    depth = values[:, 1] - 0.18 * values[:, 0] - 0.35 * values[:, 2]
     return np.column_stack((screen_x, screen_y)), depth
 
 
@@ -87,23 +85,57 @@ def _line(draw: ImageDraw.ImageDraw, points: np.ndarray, fill: tuple[int, int, i
 
 
 def _draw_grid(draw: ImageDraw.ImageDraw, extent: float, world_height: float) -> None:
-    grid = (188, 201, 213, 150)
-    for coordinate in np.linspace(-extent, extent, 9):
-        projected, _ = _project(np.array([[coordinate, -extent, 0.0], [coordinate, extent, 0.0]]), extent, world_height)
-        _line(draw, projected, grid)
-        projected, _ = _project(np.array([[-extent, coordinate, 0.0], [extent, coordinate, 0.0]]), extent, world_height)
-        _line(draw, projected, grid)
-    outline = np.array(
+    corners = np.array(
         [
             [-extent, -extent, 0.0],
             [extent, -extent, 0.0],
             [extent, extent, 0.0],
             [-extent, extent, 0.0],
-            [-extent, -extent, 0.0],
         ]
     )
-    projected, _ = _project(outline, extent, world_height)
-    _line(draw, projected, (142, 160, 177, 190), width=2)
+    projected_corners, _ = _project(corners, extent, world_height)
+    draw.polygon([tuple(map(float, point)) for point in projected_corners], fill=(235, 242, 247, 220))
+    grid = (166, 187, 203, 118)
+    for coordinate in np.linspace(-extent, extent, 9):
+        projected, _ = _project(np.array([[coordinate, -extent, 0.0], [coordinate, extent, 0.0]]), extent, world_height)
+        _line(draw, projected, grid)
+        projected, _ = _project(np.array([[-extent, coordinate, 0.0], [extent, coordinate, 0.0]]), extent, world_height)
+        _line(draw, projected, grid)
+    _line(draw, np.vstack((projected_corners, projected_corners[0])), (118, 146, 168, 200), width=2)
+
+
+def _draw_orientation_triad(draw: ImageDraw.ImageDraw, font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> None:
+    """Add a compact x/y/z reference to anchor the 3-D interpretation."""
+    origin = np.array([86.0, 650.0])
+    axes = (
+        (np.array([37.0, 0.0]), "x", (60, 111, 157, 235)),
+        (np.array([22.0, 11.0]), "y", (78, 137, 128, 235)),
+        (np.array([0.0, -38.0]), "z", (182, 79, 78, 235)),
+    )
+    for vector, label, color in axes:
+        endpoint = origin + vector
+        _line(draw, np.vstack((origin, endpoint)), color, width=2)
+        direction = vector / max(float(np.linalg.norm(vector)), 1e-6)
+        lateral = np.array([-direction[1], direction[0]])
+        arrow = endpoint - 7.0 * direction
+        draw.polygon([tuple(endpoint), tuple(arrow + 3.0 * lateral), tuple(arrow - 3.0 * lateral)], fill=color)
+        draw.text(tuple(endpoint + 5.0 * direction + 2.0 * lateral), label, font=font, fill=color)
+
+
+def _draw_altitude_guide(
+    draw: ImageDraw.ImageDraw,
+    position: np.ndarray,
+    extent: float,
+    world_height: float,
+    color: tuple[int, int, int, int],
+) -> None:
+    """Show a quiet vertical drop line so altitude is visually explicit."""
+    ground = np.asarray(position, dtype=np.float64).copy()
+    ground[2] = 0.0
+    projected, _ = _project(np.vstack((ground, position)), extent, world_height)
+    draw.line([tuple(map(float, point)) for point in projected], fill=color, width=1)
+    base = projected[0]
+    draw.ellipse((base[0] - 3, base[1] - 3, base[0] + 3, base[1] + 3), fill=color)
 
 
 def _draw_prism(
@@ -124,10 +156,12 @@ def _draw_prism(
     faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
     for face in sorted(faces, key=lambda indices: float(np.mean(depth[list(indices)])), reverse=True):
         polygon = [tuple(map(float, projected[index])) for index in face]
-        shade = 0.76 + 0.18 * (face == (4, 5, 6, 7))
-        fill = tuple(int(channel * shade) for channel in color) + (118,)
-        outline = tuple(max(0, int(channel * 0.72)) for channel in color) + (180,)
-        draw.polygon(polygon, fill=fill, outline=outline)
+        is_top = face == (4, 5, 6, 7)
+        shade = 0.80 + 0.14 * is_top
+        fill = tuple(int(channel * shade) for channel in color) + (150 if is_top else 96,)
+        draw.polygon(polygon, fill=fill)
+    top_outline = tuple(max(0, int(channel * 0.70)) for channel in color) + (205,)
+    _line(draw, np.vstack((projected[4:], projected[4])), top_outline, width=2)
 
 
 def _draw_cylinder(
@@ -153,8 +187,10 @@ def _draw_cylinder(
     ]
     for face in sorted(faces, key=lambda indices: float(np.mean(depth[list(indices)])), reverse=True):
         polygon = [tuple(map(float, projected[index])) for index in face]
-        draw.polygon(polygon, fill=color + (82,), outline=outline)
-    draw.polygon([tuple(map(float, point)) for point in top_projected], fill=color + (132,), outline=outline)
+        shade = 0.84 + 0.08 * (face[0] % 2)
+        fill = tuple(int(channel * shade) for channel in color) + (82,)
+        draw.polygon(polygon, fill=fill)
+    draw.polygon([tuple(map(float, point)) for point in top_projected], fill=color + (148,), outline=outline)
     _line(draw, np.vstack((top_projected, top_projected[0])), outline, width=2)
 
 
@@ -217,22 +253,43 @@ def _draw_drone(
     forward = np.asarray(heading, dtype=np.float64)
     forward /= max(float(np.linalg.norm(forward)), 1e-6)
     lateral = np.array([-forward[1], forward[0]], dtype=np.float64)
-    nose = point + 12.0 * forward
-    tail = point - 9.0 * forward
+    nose = point + 14.0 * forward
+    tail = point - 10.0 * forward
     body = [
         tuple(nose),
-        tuple(point + 6.0 * lateral),
-        tuple(tail + 2.0 * lateral),
+        tuple(point + 7.0 * lateral),
+        tuple(tail + 2.5 * lateral),
         tuple(tail),
         tuple(tail - 2.0 * lateral),
-        tuple(point - 6.0 * lateral),
+        tuple(point - 7.0 * lateral),
     ]
     draw.polygon(body, fill=color + (255,), outline=(43, 61, 76, 230))
-    wing_start = point - 1.5 * forward
-    _line(draw, np.vstack((wing_start - 9.0 * lateral, wing_start + 9.0 * lateral)), (43, 61, 76, 230), width=2)
+    wing_start = point - 2.0 * forward
+    _line(draw, np.vstack((wing_start - 10.0 * lateral, wing_start + 10.0 * lateral)), (43, 61, 76, 230), width=2)
     _line(draw, np.vstack((tail - 3.0 * lateral, tail + 3.0 * lateral)), (43, 61, 76, 220), width=1)
     label_point = point + 11.0 * lateral - 8.0 * forward
     draw.text(tuple(label_point), label, font=font, fill=(37, 54, 69, 255), stroke_width=1, stroke_fill=(255, 255, 255, 235))
+
+
+def _draw_target(
+    draw: ImageDraw.ImageDraw,
+    point: np.ndarray,
+    heading: np.ndarray,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+) -> None:
+    """Draw the evader as a distinct red direction marker."""
+    forward = np.asarray(heading, dtype=np.float64)
+    forward /= max(float(np.linalg.norm(forward)), 1e-6)
+    lateral = np.array([-forward[1], forward[0]], dtype=np.float64)
+    nose = point + 10.0 * forward
+    rear = point - 7.0 * forward
+    draw.polygon(
+        [tuple(nose), tuple(rear + 6.0 * lateral), tuple(rear - 6.0 * lateral)],
+        fill=(205, 61, 72, 255),
+        outline=(255, 255, 255, 245),
+    )
+    label_point = point - 12.0 * forward - 7.0 * lateral
+    draw.text(tuple(label_point), "T", font=font, fill=(186, 48, 58, 255), stroke_width=1, stroke_fill=(255, 255, 255, 235))
 
 
 def _status_text(safe_capture: bool, final_frame: bool, termination_reason: str | None) -> tuple[str, tuple[int, int, int]]:
@@ -259,16 +316,20 @@ def _draw_frame(
     draw.rectangle((0, 0, 1280, 78), fill=(255, 255, 255, 255))
     draw.line((0, 78, 1280, 78), fill=(209, 219, 228, 255), width=1)
     draw.text((34, 18), "MULTI-UAV INTERCEPTION REPLAY", font=title_font, fill=(35, 54, 69, 255))
-    draw.text((36, 50), "FIXED-CAMERA 3-D TRAJECTORY", font=small_font, fill=(101, 120, 137, 255))
+    draw.text((36, 50), "ORTHOGRAPHIC 3-D  ·  ALTITUDE +Z UP", font=small_font, fill=(101, 120, 137, 255))
     status, status_color = _status_text(safe_capture, final_frame, termination_reason)
     draw.rectangle((936, 20, 1246, 56), fill=(255, 255, 255, 255), outline=status_color + (255,), width=2)
     draw.text((956, 30), status, font=body_font, fill=status_color + (255,))
 
-    _draw_grid(draw, data["extent"], data["world_height"])
-    _draw_obstacles(draw, data)
-
     defenders = data["defenders"]
     target = data["target"]
+    _draw_grid(draw, data["extent"], data["world_height"])
+    _draw_orientation_triad(draw, small_font)
+    for position in defenders[frame_index]:
+        _draw_altitude_guide(draw, position, data["extent"], data["world_height"], (74, 100, 120, 92))
+    _draw_altitude_guide(draw, target[frame_index], data["extent"], data["world_height"], (205, 61, 72, 112))
+    _draw_obstacles(draw, data)
+
     start = 0 if tail_length == 0 else max(0, frame_index - tail_length)
     colors = ((41, 123, 190), (224, 128, 49), (70, 151, 100), (135, 95, 174))
     for defender_index in range(defenders.shape[1]):
@@ -288,7 +349,8 @@ def _draw_frame(
     capture_color = (205, 61, 72, 230)
     point = target_screen[0]
     draw.ellipse((point[0] - capture_px, point[1] - capture_px, point[0] + capture_px, point[1] + capture_px), outline=capture_color, width=3)
-    draw.ellipse((point[0] - 7, point[1] - 7, point[0] + 7, point[1] + 7), fill=(205, 61, 72, 255), outline=(255, 255, 255, 255), width=2)
+    target_heading = _heading_on_screen(target, frame_index, data["extent"], data["world_height"])
+    _draw_target(draw, point, target_heading, small_font)
 
     for defender_index, position in enumerate(defenders[frame_index]):
         projected, _ = _project(position[None, :], data["extent"], data["world_height"])
