@@ -19,7 +19,9 @@ from encirclement3d.execution_dynamics import (
     CommandAuthorityDirective,
     apply_command_authority,
     command_authority_from_observation,
+    parameters_from_observation,
     queue_from_observation,
+    rollout_execution,
 )
 from encirclement3d.safety_certificate import (
     assess_execution_recoverability,
@@ -132,6 +134,11 @@ class RobustCBFQPConfig:
     execution_projection_tolerance: float = 1.0e-7
     execution_emergency_brake_enabled: bool = True
     execution_reachable_tube_multiplier: float = 1.0
+    execution_continuous_segment_constraints: bool = False
+    execution_continuous_segment_subdivisions: int = 4
+    fallback_progress_weight: float = 1.0
+    fallback_barrier_weight: float = 0.05
+    execution_fallback_receding_step_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.gamma) <= 1.0:
@@ -143,6 +150,7 @@ class RobustCBFQPConfig:
             "action_weight": self.action_weight,
             "slack_weight": self.slack_weight,
             "solver_tolerance": self.solver_tolerance,
+            "fallback_progress_weight": self.fallback_progress_weight,
         }
         for name, value in positive.items():
             if not np.isfinite(float(value)) or float(value) <= 0.0:
@@ -152,6 +160,7 @@ class RobustCBFQPConfig:
             "observation_error_margin_m": self.observation_error_margin_m,
             "delay_margin_m": self.delay_margin_m,
             "execution_margin_m": self.execution_margin_m,
+            "fallback_barrier_weight": self.fallback_barrier_weight,
         }
         for name, value in nonnegative.items():
             if not np.isfinite(float(value)) or float(value) < 0.0:
@@ -172,6 +181,8 @@ class RobustCBFQPConfig:
             raise ValueError("execution_linearization_iterations must be positive.")
         if int(self.execution_projection_iterations) <= 0:
             raise ValueError("execution_projection_iterations must be positive.")
+        if int(self.execution_continuous_segment_subdivisions) <= 0:
+            raise ValueError("execution_continuous_segment_subdivisions must be positive.")
         if float(self.execution_linearization_fd_step_mps) <= 0.0:
             raise ValueError("execution_linearization_fd_step_mps must be positive.")
         if float(self.execution_projection_tolerance) <= 0.0:
@@ -233,6 +244,12 @@ class RobustCBFQPDiagnostics:
     prefix_admissible: bool = True
     immutable_prefix_horizon_steps: int = 0
     immutable_prefix_min_robust_barrier_m: float = float("inf")
+    fallback_candidate_type: str = "none"
+    fallback_target_distance_before_m: float = float("nan")
+    fallback_target_distance_after_m: float = float("nan")
+    fallback_goal_progress_m: float = 0.0
+    fallback_certificate_horizon_steps: int = 0
+    fallback_certificate_scope: str = "none"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -269,6 +286,12 @@ class RobustCBFQPDiagnostics:
             "prefix_admissible": self.prefix_admissible,
             "immutable_prefix_horizon_steps": self.immutable_prefix_horizon_steps,
             "immutable_prefix_min_robust_barrier_m": self.immutable_prefix_min_robust_barrier_m,
+            "fallback_candidate_type": self.fallback_candidate_type,
+            "fallback_target_distance_before_m": self.fallback_target_distance_before_m,
+            "fallback_target_distance_after_m": self.fallback_target_distance_after_m,
+            "fallback_goal_progress_m": self.fallback_goal_progress_m,
+            "fallback_certificate_horizon_steps": self.fallback_certificate_horizon_steps,
+            "fallback_certificate_scope": self.fallback_certificate_scope,
         }
 
 
@@ -564,6 +587,17 @@ class RobustCBFQPFilter:
             "max_acceleration_mps2": float(self.config.max_acceleration_mps2),
             "action_change_constraint_enabled": float(bool(self.config.enforce_action_change)),
             "execution_reachable_tube_multiplier": float(self.config.execution_reachable_tube_multiplier),
+            "execution_continuous_segment_constraints": float(
+                bool(self.config.execution_continuous_segment_constraints)
+            ),
+            "execution_continuous_segment_subdivisions": float(
+                self.config.execution_continuous_segment_subdivisions
+            ),
+            "fallback_progress_weight": float(self.config.fallback_progress_weight),
+            "fallback_barrier_weight": float(self.config.fallback_barrier_weight),
+            "execution_fallback_receding_step_enabled": float(
+                bool(self.config.execution_fallback_receding_step_enabled)
+            ),
         }
 
     def _filter_with_execution_model(
@@ -591,6 +625,10 @@ class RobustCBFQPFilter:
         preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
         authority_mode = command_authority_from_observation(safety_observation)
         nominal_directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=False)
+        last_emergency_brake = bool(
+            isinstance(safety_observation.get("execution", {}), dict)
+            and safety_observation.get("execution", {}).get("last_emergency_brake_requested", False)
+        )
         lower_action, upper_action = self._execution_action_bounds(velocities)
 
         recoverability = assess_execution_recoverability(
@@ -604,15 +642,34 @@ class RobustCBFQPFilter:
             tolerance=float(self.config.solver_tolerance),
             command_authority=nominal_directive,
         )
-        if "immutable_execution_prefix_outside_robust_safe_set" in recoverability.violations:
+        selected_recoverability = recoverability
+        selected_directive = nominal_directive
+        if (
+            "immutable_execution_prefix_outside_robust_safe_set" in recoverability.violations
+            and bool(self.config.execution_emergency_brake_enabled)
+            and authority_mode != "immutable"
+        ):
+            selected_directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=True)
+            selected_recoverability = assess_execution_recoverability(
+                safety_observation,
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                horizon_steps=preview_steps,
+                reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                tolerance=float(self.config.solver_tolerance),
+                command_authority=selected_directive,
+            )
+        if "immutable_execution_prefix_outside_robust_safe_set" in selected_recoverability.violations:
             return self._execution_fallback(
                 desired,
                 observation,
                 started,
-                reason="abort_required:" + ",".join(recoverability.violations),
+                reason="abort_required:" + ",".join(selected_recoverability.violations),
                 category="unrecoverable_pending_execution",
                 precondition_valid=False,
-                directive=nominal_directive,
+                directive=selected_directive,
                 force_zero_action=True,
             )
 
@@ -633,10 +690,13 @@ class RobustCBFQPFilter:
                 action_change_limit_mps=self.config.action_change_limit_mps,
                 horizon_steps=preview_steps,
                 reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
             )
 
-        current_probe = rollout_certificate(np.zeros_like(desired), nominal_directive)
+        probe_directive = selected_directive if selected_directive.emergency_brake else nominal_directive
+        current_probe = rollout_certificate(np.zeros_like(desired), probe_directive)
         if not current_probe.current_state_safe:
             return self._execution_fallback(
                 desired,
@@ -659,12 +719,16 @@ class RobustCBFQPFilter:
             )
 
         attempts = [(desired, nominal_directive, "nominal_command")]
-        if bool(self.config.execution_emergency_brake_enabled) and authority_mode != "immutable":
+        if (
+            bool(self.config.execution_emergency_brake_enabled)
+            and authority_mode != "immutable"
+            and not last_emergency_brake
+        ):
             attempts.append(
                 (
-                    np.zeros_like(desired),
+                    desired,
                     CommandAuthorityDirective(mode=authority_mode, emergency_brake=True),
-                    "authorized_emergency_brake",
+                    "authorized_queue_clear_resume",
                 )
             )
 
@@ -753,6 +817,8 @@ class RobustCBFQPFilter:
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
                 reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
             )
             evaluations += 1
@@ -771,6 +837,8 @@ class RobustCBFQPFilter:
                     horizon_steps=preview_steps,
                     jacobian_active_margin_m=float(self.config.execution_linearization_active_margin_m),
                     reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                    continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                    continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                     command_authority=directive,
                 )
                 evaluations += 1
@@ -1027,6 +1095,72 @@ class RobustCBFQPFilter:
             "immutable_prefix_min_robust_barrier_m": float(result.minimum_prefix_robust_barrier_m),
         }
 
+    @staticmethod
+    def _goal_reference(observation: dict[str, Any]) -> np.ndarray | None:
+        """Build the same belief-only team target used by pursuit control."""
+
+        predictions = observation.get("target_prediction_positions")
+        if predictions is None:
+            beliefs = observation.get("target_belief_positions")
+            velocities = observation.get("target_belief_velocities")
+            if beliefs is None or velocities is None:
+                return None
+            predictions = np.asarray(beliefs, dtype=np.float64) + 0.55 * np.asarray(velocities, dtype=np.float64)
+        predictions = np.asarray(predictions, dtype=np.float64)
+        if predictions.ndim != 2 or predictions.shape[1:] != (3,) or not np.isfinite(predictions).all():
+            return None
+        ages = np.asarray(observation.get("message_age_steps", np.zeros(predictions.shape[0])), dtype=np.float64)
+        if ages.shape != (predictions.shape[0],) or not np.isfinite(ages).all():
+            ages = np.zeros(predictions.shape[0], dtype=np.float64)
+        weights = 1.0 / (1.0 + np.maximum(ages, 0.0))
+        weights /= max(float(np.sum(weights)), 1.0e-12)
+        return np.sum(predictions * weights[:, None], axis=0)
+
+    def _goal_progress(
+        self,
+        observation: dict[str, Any],
+        action: np.ndarray,
+        directive: CommandAuthorityDirective,
+    ) -> tuple[float, float, float] | None:
+        """Estimate one-step target-distance progress without target ground truth."""
+
+        target = self._goal_reference(observation)
+        if target is None:
+            return None
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+        before = float(np.min(np.linalg.norm(positions - target[None, :], axis=1)))
+        queue = queue_from_observation(observation, positions.shape[0])
+        queue, _resolved, _overridden = apply_command_authority(
+            queue,
+            directive,
+            allowed_mode=command_authority_from_observation(observation),
+        )
+        parameters = parameters_from_observation(observation, float(self.env.dt))
+        future_positions, _future_velocities, _steps = rollout_execution(
+            positions,
+            velocities,
+            queue,
+            np.asarray(action, dtype=np.float64),
+            parameters,
+            horizon_steps=1,
+        )
+        after = float(np.min(np.linalg.norm(future_positions[0] - target[None, :], axis=1)))
+        return before, after, before - after
+
+    def _bounded_execution_action(self, action: np.ndarray, observation: dict[str, Any]) -> np.ndarray:
+        """Keep a nominal fallback inside actuator and one-step change bounds."""
+
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
+        lower, upper = self._execution_action_bounds(velocities)
+        bounded = np.clip(
+            _clip_rows(np.asarray(action, dtype=np.float64), self.config.max_speed_mps).reshape(-1),
+            lower,
+            upper,
+        ).reshape(positions.shape)
+        return _clip_rows(bounded, self.config.max_speed_mps)
+
     def _execution_fallback(
         self,
         desired: np.ndarray,
@@ -1039,9 +1173,9 @@ class RobustCBFQPFilter:
         directive: CommandAuthorityDirective,
         force_zero_action: bool = False,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
-        # A braking request must issue zero velocity as well as cancel only the
-        # queue entries that the configured authority can legally touch.
-        action = np.zeros_like(desired) if directive.emergency_brake or force_zero_action else desired
+        # Queue authority cancels pending commands; it does not force the new
+        # command to zero.  Only an explicit force-zero path does that.
+        action = np.zeros_like(desired) if force_zero_action else desired
         safety_observation = dict(observation)
         safety_observation.setdefault("world_lower_bounds", np.asarray(self.env.lower, dtype=np.float64))
         safety_observation.setdefault("world_upper_bounds", np.asarray(self.env.upper, dtype=np.float64))
@@ -1064,6 +1198,8 @@ class RobustCBFQPFilter:
                 robust_margin_m=float(self.config.robust_margin_m),
                 horizon_steps=preview_steps,
                 reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                 command_authority=directive,
             )
             names = list(robust)
@@ -1080,6 +1216,8 @@ class RobustCBFQPFilter:
                         horizon_steps=preview_steps,
                         jacobian_active_margin_m=None,
                         reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                        continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                        continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
                         command_authority=directive,
                     )
                 )
@@ -1112,7 +1250,7 @@ class RobustCBFQPFilter:
                 if str(self.config.execution_linearization_backend) == "analytic"
                 else "finite_difference_dykstra"
             ),
-            force_zero_action=bool(directive.emergency_brake or force_zero_action),
+            force_zero_action=bool(force_zero_action),
             queue_override_slots=int(override_slots),
             recoverability=recoverability,
         )
@@ -1120,36 +1258,110 @@ class RobustCBFQPFilter:
         # execution certificate accepts it. Try a small, deterministic set of
         # conservative candidates so the diagnostic distinguishes a certified
         # fallback from a best-effort recovery command.
-        candidates = [actions]
-        if not directive.emergency_brake and not force_zero_action:
-            candidates.append(np.zeros_like(actions))
-            candidates.append(_clip_rows(desired, self.config.max_speed_mps))
-        certified_action: np.ndarray | None = None
-        certified_certificate: Any | None = None
-        for candidate in candidates:
-            try:
-                candidate_certificate = check_execution_rollout_safety(
-                    safety_observation,
-                    candidate,
-                    dt=float(self.env.dt),
-                    drone_radius=float(self.env.agents["drone_radius"]),
-                    max_speed_mps=float(self.config.max_speed_mps),
-                    max_acceleration_mps2=float(self.config.max_acceleration_mps2),
-                    safety_margin_m=float(self.config.safety_margin_m),
-                    robust_margin_m=float(self.config.robust_margin_m),
-                    tolerance=float(self.config.solver_tolerance),
-                    action_change_limit_mps=self.config.action_change_limit_mps,
-                    horizon_steps=preview_steps,
-                    reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
-                    command_authority=directive,
-                )
-            except (FloatingPointError, ValueError, RuntimeError):
-                continue
-            if bool(candidate_certificate.valid):
-                certified_action = np.asarray(candidate, dtype=np.float64)
-                certified_certificate = candidate_certificate
-                break
-        if certified_action is not None and certified_certificate is not None:
+        candidate_specs: list[tuple[str, np.ndarray]] = [("barrier_recovery", actions)]
+        if not force_zero_action:
+            candidate_specs.extend(
+                [
+                    ("zero_action", np.zeros_like(actions)),
+                    ("nominal_clipped", self._bounded_execution_action(desired, observation)),
+                    (
+                        "recovery_nominal_blend",
+                        self._bounded_execution_action(0.5 * (actions + desired), observation),
+                    ),
+                ]
+            )
+        last_emergency_brake = bool(
+            isinstance(safety_observation.get("execution", {}), dict)
+            and safety_observation.get("execution", {}).get("last_emergency_brake_requested", False)
+        )
+        directive_specs: list[tuple[CommandAuthorityDirective, str]] = [(directive, "selected")]
+        if directive.emergency_brake and directive.mode != "immutable" and last_emergency_brake:
+            # An emergency brake is a queue-clearing event. Repeating it every
+            # tick would keep replacing newly appended commands with zeros.
+            directive_specs = [(CommandAuthorityDirective(mode=directive.mode, emergency_brake=False), "resume")]
+        certified_candidates: list[
+            tuple[str, np.ndarray, Any, tuple[float, float, float] | None, int, str, CommandAuthorityDirective]
+        ] = []
+        for candidate_directive, directive_label in directive_specs:
+            candidate_horizons = [preview_steps]
+            if (
+                bool(self.config.execution_fallback_receding_step_enabled)
+                and candidate_directive.mode != "immutable"
+                and bool(recoverability.get("prefix_admissible", False))
+            ):
+                candidate_horizons.append(1)
+            for horizon in candidate_horizons:
+                scope = "full_horizon" if horizon == preview_steps else "one_step_receding"
+                for candidate_label, candidate in candidate_specs:
+                    try:
+                        candidate_certificate = check_execution_rollout_safety(
+                            safety_observation,
+                            candidate,
+                            dt=float(self.env.dt),
+                            drone_radius=float(self.env.agents["drone_radius"]),
+                            max_speed_mps=float(self.config.max_speed_mps),
+                            max_acceleration_mps2=float(self.config.max_acceleration_mps2),
+                            safety_margin_m=float(self.config.safety_margin_m),
+                            robust_margin_m=float(self.config.robust_margin_m),
+                            tolerance=float(self.config.solver_tolerance),
+                            action_change_limit_mps=self.config.action_change_limit_mps,
+                            horizon_steps=horizon,
+                            reachable_tube_multiplier=float(self.config.execution_reachable_tube_multiplier),
+                            continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                            continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
+                            command_authority=candidate_directive,
+                        )
+                    except (FloatingPointError, ValueError, RuntimeError):
+                        continue
+                    if bool(candidate_certificate.valid):
+                        try:
+                            progress = self._goal_progress(observation, candidate, candidate_directive)
+                        except (FloatingPointError, ValueError, RuntimeError):
+                            progress = None
+                        certified_candidates.append(
+                            (
+                                candidate_label if directive_label == "selected" else f"{candidate_label}_{directive_label}",
+                                np.asarray(candidate, dtype=np.float64),
+                                candidate_certificate,
+                                progress,
+                                horizon,
+                                scope,
+                                candidate_directive,
+                            )
+                        )
+        if certified_candidates:
+            if any(item[3] is not None for item in certified_candidates):
+                def candidate_score(
+                    item: tuple[
+                        str,
+                        np.ndarray,
+                        Any,
+                        tuple[float, float, float] | None,
+                        int,
+                        str,
+                        CommandAuthorityDirective,
+                    ],
+                ) -> float:
+                    progress = item[3]
+                    progress_value = 0.0 if progress is None else float(progress[2])
+                    return float(
+                        self.config.fallback_progress_weight * progress_value
+                        + self.config.fallback_barrier_weight * item[2].minimum_robust_barrier_m
+                        - 1.0e-6 * float(item[6].emergency_brake)
+                    )
+
+                selected = max(certified_candidates, key=candidate_score)
+            else:
+                selected = certified_candidates[0]
+            (
+                selected_label,
+                certified_action,
+                certified_certificate,
+                progress,
+                selected_horizon,
+                selected_scope,
+                selected_directive,
+            ) = selected
             actions = certified_action
             diagnostics = replace(
                 diagnostics,
@@ -1158,6 +1370,16 @@ class RobustCBFQPFilter:
                 barrier_values_m=dict(certified_certificate.barrier_values_m),
                 minimum_barrier_value_m=float(certified_certificate.minimum_robust_barrier_m),
                 assumptions={**diagnostics.assumptions, **certified_certificate.assumptions},
+                fallback_candidate_type=selected_label,
+                fallback_target_distance_before_m=(float(progress[0]) if progress is not None else float("nan")),
+                fallback_target_distance_after_m=(float(progress[1]) if progress is not None else float("nan")),
+                fallback_goal_progress_m=(float(progress[2]) if progress is not None else 0.0),
+                fallback_certificate_horizon_steps=int(selected_horizon),
+                fallback_certificate_scope=selected_scope,
+                command_authority=selected_directive.as_dict(),
+                emergency_brake_requested=bool(selected_directive.emergency_brake),
+                queue_override_slots=int(certified_certificate.assumptions.get("queue_override_slots", 0.0)),
+                **self._recoverability_fields(safety_observation, selected_directive),
             )
         return actions, diagnostics
 

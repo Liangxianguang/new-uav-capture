@@ -262,6 +262,57 @@ def test_recoverability_contract_distinguishes_immutable_prefix_from_flush_autho
     assert replaceable.abort_required
 
 
+def test_queue_clear_resume_keeps_goal_directed_command_when_authorized() -> None:
+    config = load_config()
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    obstacle = {
+        "shape": "cylinder",
+        "center_xy": np.array([0.0, 0.0]),
+        "radius": 1.0,
+        "height": 10.0,
+    }
+    observation = {
+        "defender_positions": np.array([[1.6, 0.0, 4.0], [-4.0, 4.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [obstacle],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "action_queue": [np.array([[-5.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float64)],
+            "pending_command_authority": "flush_pending",
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 100.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    qp_config = RobustCBFQPConfig(
+        safety_margin_m=0.10,
+        disturbance_margin_m=0.0,
+        observation_error_margin_m=0.0,
+        delay_margin_m=0.0,
+        execution_margin_m=0.0,
+        slack_enabled=False,
+        fallback_policy="barrier_recovery",
+    )
+
+    actions, diagnostics = RobustCBFQPFilter(env, qp_config).filter(
+        np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float64), observation
+    )
+
+    assert diagnostics.solver_success
+    assert diagnostics.certificate_valid
+    assert diagnostics.emergency_brake_requested
+    assert diagnostics.queue_override_slots == 1
+    assert actions[0, 0] > 0.0
+
+
 def test_execution_respects_acceleration_and_velocity_tracking() -> None:
     config = execution_config(
         velocity_time_constant_seconds=1.0,
@@ -513,6 +564,66 @@ def test_execution_fallback_marks_independently_certified_candidate() -> None:
     assert diagnostics.status == "fallback_certified"
 
 
+def test_flush_pending_fallback_preserves_certified_goal_progress() -> None:
+    config = load_config()
+    config["world"]["max_steps"] = 20
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    observation = {
+        "defender_positions": np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+            dtype=np.float64,
+        ),
+        "defender_velocities": np.zeros((4, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [],
+        "target_prediction_positions": np.tile(np.array([8.0, -4.0, 4.0]), (4, 1)),
+        "message_age_steps": np.zeros(4, dtype=np.int64),
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "pending_command_authority": "flush_pending",
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    filter_instance = RobustCBFQPFilter(
+        env,
+        RobustCBFQPConfig(
+            safety_margin_m=0.10,
+            disturbance_margin_m=0.0,
+            observation_error_margin_m=0.0,
+            delay_margin_m=0.0,
+            execution_margin_m=0.0,
+            slack_enabled=False,
+            fallback_policy="barrier_recovery",
+            fallback_barrier_weight=0.0,
+        ),
+    )
+
+    actions, diagnostics = filter_instance._execution_fallback(
+        np.full((4, 3), [1.0, 0.0, 0.0], dtype=np.float64),
+        observation,
+        0.0,
+        reason="test_solver_failure",
+        category="execution_rollout_infeasible",
+        precondition_valid=True,
+        directive=CommandAuthorityDirective(mode="flush_pending", emergency_brake=True),
+    )
+
+    assert diagnostics.certificate_valid
+    assert diagnostics.fallback_candidate_type == "nominal_clipped"
+    assert diagnostics.fallback_goal_progress_m > 0.0
+    assert actions[0, 0] > 0.0
+
+
 def test_execution_swept_volume_certificate_reports_sampling_contract() -> None:
     observation = {
         "defender_positions": np.array(
@@ -618,6 +729,70 @@ def test_analytic_execution_barrier_jacobian_matches_finite_difference() -> None
         "safety_margin_m": 0.1,
         "robust_margin_m": 0.0,
         "horizon_steps": 4,
+    }
+    _nominal, analytic_values, jacobian, _assumptions = execution_barrier_values_with_action_jacobian(
+        observation, action, **kwargs
+    )
+    _nominal, reference_values, _assumptions = execution_barrier_values(observation, action, **kwargs)
+    assert list(analytic_values) == list(reference_values)
+    np.testing.assert_allclose(
+        [analytic_values[name] for name in analytic_values],
+        [reference_values[name] for name in reference_values],
+        atol=1.0e-12,
+    )
+
+    finite_difference = np.zeros_like(jacobian)
+    flat_action = action.reshape(-1)
+    step = 1.0e-5
+    names = list(analytic_values)
+    for index in range(flat_action.size):
+        plus = flat_action.copy()
+        minus = flat_action.copy()
+        plus[index] += step
+        minus[index] -= step
+        _nominal, plus_values, _assumptions = execution_barrier_values(
+            observation, plus.reshape(action.shape), **kwargs
+        )
+        _nominal, minus_values, _assumptions = execution_barrier_values(
+            observation, minus.reshape(action.shape), **kwargs
+        )
+        finite_difference[:, index] = np.asarray(
+            [(plus_values[name] - minus_values[name]) / (2.0 * step) for name in names],
+            dtype=np.float64,
+        )
+    np.testing.assert_allclose(jacobian, finite_difference, atol=2.0e-5, rtol=2.0e-5)
+
+
+def test_continuous_segment_qp_barrier_jacobian_matches_certificate_contract() -> None:
+    observation = {
+        "defender_positions": np.array([[-4.0, -4.0, 4.0], [4.0, 4.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": np.array([-10.0, -10.0, 0.5], dtype=np.float64),
+        "world_upper_bounds": np.array([10.0, 10.0, 10.0], dtype=np.float64),
+        "obstacles": [],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 0,
+            "action_queue": [],
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    action = np.array([[0.7, -0.4, 0.2], [-0.5, 0.3, -0.1]], dtype=np.float64)
+    kwargs = {
+        "dt": 0.1,
+        "drone_radius": 0.25,
+        "safety_margin_m": 0.1,
+        "robust_margin_m": 0.0,
+        "horizon_steps": 3,
+        "continuous_segment_constraints": True,
+        "continuous_segment_subdivisions": 4,
     }
     _nominal, analytic_values, jacobian, _assumptions = execution_barrier_values_with_action_jacobian(
         observation, action, **kwargs

@@ -151,6 +151,29 @@ def _percentile(values: list[float], quantile: float) -> float:
     return float(np.percentile(finite, quantile)) if finite.size else float("nan")
 
 
+def belief_target_distance(observation: dict[str, Any]) -> float:
+    """Return nearest-defender distance to the belief-only team target."""
+
+    predictions = observation.get("target_prediction_positions")
+    if predictions is None:
+        beliefs = observation.get("target_belief_positions")
+        velocities = observation.get("target_belief_velocities")
+        if beliefs is None or velocities is None:
+            return float("nan")
+        predictions = np.asarray(beliefs, dtype=np.float64) + 0.55 * np.asarray(velocities, dtype=np.float64)
+    predictions = np.asarray(predictions, dtype=np.float64)
+    if predictions.ndim != 2 or predictions.shape[1:] != (3,) or not np.isfinite(predictions).all():
+        return float("nan")
+    ages = np.asarray(observation.get("message_age_steps", np.zeros(predictions.shape[0])), dtype=np.float64)
+    if ages.shape != (predictions.shape[0],) or not np.isfinite(ages).all():
+        ages = np.zeros(predictions.shape[0], dtype=np.float64)
+    weights = 1.0 / (1.0 + np.maximum(ages, 0.0))
+    weights /= max(float(np.sum(weights)), 1.0e-12)
+    target = np.sum(predictions * weights[:, None], axis=0)
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    return float(np.min(np.linalg.norm(positions - target[None, :], axis=1)))
+
+
 def run_episode(
     config: dict[str, Any],
     *,
@@ -202,6 +225,7 @@ def run_episode(
             else dict(getattr(diagnostics, "command_authority", None) or {})
         )
         pre_step = observation
+        target_distance_before = belief_target_distance(pre_step)
         command_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
             action,
@@ -226,6 +250,8 @@ def run_episode(
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=qp_config.execution_preview_horizon_steps,
             reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            continuous_segment_constraints=bool(qp_config.execution_continuous_segment_constraints),
+            continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
             command_authority=command_authority,
         )
         swept_certificate = check_execution_swept_volume_safety(
@@ -256,6 +282,12 @@ def run_episode(
             command_authority=command_authority,
         )
         executed_action = np.asarray(env.last_executed_actions, dtype=np.float64).copy()
+        target_distance_after = belief_target_distance(observation)
+        goal_progress = (
+            target_distance_before - target_distance_after
+            if np.isfinite(target_distance_before) and np.isfinite(target_distance_after)
+            else float("nan")
+        )
         executed_certificate = check_one_step_safety(
             certificate_observation(pre_step, env),
             executed_action,
@@ -296,6 +328,8 @@ def run_episode(
             action_change_limit_mps=qp_config.action_change_limit_mps,
             horizon_steps=1,
             reachable_tube_multiplier=qp_config.execution_reachable_tube_multiplier,
+            continuous_segment_constraints=bool(qp_config.execution_continuous_segment_constraints),
+            continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
         )
         command_valid += int(command_certificate.valid)
         command_execution_valid += int(execution_certificate.valid)
@@ -366,6 +400,30 @@ def run_episode(
                     getattr(diagnostics, "fallback_used", False)
                     and getattr(diagnostics, "certificate_valid", False)
                 ),
+                "fallback_reason": None
+                if diagnostics is None
+                else getattr(diagnostics, "fallback_reason", None),
+                "fallback_candidate_type": None
+                if diagnostics is None
+                else str(getattr(diagnostics, "fallback_candidate_type", "none")),
+                "fallback_target_distance_before_m": None
+                if diagnostics is None
+                else float(getattr(diagnostics, "fallback_target_distance_before_m", np.nan)),
+                "fallback_target_distance_after_m": None
+                if diagnostics is None
+                else float(getattr(diagnostics, "fallback_target_distance_after_m", np.nan)),
+                "fallback_goal_progress_m": None
+                if diagnostics is None
+                else float(getattr(diagnostics, "fallback_goal_progress_m", 0.0)),
+                "fallback_certificate_horizon_steps": None
+                if diagnostics is None
+                else int(getattr(diagnostics, "fallback_certificate_horizon_steps", 0)),
+                "fallback_certificate_scope": None
+                if diagnostics is None
+                else str(getattr(diagnostics, "fallback_certificate_scope", "none")),
+                "target_distance_before_m": float(target_distance_before),
+                "target_distance_after_m": float(target_distance_after),
+                "goal_progress_m": float(goal_progress),
                 "failure_category": None if diagnostics is None else str(getattr(diagnostics, "failure_category", "none")),
                 "solver_backend": None if diagnostics is None else str(getattr(diagnostics, "solver_backend", "none")),
                 "linearization_iterations": None if diagnostics is None else int(getattr(diagnostics, "linearization_iterations", 0)),
@@ -421,6 +479,16 @@ def run_episode(
             "actual_post_state_safe_rate": float(current_safe / max(len(step_rows), 1)),
             "actual_post_robust_state_safe_rate": float(actual_robust_current_safe / max(len(step_rows), 1)),
             "mean_action_execution_error_norm_mps": _finite_mean(execution_errors),
+            "mean_belief_goal_progress_m": _finite_mean(
+                [float(row["goal_progress_m"]) for row in step_rows]
+            ),
+            "mean_fallback_goal_progress_m": _finite_mean(
+                [
+                    float(row["fallback_goal_progress_m"])
+                    for row in step_rows
+                    if row.get("fallback_used") is True
+                ]
+            ),
             "safety_latency_p95_ms": _percentile(safety_latencies, 95.0),
             "minimum_command_next_barrier_m": float(np.min(command_barriers, initial=np.inf)),
             "minimum_execution_rollout_robust_barrier_m": float(np.min(command_execution_barriers, initial=np.inf)),
@@ -444,9 +512,16 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         return float(np.mean([bool(row[key]) for row in rows]))
 
     backend_counts: dict[str, int] = {}
+    fallback_candidate_counts: dict[str, int] = {}
+    fallback_certificate_scope_counts: dict[str, int] = {}
     for row in steps:
         backend = str(row.get("solver_backend", "none"))
         backend_counts[backend] = backend_counts.get(backend, 0) + 1
+        if row.get("fallback_used") is True:
+            candidate = str(row.get("fallback_candidate_type", "unknown"))
+            fallback_candidate_counts[candidate] = fallback_candidate_counts.get(candidate, 0) + 1
+            scope = str(row.get("fallback_certificate_scope", "unknown"))
+            fallback_certificate_scope_counts[scope] = fallback_certificate_scope_counts.get(scope, 0) + 1
 
     return {
         "episodes": len(rows),
@@ -476,6 +551,12 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
             [float(row["actual_post_robust_state_safe_rate"]) for row in rows]
         ),
         "mean_action_execution_error_norm_mps": _finite_mean([float(row["mean_action_execution_error_norm_mps"]) for row in rows]),
+        "mean_belief_goal_progress_m": _finite_mean(
+            [float(row["mean_belief_goal_progress_m"]) for row in rows]
+        ),
+        "mean_fallback_goal_progress_m": _finite_mean(
+            [float(row["mean_fallback_goal_progress_m"]) for row in rows]
+        ),
         "safety_latency_ms": {
             "p50": _percentile([float(row["safety_latency_ms"]) for row in steps], 50),
             "p95": _percentile([float(row["safety_latency_ms"]) for row in steps], 95),
@@ -493,6 +574,8 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "minimum_executed_next_barrier_m": float(np.min([row["minimum_executed_next_barrier_m"] for row in rows])),
         "minimum_actual_post_barrier_m": float(np.min([row["minimum_actual_post_barrier_m"] for row in rows])),
         "solver_fallback_count": int(sum(row["solver_fallback_count"] for row in rows)),
+        "fallback_candidate_counts": dict(sorted(fallback_candidate_counts.items())),
+        "fallback_certificate_scope_counts": dict(sorted(fallback_certificate_scope_counts.items())),
         "fallback_certificate_valid_rate": float(
             np.mean(
                 [

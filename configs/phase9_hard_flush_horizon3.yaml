@@ -1,0 +1,79 @@
+experiment_name: phase9_hard_flush_horizon3
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+safety:
+  gamma: 0.25
+  safety_margin_m: 0.35
+  disturbance_margin_m: 0.10
+  observation_error_margin_m: 0.06
+  delay_margin_m: 0.20
+  execution_margin_m: 0.10
+  execution_reachable_tube_multiplier: 2.1
+  execution_continuous_segment_constraints: false
+  execution_continuous_segment_subdivisions: 4
+  max_speed_mps: 5.0
+  max_acceleration_mps2: 6.0
+  action_change_limit_mps: null
+  enforce_action_change: true
+  slack_enabled: false
+  action_weight: 1.0
+  slack_weight: 1000000.0
+  slack_tolerance_m: 0.000001
+  solver_tolerance: 0.00000001
+  solver_max_iterations: 100
+  fallback_policy: barrier_recovery
+  execution_preview_horizon_steps: 3
+  execution_linearization_backend: analytic
+  execution_linearization_active_margin_m: 0.5
+  execution_linearization_iterations: 3
+  execution_linearization_fd_step_mps: 0.001
+  execution_projection_iterations: 160
+  execution_projection_tolerance: 0.0000001
+  execution_emergency_brake_enabled: true
+  execution_fallback_receding_step_enabled: true
+  fallback_progress_weight: 1.0
+  fallback_barrier_weight: 0.05
+
+evaluation:
+  episodes: 8
+  obstacle_count: 3
+  target_speed_scale: 0.45
+  target_motion_mode: flee_persistence
+  max_steps: 250
+  methods: [robust_cbf_qp]
+  control_cycle_budget_ms: 100.0
+  swept_volume_subdivisions_per_step: 4
+  robust_safe_seed_protocol:
+    source_run: results/phase5_stratified_v8_seed649101
+    episode_seeds: [649118, 649121, 649122, 649129, 649101, 649104, 649107, 649111]
+
+variants:
+  hard_flush_pending:
+    enabled: true
+    random_seed_offset: 104729
+    action_delay_steps: 2
+    pending_command_authority: flush_pending
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.40
+    drag_coefficient: 0.10
+    max_speed_scale: 1.0
+    max_acceleration_scale: 1.0
+    mass_scale: 1.0
+    randomize_per_episode: true
+    max_speed_scale_range: [0.85, 0.98]
+    max_acceleration_scale_range: [0.70, 0.95]
+    mass_scale_range: [0.90, 1.10]
+    drag_coefficient_range: [0.05, 0.20]
+    reachable_tube_multiplier: 2.1
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_command_and_executed_certificates: true
+  report_multi_step_invariance: true

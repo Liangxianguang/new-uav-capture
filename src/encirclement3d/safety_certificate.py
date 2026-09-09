@@ -441,6 +441,166 @@ def _robust_barriers(
     return nominal, robust
 
 
+def _barrier_position_gradients(
+    positions: np.ndarray,
+    names: list[str],
+    obstacles: list[Any] | tuple[Any, ...],
+    lower: np.ndarray,
+    upper: np.ndarray,
+    radius: float,
+    effective_margin: float,
+) -> np.ndarray:
+    """Return subgradients of geometric barriers with respect to positions."""
+
+    points = np.asarray(positions, dtype=np.float64)
+    gradients = np.zeros((len(names), points.size), dtype=np.float64)
+    for row, name in enumerate(names):
+        if name.startswith("obstacle["):
+            obstacle_index, defender_index = name.removeprefix("obstacle[").removesuffix("").split("]/")
+            obstacle = obstacles[int(obstacle_index)]
+            _, local_gradient = _signed_obstacle_clearance_and_gradient(
+                points[int(defender_index)], obstacle
+            )
+            gradients[row, int(defender_index) * 3 : int(defender_index) * 3 + 3] = local_gradient
+        elif name.startswith("boundary_lower["):
+            axis, defender_index = name.removeprefix("boundary_lower[").split("]/")
+            gradients[row, int(defender_index) * 3 + int(axis)] = 1.0
+        elif name.startswith("boundary_upper["):
+            axis, defender_index = name.removeprefix("boundary_upper[").split("]/")
+            gradients[row, int(defender_index) * 3 + int(axis)] = -1.0
+        elif name.startswith("inter_agent["):
+            first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+            first_index = int(first)
+            second_index = int(second)
+            relative = points[first_index] - points[second_index]
+            normal = _unit(relative, fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64))
+            gradients[row, first_index * 3 : first_index * 3 + 3] = normal
+            gradients[row, second_index * 3 : second_index * 3 + 3] = -normal
+        else:
+            raise ValueError(f"Unknown barrier name: {name}")
+    return gradients
+
+
+def _continuous_segment_barrier_data(
+    positions: np.ndarray,
+    rollout_positions: list[np.ndarray] | tuple[np.ndarray, ...],
+    uncertainty: np.ndarray,
+    obstacles: list[Any] | tuple[Any, ...],
+    lower: np.ndarray,
+    upper: np.ndarray,
+    radius: float,
+    effective_margin: float,
+    *,
+    position_jacobians: list[np.ndarray] | tuple[np.ndarray, ...] | None = None,
+) -> tuple[dict[str, float], dict[str, float], np.ndarray | None]:
+    """Build the conservative continuous-segment barrier contract.
+
+    The bound is the minimum of the robust endpoint barriers minus half the
+    relative path length.  The same bound is used by the independent
+    certificate, while optional endpoint Jacobians expose its local gradient
+    to the execution-aware QP.
+    """
+
+    nominal_values: dict[str, float] = {}
+    robust_values: dict[str, float] = {}
+    gradients: list[np.ndarray] = []
+    action_dimension = 0 if position_jacobians is None else int(position_jacobians[0].shape[1])
+    previous = np.asarray(positions, dtype=np.float64)
+    previous_jacobian = (
+        None
+        if position_jacobians is None
+        else np.zeros_like(np.asarray(position_jacobians[0], dtype=np.float64))
+    )
+    for step_index, endpoint_value in enumerate(rollout_positions):
+        endpoint = np.asarray(endpoint_value, dtype=np.float64)
+        endpoint_jacobian = None if position_jacobians is None else np.asarray(position_jacobians[step_index])
+        start_nominal, start_robust = _robust_barriers(
+            previous,
+            obstacles,
+            lower,
+            upper,
+            float(radius),
+            float(effective_margin),
+            uncertainty[step_index],
+        )
+        end_nominal, end_robust = _robust_barriers(
+            endpoint,
+            obstacles,
+            lower,
+            upper,
+            float(radius),
+            float(effective_margin),
+            uncertainty[step_index],
+        )
+        names = list(end_nominal)
+        start_position_gradients = _barrier_position_gradients(
+            previous, names, obstacles, lower, upper, radius, effective_margin
+        )
+        end_position_gradients = _barrier_position_gradients(
+            endpoint, names, obstacles, lower, upper, radius, effective_margin
+        )
+        if position_jacobians is not None:
+            assert endpoint_jacobian is not None and previous_jacobian is not None
+            start_action_jacobian = start_position_gradients @ previous_jacobian
+            end_action_jacobian = start_position_gradients * 0.0
+            end_action_jacobian = end_position_gradients @ endpoint_jacobian
+            segment_jacobian = endpoint_jacobian - previous_jacobian
+        else:
+            start_action_jacobian = end_action_jacobian = None
+            segment_jacobian = None
+        motion = endpoint - previous
+        motion_norms = np.linalg.norm(motion, axis=1)
+
+        for name in names:
+            if name.startswith("inter_agent["):
+                first, second = name.removeprefix("inter_agent[").removesuffix("]").split(",")
+                first_index, second_index = int(first), int(second)
+                half_path = 0.5 * float(motion_norms[first_index] + motion_norms[second_index])
+                if segment_jacobian is None:
+                    half_path_gradient = None
+                else:
+                    first_gradient = np.zeros(action_dimension, dtype=np.float64)
+                    second_gradient = np.zeros(action_dimension, dtype=np.float64)
+                    if motion_norms[first_index] > 1.0e-12:
+                        first_gradient = (motion[first_index] / motion_norms[first_index]) @ segment_jacobian[
+                            first_index * 3 : first_index * 3 + 3
+                        ]
+                    if motion_norms[second_index] > 1.0e-12:
+                        second_gradient = (motion[second_index] / motion_norms[second_index]) @ segment_jacobian[
+                            second_index * 3 : second_index * 3 + 3
+                        ]
+                    half_path_gradient = 0.5 * (first_gradient + second_gradient)
+            else:
+                defender_index = int(name.rsplit("/", 1)[-1])
+                half_path = 0.5 * float(motion_norms[defender_index])
+                if segment_jacobian is None or motion_norms[defender_index] <= 1.0e-12:
+                    half_path_gradient = (
+                        None if segment_jacobian is None else np.zeros(action_dimension, dtype=np.float64)
+                    )
+                else:
+                    half_path_gradient = 0.5 * (motion[defender_index] / motion_norms[defender_index]) @ segment_jacobian[
+                        defender_index * 3 : defender_index * 3 + 3
+                    ]
+            robust_start_value = float(start_robust[name])
+            robust_end_value = float(end_robust[name])
+            nominal_start_value = float(start_nominal[name])
+            nominal_end_value = float(end_nominal[name])
+            use_start = robust_start_value <= robust_end_value
+            nominal_values[f"step[{step_index + 1}]/continuous/{name}"] = float(
+                min(nominal_start_value, nominal_end_value) - half_path
+            )
+            robust_values[f"step[{step_index + 1}]/continuous/{name}"] = float(
+                min(robust_start_value, robust_end_value) - half_path
+            )
+            if position_jacobians is not None:
+                base_gradient = start_action_jacobian[names.index(name)] if use_start else end_action_jacobian[names.index(name)]
+                gradients.append(np.asarray(base_gradient, dtype=np.float64) - half_path_gradient)
+        previous = endpoint
+        previous_jacobian = endpoint_jacobian
+    jacobian = None if position_jacobians is None else np.stack(gradients, axis=0)
+    return nominal_values, robust_values, jacobian
+
+
 def execution_barrier_values(
     observation: Mapping[str, Any],
     action: np.ndarray,
@@ -452,6 +612,8 @@ def execution_barrier_values(
     horizon_steps: int | None = None,
     swept_substeps: int = 4,
     reachable_tube_multiplier: float = 1.0,
+    continuous_segment_constraints: bool = False,
+    continuous_segment_subdivisions: int = 4,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return nominal and uncertainty-robust barriers along executed rollout."""
@@ -492,6 +654,39 @@ def execution_barrier_values(
         preview_steps,
         multiplier=reachable_tube_multiplier,
     )
+    if continuous_segment_constraints:
+        if int(continuous_segment_subdivisions) <= 0:
+            raise ValueError("continuous_segment_subdivisions must be positive")
+        nominal_values, robust_values, _ = _continuous_segment_barrier_data(
+            positions,
+            rollout_positions,
+            uncertainty,
+            obstacles,
+            lower,
+            upper,
+            float(drone_radius),
+            float(safety_margin_m) + float(robust_margin_m),
+        )
+        assumptions = {
+            "dt_seconds": float(dt),
+            "horizon_steps": float(preview_steps),
+            "action_delay_steps": float(parameters.action_delay_steps),
+            "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+            "tracking_alpha": float(parameters.tracking_alpha),
+            "drag_gain": float(parameters.drag_gain),
+            "max_speed_mps": float(parameters.max_speed_mps),
+            "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+            "mass_scale": float(parameters.mass_scale),
+            "continuous_segment_constraints": 1.0,
+            "continuous_segment_subdivisions": float(continuous_segment_subdivisions),
+            "command_authority_mode": float(
+                {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+            ),
+            "emergency_brake_requested": float(directive.emergency_brake),
+            "queue_override_slots": float(overridden_slots),
+            "reachable_tube_multiplier": float(reachable_tube_multiplier),
+        }
+        return nominal_values, robust_values, assumptions
     nominal_values: dict[str, float] = {}
     robust_values: dict[str, float] = {}
     for step_index, (future_positions, radii) in enumerate(zip(rollout_positions, uncertainty), start=1):
@@ -664,6 +859,8 @@ def execution_barrier_values_with_action_jacobian(
     swept_substeps: int = 4,
     jacobian_active_margin_m: float | None = None,
     reachable_tube_multiplier: float = 1.0,
+    continuous_segment_constraints: bool = False,
+    continuous_segment_subdivisions: int = 4,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, float], dict[str, float], np.ndarray, dict[str, float]]:
     """Evaluate execution barriers with local action derivatives.
@@ -712,6 +909,50 @@ def execution_barrier_values_with_action_jacobian(
         preview_steps,
         multiplier=reachable_tube_multiplier,
     )
+    if continuous_segment_constraints:
+        if int(continuous_segment_subdivisions) <= 0:
+            raise ValueError("continuous_segment_subdivisions must be positive")
+        nominal_values, robust_values, jacobian = _continuous_segment_barrier_data(
+            positions,
+            rollout_positions,
+            uncertainty,
+            obstacles,
+            lower,
+            upper,
+            float(drone_radius),
+            float(safety_margin_m) + float(robust_margin_m),
+            position_jacobians=position_jacobians,
+        )
+        assert jacobian is not None
+        if jacobian_active_margin_m is not None:
+            active = np.asarray(
+                [robust_values[name] <= float(jacobian_active_margin_m) for name in robust_values],
+                dtype=bool,
+            )
+            jacobian[~active] = 0.0
+        assumptions = {
+            "dt_seconds": float(dt),
+            "horizon_steps": float(preview_steps),
+            "action_delay_steps": float(parameters.action_delay_steps),
+            "command_noise_bound_mps": float(parameters.command_noise_bound_mps),
+            "tracking_alpha": float(parameters.tracking_alpha),
+            "drag_gain": float(parameters.drag_gain),
+            "max_speed_mps": float(parameters.max_speed_mps),
+            "max_acceleration_mps2": float(parameters.max_acceleration_mps2),
+            "mass_scale": float(parameters.mass_scale),
+            "continuous_segment_constraints": 1.0,
+            "continuous_segment_subdivisions": float(continuous_segment_subdivisions),
+            "command_authority_mode": float(
+                {"immutable": 0, "replace_nonexecuting": 1, "flush_pending": 2}[directive.mode]
+            ),
+            "emergency_brake_requested": float(directive.emergency_brake),
+            "queue_override_slots": float(overridden_slots),
+            "jacobian_active_margin_m": float(
+                -1.0 if jacobian_active_margin_m is None else jacobian_active_margin_m
+            ),
+            "reachable_tube_multiplier": float(reachable_tube_multiplier),
+        }
+        return nominal_values, robust_values, jacobian, assumptions
     nominal_values: dict[str, float] = {}
     robust_values: dict[str, float] = {}
     gradients: list[np.ndarray] = []
@@ -850,6 +1091,8 @@ def check_execution_rollout_safety(
     action_change_limit_mps: float | None = None,
     horizon_steps: int | None = None,
     reachable_tube_multiplier: float = 1.0,
+    continuous_segment_constraints: bool = False,
+    continuous_segment_subdivisions: int = 4,
     command_authority: CommandAuthorityDirective | Mapping[str, Any] | None = None,
 ) -> ExecutionRolloutCertificateResult:
     """Check the actual queued execution model over a finite preview horizon."""
@@ -875,6 +1118,8 @@ def check_execution_rollout_safety(
         robust_margin_m=robust_margin_m,
         horizon_steps=horizon_steps,
         reachable_tube_multiplier=reachable_tube_multiplier,
+        continuous_segment_constraints=continuous_segment_constraints,
+        continuous_segment_subdivisions=continuous_segment_subdivisions,
         command_authority=command_authority,
     )
     violations: list[str] = []
