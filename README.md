@@ -57,6 +57,9 @@ The V5 checkpoint is the most useful runnable model, but its `95.0%` result is
 defensible benchmark claim. Full evidence and reporting boundaries are in
 [docs/evidence/README.md](docs/evidence/README.md).
 
+A Chinese paper-style method, protocol, result, and limitation summary is in
+[docs/EXPERIMENTAL_STUDY_REPORT.md](docs/EXPERIMENTAL_STUDY_REPORT.md).
+
 ## Repository Map
 
 ```text

@@ -2,6 +2,7 @@
 
 > P7 最新状态：已完成同一 P4 locked-test 上的 `worst_case DN-MPC + velocity-level robust CBF-QP` 联合审计；safe capture `50%`、collision `49%`、boundary violation `16%`，直接组合路径为 No-Go。模块化 P4 规划结果仍保留，正式分析见 `docs/PHASE7_JOINT_SAFETY_AUDIT_REPORT.md`。最新总览与后续执行清单见 `docs/EXPERIMENT_STATUS_AND_NEXT_TODOLIST.md`。
 > P7.1 诊断已完成：1,858/5,289 safety fallback steps 已按 `precondition_invalid=1,225`、`qp_infeasible=350`、`inconsistent_action_bounds=283` 分类；L2-SLSQP 速度球替换 ablation 退化为 `1%` safe capture / `99%` collision，已拒绝，当前继续修复 reset/margin/fallback contract，不重开端到端 gate。
+> P14 最新 authority matrix 已完成：hard `immutable` / `replace_nonexecuting` / `flush_pending` safe capture 为 `12.5% / 0% / 25.0%`，actual post-state safety 为 `29.55% / 90.05% / 99.75%`，均为 `0%` collision/boundary；结果仍是执行审计，不改变完整方法 No-Go 判定。详见 `docs/PHASE14_AUTHORITY_MATRIX_REPORT.md`。
 
 > 版本：v3.7（2026-09-08）
 > 目标仓库：`https://github.com/Liangxianguang/new-uav-capture`

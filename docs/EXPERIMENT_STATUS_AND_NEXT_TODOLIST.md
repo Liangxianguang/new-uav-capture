@@ -1,8 +1,10 @@
 # 当前实验状态与后续 TodoList
 
-> 更新时间：2026-09-09
+> 更新时间：2026-09-10
 > 仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 当前总判定：**Conditional Go**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，完整方法尚未完成。
+
+> 最新 Phase 14 authority matrix：hard `immutable` / `replace_nonexecuting` / `flush_pending` 的 safe capture 分别为 `12.5% / 0% / 25.0%`，actual post-state safety 为 `29.55% / 90.05% / 99.75%`，collision/boundary 均为 `0% / 0%`。`flush_pending` 仍只是仿真执行器能力，不能直接外推到真实飞控；完整执行感知安全控制仍为 No-Go。详见 `docs/PHASE14_AUTHORITY_MATRIX_REPORT.md`。
 
 ## 1. 先给结论
 
@@ -13,6 +15,8 @@
 3. velocity-level robust CBF-QP 在预先筛选的 robust-safe reset 上通过了一步独立证书检查，但这不是执行扰动下的闭环安全证明。
 4. 将 robust CBF-QP 直接接入 P4 流程后，safe capture 只有 50.00%，collision 为 49.00%，boundary violation 为 16.00%；因此当前端到端组合路径为 **No-Go**。
 5. 当前 v4 独立证书审计目录只有配置和场景文件，没有完整 `summary.json`、episode/step 日志，不能作为新实验结果引用。
+
+6. 最新 Phase 14 八种子 authority matrix 已完成，但三种权限均未达到 hard `80%` safe-capture 工作门槛；下一步必须先做证书/队列失败分解，再扩大 unseen seed。
 
 ## 2. 当前捕获率
 
@@ -112,6 +116,10 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 **P7.2 gate：** 结果工件完整、控制结果与原始 v2 一致、独立证书指标可逐步追溯。该 gate 只完善审计，不会自动把 P7 的 No-Go 改成 Go。
 
 ### P8：修复安全契约，而不是继续堆叠模型
+
+- [x] 完成最新 hard `immutable`、`replace_nonexecuting`、`flush_pending` 八种子 authority matrix；结果为执行审计证据，仍未通过 hard 捕获与连续证书 gate。
+- [ ] 按队列前缀、horizon index、barrier family、execution error 和 fallback candidate 分解 Phase 14 失败。
+- [ ] 在同一批 step states 上对比 horizon `1/2/3/5`，区分证书保守性与真实状态离开安全集。
 
 - [ ] 冻结 P4 的同一组场景，分别复现 local CBF、当前 robust CBF-QP 和 nominal action。
 - [ ] 将 `precondition_invalid`、`qp_infeasible`、solver numerical failure、fallback 后证书失败严格分开统计。
