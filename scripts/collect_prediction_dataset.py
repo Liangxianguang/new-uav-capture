@@ -39,6 +39,7 @@ TARGET_MOTION_MODES = (
     "burst",
     "boundary_escape",
     "adaptive_adversarial",
+    "adaptive_branching",
 )
 
 

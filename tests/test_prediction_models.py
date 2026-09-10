@@ -25,6 +25,7 @@ from encirclement3d.prediction import (
 
 def test_prediction_collector_accepts_adaptive_adversarial_target_mode(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     assert "adaptive_adversarial" in TARGET_MOTION_MODES
+    assert "adaptive_branching" in TARGET_MOTION_MODES
     monkeypatch.setattr(
         sys,
         "argv",

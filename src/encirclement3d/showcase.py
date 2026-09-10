@@ -31,6 +31,7 @@ class ShowcaseScenario:
     layout_seed: int | None = None
     required_defender_zone_entries: int = 1
     require_target_zone_entry: bool | None = None
+    scenario_type: str = "showcase"
 
 
 @dataclass(frozen=True)
@@ -433,10 +434,68 @@ def random_central_mixed_obstacle_scenario(
     raise RuntimeError(f"Unable to sample a valid S3 map after {max_attempts} attempts (seed={layout_seed}).")
 
 
+def s4_adaptive_branching_scenario(
+    env: CaptureRadiusPursuit3DEnv,
+    layout_seed: int,
+    defender_bias: str,
+) -> ShowcaseScenario:
+    """Build a reproducible two-exit S4 pursuit-evasion scene.
+
+    Defenders begin behind the target on the left of a near-ceiling wall. Two
+    equally sized exits exist at positive and negative y. A controlled
+    defender-side bias makes one exit more interceptable; the target must
+    select the other from the current defender geometry rather than follow a
+    pre-announced branch label. ``defender_bias`` has a mirrored companion,
+    which permits paired counterfactual evaluation.
+    """
+
+    if layout_seed < 0:
+        raise ValueError("S4 layout_seed must be non-negative.")
+    if defender_bias not in {"upper", "lower"}:
+        raise ValueError("S4 defender_bias must be 'upper' or 'lower'.")
+    rng = np.random.default_rng(layout_seed)
+    mirror = 1.0 if defender_bias == "upper" else -1.0
+    jitter = rng.uniform(-0.16, 0.16, size=(4, 2))
+    base_defenders = np.array(
+        [
+            [-8.20, 2.70, 3.50],
+            [-8.55, 3.80, 6.50],
+            [-8.60, -0.80, 4.00],
+            [-8.85, 0.50, 6.00],
+        ],
+        dtype=np.float64,
+    )
+    defender_positions = base_defenders.copy()
+    defender_positions[:, 0] += jitter[:, 0]
+    defender_positions[:, 1] = mirror * (defender_positions[:, 1] + jitter[:, 1])
+    target_position = np.array([-3.80, 0.0, 5.0], dtype=np.float64)
+    obstacle = CylinderObstacle(
+        center_xy=np.array([0.0, 0.0], dtype=np.float64),
+        radius=0.55,
+        height=9.45,
+        shape="wall",
+        half_extents_xy=np.array([0.55, 4.25], dtype=np.float64),
+    )
+    scenario = ShowcaseScenario(
+        name=f"s4_adaptive_branching_{defender_bias}_{layout_seed}",
+        obstacles=(obstacle,),
+        defender_positions=defender_positions,
+        target_position=target_position,
+        target_escape_direction=np.array([1.0, 0.0, 0.0], dtype=np.float64),
+        obstacle_zone_x=(-0.55, 0.55),
+        defender_side="left",
+        layout_seed=int(layout_seed),
+        scenario_type="s4_branching",
+    )
+    validate_s4_branching_scenario(env, scenario)
+    return scenario
+
+
 def scenario_metadata(scenario: ShowcaseScenario) -> dict[str, Any]:
     """Return JSON-safe geometry and protocol metadata for a showcase scenario."""
     return {
         "name": scenario.name,
+        "scenario_type": scenario.scenario_type,
         "layout_seed": scenario.layout_seed,
         "defender_side": scenario.defender_side,
         "target_crossing_required": scenario.target_crossing_required,
@@ -498,6 +557,7 @@ def scenario_from_metadata(metadata: dict[str, Any]) -> ShowcaseScenario:
                 if metadata.get("require_target_zone_entry") is None
                 else bool(metadata["require_target_zone_entry"])
             ),
+            scenario_type=str(metadata.get("scenario_type", "showcase")),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError("Invalid frozen showcase scenario metadata.") from error
@@ -1050,6 +1110,134 @@ def transit_execution_metrics(
     }
 
 
+def s4_branch_route_metrics(
+    env: CaptureRadiusPursuit3DEnv,
+    scenario: ShowcaseScenario,
+    grid_step: float = 0.5,
+) -> dict[str, Any]:
+    """Check conservative access to both S4 exits for all participants."""
+
+    waypoint_x = float(env.pursuit["target_branch_waypoint_x"])
+    exit_offset_y = float(env.pursuit["target_branch_exit_offset_y"])
+    goal_x = float(env.pursuit["target_branch_goal_x"])
+
+    def route_through_waypoints(start: np.ndarray, waypoints: list[np.ndarray]) -> list[list[np.ndarray] | None]:
+        current = np.asarray(start, dtype=np.float64)
+        routes: list[list[np.ndarray] | None] = []
+        for waypoint in waypoints:
+            route = _planar_route(env, current, waypoint, scenario.obstacles, grid_step=grid_step)
+            routes.append(route)
+            if route is None:
+                break
+            current = waypoint
+        return routes
+
+    target_routes: dict[str, list[list[np.ndarray] | None]] = {}
+    defender_routes: dict[str, list[list[list[np.ndarray] | None]]] = {}
+    for sign, name in ((-1, "lower"), (1, "upper")):
+        target_waypoints = [
+            np.array([-waypoint_x, sign * exit_offset_y, scenario.target_position[2]], dtype=np.float64),
+            np.array([waypoint_x, sign * exit_offset_y, scenario.target_position[2]], dtype=np.float64),
+            np.array([goal_x, sign * exit_offset_y, scenario.target_position[2]], dtype=np.float64),
+        ]
+        target_routes[name] = route_through_waypoints(scenario.target_position, target_waypoints)
+        defender_routes[name] = []
+        for defender_position in scenario.defender_positions:
+            defender_waypoints = [
+                np.array([-waypoint_x, sign * exit_offset_y, defender_position[2]], dtype=np.float64),
+                np.array([waypoint_x, sign * exit_offset_y, defender_position[2]], dtype=np.float64),
+            ]
+            defender_routes[name].append(route_through_waypoints(defender_position, defender_waypoints))
+
+    def routes_complete(routes: list[list[np.ndarray] | None], expected_count: int) -> bool:
+        return len(routes) == expected_count and all(route is not None for route in routes)
+
+    def route_length(routes: list[list[np.ndarray] | None]) -> float | None:
+        if not all(route is not None for route in routes):
+            return None
+        return float(
+            sum(
+                np.sum(np.linalg.norm(np.diff(np.asarray(route), axis=0), axis=1))
+                for route in routes
+                if route is not None and len(route) > 1
+            )
+        )
+
+    target_feasible = {name: routes_complete(routes, 3) for name, routes in target_routes.items()}
+    defender_feasible = {
+        name: [routes_complete(routes, 2) for routes in per_defender]
+        for name, per_defender in defender_routes.items()
+    }
+    return {
+        "branch_grid_step_m": float(grid_step),
+        "target_branch_route_feasible": target_feasible,
+        "defender_branch_route_feasible": defender_feasible,
+        "target_branch_route_length_m": {
+            name: route_length(routes) for name, routes in target_routes.items()
+        },
+        "defender_branch_route_length_m": {
+            name: [route_length(routes) for routes in per_defender]
+            for name, per_defender in defender_routes.items()
+        },
+        "branch_route_feasible": bool(
+            all(target_feasible.values())
+            and all(all(values) for values in defender_feasible.values())
+        ),
+    }
+
+
+def validate_s4_branching_scenario(env: CaptureRadiusPursuit3DEnv, scenario: ShowcaseScenario) -> None:
+    """Reject an S4 wall layout unless both exits are safely traversable."""
+
+    if scenario.scenario_type != "s4_branching":
+        raise ValueError("S4 branching validation requires scenario_type='s4_branching'.")
+    if scenario.defender_positions.shape != (env.n_defenders, 3):
+        raise ValueError("S4 scenario must provide one 3D position per defender.")
+    if scenario.target_position.shape != (3,):
+        raise ValueError("S4 scenario target_position must have shape (3,).")
+    low, high = map(float, scenario.obstacle_zone_x)
+    if not low < high:
+        raise ValueError("S4 obstacle zone must have increasing bounds.")
+    if np.any(scenario.defender_positions[:, 0] >= low) or scenario.target_position[0] >= low:
+        raise ValueError("S4 defenders and target must start left of the central wall.")
+    all_positions = np.vstack([scenario.defender_positions, scenario.target_position[None, :]])
+    if not _within_bounds(env, all_positions):
+        raise ValueError("S4 initial positions must stay inside the world bounds.")
+    boundary_buffer = 1.0
+    if np.any(all_positions < env.lower[None, :] + boundary_buffer) or np.any(
+        all_positions > env.upper[None, :] - boundary_buffer
+    ):
+        raise ValueError("S4 initial positions must preserve the 1.0 m world-boundary buffer.")
+    pairwise = np.linalg.norm(
+        scenario.defender_positions[:, None, :] - scenario.defender_positions[None, :, :], axis=2
+    ) + np.eye(env.n_defenders) * 1e6
+    if float(np.min(pairwise)) < 2.0 * float(env.agents["drone_radius"]):
+        raise ValueError("S4 defenders overlap at initialization.")
+    walls = [obstacle for obstacle in scenario.obstacles if obstacle.shape == "wall"]
+    if len(walls) != 1 or len(scenario.obstacles) != 1:
+        raise ValueError("S4 requires exactly one central wall obstacle.")
+    wall = walls[0]
+    wall_low, wall_high = _obstacle_x_extent(wall)
+    if wall_low < low - 1e-9 or wall_high > high + 1e-9:
+        raise ValueError("S4 wall must remain inside its declared central zone.")
+    if wall.half_extents_xy is None or float(wall.half_extents_xy[1]) <= 0.0:
+        raise ValueError("S4 wall must define a positive y half extent.")
+    if float(wall.height) < float(env.upper[2]) - boundary_buffer:
+        raise ValueError("S4 wall must be high enough to prevent a boundary-buffered overflight.")
+    clearance_limit = float(env.agents["drone_radius"]) + float(env.pursuit["safety_margin"])
+    if any(env._obstacle_clearance(position, wall) < clearance_limit for position in all_positions):
+        raise ValueError("S4 wall is too close to an initial agent position.")
+    if float(env.pursuit["target_branch_exit_offset_y"]) <= float(wall.half_extents_xy[1]) + clearance_limit:
+        raise ValueError("S4 exits do not clear the wall and safety margin.")
+    if abs(float(env.pursuit["target_branch_exit_offset_y"])) > float(env.upper[1]) - boundary_buffer:
+        raise ValueError("S4 exits violate the world-boundary buffer.")
+    if float(env.pursuit["target_branch_goal_x"]) <= wall_high + clearance_limit:
+        raise ValueError("S4 target goal must lie beyond the central wall.")
+    routes = s4_branch_route_metrics(env, scenario)
+    if not bool(routes["branch_route_feasible"]):
+        raise ValueError("S4 does not provide conservative routes through both exits for all participants.")
+
+
 def validate_showcase_scenario(env: CaptureRadiusPursuit3DEnv, scenario: ShowcaseScenario) -> None:
     """Reject out-of-bounds, overlapping, or unreachable showcase maps."""
     if scenario.defender_positions.shape != (env.n_defenders, 3):
@@ -1103,7 +1291,12 @@ def prepare_showcase_episode(
     """Reset an environment and replace its random map with a fixed scenario."""
     env.reset(seed=seed, record_history=False)
     if validate_scenario:
-        validate_showcase_scenario(env, scenario)
+        if scenario.scenario_type == "s4_branching":
+            validate_s4_branching_scenario(env, scenario)
+        elif scenario.scenario_type == "showcase":
+            validate_showcase_scenario(env, scenario)
+        else:
+            raise ValueError(f"Unsupported showcase scenario type: {scenario.scenario_type}")
     env.defender_positions = scenario.defender_positions.copy()
     env.defender_velocities.fill(0.0)
     env.target_position = scenario.target_position.copy()
@@ -1111,6 +1304,9 @@ def prepare_showcase_episode(
     env.target_escape_direction = scenario.target_escape_direction / max(
         np.linalg.norm(scenario.target_escape_direction), 1e-9
     )
+    env.target_branch_sign = None
+    env.target_branch_decision_step = None
+    env.target_branch_scores.fill(np.nan)
     env.obstacles = list(scenario.obstacles)
     env.step_count = 0
     env.history = []

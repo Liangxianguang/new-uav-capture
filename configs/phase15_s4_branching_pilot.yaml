@@ -1,0 +1,48 @@
+protocol_name: phase15_s4_adaptive_branching_pilot
+phase: pilot_calibration
+not_a_replacement_for_existing_locked_benchmarks: true
+seed_blocks:
+  pilot: 715101
+episodes_per_split:
+  pilot: 16
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.65, 0.75]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: nominal
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+    - name: delayed_noisy
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.22
+        observation_noise_std: 0.06
+        message_delay_steps: 4
+        message_dropout_probability: 0.10
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 250
+evaluation:
+  methods: [dynamic_encirclement, distributed_delayed]
+  candidate_source: belief
+  safety_layer: local_cbf
+  decision: pilot_only
+  calibration_target:
+    dynamic_encirclement_safe_capture_rate: [0.50, 0.75]
+    distributed_delayed_safe_capture_rate: [0.65, 0.90]
+reporting:
+  required_latency_percentiles: [50, 95, 99]
+  require_frozen_scene_records: true
+  require_branch_coverage: true

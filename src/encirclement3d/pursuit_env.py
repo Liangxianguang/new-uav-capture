@@ -104,6 +104,14 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_adaptive_boundary_weight": 2.00,
     "target_adaptive_defender_weight": 1.00,
     "target_adaptive_lookahead_steps": 8,
+    # S4 uses a committed, geometry-aware exit selection. The selected exit
+    # is simulator-private: it is never included in ``observe``.
+    "target_branch_decision_x": -3.20,
+    "target_branch_exit_offset_y": 5.30,
+    "target_branch_waypoint_x": 0.85,
+    "target_branch_goal_x": 7.50,
+    "target_branch_defender_lookahead_seconds": 0.60,
+    "target_branch_commit_margin_seconds": 0.0,
     "target_flee_gain": 1.00,
     "target_vertical_gain": 0.20,
     "controller_obstacle_avoidance_distance": 2.00,
@@ -152,6 +160,7 @@ _TARGET_MOTION_MODES = {
     "burst",
     "boundary_escape",
     "adaptive_adversarial",
+    "adaptive_branching",
 }
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
@@ -241,11 +250,24 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         "target_adaptive_obstacle_weight",
         "target_adaptive_boundary_weight",
         "target_adaptive_defender_weight",
+        "target_branch_defender_lookahead_seconds",
+        "target_branch_commit_margin_seconds",
     ):
         if float(settings[name]) < 0.0:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
     if int(settings["target_adaptive_lookahead_steps"]) <= 0:
         raise ValueError("task.pursuit.target_adaptive_lookahead_steps must be positive.")
+    if float(settings["target_branch_exit_offset_y"]) <= 0.0:
+        raise ValueError("task.pursuit.target_branch_exit_offset_y must be positive.")
+    if float(settings["target_branch_waypoint_x"]) <= 0.0:
+        raise ValueError("task.pursuit.target_branch_waypoint_x must be positive.")
+    if not np.isfinite(
+        [
+            float(settings["target_branch_decision_x"]),
+            float(settings["target_branch_goal_x"]),
+        ]
+    ).all():
+        raise ValueError("task.pursuit target branch x coordinates must be finite.")
     if int(settings["target_burst_duration_steps"]) > int(settings["target_burst_period_steps"]):
         raise ValueError("target_burst_duration_steps cannot exceed target_burst_period_steps.")
     if int(settings["map_seed_offset"]) < 0:
@@ -386,6 +408,9 @@ class CaptureRadiusPursuit3DEnv:
         self.target_position = np.zeros(3, dtype=np.float64)
         self.target_velocity = np.zeros(3, dtype=np.float64)
         self.target_escape_direction = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        self.target_branch_sign: int | None = None
+        self.target_branch_decision_step: int | None = None
+        self.target_branch_scores = np.full(2, np.nan, dtype=np.float64)
         self.target_belief_positions = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_belief_velocities = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_visible = np.zeros(self.n_defenders, dtype=bool)
@@ -458,6 +483,9 @@ class CaptureRadiusPursuit3DEnv:
             self.rng.normal(0.0, 1.0, size=3),
             fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64),
         )
+        self.target_branch_sign = None
+        self.target_branch_decision_step = None
+        self.target_branch_scores.fill(np.nan)
         self.defender_positions = self.target_position + TETRAHEDRON_DIRECTIONS * float(self.pursuit["spawn_distance"])
         self.defender_positions += self.rng.normal(0.0, 0.20, size=self.defender_positions.shape)
         self.defender_positions = np.clip(self.defender_positions, self.lower + 0.6, self.upper - 0.6)
@@ -776,6 +804,9 @@ class CaptureRadiusPursuit3DEnv:
             "mean_observation_covariance_trace": float(
                 np.mean(np.trace(self.target_observation_covariance, axis1=1, axis2=2))
             ),
+            "target_branch_sign": self.target_branch_sign,
+            "target_branch_decision_step": self.target_branch_decision_step,
+            "target_branch_scores_seconds": self.target_branch_scores.tolist(),
             "capture_radius": float(self.pursuit["capture_radius"]),
             "execution_enabled": bool(self.execution["enabled"]),
             "action_execution_error_norm": float(self.action_execution_error_norm),
@@ -851,6 +882,8 @@ class CaptureRadiusPursuit3DEnv:
     def _target_action(self) -> np.ndarray:
         if str(self.pursuit["target_motion_mode"]) == "adaptive_adversarial":
             return self._adaptive_adversarial_target_action()
+        if str(self.pursuit["target_motion_mode"]) == "adaptive_branching":
+            return self._adaptive_branching_target_action()
 
         desired = float(self.pursuit["target_heading_persistence"]) * self.target_escape_direction
         for defender_position in self.defender_positions:
@@ -923,6 +956,90 @@ class CaptureRadiusPursuit3DEnv:
             if self.step_count % burst_period < burst_duration:
                 speed_scale *= float(self.pursuit["target_burst_speed_scale"])
         return direction * float(self.agents["target_max_speed"]) * speed_scale
+
+    def _adaptive_branching_target_action(self) -> np.ndarray:
+        """Commit to the less interceptable S4 wall exit using simulator state.
+
+        This is an unseen adversary, analogous to the existing adaptive target:
+        defender state is used only to generate the target's behavior. The
+        branch label and scores deliberately remain absent from ``observe`` so
+        controllers must infer the maneuver from their observation histories.
+        """
+
+        target_speed = float(self.agents["target_max_speed"]) * float(self.target_speed_scale)
+        decision_x = float(self.pursuit["target_branch_decision_x"])
+        if self.target_branch_sign is None and self.target_position[0] >= decision_x:
+            lookahead = float(self.pursuit["target_branch_defender_lookahead_seconds"])
+            projected_defenders = self.defender_positions + self.defender_velocities * lookahead
+            waypoint_x = float(self.pursuit["target_branch_waypoint_x"])
+            exit_offset_y = float(self.pursuit["target_branch_exit_offset_y"])
+            scores: list[float] = []
+            for sign in (-1, 1):
+                exit_point = np.array(
+                    [-waypoint_x, sign * exit_offset_y, self.target_position[2]], dtype=np.float64
+                )
+                target_arrival = float(np.linalg.norm(exit_point - self.target_position)) / max(target_speed, 1e-9)
+                defender_arrival = np.linalg.norm(projected_defenders - exit_point[None, :], axis=1) / max(
+                    float(self.agents["defender_max_speed"]), 1e-9
+                )
+                # Larger margin means the closest defender reaches that exit
+                # later relative to the target, and is therefore safer.
+                scores.append(float(np.min(defender_arrival) - target_arrival))
+            self.target_branch_scores[:] = scores
+            lower_score, upper_score = scores
+            margin = float(self.pursuit["target_branch_commit_margin_seconds"])
+            if upper_score > lower_score + margin:
+                self.target_branch_sign = 1
+            elif lower_score > upper_score + margin:
+                self.target_branch_sign = -1
+            else:
+                # Stable tie break keeps reset/replay deterministic while
+                # mirrored non-tie layouts still select mirrored exits.
+                self.target_branch_sign = 1
+            self.target_branch_decision_step = int(self.step_count)
+
+        if self.target_branch_sign is None:
+            desired = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        else:
+            sign = int(self.target_branch_sign)
+            waypoint_x = float(self.pursuit["target_branch_waypoint_x"])
+            exit_y = sign * float(self.pursuit["target_branch_exit_offset_y"])
+            if self.target_position[0] < -waypoint_x:
+                goal = np.array([-waypoint_x, exit_y, self.target_position[2]], dtype=np.float64)
+            elif self.target_position[0] < waypoint_x:
+                goal = np.array([waypoint_x, exit_y, self.target_position[2]], dtype=np.float64)
+            else:
+                goal = np.array(
+                    [float(self.pursuit["target_branch_goal_x"]), exit_y, self.target_position[2]],
+                    dtype=np.float64,
+                )
+            desired = _unit(goal - self.target_position, fallback=self.target_escape_direction)
+
+        for defender_position in self.defender_positions:
+            delta = self.target_position - defender_position
+            distance = float(np.linalg.norm(delta))
+            if distance < float(self.pursuit["target_defender_avoidance_distance"]):
+                desired += (
+                    _unit(delta)
+                    * (float(self.pursuit["target_defender_avoidance_distance"]) - distance)
+                    * float(self.pursuit["target_defender_avoidance_gain"])
+                )
+        for obstacle in self.obstacles:
+            clearance, normal = self._cylinder_clearance_and_normal(self.target_position, obstacle)
+            if clearance < float(self.pursuit["target_obstacle_avoidance_distance"]):
+                desired += (
+                    normal
+                    * (float(self.pursuit["target_obstacle_avoidance_distance"]) - clearance)
+                    * float(self.pursuit["target_obstacle_avoidance_gain"])
+                )
+        margin = float(self.pursuit["target_boundary_margin"])
+        for axis in range(3):
+            if self.target_position[axis] < self.lower[axis] + margin:
+                desired[axis] += float(self.pursuit["target_boundary_gain"])
+            if self.target_position[axis] > self.upper[axis] - margin:
+                desired[axis] -= float(self.pursuit["target_boundary_gain"])
+        self.target_escape_direction = _unit(desired, fallback=self.target_escape_direction)
+        return self.target_escape_direction * target_speed
 
     def _adaptive_adversarial_target_action(self) -> np.ndarray:
         """Choose a feasible one-step escape direction from public geometry.
@@ -1475,6 +1592,8 @@ class CaptureRadiusPursuit3DEnv:
                 "target_position": self.target_position.copy(),
                 "belief_positions": self.target_belief_positions.copy(),
                 "capture_radius": float(self.pursuit["capture_radius"]),
+                "target_branch_sign": self.target_branch_sign,
+                "target_branch_decision_step": self.target_branch_decision_step,
                 "step": int(self.step_count),
             }
         )
