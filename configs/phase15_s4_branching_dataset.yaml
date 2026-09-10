@@ -2,11 +2,11 @@ dataset_name: phase15_s4_action_conditioned_branching_v1
 schema_version: 1
 purpose: action_conditioned_target_prediction_and_branch_inference
 split: train
-episodes: 120
+episodes: 600
 seed_start: 716101
 history_length: 16
 horizon_steps: 12
-target_speed_scales: [0.55, 0.65, 0.75]
+target_speed_scales: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
 defender_biases: [upper, lower]
 rollout_policies:
   - dynamic_encirclement
@@ -29,6 +29,23 @@ observation_conditions:
       observation_noise_std: 0.06
       message_delay_steps: 4
       message_dropout_probability: 0.10
+  - name: partial_dropout
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.35
+      observation_noise_std: 0.08
+      message_delay_steps: 6
+      message_dropout_probability: 0.15
+scene_variation:
+  wall_half_extent_x_m: [0.45, 0.65]
+  wall_half_extent_y_m: [3.85, 4.35]
+  wall_height_m: [9.25, 9.55]
+  target_initial_x_m: [-4.25, -3.45]
+  target_initial_y_m: [-0.40, 0.40]
+  target_altitude_m: [4.30, 5.70]
+  defender_x_offset_m: [0.0, 0.35]
+  defender_y_scale: [0.92, 1.08]
+  defender_z_offset_m: [-0.30, 0.30]
 data_contract:
   actor_inputs: local_observation_history_only
   labels: future_target_truth_and_realized_defender_actions

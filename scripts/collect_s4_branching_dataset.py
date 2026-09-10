@@ -72,6 +72,8 @@ def load_collection_config(path: Path) -> dict[str, Any]:
         raise ValueError("S4 collection episodes must be positive.")
     if int(document.get("history_length", 0)) <= 0 or int(document.get("horizon_steps", 0)) <= 0:
         raise ValueError("S4 collection history_length and horizon_steps must be positive.")
+    if "scene_variation" in document and not isinstance(document["scene_variation"], dict):
+        raise ValueError("S4 collection scene_variation must be a mapping when supplied.")
     return document
 
 
@@ -100,7 +102,9 @@ def episode_spec(collection: dict[str, Any], episode_index: int) -> dict[str, An
     return {
         "episode_index": int(episode_index),
         "episode_seed": seed_start + int(episode_index),
-        "layout_seed": seed_start + 1_000_000 + condition_index // len(collection["rollout_policies"]),
+        # Every episode receives fresh geometry. Policy and sensing diversity
+        # should not be produced by replaying a handful of wall layouts.
+        "layout_seed": seed_start + 1_000_000 + int(episode_index),
         "target_speed_scale": float(target_speed_scale),
         "observation_condition": str(observation["name"]),
         "pursuit_overrides": copy.deepcopy(observation["pursuit_overrides"]),
@@ -151,12 +155,14 @@ def collect_episode(
     spec: dict[str, Any],
     history_length: int,
     horizon_steps: int,
+    scene_variation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     env = CaptureRadiusPursuit3DEnv(config, obstacle_count=1, target_speed_scale=float(spec["target_speed_scale"]))
     scenario = s4_adaptive_branching_scenario(
         env,
         layout_seed=int(spec["layout_seed"]),
         defender_bias=str(spec["defender_bias"]),
+        variation=scene_variation,
     )
     observation = prepare_showcase_episode(env, scenario, seed=int(spec["episode_seed"]), record_history=False)
     controller, safety_filter = make_controller(env, str(spec["rollout_policy"]))
@@ -337,7 +343,13 @@ def main() -> None:
             "pursuit_overrides": spec["pursuit_overrides"],
         }
         config = s4_config_for_spec(args.environment_config, protocol, config_spec, max_steps=None)
-        packed, record = collect_episode(config, spec, history_length, horizon_steps)
+        packed, record = collect_episode(
+            config,
+            spec,
+            history_length,
+            horizon_steps,
+            scene_variation=collection.get("scene_variation"),
+        )
         count = int(record["sample_count"])
         episode_records.append(record)
         if count == 0:

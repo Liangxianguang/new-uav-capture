@@ -438,6 +438,7 @@ def s4_adaptive_branching_scenario(
     env: CaptureRadiusPursuit3DEnv,
     layout_seed: int,
     defender_bias: str,
+    variation: dict[str, Any] | None = None,
 ) -> ShowcaseScenario:
     """Build a reproducible two-exit S4 pursuit-evasion scene.
 
@@ -453,9 +454,47 @@ def s4_adaptive_branching_scenario(
         raise ValueError("S4 layout_seed must be non-negative.")
     if defender_bias not in {"upper", "lower"}:
         raise ValueError("S4 defender_bias must be 'upper' or 'lower'.")
+    variation = {} if variation is None else dict(variation)
+    default_ranges = {
+        "wall_half_extent_x_m": (0.55, 0.55),
+        "wall_half_extent_y_m": (4.25, 4.25),
+        "wall_height_m": (9.45, 9.45),
+        "target_initial_x_m": (-3.80, -3.80),
+        "target_initial_y_m": (0.0, 0.0),
+        "target_altitude_m": (5.0, 5.0),
+        "defender_x_offset_m": (0.0, 0.0),
+        "defender_y_scale": (1.0, 1.0),
+        "defender_z_offset_m": (0.0, 0.0),
+    }
+    unknown_variation = sorted(set(variation).difference(default_ranges))
+    if unknown_variation:
+        raise ValueError("Unsupported S4 variation fields: " + ", ".join(unknown_variation))
+
+    def sample_range(name: str, rng: np.random.Generator) -> float:
+        configured = variation.get(name, default_ranges[name])
+        if not isinstance(configured, (tuple, list)) or len(configured) != 2:
+            raise ValueError(f"S4 variation {name} must contain exactly two values.")
+        low, high = float(configured[0]), float(configured[1])
+        if not np.isfinite([low, high]).all() or high < low:
+            raise ValueError(f"S4 variation {name} must be finite with low <= high.")
+        return float(rng.uniform(low, high))
+
     rng = np.random.default_rng(layout_seed)
     mirror = 1.0 if defender_bias == "upper" else -1.0
     jitter = rng.uniform(-0.16, 0.16, size=(4, 2))
+    if variation:
+        # The fixed S4 staging layout intentionally uses most of the left
+        # workspace. Keep randomized layouts inside the same 1 m buffer.
+        jitter[:, 0] = np.maximum(jitter[:, 0], -0.08)
+    wall_half_x = sample_range("wall_half_extent_x_m", rng)
+    wall_half_y = sample_range("wall_half_extent_y_m", rng)
+    wall_height = sample_range("wall_height_m", rng)
+    target_x = sample_range("target_initial_x_m", rng)
+    target_y = mirror * sample_range("target_initial_y_m", rng)
+    target_altitude = sample_range("target_altitude_m", rng)
+    defender_x_offset = sample_range("defender_x_offset_m", rng)
+    defender_y_scale = sample_range("defender_y_scale", rng)
+    defender_z_offset = sample_range("defender_z_offset_m", rng)
     base_defenders = np.array(
         [
             [-8.20, 2.70, 3.50],
@@ -466,15 +505,16 @@ def s4_adaptive_branching_scenario(
         dtype=np.float64,
     )
     defender_positions = base_defenders.copy()
-    defender_positions[:, 0] += jitter[:, 0]
-    defender_positions[:, 1] = mirror * (defender_positions[:, 1] + jitter[:, 1])
-    target_position = np.array([-3.80, 0.0, 5.0], dtype=np.float64)
+    defender_positions[:, 0] += defender_x_offset + jitter[:, 0]
+    defender_positions[:, 1] = mirror * (defender_positions[:, 1] * defender_y_scale + jitter[:, 1])
+    defender_positions[:, 2] += defender_z_offset
+    target_position = np.array([target_x, target_y, target_altitude], dtype=np.float64)
     obstacle = CylinderObstacle(
         center_xy=np.array([0.0, 0.0], dtype=np.float64),
-        radius=0.55,
-        height=9.45,
+        radius=wall_half_x,
+        height=wall_height,
         shape="wall",
-        half_extents_xy=np.array([0.55, 4.25], dtype=np.float64),
+        half_extents_xy=np.array([wall_half_x, wall_half_y], dtype=np.float64),
     )
     scenario = ShowcaseScenario(
         name=f"s4_adaptive_branching_{defender_bias}_{layout_seed}",
@@ -482,7 +522,7 @@ def s4_adaptive_branching_scenario(
         defender_positions=defender_positions,
         target_position=target_position,
         target_escape_direction=np.array([1.0, 0.0, 0.0], dtype=np.float64),
-        obstacle_zone_x=(-0.55, 0.55),
+        obstacle_zone_x=(-wall_half_x, wall_half_x),
         defender_side="left",
         layout_seed=int(layout_seed),
         scenario_type="s4_branching",

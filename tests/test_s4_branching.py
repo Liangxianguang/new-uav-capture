@@ -40,6 +40,30 @@ def test_s4_scenario_keeps_both_exits_conservatively_reachable() -> None:
     assert all(all(values) for values in routes["defender_branch_route_feasible"].values())
 
 
+def test_s4_randomized_geometry_stays_valid_and_changes_with_layout_seed() -> None:
+    config = load_config()
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=1, target_speed_scale=0.65)
+    variation = {
+        "wall_half_extent_x_m": [0.45, 0.65],
+        "wall_half_extent_y_m": [3.85, 4.35],
+        "wall_height_m": [9.25, 9.55],
+        "target_initial_x_m": [-4.25, -3.45],
+        "target_initial_y_m": [-0.40, 0.40],
+        "target_altitude_m": [4.30, 5.70],
+        "defender_x_offset_m": [0.0, 0.35],
+        "defender_y_scale": [0.92, 1.08],
+        "defender_z_offset_m": [-0.30, 0.30],
+    }
+    first = s4_adaptive_branching_scenario(env, layout_seed=715010, defender_bias="upper", variation=variation)
+    second = s4_adaptive_branching_scenario(env, layout_seed=715011, defender_bias="upper", variation=variation)
+    validate_s4_branching_scenario(env, first)
+    validate_s4_branching_scenario(env, second)
+    assert not np.allclose(first.defender_positions, second.defender_positions)
+    assert first.obstacles[0].half_extents_xy is not None
+    assert second.obstacles[0].half_extents_xy is not None
+    assert not np.allclose(first.obstacles[0].half_extents_xy, second.obstacles[0].half_extents_xy)
+
+
 def test_s4_branch_selection_flips_for_mirrored_defender_pressure_without_observation_leak() -> None:
     config = load_config()
     signs: list[int] = []
