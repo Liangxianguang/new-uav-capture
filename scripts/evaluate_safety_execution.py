@@ -66,6 +66,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Number of seeds in the holdout block requested with --seed-start.",
     )
+    parser.add_argument(
+        "--allow-out-of-contract-initial-states",
+        action="store_true",
+        help=(
+            "Run seeds whose reset state is outside the declared robust-safe set. "
+            "The invalid initial-state audit is retained and the result is not a safety-gate claim."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -148,6 +156,7 @@ def audit_initial_seeds(
     obstacle_count: int,
     target_speed_scale: float,
     qp_config: RobustCBFQPConfig,
+    strict: bool = True,
 ) -> list[dict[str, Any]]:
     audits: list[dict[str, Any]] = []
     for seed in seeds:
@@ -174,7 +183,7 @@ def audit_initial_seeds(
             }
         )
     invalid = [item for item in audits if not item["current_state_safe"]]
-    if invalid:
+    if invalid and strict:
         raise RuntimeError(f"Fixed robust-safe seeds are not valid under the reset contract: {invalid}")
     return audits
 
@@ -458,6 +467,19 @@ def run_episode(
             continuous_segment_subdivisions=int(qp_config.execution_continuous_segment_subdivisions),
             enforce_action_change=False,
         )
+        actual_post_robust_state_safe = bool(
+            actual_post_certificate.current_state_safe
+            and actual_post_robust_certificate.minimum_robust_barrier_m
+            >= -float(qp_config.solver_tolerance)
+        )
+        actual_post_robust_violations = list(actual_post_robust_certificate.violations)
+        if (
+            actual_post_certificate.current_state_safe
+            and not actual_post_robust_state_safe
+            and "execution_rollout_outside_robust_safe_set"
+            not in actual_post_robust_violations
+        ):
+            actual_post_robust_violations.append("post_state_outside_robust_tube_contract")
         command_valid += int(command_certificate.valid)
         command_execution_valid += int(execution_certificate.valid)
         swept_volume_valid += int(swept_certificate.valid)
@@ -466,7 +488,7 @@ def run_episode(
         command_next_safe += int(command_certificate.next_state_safe)
         executed_next_safe += int(executed_certificate.next_state_safe)
         current_safe += int(actual_post_certificate.current_state_safe)
-        actual_robust_current_safe += int(actual_post_robust_certificate.current_state_safe)
+        actual_robust_current_safe += int(actual_post_robust_state_safe)
         command_barriers.append(float(command_certificate.next_min_barrier_m))
         command_execution_barriers.append(float(execution_certificate.minimum_robust_barrier_m))
         swept_volume_barriers.append(float(swept_certificate.minimum_robust_barrier_m))
@@ -515,9 +537,9 @@ def run_episode(
                 "actual_post_state_safe": bool(actual_post_certificate.current_state_safe),
                 "actual_post_min_barrier_m": float(actual_post_certificate.current_min_barrier_m),
                 "actual_post_state_violations": list(actual_post_certificate.violations),
-                "actual_post_robust_state_safe": bool(actual_post_robust_certificate.current_state_safe),
+                "actual_post_robust_state_safe": actual_post_robust_state_safe,
                 "actual_post_robust_min_barrier_m": float(actual_post_robust_certificate.minimum_robust_barrier_m),
-                "actual_post_robust_violations": list(actual_post_robust_certificate.violations),
+                "actual_post_robust_violations": actual_post_robust_violations,
                 "first_failed_barrier": first_failed_barrier(
                     ("rollout", execution_certificate),
                     ("swept", swept_certificate),
@@ -901,6 +923,9 @@ def main() -> None:
         "environment_config": str(environment_path),
         "safety": safety_mapping,
         "evaluation": evaluation,
+        "initial_state_policy": (
+            "allow_out_of_contract" if args.allow_out_of_contract_initial_states else "require_robust_safe"
+        ),
         "selected_variants": selected_variants,
         "methods": methods,
         "source_hashes": source_hashes(args.config),
@@ -925,6 +950,7 @@ def main() -> None:
             obstacle_count=int(evaluation["obstacle_count"]),
             target_speed_scale=float(evaluation["target_speed_scale"]),
             qp_config=variant_qp_config,
+            strict=not args.allow_out_of_contract_initial_states,
         )
         variant_output = output / variant_name
         variant_output.mkdir(parents=True, exist_ok=True)

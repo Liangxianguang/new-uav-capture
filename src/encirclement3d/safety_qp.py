@@ -681,7 +681,8 @@ class RobustCBFQPFilter:
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
         queue = queue_from_observation(observation, positions.shape[0])
-        preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
+        configured_preview_steps = int(self.config.execution_preview_horizon_steps)
+        preview_steps = max(configured_preview_steps, len(queue) + 1)
         authority_mode = command_authority_from_observation(safety_observation)
         nominal_directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=False)
         last_emergency_brake = bool(
@@ -689,6 +690,16 @@ class RobustCBFQPFilter:
             and safety_observation.get("execution", {}).get("last_emergency_brake_requested", False)
         )
         lower_action, upper_action = self._execution_action_bounds(velocities)
+
+        def directive_preview_steps(directive: CommandAuthorityDirective) -> int:
+            """Use the committed queue that will actually execute under a directive."""
+
+            effective_queue, _resolved, _overridden_slots = apply_command_authority(
+                queue,
+                directive,
+                allowed_mode=authority_mode,
+            )
+            return max(configured_preview_steps, len(effective_queue) + 1)
 
         recoverability = assess_execution_recoverability(
             safety_observation,
@@ -735,6 +746,7 @@ class RobustCBFQPFilter:
         def rollout_certificate(
             actions: np.ndarray,
             directive: CommandAuthorityDirective,
+            horizon_steps: int,
         ) -> Any:
             return check_execution_rollout_safety(
                 safety_observation,
@@ -747,7 +759,7 @@ class RobustCBFQPFilter:
                 robust_margin_m=float(self.config.robust_margin_m),
                 tolerance=float(self.config.solver_tolerance),
                 action_change_limit_mps=self.config.action_change_limit_mps,
-                horizon_steps=preview_steps,
+                horizon_steps=horizon_steps,
                 reachable_tube_multiplier=self.config.execution_tube_multiplier(safety_observation, self.env.dt),
                 continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
                 continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
@@ -755,7 +767,11 @@ class RobustCBFQPFilter:
             )
 
         probe_directive = selected_directive if selected_directive.emergency_brake else nominal_directive
-        current_probe = rollout_certificate(np.zeros_like(desired), probe_directive)
+        current_probe = rollout_certificate(
+            np.zeros_like(desired),
+            probe_directive,
+            directive_preview_steps(probe_directive),
+        )
         if not current_probe.current_state_safe:
             return self._execution_fallback(
                 desired,
@@ -781,7 +797,7 @@ class RobustCBFQPFilter:
         if (
             bool(self.config.execution_emergency_brake_enabled)
             and authority_mode != "immutable"
-            and not last_emergency_brake
+            and (not last_emergency_brake or not bool(recoverability.prefix_admissible))
             and (
                 bool(self.config.execution_emergency_brake_on_full_horizon_failure)
                 or not bool(recoverability.prefix_admissible)
@@ -798,18 +814,19 @@ class RobustCBFQPFilter:
         last_reason = "no bounded execution-safe command found"
         last_directive = nominal_directive
         for reference, directive, label in attempts:
+            attempt_preview_steps = directive_preview_steps(directive)
             result = self._solve_execution_linearized_projection(
                 safety_observation,
                 reference,
                 lower_action,
                 upper_action,
-                preview_steps=preview_steps,
+                preview_steps=attempt_preview_steps,
                 directive=directive,
             )
             last_reason = str(result["message"])
             last_directive = directive
             actions = np.asarray(result["actions"], dtype=np.float64)
-            certificate = rollout_certificate(actions, directive)
+            certificate = rollout_certificate(actions, directive, attempt_preview_steps)
             if bool(result["success"]) and certificate.valid:
                 return actions, self._execution_diagnostics(
                     desired,
@@ -1235,15 +1252,21 @@ class RobustCBFQPFilter:
             allowed_mode=command_authority_from_observation(observation),
         )
         parameters = parameters_from_observation(observation, float(self.env.dt))
+        # With delayed execution, a one-step rollout only evaluates the
+        # already queued command and cannot distinguish fallback candidates.
+        # Score progress at the first point where the new candidate can act;
+        # this remains a nominal belief-only ranking signal, while the
+        # independent execution certificate remains authoritative.
+        progress_horizon = max(1, len(queue) + 1)
         future_positions, _future_velocities, _steps = rollout_execution(
             positions,
             velocities,
             queue,
             np.asarray(action, dtype=np.float64),
             parameters,
-            horizon_steps=1,
+            horizon_steps=progress_horizon,
         )
-        after = float(np.min(np.linalg.norm(future_positions[0] - target[None, :], axis=1)))
+        after = float(np.min(np.linalg.norm(future_positions[-1] - target[None, :], axis=1)))
         return before, after, before - after
 
     def _bounded_execution_action(self, action: np.ndarray, observation: dict[str, Any]) -> np.ndarray:
@@ -1258,6 +1281,32 @@ class RobustCBFQPFilter:
             upper,
         ).reshape(positions.shape)
         return _clip_rows(bounded, self.config.max_speed_mps)
+
+    def _goal_directed_action(
+        self,
+        desired: np.ndarray,
+        observation: dict[str, Any],
+    ) -> np.ndarray | None:
+        """Build a belief-only progress candidate inside execution bounds.
+
+        The target comes only from the same prediction/belief fields used by
+        the pursuit controller.  The candidate is never accepted directly:
+        the fallback path still requires the independent execution certificate.
+        """
+
+        target = self._goal_reference(observation)
+        if target is None:
+            return None
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        directions = target[None, :] - positions
+        norms = np.linalg.norm(directions, axis=1, keepdims=True)
+        directions = directions / np.maximum(norms, 1.0e-12)
+        goal_action = directions * float(self.config.max_speed_mps)
+        # Blend the belief direction with the planner command to avoid
+        # discarding useful encirclement geometry when the target estimate is
+        # stale or shared by all defenders.
+        blended = 0.5 * np.asarray(desired, dtype=np.float64) + 0.5 * goal_action
+        return self._bounded_execution_action(blended, observation)
 
     def _execution_fallback(
         self,
@@ -1281,12 +1330,12 @@ class RobustCBFQPFilter:
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         velocities = np.asarray(observation.get("defender_velocities", np.zeros_like(positions)), dtype=np.float64)
         queue = queue_from_observation(observation, positions.shape[0])
-        _queue, _resolved, override_slots = apply_command_authority(
+        effective_queue, _resolved, override_slots = apply_command_authority(
             queue,
             directive,
             allowed_mode=command_authority_from_observation(safety_observation),
         )
-        preview_steps = max(int(self.config.execution_preview_horizon_steps), len(queue) + 1)
+        preview_steps = max(int(self.config.execution_preview_horizon_steps), len(effective_queue) + 1)
         try:
             _nominal, robust, _assumptions = execution_barrier_values(
                 safety_observation,
@@ -1359,6 +1408,7 @@ class RobustCBFQPFilter:
         # fallback from a best-effort recovery command.
         candidate_specs: list[tuple[str, np.ndarray]] = [("barrier_recovery", actions)]
         if not force_zero_action:
+            goal_action = self._goal_directed_action(desired, observation)
             candidate_specs.extend(
                 [
                     ("zero_action", np.zeros_like(actions)),
@@ -1369,12 +1419,27 @@ class RobustCBFQPFilter:
                     ),
                 ]
             )
+            if goal_action is not None:
+                candidate_specs.extend(
+                    [
+                        ("goal_directed", goal_action),
+                        (
+                            "recovery_goal_blend",
+                            self._bounded_execution_action(0.5 * (actions + goal_action), observation),
+                        ),
+                    ]
+                )
         last_emergency_brake = bool(
             isinstance(safety_observation.get("execution", {}), dict)
             and safety_observation.get("execution", {}).get("last_emergency_brake_requested", False)
         )
         directive_specs: list[tuple[CommandAuthorityDirective, str]] = [(directive, "selected")]
-        if directive.emergency_brake and directive.mode != "immutable" and last_emergency_brake:
+        if (
+            directive.emergency_brake
+            and directive.mode != "immutable"
+            and last_emergency_brake
+            and bool(recoverability.get("prefix_admissible", False))
+        ):
             # An emergency brake is a queue-clearing event. Repeating it every
             # tick would keep replacing newly appended commands with zeros.
             directive_specs = [(CommandAuthorityDirective(mode=directive.mode, emergency_brake=False), "resume")]
@@ -1389,9 +1454,12 @@ class RobustCBFQPFilter:
                 and bool(recoverability.get("prefix_admissible", False))
             ):
                 lower_action, upper_action = self._execution_action_bounds(velocities)
+                progress_reference = self._goal_directed_action(desired, observation)
+                if progress_reference is None:
+                    progress_reference = desired
                 progress_result = self._solve_execution_linearized_projection(
                     safety_observation,
-                    desired,
+                    progress_reference,
                     lower_action,
                     upper_action,
                     preview_steps=1,

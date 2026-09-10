@@ -83,3 +83,36 @@ def test_resolve_episode_seeds_supports_reproducible_holdout_blocks() -> None:
         module.resolve_episode_seeds(evaluation, seed_start=700001)
     with pytest.raises(ValueError, match="positive"):
         module.resolve_episode_seeds(evaluation, seed_start=700001, seed_count=0)
+
+
+def test_initial_state_audit_can_explicitly_retain_out_of_contract_seeds() -> None:
+    module = _metrics_module()
+    import copy
+    import yaml
+
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(encoding="utf-8")
+    )
+    config["world"]["max_steps"] = 5
+    env = module.CaptureRadiusPursuit3DEnv(copy.deepcopy(config), obstacle_count=0, target_speed_scale=0.1)
+    qp_config = module.RobustCBFQPConfig(
+        safety_margin_m=float(env.pursuit["safety_margin"]),
+        max_speed_mps=float(env.agents["defender_max_speed"]),
+        max_acceleration_mps2=float(env.agents["defender_max_acceleration"]),
+        disturbance_margin_m=0.35,
+        observation_error_margin_m=0.35,
+        delay_margin_m=0.35,
+        execution_margin_m=0.35,
+    )
+
+    audits = module.audit_initial_seeds(
+        config,
+        seeds=[649119],
+        obstacle_count=0,
+        target_speed_scale=0.1,
+        qp_config=qp_config,
+        strict=False,
+    )
+
+    assert len(audits) == 1
+    assert audits[0]["current_state_safe"] is False

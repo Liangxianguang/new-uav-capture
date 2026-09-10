@@ -446,6 +446,57 @@ def test_queue_clear_resume_keeps_goal_directed_command_when_authorized() -> Non
     assert actions[0, 0] > 0.0
 
 
+def test_emergency_brake_repeats_when_pending_prefix_is_still_infeasible() -> None:
+    config = load_config()
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    obstacle = {
+        "shape": "cylinder",
+        "center_xy": np.array([0.0, 0.0]),
+        "radius": 1.0,
+        "height": 10.0,
+    }
+    observation = {
+        "defender_positions": np.array([[1.6, 0.0, 4.0], [-4.0, 4.0, 4.0]], dtype=np.float64),
+        "defender_velocities": np.zeros((2, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [obstacle],
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "action_queue": [np.array([[-5.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float64)],
+            "pending_command_authority": "flush_pending",
+            "last_emergency_brake_requested": True,
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 100.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    actions, diagnostics = RobustCBFQPFilter(
+        env,
+        RobustCBFQPConfig(
+            safety_margin_m=0.10,
+            disturbance_margin_m=0.0,
+            observation_error_margin_m=0.0,
+            delay_margin_m=0.0,
+            execution_margin_m=0.0,
+            slack_enabled=False,
+            fallback_policy="barrier_recovery",
+        ),
+    ).filter(
+        np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float64), observation
+    )
+
+    assert diagnostics.emergency_brake_requested
+    assert diagnostics.queue_override_slots == 1
+    assert actions[0, 0] > 0.0
+
+
 def test_execution_respects_acceleration_and_velocity_tracking() -> None:
     config = execution_config(
         velocity_time_constant_seconds=1.0,
@@ -812,6 +863,64 @@ def test_flush_pending_fallback_preserves_certified_goal_progress() -> None:
     assert progress_diagnostics.fallback_candidate_type == "progress_qp"
     assert progress_diagnostics.fallback_goal_progress_m > 0.0
     assert progress_actions[0, 0] > 0.0
+
+
+def test_delayed_goal_progress_scores_candidate_after_queue() -> None:
+    config = load_config()
+    config["world"]["max_steps"] = 20
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.1)
+    observation = {
+        "defender_positions": np.array(
+            [[-4.0, -4.0, 4.0], [-4.0, 4.0, 4.0], [4.0, -4.0, 4.0], [4.0, 4.0, 4.0]],
+            dtype=np.float64,
+        ),
+        "defender_velocities": np.zeros((4, 3), dtype=np.float64),
+        "world_lower_bounds": env.lower.copy(),
+        "world_upper_bounds": env.upper.copy(),
+        "obstacles": [],
+        "target_prediction_positions": np.tile(np.array([8.0, -4.0, 4.0]), (4, 1)),
+        "message_age_steps": np.zeros(4, dtype=np.int64),
+        "execution": {
+            "enabled": True,
+            "action_delay_steps": 1,
+            "action_queue": [np.zeros((4, 3), dtype=np.float64)],
+            "pending_command_authority": "immutable",
+            "max_speed_mps": 5.0,
+            "max_acceleration_mps2": 6.0,
+            "mass_scale": 1.0,
+            "drag_coefficient": 0.0,
+            "velocity_time_constant_seconds": 0.0,
+            "command_noise_std_mps": 0.0,
+            "command_noise_bound_sigma": 3.0,
+            "clip_command_noise": True,
+        },
+    }
+    filter_instance = RobustCBFQPFilter(
+        env,
+        RobustCBFQPConfig(
+            safety_margin_m=0.10,
+            disturbance_margin_m=0.0,
+            observation_error_margin_m=0.0,
+            delay_margin_m=0.0,
+            execution_margin_m=0.0,
+            slack_enabled=False,
+        ),
+    )
+    directive = CommandAuthorityDirective(mode="immutable", emergency_brake=False)
+    stalled = filter_instance._goal_progress(
+        observation,
+        np.zeros((4, 3), dtype=np.float64),
+        directive,
+    )
+    advancing = filter_instance._goal_progress(
+        observation,
+        np.full((4, 3), [5.0, 0.0, 0.0], dtype=np.float64),
+        directive,
+    )
+
+    assert stalled is not None and advancing is not None
+    assert advancing[1] < stalled[1]
+    assert advancing[2] > stalled[2]
 
 
 def test_execution_swept_volume_certificate_reports_sampling_contract() -> None:
