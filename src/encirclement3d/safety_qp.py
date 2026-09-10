@@ -137,6 +137,10 @@ class RobustCBFQPConfig:
     execution_reachable_tube_multiplier: float = 1.0
     execution_continuous_segment_constraints: bool = False
     execution_continuous_segment_subdivisions: int = 4
+    execution_viability_guard_enabled: bool = False
+    execution_viability_guard_margin_m: float = 0.15
+    execution_viability_guard_abort_margin_m: float = 0.0
+    execution_viability_guard_horizon_steps: int = 1
     execution_reachable_tube_policy: str = "fixed"
     execution_reachable_tube_delay_gain: float = 0.0
     execution_reachable_tube_queue_gain: float = 0.0
@@ -192,6 +196,25 @@ class RobustCBFQPConfig:
             raise ValueError("execution_projection_iterations must be positive.")
         if int(self.execution_continuous_segment_subdivisions) <= 0:
             raise ValueError("execution_continuous_segment_subdivisions must be positive.")
+        if (
+            not np.isfinite(float(self.execution_viability_guard_margin_m))
+            or float(self.execution_viability_guard_margin_m) < 0.0
+        ):
+            raise ValueError("execution_viability_guard_margin_m must be finite and non-negative.")
+        if (
+            not np.isfinite(float(self.execution_viability_guard_abort_margin_m))
+            or float(self.execution_viability_guard_abort_margin_m) < 0.0
+        ):
+            raise ValueError("execution_viability_guard_abort_margin_m must be finite and non-negative.")
+        if float(self.execution_viability_guard_abort_margin_m) > float(
+            self.execution_viability_guard_margin_m
+        ):
+            raise ValueError(
+                "execution_viability_guard_abort_margin_m must not exceed "
+                "execution_viability_guard_margin_m."
+            )
+        if int(self.execution_viability_guard_horizon_steps) <= 0:
+            raise ValueError("execution_viability_guard_horizon_steps must be positive.")
         if float(self.execution_linearization_fd_step_mps) <= 0.0:
             raise ValueError("execution_linearization_fd_step_mps must be positive.")
         if float(self.execution_projection_tolerance) <= 0.0:
@@ -296,6 +319,12 @@ class RobustCBFQPDiagnostics:
     fallback_goal_progress_m: float = 0.0
     fallback_certificate_horizon_steps: int = 0
     fallback_certificate_scope: str = "none"
+    viability_guard_enabled: bool = False
+    viability_guard_triggered: bool = False
+    viability_guard_brake_min_robust_barrier_m: float = float("inf")
+    viability_guard_margin_m: float = float("nan")
+    viability_guard_abort_margin_m: float = float("nan")
+    safety_abort_requested: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -338,6 +367,12 @@ class RobustCBFQPDiagnostics:
             "fallback_goal_progress_m": self.fallback_goal_progress_m,
             "fallback_certificate_horizon_steps": self.fallback_certificate_horizon_steps,
             "fallback_certificate_scope": self.fallback_certificate_scope,
+            "viability_guard_enabled": self.viability_guard_enabled,
+            "viability_guard_triggered": self.viability_guard_triggered,
+            "viability_guard_brake_min_robust_barrier_m": self.viability_guard_brake_min_robust_barrier_m,
+            "viability_guard_margin_m": self.viability_guard_margin_m,
+            "viability_guard_abort_margin_m": self.viability_guard_abort_margin_m,
+            "safety_abort_requested": self.safety_abort_requested,
         }
 
 
@@ -649,6 +684,18 @@ class RobustCBFQPFilter:
             "execution_continuous_segment_subdivisions": float(
                 self.config.execution_continuous_segment_subdivisions
             ),
+            "execution_viability_guard_enabled": float(
+                bool(self.config.execution_viability_guard_enabled)
+            ),
+            "execution_viability_guard_margin_m": float(
+                self.config.execution_viability_guard_margin_m
+            ),
+            "execution_viability_guard_abort_margin_m": float(
+                self.config.execution_viability_guard_abort_margin_m
+            ),
+            "execution_viability_guard_horizon_steps": float(
+                self.config.execution_viability_guard_horizon_steps
+            ),
             "fallback_progress_weight": float(self.config.fallback_progress_weight),
             "fallback_barrier_weight": float(self.config.fallback_barrier_weight),
             "execution_fallback_receding_step_enabled": float(
@@ -690,6 +737,11 @@ class RobustCBFQPFilter:
             and safety_observation.get("execution", {}).get("last_emergency_brake_requested", False)
         )
         lower_action, upper_action = self._execution_action_bounds(velocities)
+        viability_guard = self._viability_guard_state(
+            safety_observation,
+            desired,
+            authority_mode,
+        )
 
         def directive_preview_steps(directive: CommandAuthorityDirective) -> int:
             """Use the committed queue that will actually execute under a directive."""
@@ -741,6 +793,8 @@ class RobustCBFQPFilter:
                 precondition_valid=False,
                 directive=selected_directive,
                 force_zero_action=True,
+                viability_guard=viability_guard,
+                safety_abort=True,
             )
 
         def rollout_certificate(
@@ -781,6 +835,7 @@ class RobustCBFQPFilter:
                 category="execution_precondition_invalid",
                 precondition_valid=False,
                 directive=nominal_directive,
+                viability_guard=viability_guard,
             )
         if np.any(lower_action > upper_action + 1.0e-12):
             return self._execution_fallback(
@@ -791,10 +846,36 @@ class RobustCBFQPFilter:
                 category="inconsistent_action_bounds",
                 precondition_valid=True,
                 directive=nominal_directive,
+                viability_guard=viability_guard,
             )
 
-        attempts = [(desired, nominal_directive, "nominal_command")]
+        if bool(viability_guard.get("safety_abort_requested", False)):
+            return self._execution_fallback(
+                desired,
+                observation,
+                started,
+                reason="viability_guard_brake_margin_below_abort_threshold",
+                category="viability_guard_abort",
+                precondition_valid=True,
+                directive=viability_guard["brake_directive"],
+                force_zero_action=True,
+                viability_guard=viability_guard,
+                safety_abort=True,
+            )
+
+        if bool(viability_guard.get("viability_guard_triggered", False)):
+            attempts = [
+                (
+                    np.asarray(viability_guard["brake_action"], dtype=np.float64),
+                    viability_guard["brake_directive"],
+                    "viability_guard_brake",
+                )
+            ]
+        else:
+            attempts = [(desired, nominal_directive, "nominal_command")]
         if (
+            not bool(viability_guard.get("viability_guard_triggered", False))
+            and
             bool(self.config.execution_emergency_brake_enabled)
             and authority_mode != "immutable"
             and (not last_emergency_brake or not bool(recoverability.prefix_admissible))
@@ -838,6 +919,7 @@ class RobustCBFQPFilter:
                     safety_observation,
                     status="optimal" if not directive.emergency_brake else "optimal_emergency_brake",
                     solver_message=label,
+                    viability_guard=viability_guard,
                 )
             if not bool(result["success"]):
                 last_reason = f"{label}:{last_reason}"
@@ -852,6 +934,8 @@ class RobustCBFQPFilter:
             category="execution_rollout_infeasible",
             precondition_valid=True,
             directive=last_directive,
+            viability_guard=viability_guard,
+            safety_abort=bool(viability_guard.get("safety_abort_requested", False)),
         )
 
     def _execution_action_bounds(self, velocities: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -1132,6 +1216,7 @@ class RobustCBFQPFilter:
         *,
         status: str,
         solver_message: str,
+        viability_guard: dict[str, Any] | None = None,
     ) -> RobustCBFQPDiagnostics:
         barrier_values = {name: float(value) for name, value in result["barrier_values"].items()}
         residuals = np.asarray(result["residuals"], dtype=np.float64)
@@ -1172,6 +1257,18 @@ class RobustCBFQPFilter:
             emergency_brake_requested=bool(directive.emergency_brake),
             queue_override_slots=int(certificate.assumptions.get("queue_override_slots", 0.0)),
             **self._recoverability_fields(observation, directive),
+            **{
+                key: value
+                for key, value in dict(viability_guard or {}).items()
+                if key in {
+                    "viability_guard_enabled",
+                    "viability_guard_triggered",
+                    "viability_guard_brake_min_robust_barrier_m",
+                    "viability_guard_margin_m",
+                    "viability_guard_abort_margin_m",
+                    "safety_abort_requested",
+                }
+            },
         )
 
     def _recoverability_fields(
@@ -1209,6 +1306,77 @@ class RobustCBFQPFilter:
             "immutable_prefix_horizon_steps": int(result.immutable_prefix_horizon_steps),
             "immutable_prefix_min_robust_barrier_m": float(result.minimum_prefix_robust_barrier_m),
         }
+
+    def _viability_guard_state(
+        self,
+        observation: dict[str, Any],
+        desired: np.ndarray,
+        authority_mode: str,
+    ) -> dict[str, Any]:
+        """Probe whether a bounded braking command still has a robust margin.
+
+        This is a short-horizon viability warning, not a forward-invariance
+        proof.  It uses the same nonlinear execution certificate as the QP
+        acceptance path and never reads target ground truth.  The returned
+        braking action is only a candidate; callers must still certify it.
+        """
+
+        state: dict[str, Any] = {
+            "viability_guard_enabled": bool(self.config.execution_viability_guard_enabled),
+            "viability_guard_triggered": False,
+            "viability_guard_brake_min_robust_barrier_m": float("inf"),
+            "viability_guard_margin_m": float(self.config.execution_viability_guard_margin_m),
+            "viability_guard_abort_margin_m": float(
+                self.config.execution_viability_guard_abort_margin_m
+            ),
+            "brake_action": None,
+            "brake_directive": None,
+            "brake_certificate_valid": False,
+        }
+        if not bool(self.config.execution_viability_guard_enabled) or authority_mode == "immutable":
+            return state
+
+        directive = CommandAuthorityDirective(mode=authority_mode, emergency_brake=True)
+        brake_action = self._bounded_execution_action(np.zeros_like(desired), observation)
+        try:
+            certificate = check_execution_rollout_safety(
+                observation,
+                brake_action,
+                dt=float(self.env.dt),
+                drone_radius=float(self.env.agents["drone_radius"]),
+                max_speed_mps=float(self.config.max_speed_mps),
+                max_acceleration_mps2=float(self.config.max_acceleration_mps2),
+                safety_margin_m=float(self.config.safety_margin_m),
+                robust_margin_m=float(self.config.robust_margin_m),
+                tolerance=float(self.config.solver_tolerance),
+                action_change_limit_mps=self.config.action_change_limit_mps,
+                horizon_steps=int(self.config.execution_viability_guard_horizon_steps),
+                reachable_tube_multiplier=self.config.execution_tube_multiplier(observation, self.env.dt),
+                continuous_segment_constraints=bool(self.config.execution_continuous_segment_constraints),
+                continuous_segment_subdivisions=int(self.config.execution_continuous_segment_subdivisions),
+                command_authority=directive,
+            )
+        except (FloatingPointError, ValueError, RuntimeError):
+            return state
+        minimum = float(certificate.minimum_robust_barrier_m)
+        state.update(
+            {
+                "viability_guard_triggered": bool(
+                    not certificate.current_state_safe
+                    or minimum <= float(self.config.execution_viability_guard_margin_m)
+                ),
+                "safety_abort_requested": bool(
+                    not certificate.current_state_safe
+                    or not certificate.valid
+                    or minimum <= float(self.config.execution_viability_guard_abort_margin_m)
+                ),
+                "viability_guard_brake_min_robust_barrier_m": minimum,
+                "brake_action": brake_action,
+                "brake_directive": directive,
+                "brake_certificate_valid": bool(certificate.valid),
+            }
+        )
+        return state
 
     @staticmethod
     def _goal_reference(observation: dict[str, Any]) -> np.ndarray | None:
@@ -1319,6 +1487,8 @@ class RobustCBFQPFilter:
         precondition_valid: bool,
         directive: CommandAuthorityDirective,
         force_zero_action: bool = False,
+        viability_guard: dict[str, Any] | None = None,
+        safety_abort: bool = False,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
         # Queue authority cancels pending commands; it does not force the new
         # command to zero.  Only an explicit force-zero path does that.
@@ -1381,6 +1551,44 @@ class RobustCBFQPFilter:
             rows = []
             rhs = []
         recoverability = self._recoverability_fields(safety_observation, directive)
+        guard_triggered = bool((viability_guard or {}).get("viability_guard_triggered", False))
+        viability_diagnostics = {
+            key: value
+            for key, value in dict(viability_guard or {}).items()
+            if key in {
+                "viability_guard_enabled",
+                "viability_guard_triggered",
+                "viability_guard_brake_min_robust_barrier_m",
+                "viability_guard_margin_m",
+                "viability_guard_abort_margin_m",
+            }
+        }
+        if bool(safety_abort):
+            return self._fallback(
+                action,
+                observation,
+                barrier_values,
+                names,
+                rows,
+                rhs,
+                started,
+                reason,
+                failure_category=category,
+                precondition_valid=precondition_valid,
+                command_authority=directive,
+                solver_backend=(
+                    str(self.config.execution_linearization_backend) + "_rollout_jacobian"
+                    if str(self.config.execution_linearization_backend) == "analytic"
+                    else "finite_difference_dykstra"
+                ),
+                force_zero_action=True,
+                queue_override_slots=int(override_slots),
+                recoverability={**dict(recoverability or {}), **viability_diagnostics},
+                viability_guard={
+                    **viability_diagnostics,
+                    "safety_abort_requested": True,
+                },
+            )
         actions, diagnostics = self._fallback(
             action,
             observation,
@@ -1400,14 +1608,31 @@ class RobustCBFQPFilter:
             ),
             force_zero_action=bool(force_zero_action),
             queue_override_slots=int(override_slots),
-            recoverability=recoverability,
+            recoverability={
+                **dict(recoverability or {}),
+                **viability_diagnostics,
+            },
+            viability_guard={
+                **viability_diagnostics,
+                "safety_abort_requested": bool(
+                    (viability_guard or {}).get("safety_abort_requested", False)
+                ),
+            },
         )
         # A fallback is only a command proposal until the same independent
         # execution certificate accepts it. Try a small, deterministic set of
         # conservative candidates so the diagnostic distinguishes a certified
         # fallback from a best-effort recovery command.
-        candidate_specs: list[tuple[str, np.ndarray]] = [("barrier_recovery", actions)]
-        if not force_zero_action:
+        if guard_triggered and isinstance((viability_guard or {}).get("brake_action"), np.ndarray):
+            candidate_specs: list[tuple[str, np.ndarray]] = [
+                (
+                    "viability_guard_brake",
+                    np.asarray((viability_guard or {})["brake_action"], dtype=np.float64),
+                )
+            ]
+        else:
+            candidate_specs = [("barrier_recovery", actions)]
+        if not force_zero_action and not guard_triggered:
             goal_action = self._goal_directed_action(desired, observation)
             candidate_specs.extend(
                 [
@@ -1439,6 +1664,7 @@ class RobustCBFQPFilter:
             and directive.mode != "immutable"
             and last_emergency_brake
             and bool(recoverability.get("prefix_admissible", False))
+            and not guard_triggered
         ):
             # An emergency brake is a queue-clearing event. Repeating it every
             # tick would keep replacing newly appended commands with zeros.
@@ -1451,6 +1677,7 @@ class RobustCBFQPFilter:
             if (
                 self.config.fallback_policy == "progress_qp"
                 and not force_zero_action
+                and not guard_triggered
                 and bool(recoverability.get("prefix_admissible", False))
             ):
                 lower_action, upper_action = self._execution_action_bounds(velocities)
@@ -1593,6 +1820,7 @@ class RobustCBFQPFilter:
                 command_authority=selected_directive.as_dict(),
                 emergency_brake_requested=bool(selected_directive.emergency_brake),
                 queue_override_slots=int(certified_certificate.assumptions.get("queue_override_slots", 0.0)),
+                safety_abort_requested=False,
                 **self._recoverability_fields(safety_observation, selected_directive),
             )
         return actions, diagnostics
@@ -1616,6 +1844,7 @@ class RobustCBFQPFilter:
         force_zero_action: bool = False,
         queue_override_slots: int = 0,
         recoverability: dict[str, Any] | None = None,
+        viability_guard: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, RobustCBFQPDiagnostics]:
         if force_zero_action or self.config.fallback_policy == "zero_action":
             actions = np.zeros_like(desired)
@@ -1662,7 +1891,10 @@ class RobustCBFQPFilter:
             command_authority=None if command_authority is None else command_authority.as_dict(),
             emergency_brake_requested=False if command_authority is None else bool(command_authority.emergency_brake),
             queue_override_slots=int(queue_override_slots),
-            **dict(recoverability or {}),
+            **{
+                **dict(recoverability or {}),
+                **dict(viability_guard or {}),
+            },
         )
         return actions, diagnostics
 

@@ -61,3 +61,28 @@ def test_barrier_family_handles_missing_labels() -> None:
     assert module.barrier_family(None) == "none"
     assert module.barrier_family("rollout:obstacle[0]/0") == "obstacle"
     assert module.barrier_family("rollout:inter_agent[0,1]") == "inter_agent"
+
+
+def test_unexecuted_safety_abort_is_not_counted_as_actual_unsafe() -> None:
+    module = _module()
+    rows = [
+        {
+            "post_step_executed": True,
+            "actual_post_robust_state_safe": True,
+            "continuous_segment_certificate_valid": False,
+            "safety_abort_requested": False,
+        },
+        {
+            "post_step_executed": False,
+            "actual_post_robust_state_safe": None,
+            "continuous_segment_certificate_valid": False,
+            "safety_abort_requested": True,
+        },
+    ]
+
+    summary = module.summarize_steps(rows)
+
+    assert summary["steps"] == 2
+    assert summary["executed_steps"] == 1
+    assert summary["unexecuted_safety_abort"]["count"] == 1
+    assert summary["actual_post_robust_unsafe"]["count"] == 0

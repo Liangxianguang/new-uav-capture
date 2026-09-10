@@ -87,6 +87,8 @@ def _counter_summary(counter: Counter[str], total: int) -> dict[str, dict[str, f
 
 def summarize_steps(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
+    executed_rows = [row for row in rows if row.get("post_step_executed", True) is not False]
+    executed_total = len(executed_rows)
     first_failed = Counter(str(row.get("first_failed_barrier") or "none") for row in rows)
     families = Counter(barrier_family(row.get("first_failed_barrier")) for row in rows)
     horizons = Counter(barrier_horizon(row.get("first_failed_barrier")) for row in rows)
@@ -112,34 +114,49 @@ def summarize_steps(rows: list[dict[str, Any]]) -> dict[str, Any]:
     fallback_certified = sum(bool(row.get("fallback_certificate_valid", False)) for row in rows)
     rollout_invalid = sum(not bool(row.get("execution_rollout_certificate_valid", False)) for row in rows)
     continuous_invalid = sum(not bool(row.get("continuous_segment_certificate_valid", False)) for row in rows)
-    actual_unsafe = sum(not bool(row.get("actual_post_robust_state_safe", False)) for row in rows)
+    actual_unsafe = sum(
+        not bool(row.get("actual_post_robust_state_safe", False)) for row in executed_rows
+    )
     continuous_only_gap = sum(
         not bool(row.get("continuous_segment_certificate_valid", False))
         and bool(row.get("actual_post_robust_state_safe", False))
-        for row in rows
+        for row in executed_rows
     )
     actual_unsafe_after_certificate = sum(
         bool(row.get("continuous_segment_certificate_valid", False))
         and not bool(row.get("actual_post_robust_state_safe", False))
+        for row in executed_rows
+    )
+    unexecuted_abort = sum(
+        row.get("post_step_executed") is False
+        and bool(row.get("safety_abort_requested", False))
         for row in rows
     )
 
     return {
         "steps": total,
+        "executed_steps": executed_total,
+        "unexecuted_safety_abort": {
+            "count": unexecuted_abort,
+            "rate": _rate(unexecuted_abort, total),
+        },
         "prefix_admissible": {"count": prefix_admissible, "rate": _rate(prefix_admissible, total)},
         "abort_required": {"count": prefix_abort, "rate": _rate(prefix_abort, total)},
         "fallback": {"count": fallback, "rate": _rate(fallback, total)},
         "fallback_certified": {"count": fallback_certified, "rate": _rate(fallback_certified, total)},
         "execution_rollout_invalid": {"count": rollout_invalid, "rate": _rate(rollout_invalid, total)},
         "continuous_segment_invalid": {"count": continuous_invalid, "rate": _rate(continuous_invalid, total)},
-        "actual_post_robust_unsafe": {"count": actual_unsafe, "rate": _rate(actual_unsafe, total)},
+        "actual_post_robust_unsafe": {
+            "count": actual_unsafe,
+            "rate": _rate(actual_unsafe, executed_total),
+        },
         "continuous_only_gap": {
             "count": continuous_only_gap,
-            "rate": _rate(continuous_only_gap, total),
+            "rate": _rate(continuous_only_gap, executed_total),
         },
         "actual_unsafe_after_continuous_certificate": {
             "count": actual_unsafe_after_certificate,
-            "rate": _rate(actual_unsafe_after_certificate, total),
+            "rate": _rate(actual_unsafe_after_certificate, executed_total),
         },
         "failure_categories": _counter_summary(failure_categories, total),
         "first_failed_barriers": _counter_summary(first_failed, total),
