@@ -90,6 +90,32 @@ claim. The K=1/K=8 aggregate artifacts are
 `results/phase16_locked_closed_loop_diagonal_ssm_multimodal_aggregate.json`
 and `results/phase16_locked_closed_loop_official_s4_multimodal_aggregate.json`.
 
+## Local-CBF Safety Ablation
+
+The GRU safety ablation fixes the three checkpoints, frozen scenes, planner,
+per-step refresh, action condition, and seeds. It compares `none` against the
+validation-selected `local_cbf`; robust CBF-QP remains a separately labelled
+No-Go diagnostic and is not included in this main comparison.
+
+| Planner branch | No safety: safe capture / collision / timeout | Local CBF: safe capture / collision / timeout | Paired Local-CBF delta in safe capture | Paired Local-CBF delta in collision |
+| --- | ---: | ---: | ---: | ---: |
+| Distributed delayed | 94.44% / 5.56% / 0.00% | 94.81% / 0.00% / 5.19% | +0.37 pp [-3.70, +4.44] | **-5.56 pp [-8.89, -2.96]** |
+| Worst-case | 87.41% / 12.59% / 0.00% | 79.26% / 0.00% / 20.74% | **-8.15 pp [-14.44, -1.48]** | **-12.59 pp [-17.04, -8.52]** |
+
+For distributed delayed DN-MPC, local CBF eliminates observed collisions while
+preserving safe capture within the paired interval; the cost appears primarily
+as a 5.19% timeout rate and a modest capture-time increase. For worst-case
+MPC, the filter is more conservative: it eliminates collision at a measurable
+safe-capture cost as nominal captures become timeouts. Minimum clearance rises
+by `+0.237 m` (distributed) and `+0.243 m` (worst-case), with both paired 95%
+intervals strictly positive. This is evidence for a simulator-level
+safety-performance trade-off, not a robust forward-invariance proof.
+
+The no-safety branch reports lower measured total latency, but it was executed
+under a separate CPU load profile and removes the filter computation. It is
+therefore not used to claim an exact latency saving. The formal paired artifact
+is `results/phase16_locked_closed_loop_gru_safety_ablation_aggregate.json`.
+
 ## Interpretation
 
 This confirms the validation-selected GRU + distributed delayed DN-MPC + local
@@ -112,8 +138,9 @@ three-family paired artifact is
 
 1. Run a controlled single-process runtime benchmark for K=1/K=8 if throughput
    becomes a method claim; do not infer it from the parallel evaluation runs.
-2. Run pre-registered no-safety, action-conditioning, and
-   planner/safety ablations without reopening model selection.
+2. Run the `history`/`future`/`none` action-conditioning checkpoints in the
+   frozen closed loop to test whether offline action-conditioning gains
+   transfer to interception.
 3. Evaluate OOD geometry, unseen target policies, and stronger delay/dropout/
    tracking-error blocks.
 4. Keep robust CBF-QP as a separately labelled diagnostic until its reset,
