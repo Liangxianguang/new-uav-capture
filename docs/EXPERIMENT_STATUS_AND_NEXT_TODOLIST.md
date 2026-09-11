@@ -12,6 +12,8 @@
 
 > Phase 16 通信/执行 OOD 更新：新增并冻结 `delay6_dropout20` 与 `delay8_dropout25` 两个感知条件，各 50 个 episode，并真正激活 2-step command delay、执行噪声、速度/加速度随机缩放和一阶跟踪 dynamics。三种子 distributed delayed + local CBF 的 safe capture 为 `47.00% [41.00%, 53.00%]`，collision / boundary 为 `53.00% / 19.00%`，total p50/p95/p99 为 `86.09/122.82/178.46 ms`；worst-case safe capture 为 `53.67%`，collision / boundary 为 `46.33% / 24.00%`。这是当前执行感知安全契约的 No-Go 诊断，不是模型成功结果或安全证明。详见 `docs/PHASE16_OOD_DELAY_EXECUTION_REPORT.md`。
 
+> Phase 16 目标行为 OOD 更新：新增并冻结 `short_lookahead`（0.20 s）与 `long_lookahead_margin`（1.20 s / 0.20 s）两种训练外的目标分支决策规则，各 50 个 episode，保持速度、几何和执行配置在 ID 支持内。三种子 distributed delayed + local CBF 的 safe capture 为 `94.33% [91.33%, 97.33%]`，collision / boundary 均为 `0%`，timeout 为 `5.67%`，说明该两种行为参数外推没有可见退化；这只是单轴描述性证据，不能外推到任意对抗策略。详见 `docs/PHASE16_OOD_TARGET_BEHAVIOR_REPORT.md`。
+
 > Phase 15 v3 正式更新：600 场景的数据划分和动作/时间戳契约审计已通过；30 epoch、3 seed 的冻结离线测试中，GRU 的 projected minFDE 为 `0.7244 +/- 0.0352 m`，官方 S4 为 `1.3373 +/- 0.0275 m`。每步刷新且因果动作条件可用率约 `92%--95%` 时，GRU + distributed delayed DN-MPC 为 `95.56% [92.96%, 97.78%]` safe capture，官方 S4 为 `94.44% [91.48%, 97.04%]`。不能声称 S4 优于 GRU；下一步是 validation-only 的 `none/history/future/both`、单/多模态和风险/刷新消融。详见 `docs/PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`。
 
 > Phase 15 action-conditioning 消融已完成：GRU 在相同 30 epoch、3 个匹配 seed 下，`both` 的 validation minFDE 为 `0.8000 +/- 0.0064 m`，优于 `future` 的 `0.8388 +/- 0.0099 m`、`history` 的 `0.9994 +/- 0.0076 m` 和 `none` 的 `1.0288 +/- 0.0101 m`；相对 `both` 的配对 minFDE delta 区间均为正。后续冻结测试确认了这一排序，`both` 的 projected minFDE 为 `0.7000 +/- 0.0057 m`、coverage 为 `94.59%`，但 candidate feasibility 只有 `77.60%`。`both` 已锁定为后续主配置，不能继续用 locked test 选模型；下一步是 no/local/robust safety 三路闭环和单/多模态消融。详见 `docs/PHASE15_S4_V3_ACTION_CONDITION_ABLATION_REPORT.md`。
@@ -161,7 +163,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 完成 geometry-only OOD：100 episode / 50 镜像组，三种子 distributed 分支为 `84.00% [79.33%, 88.33%]` safe capture，0 collision/boundary；worst-case 为 `46.33% [39.67%, 53.33%]` 且各有 `1.67%` collision/boundary。该结果仅是单轴诊断，详见 `docs/PHASE16_OOD_GEOMETRY_REPORT.md`。
 - [x] 完成 target-speed OOD：速度 `0.82/0.90` 各 50 episode，几何保持 ID；三种子 distributed 分支为 `42.67% [37.00%, 48.33%]` safe capture、`57.33%` timeout、0 collision/boundary，total p50/p95/p99 为 `83.94/106.72/130.87 ms`。该结果说明速度外推是主要性能瓶颈，详见 `docs/PHASE16_OOD_TARGET_SPEED_REPORT.md`。
 - [x] 完成 delay/execution OOD：消息延迟 6/8 步、dropout 20/25%，并激活 2-step command delay 和 tracking/noise dynamics；三种子 distributed 分支为 `47.00% [41.00%, 53.00%]` safe capture、`53.00%` collision、`19.00%` boundary。该结果是当前 local-CBF execution-safe contract 的 No-Go，详见 `docs/PHASE16_OOD_DELAY_EXECUTION_REPORT.md`。
-- [ ] 冻结 unseen target behavior OOD 块，保持障碍几何、目标速度和通信执行配置在 ID 范围内。
+- [x] 完成 unseen target behavior OOD：两种未见 lookahead/commit 规则，各 50 episode，速度/几何/执行保持 ID；三种子 distributed 为 `94.33% [91.33%, 97.33%]` safe capture、0 collision/boundary。该结论限于两个冻结行为规则，详见 `docs/PHASE16_OOD_TARGET_BEHAVIOR_REPORT.md`。
 - [ ] 冻结 stronger communication / execution delay / tracking-noise OOD 块，保持几何和目标策略在 ID 范围内。
 - [ ] 每个 OOD 块固定三种子、镜像配对、source hash 和完整 episode/step 工件；报告 safe/ordinary capture、collision、boundary、timeout、clearance、动作条件可用率以及 p50/p95/p99。
 - [ ] 在各单轴诊断完成前，不运行混合压力场景，也不基于 OOD 结果重新选 checkpoint、调整模型或改写 locked-test 主结论。
