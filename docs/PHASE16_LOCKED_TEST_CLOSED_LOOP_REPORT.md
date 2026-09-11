@@ -116,6 +116,39 @@ under a separate CPU load profile and removes the filter computation. It is
 therefore not used to claim an exact latency saving. The formal paired artifact
 is `results/phase16_locked_closed_loop_gru_safety_ablation_aggregate.json`.
 
+## Action-Conditioning Ablation
+
+The data contract supplies an executed defender-action history and a causal
+previous DN-MPC plan shifted into the prediction horizon. The GRU ablation
+tests `none`, `history`, `future`, and `both` using matched three training
+seeds, frozen locked scenes, local CBF, and per-step prediction refresh. The
+`future` and `both` online conditions were available for approximately 92% of
+distributed steps; the remaining steps use the documented zero/causal-unavailable
+representation rather than target truth.
+
+| Condition | Distributed safe capture | Worst-case safe capture | Paired distributed delta vs `both` | Paired worst-case delta vs `both` |
+| --- | ---: | ---: | ---: | ---: |
+| `none` | 95.56% [92.96%, 97.78%] | 78.52% [73.33%, 83.33%] | +0.74 pp [0.00, +2.59] | -0.74 pp [-4.07, +2.96] |
+| `history` | 95.19% [92.22%, 97.78%] | 80.74% [75.56%, 85.56%] | +0.37 pp [-1.48, +2.59] | +1.48 pp [-2.96, +6.30] |
+| `future` | 95.19% [92.22%, 97.78%] | 80.37% [75.56%, 85.19%] | +0.37 pp [-1.48, +2.59] | +1.11 pp [-2.59, +4.81] |
+| `both` | 94.81% [91.85%, 97.41%] | 79.26% [74.44%, 84.07%] | reference | reference |
+
+All branches had zero observed collision and boundary violation under local
+CBF. Every action-condition comparison has a safe-capture interval that
+includes zero. Consequently, although `both` was selected from the
+validation-only offline prediction study, this locked-test closed-loop block
+does **not** establish a measurable action-conditioning gain. The appropriate
+claim is that the action-conditioned interface is causal, implemented, and
+audited, not that it increases current closed-loop capture.
+
+The `none/history/future` runs were evaluated concurrently and have pooled
+total p95 values around 221--223 ms, unlike the earlier `both` batch at
+43.58 ms. This is an execution-load artifact, not credible evidence that
+action conditioning causes a 5x latency change. A controlled single-process
+runtime benchmark is required before comparing condition-dependent timing.
+The formal aggregate is
+`results/phase16_locked_closed_loop_gru_action_condition_aggregate.json`.
+
 ## Interpretation
 
 This confirms the validation-selected GRU + distributed delayed DN-MPC + local
@@ -140,7 +173,8 @@ three-family paired artifact is
    becomes a method claim; do not infer it from the parallel evaluation runs.
 2. Run the `history`/`future`/`none` action-conditioning checkpoints in the
    frozen closed loop to test whether offline action-conditioning gains
-   transfer to interception.
+   transfer to interception. Completed: the current block does not show a
+   closed-loop capture gain; next run a controlled latency benchmark.
 3. Evaluate OOD geometry, unseen target policies, and stronger delay/dropout/
    tracking-error blocks.
 4. Keep robust CBF-QP as a separately labelled diagnostic until its reset,
