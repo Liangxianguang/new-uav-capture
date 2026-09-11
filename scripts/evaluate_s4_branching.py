@@ -119,6 +119,11 @@ def config_for_spec(environment_config: Path, protocol: dict[str, Any], spec: di
     config = copy.deepcopy(load_yaml(environment_config))
     pursuit = config.setdefault("task", {}).setdefault("pursuit", {})
     pursuit.update(copy.deepcopy(spec["pursuit_overrides"]))
+    execution_overrides = spec.get("execution_overrides")
+    if execution_overrides is not None:
+        if not isinstance(execution_overrides, dict):
+            raise ValueError("Frozen S4 execution_overrides must be a mapping.")
+        config.setdefault("dynamics", {})["execution"] = copy.deepcopy(execution_overrides)
     geometry = dict(protocol["s4"]["branch_geometry"])
     pursuit.update(
         {
