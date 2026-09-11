@@ -72,6 +72,11 @@ def load_collection_config(path: Path) -> dict[str, Any]:
         raise ValueError("S4 collection episodes must be positive.")
     if int(document.get("history_length", 0)) <= 0 or int(document.get("horizon_steps", 0)) <= 0:
         raise ValueError("S4 collection history_length and horizon_steps must be positive.")
+    if bool(document.get("mirror_pairs", False)):
+        if int(document["episodes"]) % 2 != 0:
+            raise ValueError("S4 collection episodes must be even when mirror_pairs is enabled.")
+        if len(document["defender_biases"]) != 2 or set(document["defender_biases"]) != {"upper", "lower"}:
+            raise ValueError("mirror_pairs requires exactly the upper and lower defender biases.")
     if "scene_variation" in document and not isinstance(document["scene_variation"], dict):
         raise ValueError("S4 collection scene_variation must be a mapping when supplied.")
     return document
@@ -87,31 +92,54 @@ def load_s4_protocol(path: Path) -> dict[str, Any]:
 
 
 def episode_spec(collection: dict[str, Any], episode_index: int) -> dict[str, Any]:
-    conditions = list(
+    seed_start = int(collection["seed_start"])
+    mirror_pairs = bool(collection.get("mirror_pairs", False))
+    base_conditions = list(
         itertools.product(
             collection["target_speed_scales"],
             collection["observation_conditions"],
-            collection["defender_biases"],
             collection["rollout_policies"],
         )
     )
-    seed_start = int(collection["seed_start"])
-    order = np.random.default_rng(seed_start + 2_000_000).permutation(len(conditions))
-    condition_index = int(order[episode_index % len(order)])
-    target_speed_scale, observation, defender_bias, rollout_policy = conditions[condition_index]
+    condition_order = np.random.default_rng(seed_start + 2_000_000).permutation(len(base_conditions))
+    if mirror_pairs:
+        group_index = episode_index // 2
+        condition_index = int(condition_order[group_index % len(condition_order)])
+        target_speed_scale, observation, rollout_policy = base_conditions[condition_index]
+        defender_bias = "upper" if episode_index % 2 == 0 else "lower"
+        mirror_group_id = group_index
+        condition_table_size = len(base_conditions)
+        layout_seed = seed_start + 1_000_000 + group_index
+    else:
+        conditions = list(
+            itertools.product(
+                collection["target_speed_scales"],
+                collection["observation_conditions"],
+                collection["defender_biases"],
+                collection["rollout_policies"],
+            )
+        )
+        order = np.random.default_rng(seed_start + 2_000_000).permutation(len(conditions))
+        condition_index = int(order[episode_index % len(order)])
+        target_speed_scale, observation, defender_bias, rollout_policy = conditions[condition_index]
+        mirror_group_id = episode_index
+        condition_table_size = len(conditions)
+        layout_seed = seed_start + 1_000_000 + int(episode_index)
     return {
         "episode_index": int(episode_index),
         "episode_seed": seed_start + int(episode_index),
         # Every episode receives fresh geometry. Policy and sensing diversity
         # should not be produced by replaying a handful of wall layouts.
-        "layout_seed": seed_start + 1_000_000 + int(episode_index),
+        "layout_seed": int(layout_seed),
+        "mirror_group_id": int(mirror_group_id),
+        "mirror_pair_member": int(episode_index % 2) if mirror_pairs else None,
         "target_speed_scale": float(target_speed_scale),
         "observation_condition": str(observation["name"]),
         "pursuit_overrides": copy.deepcopy(observation["pursuit_overrides"]),
         "defender_bias": str(defender_bias),
         "rollout_policy": str(rollout_policy),
         "condition_index": condition_index,
-        "condition_table_size": len(conditions),
+        "condition_table_size": condition_table_size,
     }
 
 
@@ -123,13 +151,33 @@ def controller_action(
     safety_filter: PursuitCBFSafetyFilter | None,
     rng: np.random.Generator,
 ) -> np.ndarray:
+    """Return the command passed to the environment (legacy helper)."""
+    _planned, commanded, _diagnostics = controller_command(
+        env, observation, policy_name, controller, safety_filter, rng
+    )
+    return commanded
+
+
+def controller_command(
+    env: CaptureRadiusPursuit3DEnv,
+    observation: dict[str, Any],
+    policy_name: str,
+    controller: Any,
+    safety_filter: PursuitCBFSafetyFilter | None,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray, Any | None]:
+    """Return planner output and the command after the optional safety filter."""
     desired = np.asarray(controller.act(observation), dtype=np.float64)
     if policy_name == "randomized_safe_mixture":
         noise = rng.normal(0.0, 1.0, size=desired.shape)
         desired = 0.70 * desired + 0.30 * env._clip_rows(noise, float(env.agents["defender_max_speed"]))
+    planned = env._clip_rows(desired, float(env.agents["defender_max_speed"]))
+    diagnostics = None
+    commanded = planned.copy()
     if safety_filter is not None:
-        desired, _diagnostics = safety_filter.filter(desired, observation)
-    return env._clip_rows(desired, float(env.agents["defender_max_speed"]))
+        commanded, diagnostics = safety_filter.filter(planned, observation)
+    commanded = env._clip_rows(commanded, float(env.agents["defender_max_speed"]))
+    return planned.astype(np.float32), commanded.astype(np.float32), diagnostics
 
 
 def make_controller(env: CaptureRadiusPursuit3DEnv, policy_name: str) -> tuple[Any, PursuitCBFSafetyFilter | None]:
@@ -174,34 +222,72 @@ def collect_episode(
     timestamp_frames: list[np.ndarray] = [
         np.asarray(observation["target_observation_timestamps"], dtype=np.int16)
     ]
+    message_timestamp_frames: list[np.ndarray] = [
+        np.asarray(observation["target_observation_timestamps"], dtype=np.int16)
+    ]
+    communication_timestamp_frames: list[np.ndarray] = [
+        np.full((env.n_defenders,), int(env.step_count), dtype=np.int64)
+    ]
+    action_timestamp_frames: list[np.ndarray] = [
+        np.full((env.n_defenders,), -1, dtype=np.int64)
+    ]
     target_positions: list[np.ndarray] = [env.target_position.astype(np.float32).copy()]
     defender_positions: list[np.ndarray] = [env.defender_positions.astype(np.float32).copy()]
     defender_velocities: list[np.ndarray] = [env.defender_velocities.astype(np.float32).copy()]
-    realized_actions: list[np.ndarray] = []
+    zero_actions = np.zeros((env.n_defenders, 3), dtype=np.float32)
+    planned_action_frames: list[np.ndarray] = [zero_actions.copy()]
+    commanded_action_frames: list[np.ndarray] = [zero_actions.copy()]
+    delayed_action_frames: list[np.ndarray] = [zero_actions.copy()]
+    executed_action_frames: list[np.ndarray] = [zero_actions.copy()]
     final_info: dict[str, Any] = {}
 
     while True:
-        action = controller_action(env, observation, str(spec["rollout_policy"]), controller, safety_filter, rng)
-        observation, _reward, terminated, truncated, final_info = env.step(action)
-        realized_actions.append(env.last_executed_actions.astype(np.float32).copy())
+        planned, commanded, _diagnostics = controller_command(
+            env, observation, str(spec["rollout_policy"]), controller, safety_filter, rng
+        )
+        command_timestamp = int(env.step_count)
+        observation, _reward, terminated, truncated, final_info = env.step(commanded)
+        planned_action_frames.append(planned.copy())
+        commanded_action_frames.append(env.last_desired_actions.astype(np.float32).copy())
+        delayed_action_frames.append(env.last_delayed_actions.astype(np.float32).copy())
+        executed_action_frames.append(env.last_executed_actions.astype(np.float32).copy())
+        action_timestamp_frames.append(np.full((env.n_defenders,), command_timestamp, dtype=np.int64))
         local_frames.append(policy_observations(env, observation).astype(np.float32))
         visible_frames.append(np.asarray(observation["target_visible"], dtype=bool))
         message_age_frames.append(np.asarray(observation["message_age_steps"], dtype=np.int16))
         timestamp_frames.append(np.asarray(observation["target_observation_timestamps"], dtype=np.int16))
+        message_timestamp_frames.append(np.asarray(observation["target_observation_timestamps"], dtype=np.int16))
+        communication_timestamp_frames.append(
+            np.full((env.n_defenders,), int(env.step_count), dtype=np.int64)
+        )
         target_positions.append(env.target_position.astype(np.float32).copy())
         defender_positions.append(env.defender_positions.astype(np.float32).copy())
         defender_velocities.append(env.defender_velocities.astype(np.float32).copy())
         if terminated or truncated:
             break
 
-    action_count = len(realized_actions)
+    action_count = len(executed_action_frames) - 1
     samples: dict[str, list[np.ndarray]] = {
         "history_observations": [],
         "history_target_visible": [],
         "history_message_age_steps": [],
         "history_observation_timestamps": [],
+        "history_message_timestamps": [],
+        "history_communication_timestamps": [],
+        "history_action_timestamps": [],
+        "history_planned_actions": [],
+        "history_commanded_actions": [],
+        "history_delayed_actions": [],
+        "history_executed_actions": [],
         "future_target_positions": [],
+        "reference_target_positions": [],
+        "reference_target_velocities": [],
         "future_defender_actions": [],
+        "future_planned_actions": [],
+        "future_commanded_actions": [],
+        "future_delayed_actions": [],
+        "future_executed_actions": [],
+        "future_action_timestamps": [],
         "future_defender_positions": [],
         "future_defender_velocities": [],
         "sample_timesteps": [],
@@ -211,11 +297,39 @@ def collect_episode(
         samples["history_target_visible"].append(padded_history(visible_frames, timestep, history_length))
         samples["history_message_age_steps"].append(padded_history(message_age_frames, timestep, history_length))
         samples["history_observation_timestamps"].append(padded_history(timestamp_frames, timestep, history_length))
+        samples["history_message_timestamps"].append(padded_history(message_timestamp_frames, timestep, history_length))
+        samples["history_communication_timestamps"].append(
+            padded_history(communication_timestamp_frames, timestep, history_length)
+        )
+        samples["history_action_timestamps"].append(padded_history(action_timestamp_frames, timestep, history_length))
+        samples["history_planned_actions"].append(padded_history(planned_action_frames, timestep, history_length))
+        samples["history_commanded_actions"].append(padded_history(commanded_action_frames, timestep, history_length))
+        samples["history_delayed_actions"].append(padded_history(delayed_action_frames, timestep, history_length))
+        samples["history_executed_actions"].append(padded_history(executed_action_frames, timestep, history_length))
         samples["future_target_positions"].append(
             np.stack(target_positions[timestep + 1 : timestep + horizon_steps + 1], axis=0)
         )
+        samples["reference_target_positions"].append(target_positions[timestep].copy())
+        samples["reference_target_velocities"].append(
+            (target_positions[timestep] - target_positions[max(timestep - 1, 0)]) / float(env.dt)
+        )
         samples["future_defender_actions"].append(
-            np.stack(realized_actions[timestep : timestep + horizon_steps], axis=0)
+            np.stack(executed_action_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
+        )
+        samples["future_planned_actions"].append(
+            np.stack(planned_action_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
+        )
+        samples["future_commanded_actions"].append(
+            np.stack(commanded_action_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
+        )
+        samples["future_delayed_actions"].append(
+            np.stack(delayed_action_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
+        )
+        samples["future_executed_actions"].append(
+            np.stack(executed_action_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
+        )
+        samples["future_action_timestamps"].append(
+            np.stack(action_timestamp_frames[timestep + 1 : timestep + horizon_steps + 1], axis=0)
         )
         samples["future_defender_positions"].append(
             np.stack(defender_positions[timestep : timestep + horizon_steps + 1], axis=0)
@@ -229,9 +343,27 @@ def collect_episode(
         name: np.stack(values, axis=0) if values else np.empty((0,), dtype=np.float32)
         for name, values in samples.items()
     }
+    scenario_meta = scenario_metadata(scenario)
+    scenario_meta["obstacles"] = [
+        {
+            "center_xy": np.asarray(obstacle.center_xy, dtype=np.float64).tolist(),
+            "radius": float(obstacle.radius),
+            "height": float(obstacle.height),
+            "shape": str(obstacle.shape),
+            "half_extents_xy": (
+                None
+                if obstacle.half_extents_xy is None
+                else np.asarray(obstacle.half_extents_xy, dtype=np.float64).tolist()
+            ),
+        }
+        for obstacle in scenario.obstacles
+    ]
+    scenario_meta["geometry_signature"] = hashlib.sha256(
+        json.dumps(scenario_meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     episode_metadata = {
         **spec,
-        "scenario": scenario_metadata(scenario),
+        "scenario": scenario_meta,
         "frame_count": len(local_frames),
         "sample_count": int(packed["history_observations"].shape[0]),
         "target_branch_sign": final_info.get("target_branch_sign"),
@@ -247,8 +379,22 @@ def validate_dataset(values: dict[str, np.ndarray], history_length: int, horizon
         "history_target_visible": (count, history_length, 4),
         "history_message_age_steps": (count, history_length, 4),
         "history_observation_timestamps": (count, history_length, 4),
+        "history_message_timestamps": (count, history_length, 4),
+        "history_communication_timestamps": (count, history_length, 4),
+        "history_action_timestamps": (count, history_length, 4),
+        "history_planned_actions": (count, history_length, 4, 3),
+        "history_commanded_actions": (count, history_length, 4, 3),
+        "history_delayed_actions": (count, history_length, 4, 3),
+        "history_executed_actions": (count, history_length, 4, 3),
         "future_target_positions": (count, horizon_steps, 3),
+        "reference_target_positions": (count, 3),
+        "reference_target_velocities": (count, 3),
         "future_defender_actions": (count, horizon_steps, 4, 3),
+        "future_planned_actions": (count, horizon_steps, 4, 3),
+        "future_commanded_actions": (count, horizon_steps, 4, 3),
+        "future_delayed_actions": (count, horizon_steps, 4, 3),
+        "future_executed_actions": (count, horizon_steps, 4, 3),
+        "future_action_timestamps": (count, horizon_steps, 4),
         "future_defender_positions": (count, horizon_steps + 1, 4, 3),
         "future_defender_velocities": (count, horizon_steps + 1, 4, 3),
     }
@@ -319,14 +465,30 @@ def main() -> None:
         "history_target_visible",
         "history_message_age_steps",
         "history_observation_timestamps",
+        "history_message_timestamps",
+        "history_communication_timestamps",
+        "history_action_timestamps",
+        "history_planned_actions",
+        "history_commanded_actions",
+        "history_delayed_actions",
+        "history_executed_actions",
         "future_target_positions",
+        "reference_target_positions",
+        "reference_target_velocities",
         "future_defender_actions",
+        "future_planned_actions",
+        "future_commanded_actions",
+        "future_delayed_actions",
+        "future_executed_actions",
+        "future_action_timestamps",
         "future_defender_positions",
         "future_defender_velocities",
         "sample_timesteps",
         "episode_indices",
         "episode_seeds",
         "layout_seeds",
+        "mirror_group_ids",
+        "mirror_pair_members",
         "target_speed_scales",
         "branch_sign",
         "branch_decision_steps",
@@ -359,8 +521,22 @@ def main() -> None:
             "history_target_visible",
             "history_message_age_steps",
             "history_observation_timestamps",
+            "history_message_timestamps",
+            "history_communication_timestamps",
+            "history_action_timestamps",
+            "history_planned_actions",
+            "history_commanded_actions",
+            "history_delayed_actions",
+            "history_executed_actions",
             "future_target_positions",
+            "reference_target_positions",
+            "reference_target_velocities",
             "future_defender_actions",
+            "future_planned_actions",
+            "future_commanded_actions",
+            "future_delayed_actions",
+            "future_executed_actions",
+            "future_action_timestamps",
             "future_defender_positions",
             "future_defender_velocities",
             "sample_timesteps",
@@ -371,6 +547,14 @@ def main() -> None:
         aggregates["episode_indices"].append(np.full(count, episode_index, dtype=np.int32))
         aggregates["episode_seeds"].append(np.full(count, int(spec["episode_seed"]), dtype=np.int64))
         aggregates["layout_seeds"].append(np.full(count, int(spec["layout_seed"]), dtype=np.int64))
+        aggregates["mirror_group_ids"].append(np.full(count, int(spec["mirror_group_id"]), dtype=np.int64))
+        aggregates["mirror_pair_members"].append(
+            np.full(
+                count,
+                -1 if spec["mirror_pair_member"] is None else int(spec["mirror_pair_member"]),
+                dtype=np.int8,
+            )
+        )
         aggregates["target_speed_scales"].append(np.full(count, float(spec["target_speed_scale"]), dtype=np.float32))
         aggregates["branch_sign"].append(np.full(count, branch_sign, dtype=np.int8))
         aggregates["branch_decision_steps"].append(np.full(count, branch_decision_step, dtype=np.int16))
@@ -427,13 +611,33 @@ def main() -> None:
             "history_target_visible": "published local detection mask",
             "history_message_age_steps": "published communication-age signal",
             "history_observation_timestamps": "published measurement timestamp",
+            "history_message_timestamps": "source measurement timestamps published with each target message",
+            "history_communication_timestamps": "local communication/observation delivery step timestamp",
+            "history_action_timestamps": "command step timestamps aligned to each history frame; -1 denotes reset",
+            "history_planned_actions": "rollout-policy output before safety projection",
+            "history_commanded_actions": "action submitted to the environment after safety projection",
+            "history_delayed_actions": "action delivered by the execution queue",
+            "history_executed_actions": "action applied to defender velocity dynamics",
             "contains_target_truth": False,
         },
         "label_contract": {
             "future_target_positions": "simulator truth; supervised label only",
-            "future_defender_actions": "realized ideal velocity commands",
+            "future_defender_actions": "backwards-compatible alias of future_executed_actions",
+            "future_planned_actions": "planner outputs logged at future rollout steps",
+            "future_commanded_actions": "post-filter commands logged at future rollout steps",
+            "future_delayed_actions": "execution-queue outputs logged at future rollout steps",
+            "future_executed_actions": "actions applied to defender velocity dynamics",
+            "future_action_timestamps": "future command timestamps aligned to future actions",
             "future_defender_positions_and_velocities": "future public defender state labels",
             "branch_sign_and_decision_step": "simulator-private target policy labels only",
+        },
+        "data_contract": {
+            "actor_inputs": "local_observation_history_plus_explicit_action_history",
+            "prediction_action_condition": "future_planned_actions only when the planner exposes that sequence at prediction time",
+            "execution_dynamics": "planned_commanded_delayed_and_executed streams are recorded; behavior is configuration-defined",
+            "target_branch_label_visibility": "labels_only",
+            "locked_test_data_included": False,
+            "mirror_pairs": bool(collection.get("mirror_pairs", False)),
         },
         "collection_config": collection,
         "protocol": str(protocol_path),

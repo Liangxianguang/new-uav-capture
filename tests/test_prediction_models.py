@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import sys
 
+import numpy as np
 import torch
 import pytest
 
 from scripts.collect_prediction_dataset import TARGET_MOTION_MODES, parse_args as parse_collection_args
 from scripts.evaluate_prediction_models import main as evaluate_prediction_main
+from scripts.evaluate_prediction_models import flatten_inputs as flatten_evaluation_inputs
 from scripts.evaluate_prediction_models import parse_args as parse_evaluation_args
 from encirclement3d.prediction import (
     CandidateTrajectorySet,
     ConditionalDiffusionTrajectoryPredictor,
     DiagonalSSMEncoder,
+    DPLRS4Encoder,
+    HistoryTargetPredictor,
     TrajectoryNormalizer,
     assess_candidate_feasibility,
     candidate_energy_score,
@@ -20,7 +24,9 @@ from encirclement3d.prediction import (
     conformal_radius,
     prediction_metrics,
     project_candidate_trajectories,
+    S4ConditionalDiffusionTrajectoryPredictor,
 )
+from encirclement3d.trajectory_dataset import PredictionDataset
 
 
 def test_prediction_collector_accepts_adaptive_adversarial_target_mode(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -81,6 +87,13 @@ def test_diagonal_ssm_is_linear_time_shape_preserving() -> None:
     assert torch.isfinite(output).all()
 
 
+def test_dplr_s4_reference_encoder_is_shape_preserving() -> None:
+    model = DPLRS4Encoder(input_dim=12, hidden_dim=16, num_layers=2, state_dim=6, rank=1)
+    output = model(torch.randn(3, 7, 12))
+    assert output.shape == (3, 7, 16)
+    assert torch.isfinite(output).all()
+
+
 def test_diffusion_predictor_trains_and_samples_candidate_trajectories() -> None:
     model = ConditionalDiffusionTrajectoryPredictor(
         input_dim=12,
@@ -97,6 +110,82 @@ def test_diffusion_predictor_trains_and_samples_candidate_trajectories() -> None
     candidates = model.sample(inputs, num_samples=4, sampling_steps=4)
     assert candidates.shape == (3, 4, 5, 3)
     assert torch.isfinite(candidates).all()
+
+
+def test_action_conditioned_predictors_consume_future_action_sequences() -> None:
+    inputs = torch.randn(3, 7, 12)
+    actions = torch.randn(3, 5, 8)
+    targets = torch.randn(3, 5, 3)
+    gru = HistoryTargetPredictor(
+        input_dim=12,
+        horizon_count=5,
+        hidden_dim=16,
+        num_layers=1,
+        action_condition_dim=8,
+    )
+    mean, log_variance = gru(inputs, actions)
+    assert mean.shape == log_variance.shape == targets.shape
+    diffusion = ConditionalDiffusionTrajectoryPredictor(
+        input_dim=12,
+        horizon_count=5,
+        hidden_dim=16,
+        num_layers=1,
+        diffusion_steps=12,
+        action_condition_dim=8,
+    )
+    loss = diffusion.diffusion_loss(inputs, targets, action_condition=actions)
+    assert torch.isfinite(loss)
+    candidates = diffusion.sample(
+        inputs,
+        num_samples=2,
+        sampling_steps=4,
+        action_condition=actions,
+    )
+    assert candidates.shape == (3, 2, 5, 3)
+
+
+def test_s4_diffusion_predictor_consumes_action_conditions() -> None:
+    model = S4ConditionalDiffusionTrajectoryPredictor(
+        input_dim=12,
+        horizon_count=5,
+        hidden_dim=12,
+        num_layers=1,
+        diffusion_steps=8,
+        action_condition_dim=8,
+        state_dim=4,
+    )
+    inputs = torch.randn(2, 7, 12)
+    actions = torch.randn(2, 5, 8)
+    targets = torch.randn(2, 5, 3)
+    loss = model.diffusion_loss(inputs, targets, action_condition=actions)
+    assert torch.isfinite(loss)
+    candidates = model.sample(inputs, num_samples=2, sampling_steps=3, action_condition=actions)
+    assert candidates.shape == (2, 2, 5, 3)
+    assert torch.isfinite(candidates).all()
+    assert model.model_config["state_dim"] == 4
+    assert model.model_config["rank"] == 1
+
+
+def test_evaluator_preserves_history_and_future_action_contract() -> None:
+    dataset = PredictionDataset(
+        history_observations=torch.zeros(2, 3, 2, 4).numpy(),
+        future_target_displacements=torch.zeros(2, 5, 3).numpy(),
+        reference_positions=torch.zeros(2, 3).numpy(),
+        reference_velocities=torch.zeros(2, 3).numpy(),
+        episode_indices=torch.zeros(2, dtype=torch.long).numpy(),
+        timesteps=torch.arange(2, dtype=torch.long).numpy(),
+        episode_seeds=torch.ones(2, dtype=torch.long).numpy(),
+        target_motion_modes=np.asarray(["adaptive_branching", "adaptive_branching"]),
+        dt_seconds=0.1,
+        history_action_features=torch.zeros(2, 3, 2).numpy(),
+        future_action_conditions=torch.zeros(2, 5, 6).numpy(),
+    )
+    both_inputs, both_actions = flatten_evaluation_inputs(dataset, "both")
+    assert both_inputs.shape == (2, 3, 10)
+    assert both_actions.shape == (2, 5, 6)
+    none_inputs, none_actions = flatten_evaluation_inputs(dataset, "none")
+    assert none_inputs.shape == (2, 3, 8)
+    assert none_actions.shape == (2, 5, 0)
 
 
 def test_prediction_metrics_report_best_of_k() -> None:

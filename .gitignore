@@ -5,7 +5,10 @@ __pycache__/
 # Generated experiment artifacts are reproducible locally, not versioned.
 results/*
 !results/.gitkeep
+external/
+tmp/
 **/tensorboard/
+**/tensorboard_hparams/
 **/checkpoint*.pt
 **/best_checkpoint*.pt
 **/last_checkpoint*.pt
@@ -24,3 +27,4 @@ results/*
 !models/formal_phase2_v3/
 !models/formal_phase2_v3/*.pt
 !models/formal_phase2_v3/manifest.json
+models/phase15_s4_v3_*/

@@ -1,0 +1,8 @@
+# Optional dependencies for the upstream state-spaces/s4 adapter.
+# The S4 source itself is fetched separately at a pinned commit; it is not
+# silently installed as part of the portable predictor environment.
+einops>=0.7
+hydra-core>=1.3
+omegaconf>=2.3
+pytorch-lightning==2.0.4
+rich>=13

@@ -9,6 +9,20 @@
 当前工作已经形成了较完整的“预测 -> DN-MPC -> 安全过滤”仿真证据，
 但还不是经过真实执行器验证的完整 R-CLBF-QP 方法。
 
+## 0. 最新 Phase 15 S4-v3 进展
+
+扩建后的 action-conditioned branching 数据已完成冻结：600 个请求场景中
+566 个产生完整窗口，共 16,685 个窗口；按 300 个镜像组划分为
+420/90/90 个 train/validation/locked-test 场景，审计通过。新数据包含历史
+防御机动作、未来规划动作条件以及执行/通信时间戳。
+
+在 1,539 个 locked-test 窗口上，当前单 seed、3 epoch 初版的 projected
+minFDE 为：GRU `0.9286 m`，Diagonal SSM diffusion `1.3480 m`，dense
+S4-DPLR `1.3551 m`，upstream official S4 `1.3492 m`。diffusion 候选投影后
+可行率约 `84%`，尚未达到 `95%` 工作门槛；因此新 S4 结果目前是预测器对照，
+尚未接入 DN-MPC 形成新的端到端主结果。完整表格见
+`PHASE15_S4_V3_LOCKED_TEST_REPORT.md`。
+
 | 模块/阶段 | 当前结果 | 状态 |
 | --- | --- | --- |
 | 三维围捕环境与数据契约 | 速度级仿真、观测/标签隔离、执行扰动接口、可复现实验协议已实现 | 已完成基础设施 |

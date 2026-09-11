@@ -1,0 +1,57 @@
+dataset_name: phase15_s4_action_conditioned_branching_v3
+schema_version: 2
+purpose: action_conditioned_target_prediction_and_branch_inference
+split: all_scenes
+episodes: 600
+seed_start: 726101
+mirror_pairs: true
+history_length: 16
+horizon_steps: 12
+target_speed_scales: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
+defender_biases: [upper, lower]
+rollout_policies:
+  - dynamic_encirclement
+  - pure_pursuit
+  - prediction_pursuit
+  - safe_dynamic_encirclement
+  - randomized_safe_mixture
+observation_conditions:
+  - name: nominal
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.15
+      observation_noise_std: 0.03
+      message_delay_steps: 2
+      message_dropout_probability: 0.05
+  - name: delayed_noisy
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.22
+      observation_noise_std: 0.06
+      message_delay_steps: 4
+      message_dropout_probability: 0.10
+  - name: partial_dropout
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.35
+      observation_noise_std: 0.08
+      message_delay_steps: 6
+      message_dropout_probability: 0.15
+scene_variation:
+  wall_half_extent_x_m: [0.45, 0.65]
+  wall_half_extent_y_m: [3.85, 4.35]
+  wall_height_m: [9.25, 9.55]
+  target_initial_x_m: [-4.25, -3.45]
+  target_initial_y_m: [-0.40, 0.40]
+  target_altitude_m: [4.30, 5.70]
+  defender_x_offset_m: [0.0, 0.35]
+  defender_y_scale: [0.92, 1.08]
+  defender_z_offset_m: [-0.30, 0.30]
+data_contract:
+  actor_inputs: local_observation_history_plus_explicit_action_history
+  prediction_action_condition: future_planned_actions_only_when_available_online
+  labels: future_target_truth_plus_action_execution_streams
+  target_branch_label_visibility: labels_only
+  execution_dynamics: recorded_planned_commanded_delayed_and_executed
+  locked_test_data_included: false
+  split_policy: layout_seed_and_mirror_group

@@ -13,6 +13,8 @@ from encirclement3d.showcase import (
     validate_s4_branching_scenario,
 )
 from scripts.collect_s4_branching_dataset import balanced_sampling_weights
+from scripts.collect_s4_branching_dataset import episode_spec
+from scripts.split_s4_branching_dataset import assign_splits
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -110,3 +112,40 @@ def test_s4_balanced_sampler_equalizes_observed_policy_branch_strata() -> None:
     strata = np.array([0, 0, 1, 10, 10])
     masses = [float(weights[strata == key].sum()) for key in (0, 1, 10)]
     np.testing.assert_allclose(masses, np.full(3, masses[0]))
+
+
+def test_s4_v3_episode_specs_bind_mirror_members_to_one_layout() -> None:
+    collection = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase15_s4_branching_train_v3.yaml").read_text(encoding="utf-8")
+    )
+    upper = episode_spec(collection, 0)
+    lower = episode_spec(collection, 1)
+    assert upper["layout_seed"] == lower["layout_seed"]
+    assert upper["mirror_group_id"] == lower["mirror_group_id"]
+    assert upper["defender_bias"] == "upper"
+    assert lower["defender_bias"] == "lower"
+    assert upper["target_speed_scale"] == lower["target_speed_scale"]
+    assert upper["observation_condition"] == lower["observation_condition"]
+    assert upper["rollout_policy"] == lower["rollout_policy"]
+
+
+def test_s4_scene_split_never_separates_mirror_groups() -> None:
+    records = [
+        {
+            "episode_index": group * 2 + member,
+            "layout_seed": 100 + group,
+            "mirror_group_id": group,
+            "defender_bias": "upper" if member == 0 else "lower",
+        }
+        for group in range(3)
+        for member in range(2)
+    ]
+    splits, assignment = assign_splits(
+        records,
+        {"train": 2, "validation": 2, "locked_test": 2},
+        seed=17,
+    )
+    assert all(len(value) == 2 for value in splits.values())
+    assert len(set(assignment.values())) == 3
+    for group in range(3):
+        assert len({assignment[str(group)]}) == 1

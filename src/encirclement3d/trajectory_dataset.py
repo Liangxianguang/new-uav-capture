@@ -22,6 +22,8 @@ class PredictionDataset:
     target_motion_modes: np.ndarray
     dt_seconds: float
     future_target_velocities: np.ndarray | None = None
+    history_action_features: np.ndarray | None = None
+    future_action_conditions: np.ndarray | None = None
     world_lower_bounds: np.ndarray | None = None
     world_upper_bounds: np.ndarray | None = None
     obstacle_centers_xy: np.ndarray | None = None
@@ -79,6 +81,10 @@ class PredictionDataset:
         }
         if self.future_target_velocities is not None:
             values["future_target_velocities"] = self.future_target_velocities
+        if self.history_action_features is not None:
+            values["history_action_features"] = self.history_action_features
+        if self.future_action_conditions is not None:
+            values["future_action_conditions"] = self.future_action_conditions
         if self.has_geometry_context:
             values.update(
                 {
@@ -262,6 +268,12 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
     velocity_presence = [item.future_target_velocities is not None for item in datasets]
     if any(velocity_presence) and not all(velocity_presence):
         raise ValueError("Prediction datasets must consistently include future target velocities.")
+    history_action_presence = [item.history_action_features is not None for item in datasets]
+    future_action_presence = [item.future_action_conditions is not None for item in datasets]
+    if any(history_action_presence) and not all(history_action_presence):
+        raise ValueError("Prediction datasets must consistently include history action features.")
+    if any(future_action_presence) and not all(future_action_presence):
+        raise ValueError("Prediction datasets must consistently include future action conditions.")
     first = datasets[0]
     for dataset in datasets[1:]:
         if (
@@ -271,6 +283,16 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
             or dataset.feature_dim != first.feature_dim
             or not np.isclose(dataset.dt_seconds, first.dt_seconds)
             or dataset.has_geometry_context != first.has_geometry_context
+            or (
+                dataset.history_action_features is not None
+                and first.history_action_features is not None
+                and dataset.history_action_features.shape[2:] != first.history_action_features.shape[2:]
+            )
+            or (
+                dataset.future_action_conditions is not None
+                and first.future_action_conditions is not None
+                and dataset.future_action_conditions.shape[2:] != first.future_action_conditions.shape[2:]
+            )
             or (
                 dataset.has_geometry_context
                 and dataset.obstacle_centers_xy.shape[1] != first.obstacle_centers_xy.shape[1]
@@ -288,6 +310,16 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
                 axis=0,
             )
             if all(item.future_target_velocities is not None for item in datasets)
+            else None
+        ),
+        history_action_features=(
+            np.concatenate([item.history_action_features for item in datasets if item.history_action_features is not None], axis=0)
+            if all(item.history_action_features is not None for item in datasets)
+            else None
+        ),
+        future_action_conditions=(
+            np.concatenate([item.future_action_conditions for item in datasets if item.future_action_conditions is not None], axis=0)
+            if all(item.future_action_conditions is not None for item in datasets)
             else None
         ),
         reference_positions=np.concatenate([item.reference_positions for item in datasets], axis=0),
@@ -351,6 +383,28 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
             or dataset.future_target_velocities.shape != expected_future.shape
         ):
             raise ValueError("future_target_velocities must match future_target_displacements shape.")
+    if dataset.history_action_features is not None:
+        actions = np.asarray(dataset.history_action_features)
+        if (
+            actions.ndim != 3
+            or actions.shape[0] != sample_count
+            or actions.shape[1] != expected_history.shape[1]
+            or actions.shape[2] <= 0
+        ):
+            raise ValueError(
+                "history_action_features must have shape [samples, history, action_features]."
+            )
+    if dataset.future_action_conditions is not None:
+        actions = np.asarray(dataset.future_action_conditions)
+        if (
+            actions.ndim != 3
+            or actions.shape[0] != sample_count
+            or actions.shape[1] != expected_future.shape[1]
+            or actions.shape[2] <= 0
+        ):
+            raise ValueError(
+                "future_action_conditions must have shape [samples, horizon, action_features]."
+            )
     if dataset.reference_positions.shape != (sample_count, 3):
         raise ValueError("reference_positions must have shape [samples, 3].")
     if dataset.reference_velocities.shape != (sample_count, 3):
@@ -375,6 +429,10 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
             raise ValueError(f"{name} contains non-finite values.")
     if dataset.future_target_velocities is not None and not np.isfinite(dataset.future_target_velocities).all():
         raise ValueError("future_target_velocities contains non-finite values.")
+    if dataset.history_action_features is not None and not np.isfinite(dataset.history_action_features).all():
+        raise ValueError("history_action_features contains non-finite values.")
+    if dataset.future_action_conditions is not None and not np.isfinite(dataset.future_action_conditions).all():
+        raise ValueError("future_action_conditions contains non-finite values.")
     geometry_fields = (
         dataset.world_lower_bounds,
         dataset.world_upper_bounds,
@@ -483,6 +541,16 @@ def load_prediction_dataset(path: str) -> PredictionDataset:
             future_target_velocities=(
                 np.asarray(archive["future_target_velocities"], dtype=np.float32)
                 if "future_target_velocities" in archive.files
+                else None
+            ),
+            history_action_features=(
+                np.asarray(archive["history_action_features"], dtype=np.float32)
+                if "history_action_features" in archive.files
+                else None
+            ),
+            future_action_conditions=(
+                np.asarray(archive["future_action_conditions"], dtype=np.float32)
+                if "future_action_conditions" in archive.files
                 else None
             ),
             **geometry,

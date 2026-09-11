@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import importlib
 from pathlib import Path
+import sys
 from typing import Any
 
 import numpy as np
@@ -374,6 +377,7 @@ class HistoryTargetPredictor(nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 1,
         dropout: float = 0.0,
+        action_condition_dim: int = 0,
     ) -> None:
         super().__init__()
         if input_dim <= 0 or horizon_count <= 0 or hidden_dim <= 0 or num_layers <= 0:
@@ -384,12 +388,35 @@ class HistoryTargetPredictor(nn.Module):
         self.horizon_count = int(horizon_count)
         self.hidden_dim = int(hidden_dim)
         self.num_layers = int(num_layers)
+        self.action_condition_dim = int(action_condition_dim)
+        if self.action_condition_dim < 0:
+            raise ValueError("action_condition_dim must be non-negative.")
         self.encoder = nn.GRU(
             input_size=self.input_dim,
             hidden_size=self.hidden_dim,
             num_layers=self.num_layers,
             batch_first=True,
             dropout=float(dropout) if self.num_layers > 1 else 0.0,
+        )
+        self.action_encoder = (
+            nn.GRU(
+                input_size=self.action_condition_dim,
+                hidden_size=self.hidden_dim,
+                num_layers=self.num_layers,
+                batch_first=True,
+                dropout=float(dropout) if self.num_layers > 1 else 0.0,
+            )
+            if self.action_condition_dim > 0
+            else None
+        )
+        self.condition_fusion = (
+            nn.Sequential(
+                nn.Linear(2 * self.hidden_dim, self.hidden_dim),
+                nn.LayerNorm(self.hidden_dim),
+                nn.SiLU(),
+            )
+            if self.action_condition_dim > 0
+            else None
         )
         self.head = nn.Sequential(
             nn.LayerNorm(self.hidden_dim),
@@ -398,13 +425,31 @@ class HistoryTargetPredictor(nn.Module):
             nn.Linear(self.hidden_dim, self.horizon_count * 6),
         )
 
-    def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        action_condition: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         if inputs.ndim != 3 or inputs.shape[-1] != self.input_dim:
             raise ValueError(
                 f"Expected [batch, history, {self.input_dim}] inputs, got {tuple(inputs.shape)}."
             )
         encoded, _hidden = self.encoder(inputs)
-        output = self.head(encoded[:, -1])
+        summary = encoded[:, -1]
+        if self.action_condition_dim > 0:
+            if action_condition is None:
+                raise ValueError("This predictor requires an action condition tensor.")
+            if (
+                action_condition.ndim != 3
+                or action_condition.shape[0] != inputs.shape[0]
+                or action_condition.shape[-1] != self.action_condition_dim
+            ):
+                raise ValueError("action_condition has incompatible shape.")
+            action_encoded, _action_hidden = self.action_encoder(action_condition)
+            summary = self.condition_fusion(torch.cat([summary, action_encoded[:, -1]], dim=-1))
+        elif action_condition is not None:
+            raise ValueError("An action condition was supplied to an unconditioned predictor.")
+        output = self.head(summary)
         output = output.view(inputs.shape[0], self.horizon_count, 6)
         mean = output[..., :3]
         log_variance = torch.clamp(output[..., 3:], min=-8.0, max=5.0)
@@ -573,6 +618,97 @@ class DiagonalSSMEncoder(nn.Module):
         return torch.stack(outputs, dim=1)
 
 
+class DPLRS4Encoder(nn.Module):
+    """Dependency-free dense reference implementation of an S4 DPLR layer.
+
+    The layer parameterizes a continuous-time state matrix as
+    ``A = Lambda - P P*`` and uses the bilinear transform for discretization.
+    It is intentionally a small reference backend for reproducible CPU
+    experiments; it is not the upstream ``state-spaces/s4`` CUDA kernel.
+    """
+
+    backend = "s4_dplr_dense_reference"
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        num_layers: int = 1,
+        state_dim: int = 8,
+        rank: int = 1,
+    ) -> None:
+        super().__init__()
+        if input_dim <= 0 or hidden_dim <= 0 or num_layers <= 0 or state_dim <= 0 or rank <= 0:
+            raise ValueError("S4 dimensions must be positive.")
+        self.input_dim = int(input_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.num_layers = int(num_layers)
+        self.state_dim = int(state_dim)
+        self.rank = int(rank)
+        self.input_projection = nn.Linear(self.input_dim, self.hidden_dim)
+        self.input_layers = nn.ModuleList(
+            [nn.Linear(self.hidden_dim, self.hidden_dim) for _ in range(self.num_layers)]
+        )
+        self.output_norms = nn.ModuleList(
+            [nn.LayerNorm(self.hidden_dim) for _ in range(self.num_layers)]
+        )
+        state_index = torch.arange(1, self.state_dim + 1, dtype=torch.float32)
+        self.log_real_eigenvalues = nn.Parameter(
+            torch.log(0.5 * state_index).view(1, 1, -1).expand(self.num_layers, self.hidden_dim, -1).clone()
+        )
+        self.imag_eigenvalues = nn.Parameter(
+            (torch.pi * (state_index - 1.0)).view(1, 1, -1).expand(self.num_layers, self.hidden_dim, -1).clone()
+        )
+        scale = 0.02
+        self.p_real = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim, self.rank) * scale)
+        self.p_imag = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim, self.rank) * scale)
+        self.b_real = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim) * scale)
+        self.b_imag = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim) * scale)
+        self.c_real = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim) * scale)
+        self.c_imag = nn.Parameter(torch.randn(self.num_layers, self.hidden_dim, self.state_dim) * scale)
+        self.log_step = nn.Parameter(torch.full((self.num_layers, self.hidden_dim), -2.0))
+        self.skip = nn.Parameter(torch.zeros(self.num_layers, self.hidden_dim))
+
+    def _discretize(self, layer: int, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        real = -F.softplus(self.log_real_eigenvalues[layer]).to(dtype)
+        imag = self.imag_eigenvalues[layer].to(dtype)
+        diagonal = torch.complex(real, imag)
+        p = torch.complex(self.p_real[layer].to(dtype), self.p_imag[layer].to(dtype))
+        A = torch.diag_embed(diagonal) - torch.matmul(p, p.conj().transpose(-1, -2))
+        b = torch.complex(self.b_real[layer].to(dtype), self.b_imag[layer].to(dtype)).unsqueeze(-1)
+        c = torch.complex(self.c_real[layer].to(dtype), self.c_imag[layer].to(dtype)).unsqueeze(-2)
+        step = F.softplus(self.log_step[layer]).to(dtype).unsqueeze(-1).unsqueeze(-1)
+        identity = torch.eye(self.state_dim, device=A.device, dtype=A.dtype).expand_as(A)
+        left = identity - 0.5 * step * A
+        right = identity + 0.5 * step * A
+        a_bar = torch.linalg.solve(left, right)
+        b_bar = torch.linalg.solve(left, step * b)
+        return a_bar, b_bar.squeeze(-1), c.squeeze(-2), self.skip[layer]
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        if inputs.ndim != 3 or inputs.shape[-1] != self.input_dim:
+            raise ValueError(
+                f"Expected [batch, time, {self.input_dim}] S4 inputs, got {tuple(inputs.shape)}."
+            )
+        layer_input = torch.tanh(self.input_projection(inputs))
+        for layer in range(self.num_layers):
+            a_bar, b_bar, c, skip = self._discretize(layer, layer_input.dtype)
+            state = torch.zeros(
+                layer_input.shape[0], self.hidden_dim, self.state_dim,
+                device=layer_input.device, dtype=a_bar.dtype,
+            )
+            outputs: list[torch.Tensor] = []
+            projected = self.input_layers[layer](layer_input)
+            for timestep in range(projected.shape[1]):
+                current = projected[:, timestep].to(a_bar.dtype)
+                state = torch.einsum("hij,bhj->bhi", a_bar, state)
+                state = state + current.unsqueeze(-1) * b_bar.unsqueeze(0)
+                output = torch.einsum("hj,bhj->bh", c, state).real
+                outputs.append(output + skip.unsqueeze(0) * projected[:, timestep])
+            layer_input = self.output_norms[layer](torch.stack(outputs, dim=1))
+        return layer_input
+
+
 class ConditionalDiffusionTrajectoryPredictor(nn.Module):
     """SSM-conditioned trajectory diffusion model with few-step DDIM sampling."""
 
@@ -585,6 +721,7 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         diffusion_steps: int = 100,
+        action_condition_dim: int = 0,
     ) -> None:
         super().__init__()
         if input_dim <= 0 or horizon_count <= 0 or hidden_dim <= 0:
@@ -596,8 +733,25 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         self.hidden_dim = int(hidden_dim)
         self.num_layers = int(num_layers)
         self.diffusion_steps = int(diffusion_steps)
+        self.action_condition_dim = int(action_condition_dim)
+        if self.action_condition_dim < 0:
+            raise ValueError("action_condition_dim must be non-negative.")
         self.target_dim = self.horizon_count * 3
         self.encoder = DiagonalSSMEncoder(self.input_dim, self.hidden_dim, self.num_layers)
+        self.action_encoder = (
+            DiagonalSSMEncoder(self.action_condition_dim, self.hidden_dim, self.num_layers)
+            if self.action_condition_dim > 0
+            else None
+        )
+        self.condition_fusion = (
+            nn.Sequential(
+                nn.Linear(2 * self.hidden_dim, self.hidden_dim),
+                nn.LayerNorm(self.hidden_dim),
+                nn.SiLU(),
+            )
+            if self.action_condition_dim > 0
+            else None
+        )
         self.condition_norm = nn.LayerNorm(self.hidden_dim)
         self.time_projection = nn.Sequential(
             nn.Linear(self.hidden_dim, self.hidden_dim),
@@ -623,11 +777,30 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
             "hidden_dim": self.hidden_dim,
             "num_layers": self.num_layers,
             "diffusion_steps": self.diffusion_steps,
+            "action_condition_dim": self.action_condition_dim,
         }
 
-    def encode_condition(self, inputs: torch.Tensor) -> torch.Tensor:
+    def encode_condition(
+        self,
+        inputs: torch.Tensor,
+        action_condition: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         sequence = self.encoder(inputs)
-        return self.condition_norm(sequence[:, -1])
+        summary = sequence[:, -1]
+        if self.action_condition_dim > 0:
+            if action_condition is None:
+                raise ValueError("This predictor requires an action condition tensor.")
+            if (
+                action_condition.ndim != 3
+                or action_condition.shape[0] != inputs.shape[0]
+                or action_condition.shape[-1] != self.action_condition_dim
+            ):
+                raise ValueError("action_condition has incompatible shape.")
+            action_sequence = self.action_encoder(action_condition)
+            summary = self.condition_fusion(torch.cat([summary, action_sequence[:, -1]], dim=-1))
+        elif action_condition is not None:
+            raise ValueError("An action condition was supplied to an unconditioned predictor.")
+        return self.condition_norm(summary)
 
     def _time_embedding(self, timesteps: torch.Tensor) -> torch.Tensor:
         half = self.hidden_dim // 2
@@ -658,10 +831,11 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         inputs: torch.Tensor,
         targets: torch.Tensor,
         generator: torch.Generator | None = None,
+        action_condition: torch.Tensor | None = None,
     ) -> torch.Tensor:
         if targets.ndim != 3 or targets.shape[1:] != (self.horizon_count, 3):
             raise ValueError("targets must have shape [batch, horizon, 3].")
-        condition = self.encode_condition(inputs)
+        condition = self.encode_condition(inputs, action_condition)
         clean = targets.reshape(targets.shape[0], -1)
         timesteps = torch.randint(
             0,
@@ -688,10 +862,11 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         num_samples: int = 8,
         sampling_steps: int = 8,
         generator: torch.Generator | None = None,
+        action_condition: torch.Tensor | None = None,
     ) -> torch.Tensor:
         if num_samples <= 0 or sampling_steps <= 0:
             raise ValueError("num_samples and sampling_steps must be positive.")
-        condition = self.encode_condition(inputs)
+        condition = self.encode_condition(inputs, action_condition)
         batch_size = inputs.shape[0]
         expanded_condition = condition[:, None, :].expand(batch_size, num_samples, -1).reshape(
             batch_size * num_samples, -1
@@ -738,6 +913,7 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
         num_samples: int = 8,
         sampling_steps: int = 8,
         generator: torch.Generator | None = None,
+        action_condition: torch.Tensor | None = None,
     ) -> CandidateTrajectorySet:
         """Return planner-facing candidates with explicitly uncalibrated scores."""
 
@@ -747,8 +923,259 @@ class ConditionalDiffusionTrajectoryPredictor(nn.Module):
                 num_samples=num_samples,
                 sampling_steps=sampling_steps,
                 generator=generator,
+                action_condition=action_condition,
             )
         )
+
+
+class S4ConditionalDiffusionTrajectoryPredictor(ConditionalDiffusionTrajectoryPredictor):
+    """Conditional diffusion predictor using the dense DPLR-S4 reference encoder."""
+
+    backend = "s4_dplr_dense_reference"
+
+    def __init__(
+        self,
+        input_dim: int,
+        horizon_count: int,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        diffusion_steps: int = 100,
+        action_condition_dim: int = 0,
+        state_dim: int = 8,
+        rank: int = 1,
+    ) -> None:
+        super().__init__(
+            input_dim=input_dim,
+            horizon_count=horizon_count,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            diffusion_steps=diffusion_steps,
+            action_condition_dim=action_condition_dim,
+        )
+        self.encoder = DPLRS4Encoder(
+            input_dim=input_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            state_dim=state_dim,
+            rank=rank,
+        )
+        self.action_encoder = (
+            DPLRS4Encoder(
+                input_dim=action_condition_dim,
+                hidden_dim=hidden_dim,
+                num_layers=num_layers,
+                state_dim=state_dim,
+                rank=rank,
+            )
+            if action_condition_dim > 0
+            else None
+        )
+        self.state_dim = int(state_dim)
+        self.rank = int(rank)
+
+    @property
+    def model_config(self) -> dict[str, int]:
+        return {
+            **super().model_config,
+            "state_dim": self.state_dim,
+            "rank": self.rank,
+        }
+
+
+def _official_s4_source_hashes(root: Path) -> dict[str, str]:
+    """Hash the upstream files that define the imported S4 kernel."""
+
+    relative_paths = (
+        Path("src/models/sequence/kernels/ssm.py"),
+        Path("src/models/sequence/kernels/dplr.py"),
+        Path("src/models/hippo/hippo.py"),
+    )
+    result: dict[str, str] = {}
+    for relative_path in relative_paths:
+        path = root / relative_path
+        if not path.is_file():
+            raise FileNotFoundError(f"Official S4 source is missing {relative_path}: {path}")
+        result[str(relative_path).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _load_official_s4_kernel(root: Path) -> type[nn.Module]:
+    """Load the upstream state-spaces SSMKernelDPLR without vendoring its tree."""
+
+    root = root.resolve()
+    source_hashes = _official_s4_source_hashes(root)
+    del source_hashes
+    if not (root / "src/models/sequence/kernels/ssm.py").is_file():
+        raise FileNotFoundError(
+            "official_s4_root must point to a state-spaces/s4 source checkout "
+            "containing src/models/sequence/kernels/ssm.py."
+        )
+    root_text = str(root)
+    if root_text not in sys.path:
+        sys.path.insert(0, root_text)
+    try:
+        module = importlib.import_module("src.models.sequence.kernels.ssm")
+    except Exception as error:  # pragma: no cover - depends on optional upstream environment
+        raise ImportError(
+            "Unable to import the upstream state-spaces/s4 kernel. Install its optional "
+            "dependencies and pass a valid official_s4_root."
+        ) from error
+    module_path = Path(str(module.__file__)).resolve()
+    if root not in module_path.parents:
+        raise ImportError(
+            "The imported S4 kernel does not come from official_s4_root; "
+            f"resolved {module_path} instead of {root}."
+        )
+    kernel_class = getattr(module, "SSMKernelDPLR", None)
+    if kernel_class is None:
+        raise ImportError("The upstream S4 module does not expose SSMKernelDPLR.")
+    return kernel_class
+
+
+class OfficialS4Encoder(nn.Module):
+    """Adapter around the upstream state-spaces S4 DPLR convolution kernel.
+
+    The upstream repository is intentionally an explicit runtime dependency. This
+    adapter keeps the local predictor API and uses the upstream HiPPO/DPLR kernel
+    with a causal depthwise convolution over the sequence.
+    """
+
+    backend = "official_state_spaces_s4_dplr"
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        sequence_length: int,
+        official_s4_root: str | Path,
+        num_layers: int = 1,
+        state_dim: int = 16,
+        rank: int = 1,
+    ) -> None:
+        super().__init__()
+        if input_dim <= 0 or hidden_dim <= 0 or sequence_length <= 0 or num_layers <= 0:
+            raise ValueError("Official S4 dimensions and sequence_length must be positive.")
+        if state_dim <= 0 or rank <= 0:
+            raise ValueError("Official S4 state_dim and rank must be positive.")
+        root = Path(official_s4_root).resolve()
+        self.input_dim = int(input_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.sequence_length = int(sequence_length)
+        self.num_layers = int(num_layers)
+        self.state_dim = int(state_dim)
+        self.rank = int(rank)
+        self.official_s4_root = str(root)
+        self.official_s4_source_hashes = _official_s4_source_hashes(root)
+        kernel_class = _load_official_s4_kernel(root)
+        self.input_projection = nn.Linear(self.input_dim, self.hidden_dim)
+        self.kernels = nn.ModuleList(
+            [
+                kernel_class(
+                    d_model=self.hidden_dim,
+                    l_max=self.sequence_length,
+                    d_state=self.state_dim,
+                    rank=self.rank,
+                    init="legs",
+                    channels=1,
+                    verbose=False,
+                    backend="naive",
+                )
+                for _ in range(self.num_layers)
+            ]
+        )
+        self.output_norms = nn.ModuleList(
+            [nn.LayerNorm(self.hidden_dim) for _ in range(self.num_layers)]
+        )
+        self.skip = nn.Parameter(torch.zeros(self.hidden_dim))
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        if inputs.ndim != 3 or inputs.shape[-1] != self.input_dim:
+            raise ValueError(
+                f"Expected [batch, time, {self.input_dim}] official S4 inputs, got {tuple(inputs.shape)}."
+            )
+        if inputs.shape[1] != self.sequence_length:
+            raise ValueError(
+                f"Official S4 expects sequence length {self.sequence_length}, got {inputs.shape[1]}."
+            )
+        sequence = torch.tanh(self.input_projection(inputs)).transpose(1, 2)
+        for kernel, output_norm in zip(self.kernels, self.output_norms):
+            residual = sequence
+            kernel_values, _state = kernel(L=self.sequence_length)
+            kernel_values = kernel_values[0].to(sequence.dtype)
+            weights = kernel_values.flip(-1).unsqueeze(1)
+            padded = F.pad(sequence, (self.sequence_length - 1, 0))
+            sequence = F.conv1d(padded, weights, groups=self.hidden_dim)
+            sequence = sequence + self.skip.view(1, -1, 1) * residual
+            sequence = output_norm(sequence.transpose(1, 2)).transpose(1, 2)
+        return sequence.transpose(1, 2)
+
+
+class OfficialS4ConditionalDiffusionTrajectoryPredictor(ConditionalDiffusionTrajectoryPredictor):
+    """Conditional diffusion predictor backed by upstream state-spaces S4."""
+
+    backend = "official_state_spaces_s4_dplr"
+
+    def __init__(
+        self,
+        input_dim: int,
+        horizon_count: int,
+        hidden_dim: int = 128,
+        num_layers: int = 1,
+        diffusion_steps: int = 100,
+        action_condition_dim: int = 0,
+        history_length: int = 16,
+        official_s4_root: str | Path = "",
+        state_dim: int = 16,
+        rank: int = 1,
+    ) -> None:
+        if not official_s4_root:
+            raise ValueError("official_s4_root is required for official_s4_diffusion.")
+        super().__init__(
+            input_dim=input_dim,
+            horizon_count=horizon_count,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            diffusion_steps=diffusion_steps,
+            action_condition_dim=action_condition_dim,
+        )
+        self.encoder = OfficialS4Encoder(
+            input_dim=input_dim,
+            hidden_dim=hidden_dim,
+            sequence_length=history_length,
+            official_s4_root=official_s4_root,
+            num_layers=num_layers,
+            state_dim=state_dim,
+            rank=rank,
+        )
+        self.action_encoder = (
+            OfficialS4Encoder(
+                input_dim=action_condition_dim,
+                hidden_dim=hidden_dim,
+                sequence_length=horizon_count,
+                official_s4_root=official_s4_root,
+                num_layers=num_layers,
+                state_dim=state_dim,
+                rank=rank,
+            )
+            if action_condition_dim > 0
+            else None
+        )
+        self.history_length = int(history_length)
+        self.state_dim = int(state_dim)
+        self.rank = int(rank)
+        self.official_s4_root = str(Path(official_s4_root).resolve())
+        self.official_s4_source_hashes = self.encoder.official_s4_source_hashes
+
+    @property
+    def model_config(self) -> dict[str, Any]:
+        return {
+            **super().model_config,
+            "history_length": self.history_length,
+            "official_s4_root": self.official_s4_root,
+            "state_dim": self.state_dim,
+            "rank": self.rank,
+            "official_s4_source_hashes": self.official_s4_source_hashes,
+        }
 
 
 def prediction_metrics(

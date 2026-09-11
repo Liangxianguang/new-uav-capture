@@ -28,6 +28,8 @@ from encirclement3d.prediction import (  # noqa: E402
     CandidateTrajectorySet,
     ConditionalDiffusionTrajectoryPredictor,
     HistoryTargetPredictor,
+    OfficialS4ConditionalDiffusionTrajectoryPredictor,
+    S4ConditionalDiffusionTrajectoryPredictor,
     TrajectoryNormalizer,
     assess_candidate_feasibility,
     candidate_energy_score,
@@ -61,6 +63,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-seed", type=int, default=745102)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--projection-iterations", type=int, default=4)
+    parser.add_argument(
+        "--official-s4-root",
+        type=Path,
+        help="Override the upstream state-spaces/s4 source root stored in an official checkpoint.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     return parser.parse_args()
 
@@ -86,21 +93,70 @@ def source_hashes() -> dict[str, str]:
     }
 
 
-def flatten_inputs(dataset: PredictionDataset) -> torch.Tensor:
+def flatten_inputs(
+    dataset: PredictionDataset,
+    action_conditioning: str = "none",
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if action_conditioning not in {"none", "history", "future", "both"}:
+        raise ValueError("action_conditioning must be one of none/history/future/both.")
     inputs = torch.as_tensor(dataset.history_observations, dtype=torch.float32)
-    return inputs.reshape(inputs.shape[0], inputs.shape[1], -1)
+    inputs = inputs.reshape(inputs.shape[0], inputs.shape[1], -1)
+    use_history = action_conditioning in {"history", "both"}
+    use_future = action_conditioning in {"future", "both"}
+    if use_history:
+        if dataset.history_action_features is None:
+            raise ValueError("The dataset does not provide history_action_features.")
+        history_actions = torch.as_tensor(dataset.history_action_features, dtype=torch.float32)
+        if history_actions.ndim != 3 or history_actions.shape[:2] != inputs.shape[:2]:
+            raise ValueError("history_action_features is incompatible with history_observations.")
+        inputs = torch.cat([inputs, history_actions], dim=-1)
+    if use_future:
+        if dataset.future_action_conditions is None:
+            raise ValueError("The dataset does not provide future_action_conditions.")
+        action_conditions = torch.as_tensor(dataset.future_action_conditions, dtype=torch.float32)
+        if action_conditions.ndim != 3 or action_conditions.shape[0] != inputs.shape[0]:
+            raise ValueError("future_action_conditions is incompatible with the dataset.")
+    else:
+        action_conditions = torch.zeros(
+            inputs.shape[0], dataset.horizon_steps, 0, dtype=torch.float32
+        )
+    return inputs, action_conditions
 
 
-def load_model(checkpoint_path: Path, device: torch.device) -> tuple[torch.nn.Module, str, TrajectoryNormalizer, dict[str, Any]]:
+def load_model(
+    checkpoint_path: Path,
+    device: torch.device,
+    official_s4_root: Path | None = None,
+) -> tuple[torch.nn.Module, str, TrajectoryNormalizer, dict[str, Any]]:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if not isinstance(checkpoint, dict):
         raise ValueError("Prediction checkpoint must contain a mapping.")
     model_kind = str(checkpoint["model_kind"])
-    model_config = checkpoint["model_config"]
+    model_config = dict(checkpoint["model_config"])
+    state_dict = checkpoint.get("state_dict", {})
+    if "diffusion_steps" not in model_config and "betas" in state_dict:
+        model_config["diffusion_steps"] = int(state_dict["betas"].shape[0])
+    if model_kind == "s4_diffusion":
+        if "state_dim" not in model_config and "encoder.log_real_eigenvalues" in state_dict:
+            model_config["state_dim"] = int(state_dict["encoder.log_real_eigenvalues"].shape[-1])
+        if "rank" not in model_config and "encoder.p_real" in state_dict:
+            model_config["rank"] = int(state_dict["encoder.p_real"].shape[-1])
+    if model_kind == "official_s4_diffusion":
+        if official_s4_root is not None:
+            model_config["official_s4_root"] = str(official_s4_root.resolve())
+        if "state_dim" not in model_config and "encoder.kernels.0.A_real" in state_dict:
+            model_config["state_dim"] = int(state_dict["encoder.kernels.0.A_real"].shape[-1] * 2)
+        if "rank" not in model_config and "encoder.kernels.0.P" in state_dict:
+            model_config["rank"] = int(state_dict["encoder.kernels.0.P"].shape[0])
+        model_config.pop("official_s4_source_hashes", None)
     if model_kind == "gru":
         model = HistoryTargetPredictor(**model_config)
     elif model_kind == "diffusion":
         model = ConditionalDiffusionTrajectoryPredictor(**model_config)
+    elif model_kind == "s4_diffusion":
+        model = S4ConditionalDiffusionTrajectoryPredictor(**model_config)
+    elif model_kind == "official_s4_diffusion":
+        model = OfficialS4ConditionalDiffusionTrajectoryPredictor(**model_config)
     else:
         raise ValueError(f"Unsupported checkpoint model kind: {model_kind}")
     model.load_state_dict(checkpoint["state_dict"], strict=True)
@@ -125,6 +181,7 @@ def sample_candidates(
     sampling_steps: int,
     seed: int,
     batch_size: int,
+    action_conditions: torch.Tensor,
 ) -> torch.Tensor:
     if indices.ndim != 1 or indices.size == 0:
         raise ValueError("indices must select at least one sample.")
@@ -137,8 +194,10 @@ def sample_candidates(
         for start in range(0, indices.size, batch_size):
             selected = torch.as_tensor(indices[start : start + batch_size], dtype=torch.long)
             batch_inputs = inputs.index_select(0, selected).to(device)
+            selected_actions = action_conditions.index_select(0, selected).to(device)
+            action_condition = selected_actions if selected_actions.shape[-1] > 0 else None
             if model_kind == "gru":
-                mean, _log_variance = model(batch_inputs)
+                mean, _log_variance = model(batch_inputs, action_condition)
                 candidates = mean[:, None]
             else:
                 candidates = model.sample_set(
@@ -146,6 +205,7 @@ def sample_candidates(
                     num_samples=num_samples,
                     sampling_steps=sampling_steps,
                     generator=generator,
+                    action_condition=action_condition,
                 ).trajectories
             chunks.append(normalizer.denormalize(candidates).cpu())
     return torch.cat(chunks, dim=0)
@@ -240,17 +300,26 @@ def measure_latency(
     device: torch.device,
     num_samples: int,
     sampling_steps: int,
+    action_conditions: torch.Tensor,
 ) -> dict[str, float]:
     sample = inputs[:1].to(device)
+    sample_actions = action_conditions[:1].to(device)
+    action_condition = sample_actions if sample_actions.shape[-1] > 0 else None
     generator = torch.Generator(device=device.type).manual_seed(99173)
 
     def run() -> None:
         with torch.no_grad():
             if model_kind == "gru":
-                mean, _ = model(sample)
+                mean, _ = model(sample, action_condition)
                 normalizer.denormalize(mean[:, None])
             else:
-                model.sample_set(sample, num_samples=num_samples, sampling_steps=sampling_steps, generator=generator)
+                model.sample_set(
+                    sample,
+                    num_samples=num_samples,
+                    sampling_steps=sampling_steps,
+                    generator=generator,
+                    action_condition=action_condition,
+                )
 
     for _ in range(5):
         run()
@@ -286,12 +355,33 @@ def main() -> None:
     device = select_device(args.device)
     validation = load_prediction_dataset(str(args.validation_dataset.resolve()))
     locked_test = load_prediction_dataset(str(args.locked_test_dataset.resolve()))
-    validation_inputs = flatten_inputs(validation)
-    test_inputs = flatten_inputs(locked_test)
-    model, model_kind, normalizer, checkpoint = load_model(args.checkpoint.resolve(), device)
+    model, model_kind, normalizer, checkpoint = load_model(
+        args.checkpoint.resolve(), device, args.official_s4_root
+    )
     model_args = json.loads(json.dumps(checkpoint.get("final_metrics", {}), allow_nan=True))
     train_config = json.loads(training_output.joinpath("metadata.json").read_text(encoding="utf-8"))
     configured_args = train_config.get("arguments", {})
+    action_conditioning = str(configured_args.get("action_conditioning", "none"))
+    validation_inputs, validation_action_conditions = flatten_inputs(validation, action_conditioning)
+    test_inputs, test_action_conditions = flatten_inputs(locked_test, action_conditioning)
+    model_input_dim = int(checkpoint["model_config"]["input_dim"])
+    if validation_inputs.shape[-1] != model_input_dim or test_inputs.shape[-1] != model_input_dim:
+        raise ValueError(
+            "Dataset input width does not match the checkpoint: "
+            f"model={model_input_dim}, validation={validation_inputs.shape[-1]}, "
+            f"locked_test={test_inputs.shape[-1]}."
+        )
+    model_action_dim = int(checkpoint["model_config"].get("action_condition_dim", 0))
+    if validation_action_conditions.shape[-1] != model_action_dim:
+        raise ValueError(
+            "Dataset action-condition width does not match the checkpoint: "
+            f"model={model_action_dim}, validation={validation_action_conditions.shape[-1]}."
+        )
+    if test_action_conditions.shape[-1] != model_action_dim:
+        raise ValueError(
+            "Dataset action-condition width does not match the checkpoint: "
+            f"model={model_action_dim}, locked_test={test_action_conditions.shape[-1]}."
+        )
     num_samples = int(args.num_samples if args.num_samples is not None else configured_args.get("num_samples", 8))
     sampling_steps = int(
         args.sampling_steps if args.sampling_steps is not None else configured_args.get("sampling_steps", 8)
@@ -309,6 +399,7 @@ def main() -> None:
         sampling_steps,
         args.sampling_seed + 2,
         args.batch_size,
+        validation_action_conditions,
     )
     calibration_targets = torch.as_tensor(validation.future_target_displacements).index_select(
         0, torch.as_tensor(calibration_indices, dtype=torch.long)
@@ -342,6 +433,7 @@ def main() -> None:
         sampling_steps,
         args.sampling_seed,
         args.batch_size,
+        test_action_conditions,
     )
     projected_candidates = project_candidate_trajectories(
         raw_candidates,
@@ -358,7 +450,16 @@ def main() -> None:
     projected_metrics = metrics(projected_candidates, locked_test, test_indices, constraints, projected_radius)
     raw_modes = mode_metrics(raw_candidates, locked_test, test_indices, constraints, raw_radius)
     projected_modes = mode_metrics(projected_candidates, locked_test, test_indices, constraints, projected_radius)
-    latency = measure_latency(model, model_kind, normalizer, test_inputs, device, num_samples, sampling_steps)
+    latency = measure_latency(
+        model,
+        model_kind,
+        normalizer,
+        test_inputs,
+        device,
+        num_samples,
+        sampling_steps,
+        test_action_conditions,
+    )
     result = {
         "checkpoint": str(args.checkpoint.resolve()),
         "training_output": str(training_output),
@@ -367,6 +468,13 @@ def main() -> None:
         "locked_test_dataset": str(args.locked_test_dataset.resolve()),
         "model_kind": model_kind,
         "model_backend": checkpoint.get("model_backend"),
+        "action_conditioning": action_conditioning,
+        "history_action_feature_dim": int(
+            validation.history_action_features.shape[-1]
+            if validation.history_action_features is not None
+            else 0
+        ),
+        "future_action_condition_dim": int(validation_action_conditions.shape[-1]),
         "device": str(device),
         "sampling_seed": args.sampling_seed,
         "num_samples": num_samples,
