@@ -63,6 +63,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reference-group", default="gru")
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
     parser.add_argument("--bootstrap-seed", type=int, default=20260911)
+    parser.add_argument(
+        "--evaluation-split",
+        choices=("validation_selection", "locked_test", "ood_diagnostic"),
+        default="locked_test",
+        help="Frozen scene split represented by the aggregate artifact.",
+    )
+    parser.add_argument(
+        "--report-title",
+        default="Action-Conditioned Closed-Loop Summary",
+        help="Human-readable report title. The split label is appended automatically.",
+    )
     return parser.parse_args()
 
 
@@ -317,10 +328,16 @@ def render_interval(metric: dict[str, Any], percent: bool = False) -> str:
 
 
 def markdown_report(payload: dict[str, Any]) -> str:
+    split = str(payload["evaluation_split"])
+    split_description = {
+        "validation_selection": "validation scene manifest used for configuration selection",
+        "locked_test": "locked-test scene manifest",
+        "ood_diagnostic": "frozen OOD diagnostic scene manifest",
+    }[split]
     lines = [
-        "# Phase 15 S4-v3 Action-Conditioned Closed-Loop Summary",
+        f"# {payload['report_title']}",
         "",
-        "All runs use the same frozen 90-scene locked-test manifest. Confidence intervals are hierarchical 95% bootstrap intervals that resample matched predictor training seeds and episode indices.",
+        f"All runs use the same frozen {split_description}. Confidence intervals are hierarchical 95% bootstrap intervals that resample matched predictor training seeds and episode indices.",
         "",
         "| Predictor family | Method | Safe capture | Collision | Timeout | Capture time (s) | Condition available | Total p95 (ms) |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -387,11 +404,13 @@ def main() -> None:
         }
     payload = {
         "reference_group": args.reference_group,
+        "evaluation_split": args.evaluation_split,
+        "report_title": args.report_title,
         "scene_manifest_sha256": groups[args.reference_group][0].scene_hash,
         "bootstrap": {
             "samples": args.bootstrap_samples,
             "seed": args.bootstrap_seed,
-            "unit": "matched predictor training seed and locked-test episode",
+            "unit": "matched predictor training seed and frozen-scene episode",
         },
         "groups": summaries,
         "paired_vs_reference": paired,
