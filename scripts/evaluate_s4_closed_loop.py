@@ -70,6 +70,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
+    parser.add_argument(
+        "--decision",
+        choices=("validation_selection", "locked_test_diagnostic", "ood_diagnostic"),
+        default="locked_test_diagnostic",
+        help="Explicit result-split label stored in the run metadata and summary.",
+    )
     return parser.parse_args()
 
 
@@ -189,6 +195,7 @@ def main() -> None:
         "prediction_refresh_interval_steps": args.prediction_refresh_interval_steps,
         "device": str(device),
         "safety_layer": args.safety_layer,
+        "decision": args.decision,
         "source_hashes": hashes,
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
@@ -257,7 +264,7 @@ def main() -> None:
         method_output.joinpath("summary.json").write_text(json.dumps(summary, indent=2, allow_nan=True), encoding="utf-8")
         all_summaries[method] = summary
 
-    result = {"protocol": run_config, "methods": all_summaries, "decision": "locked_test_diagnostic"}
+    result = {"protocol": run_config, "methods": all_summaries, "decision": args.decision}
     output.joinpath("summary.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
     print(json.dumps(result, indent=2, allow_nan=True), flush=True)
 
