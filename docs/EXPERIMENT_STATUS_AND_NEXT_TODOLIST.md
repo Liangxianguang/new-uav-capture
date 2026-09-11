@@ -6,6 +6,8 @@
 
 > Phase 16 v4 更新：扩建的 600 场景 S4 原始档案已按 300 个镜像组冻结为 420/90/90 场景的 train/validation/locked-test；由公开 team belief 重新构建预测原点后得到 13,224/1,922/1,539 个窗口。预测的 validation-only 选型和 locked-test 预测确认均已完成：GRU 是误差主参考，Diagonal SSM、dense S4 与 official S4 保留为 K=8 多模态比较，不能声称 S4 优于 GRU。三种子 validation 闭环选择冻结为每步刷新、`both` 因果动作条件和 local CBF；GRU + distributed delayed DN-MPC 的 validation safe capture 为 `93.70% [90.74%, 96.30%]`，collision 为 `0%`、total p95 为 `44.78 ms`。locked-test 三种子矩阵现已完成：GRU K=1 的 distributed safe capture 为 `94.81% [91.85%, 97.41%]`、total p95 为 `43.58 ms`；Diagonal SSM K=8 与 official S4 K=8 均为 `95.56% [92.96%, 97.78%]`、0 collision，但 total p95 分别为 `90.81/90.02 ms`。相对 GRU 的 distributed gain 均为 `+0.74` 点且 CI 下界为 0，不能声称主分支提升。新增严格 K=1/K=8 配对消融显示：主 distributed 分支均为 95.56% safe capture，候选数无可见收益；worst-case 中 K=8 对 Diagonal SSM 增益 `+7.78` 点 `[+3.70,+12.22]`，对 official S4 增益 `+5.56` 点 `[+1.85,+9.26]`，且 K=1 出现少量 collision/boundary failures、K=8 为 0。因此多候选的当前证据限于保守 worst-case 规划，不可泛化为所有场景收益。新增 GRU none/local-CBF 三种子安全消融显示：distributed 中 local CBF 将 collision 从 `5.56%` 降到 `0%`（paired `-5.56` 点 `[-8.89,-2.96]`），safe capture 差异不显著；worst-case 中 local CBF 同样消除 collision，但 safe capture 下降 `8.15` 点 `[-14.44,-1.48]`，表现为安全--捕获 Pareto，非无代价优势。新增 action-conditioning 闭环消融显示 `none/history/future` 相对 `both` 的 safe-capture paired CI 均跨 0；当前只支持动作条件接口已因果实现和审计，不能支持“动作条件提升闭环捕获率”。并行运行的 221--223 ms p95 不可与 earlier `both` 批次作因果延迟比较。robust CBF-QP diagnostic 仍为 No-Go。完整记录见 `docs/PHASE16_LOCKED_TEST_CLOSED_LOOP_REPORT.md`。
 
+> Phase 16 几何 OOD 更新：新增并冻结 100 个 episode / 50 个上下镜像组的几何外推诊断；wall half-x、half-y、height 均与训练范围不重叠。三种子 GRU `both` + distributed delayed DN-MPC + local CBF 的 safe capture 为 `84.00% [79.33%, 88.33%]`，collision / boundary 均为 `0%`，timeout 为 `16.00% [11.67%, 20.67%]`，total p50/p95/p99 为 `72.93/93.60/111.26 ms`。同一 OOD 块上 worst-case 仅为 `46.33% [39.67%, 53.33%]`，且 collision / boundary 各为 `1.67%`，不可作为 OOD 几何主方案。该块只改变几何，且与 locked-test 场景文件不同，因此相对 ID `94.81%` 的下降只能作为描述性 transfer gap，不能写成配对显著性结论，更不能写成全面鲁棒性或安全证明。详见 `docs/PHASE16_OOD_GEOMETRY_REPORT.md`。
+
 > Phase 15 v3 正式更新：600 场景的数据划分和动作/时间戳契约审计已通过；30 epoch、3 seed 的冻结离线测试中，GRU 的 projected minFDE 为 `0.7244 +/- 0.0352 m`，官方 S4 为 `1.3373 +/- 0.0275 m`。每步刷新且因果动作条件可用率约 `92%--95%` 时，GRU + distributed delayed DN-MPC 为 `95.56% [92.96%, 97.78%]` safe capture，官方 S4 为 `94.44% [91.48%, 97.04%]`。不能声称 S4 优于 GRU；下一步是 validation-only 的 `none/history/future/both`、单/多模态和风险/刷新消融。详见 `docs/PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`。
 
 > Phase 15 action-conditioning 消融已完成：GRU 在相同 30 epoch、3 个匹配 seed 下，`both` 的 validation minFDE 为 `0.8000 +/- 0.0064 m`，优于 `future` 的 `0.8388 +/- 0.0099 m`、`history` 的 `0.9994 +/- 0.0076 m` 和 `none` 的 `1.0288 +/- 0.0101 m`；相对 `both` 的配对 minFDE delta 区间均为正。后续冻结测试确认了这一排序，`both` 的 projected minFDE 为 `0.7000 +/- 0.0057 m`、coverage 为 `94.59%`，但 candidate feasibility 只有 `77.60%`。`both` 已锁定为后续主配置，不能继续用 locked test 选模型；下一步是 no/local/robust safety 三路闭环和单/多模态消融。详见 `docs/PHASE15_S4_V3_ACTION_CONDITION_ABLATION_REPORT.md`。
@@ -149,6 +151,14 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [ ] 在同一 locked-test 上比较 batch inference、异步 predictor、少步 diffusion、蒸馏和候选缓存年龄。
 - [ ] 报告 predictor/planner/filter/total p50、p95、p99 及 stale-candidate 比例。
 - [ ] 100 ms 只作为部署参考；若仍超过参考值，给出明确的低频预测 + 高频 planner/filter 架构和安全假设。
+
+### P9.1：Phase 16 OOD 泛化矩阵
+
+- [x] 完成 geometry-only OOD：100 episode / 50 镜像组，三种子 distributed 分支为 `84.00% [79.33%, 88.33%]` safe capture，0 collision/boundary；worst-case 为 `46.33% [39.67%, 53.33%]` 且各有 `1.67%` collision/boundary。该结果仅是单轴诊断，详见 `docs/PHASE16_OOD_GEOMETRY_REPORT.md`。
+- [ ] 冻结 unseen target behavior / speed OOD 块，保持障碍几何和通信执行配置在 ID 范围内。
+- [ ] 冻结 stronger communication / execution delay / tracking-noise OOD 块，保持几何和目标策略在 ID 范围内。
+- [ ] 每个 OOD 块固定三种子、镜像配对、source hash 和完整 episode/step 工件；报告 safe/ordinary capture、collision、boundary、timeout、clearance、动作条件可用率以及 p50/p95/p99。
+- [ ] 在各单轴诊断完成前，不运行混合压力场景，也不基于 OOD 结果重新选 checkpoint、调整模型或改写 locked-test 主结论。
 
 ### P10：重新开放端到端三种子实验
 

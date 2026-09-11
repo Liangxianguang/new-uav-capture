@@ -175,7 +175,9 @@ three-family paired artifact is
    frozen closed loop to test whether offline action-conditioning gains
    transfer to interception. Completed: the current block does not show a
    closed-loop capture gain; next run a controlled latency benchmark.
-3. Evaluate OOD geometry, unseen target policies, and stronger delay/dropout/
-   tracking-error blocks.
+3. Geometry-only OOD evaluation is complete: the GRU distributed branch retains
+   zero observed collision/boundary violations but falls to 84.00% safe capture;
+   see `PHASE16_OOD_GEOMETRY_REPORT.md`. Next, evaluate unseen target policies
+   and stronger delay/dropout/tracking-error blocks one factor at a time.
 4. Keep robust CBF-QP as a separately labelled diagnostic until its reset,
    queue-authority, fallback, and multi-step certificate gates pass.
