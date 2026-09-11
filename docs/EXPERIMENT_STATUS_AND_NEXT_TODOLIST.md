@@ -1,10 +1,10 @@
 # 当前实验状态与后续 TodoList
 
-> 更新时间：2026-09-10
+> 更新时间：2026-09-11
 > 仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 当前总判定：**Conditional Go**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，完整方法尚未完成。
 
-> Phase 16 v4 更新：扩建的 600 场景 S4 原始档案已按 300 个镜像组冻结为 420/90/90 场景的 train/validation/locked-test；由公开 team belief 重新构建预测原点后得到 13,224/1,922/1,539 个窗口。旧 Phase 15 predictor 的真值原点转换仅保留为历史证据，不能用于 Phase 16 选择。观测可用的常速度 baseline 已在 validation-only 上完成，projected minFDE 为 `4.058 m`、全轨迹 coverage 为 `85.83%`、candidate feasible 为 `47.01%`。接下来先完成 validation-only 的动作条件、GRU/SSM/S4、K=1/4/8 对比，再一次性打开新 locked test；完整协议见 `docs/PHASE16_POLICY_SAFE_PREDICTOR_V4_PLAN.md`。
+> Phase 16 v4 更新：扩建的 600 场景 S4 原始档案已按 300 个镜像组冻结为 420/90/90 场景的 train/validation/locked-test；由公开 team belief 重新构建预测原点后得到 13,224/1,922/1,539 个窗口。预测的 validation-only 选型和 locked-test 预测确认均已完成：GRU 是误差主参考，Diagonal SSM、dense S4 与 official S4 保留为 K=8 多模态比较，不能声称 S4 优于 GRU。三种子 validation 闭环选择冻结为每步刷新、`both` 因果动作条件和 local CBF；GRU + distributed delayed DN-MPC 的 safe capture 为 `93.70% [90.74%, 96.30%]`，collision 为 `0%`、total p95 为 `44.78 ms`。robust CBF-QP diagnostic 仍为 No-Go。下一步是按已冻结配置运行 90 场景 locked-test 闭环矩阵；完整选择记录见 `docs/PHASE16_VALIDATION_CLOSED_LOOP_SELECTION_REPORT.md`。
 
 > Phase 15 v3 正式更新：600 场景的数据划分和动作/时间戳契约审计已通过；30 epoch、3 seed 的冻结离线测试中，GRU 的 projected minFDE 为 `0.7244 +/- 0.0352 m`，官方 S4 为 `1.3373 +/- 0.0275 m`。每步刷新且因果动作条件可用率约 `92%--95%` 时，GRU + distributed delayed DN-MPC 为 `95.56% [92.96%, 97.78%]` safe capture，官方 S4 为 `94.44% [91.48%, 97.04%]`。不能声称 S4 优于 GRU；下一步是 validation-only 的 `none/history/future/both`、单/多模态和风险/刷新消融。详见 `docs/PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`。
 

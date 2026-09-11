@@ -37,7 +37,7 @@ LATENCY_FIELDS = (
     "safety_latency_ms",
     "total_control_latency_ms",
 )
-SEED_PATTERN = re.compile(r"_seed(?P<seed>[0-9]+)$")
+SEED_PATTERN = re.compile(r"_seed(?P<seed>[0-9]+)(?:_|$)")
 
 
 @dataclass(frozen=True)

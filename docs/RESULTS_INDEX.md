@@ -24,7 +24,7 @@ metric.
 | Phase 10 | Continuous-segment, reachable-tube, and queue-recovery profiling | Unit tests pass; profiling remains below the formal capture/certificate gate | `PHASE10_QUEUE_AUTHORITY_RECOVERY_PROFILE_REPORT.md`, `PHASE10_REACHABLE_TUBE_HORIZON_AUDIT_REPORT.md` |
 | Phase 14 | Latest eight-seed hard queue-authority matrix | Execution audit complete; hard capture gate remains No-Go | `PHASE14_AUTHORITY_MATRIX_REPORT.md` |
 | Phase 15 | S4-v3 action-conditioned predictor and causal online DN-MPC | Data/audit and three-seed formal comparison complete; GRU `both` condition selected on validation and confirmed on locked test; S4 does not beat GRU offline; feasibility and multimodality ablations remain | `PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`, `PHASE15_S4_V3_ACTION_CONDITION_ABLATION_REPORT.md`, `PHASE15_S4_V3_LOCKED_TEST_REPORT.md`, `OFFICIAL_S4_SETUP.md` |
-| Phase 16 | Policy-safe predictor-v4 conversion and expanded S4 dataset | Dataset audit and observation-only validation baseline complete; learned-model selection has not started | `PHASE16_POLICY_SAFE_PREDICTOR_V4_PLAN.md` |
+| Phase 16 | Policy-safe predictor-v4 conversion and expanded S4 dataset | Dataset audit, three-seed prediction selection, and three-seed GRU validation closed-loop selection complete; locked-test closed-loop matrix pending | `PHASE16_POLICY_SAFE_PREDICTOR_V4_PLAN.md`, `PHASE16_VALIDATION_CLOSED_LOOP_SELECTION_REPORT.md` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.
 Its predictor results used the former simulator-truth forecast origin and are
