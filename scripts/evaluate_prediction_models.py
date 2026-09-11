@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--validation-dataset", type=Path, required=True)
-    parser.add_argument("--locked-test-dataset", type=Path, required=True)
+    parser.add_argument("--locked-test-dataset", type=Path)
     parser.add_argument(
         "--output",
         type=Path,
@@ -63,6 +63,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-seed", type=int, default=745102)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--projection-iterations", type=int, default=4)
+    parser.add_argument(
+        "--validation-only",
+        action="store_true",
+        help="Use the second half of validation episodes for selection metrics without reading locked-test data.",
+    )
     parser.add_argument(
         "--official-s4-root",
         type=Path,
@@ -270,8 +275,73 @@ def metrics(
     result = prediction_metrics(candidates, targets)
     result["energy_score"] = candidate_energy_score(candidates, targets)
     result.update(assess(candidates, dataset, indices, constraints))
-    result.update(conformal_coverage(candidates, targets, radius))
+    coverage = conformal_coverage(candidates, targets, radius)
+    result.update(coverage)
+    result["conformal_full_trajectory_coverage_error"] = abs(
+        float(coverage["coverage_full_trajectory"]) - 0.90
+    )
+    result.update(branch_metrics(candidates, dataset, indices))
     result["calibration_radius_m"] = float(radius)
+    return result
+
+
+def branch_metrics(
+    candidates: torch.Tensor,
+    dataset: PredictionDataset,
+    indices: np.ndarray,
+) -> dict[str, float]:
+    """Measure inference after a hidden target branch decision is made.
+
+    Diffusion candidates have uniform uncalibrated weights, so the vote and
+    coverage values below are not probability-calibration metrics.
+    """
+
+    if not dataset.has_branch_labels:
+        return {"branch_metrics_available": 0.0}
+    selected = torch.as_tensor(indices, dtype=torch.long)
+    signs = torch.as_tensor(dataset.target_branch_signs, dtype=torch.int8).index_select(0, selected)
+    decision_steps = torch.as_tensor(
+        dataset.target_branch_decision_steps, dtype=torch.long
+    ).index_select(0, selected)
+    timesteps = torch.as_tensor(dataset.timesteps, dtype=torch.long).index_select(0, selected)
+    eligible = timesteps >= decision_steps
+    eligible_count = int(eligible.sum().item())
+    result: dict[str, float] = {
+        "branch_metrics_available": 1.0,
+        "branch_eligible_sample_count": float(eligible_count),
+        "branch_eligible_fraction": float(eligible.float().mean().item()),
+    }
+    if eligible_count == 0:
+        result.update(
+            {
+                "branch_top1_accuracy": float("nan"),
+                "branch_uniform_vote_accuracy": float("nan"),
+                "branch_any_candidate_coverage": float("nan"),
+                "branch_bimodal_candidate_fraction": float("nan"),
+            }
+        )
+        return result
+    reference_y = torch.as_tensor(dataset.reference_positions, dtype=torch.float32).index_select(0, selected)[:, 1]
+    final_y = candidates[:, :, -1, 1] + reference_y[:, None]
+    candidate_signs = torch.where(final_y >= 0.0, 1, -1).to(torch.int8)
+    eligible_signs = signs[eligible]
+    eligible_candidates = candidate_signs[eligible]
+    top1 = eligible_candidates[:, 0]
+    vote = torch.where(eligible_candidates.sum(dim=1) >= 0, 1, -1).to(torch.int8)
+    matches = eligible_candidates == eligible_signs[:, None]
+    result.update(
+        {
+            "branch_top1_accuracy": float((top1 == eligible_signs).float().mean().item()),
+            "branch_uniform_vote_accuracy": float((vote == eligible_signs).float().mean().item()),
+            "branch_any_candidate_coverage": float(matches.any(dim=1).float().mean().item()),
+            "branch_bimodal_candidate_fraction": float(
+                ((eligible_candidates.min(dim=1).values < 0) & (eligible_candidates.max(dim=1).values > 0))
+                .float()
+                .mean()
+                .item()
+            ),
+        }
+    )
     return result
 
 
@@ -345,6 +415,10 @@ def main() -> None:
     args = parse_args()
     if args.batch_size <= 0 or args.projection_iterations <= 0:
         raise ValueError("batch-size and projection-iterations must be positive.")
+    if not args.validation_only and args.locked_test_dataset is None:
+        raise ValueError("--locked-test-dataset is required unless --validation-only is used.")
+    if args.validation_only and args.locked_test_dataset is not None:
+        raise ValueError("--validation-only must not be combined with --locked-test-dataset.")
     output = args.output.resolve()
     training_output = (args.training_output or output).resolve()
     if not training_output.joinpath("metadata.json").is_file():
@@ -354,7 +428,7 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     device = select_device(args.device)
     validation = load_prediction_dataset(str(args.validation_dataset.resolve()))
-    locked_test = load_prediction_dataset(str(args.locked_test_dataset.resolve()))
+    locked_test = None if args.validation_only else load_prediction_dataset(str(args.locked_test_dataset.resolve()))
     model, model_kind, normalizer, checkpoint = load_model(
         args.checkpoint.resolve(), device, args.official_s4_root
     )
@@ -363,13 +437,15 @@ def main() -> None:
     configured_args = train_config.get("arguments", {})
     action_conditioning = str(configured_args.get("action_conditioning", "none"))
     validation_inputs, validation_action_conditions = flatten_inputs(validation, action_conditioning)
-    test_inputs, test_action_conditions = flatten_inputs(locked_test, action_conditioning)
+    evaluation_dataset = validation if args.validation_only else locked_test
+    assert evaluation_dataset is not None
+    test_inputs, test_action_conditions = flatten_inputs(evaluation_dataset, action_conditioning)
     model_input_dim = int(checkpoint["model_config"]["input_dim"])
     if validation_inputs.shape[-1] != model_input_dim or test_inputs.shape[-1] != model_input_dim:
         raise ValueError(
             "Dataset input width does not match the checkpoint: "
             f"model={model_input_dim}, validation={validation_inputs.shape[-1]}, "
-            f"locked_test={test_inputs.shape[-1]}."
+            f"evaluation={test_inputs.shape[-1]}."
         )
     model_action_dim = int(checkpoint["model_config"].get("action_condition_dim", 0))
     if validation_action_conditions.shape[-1] != model_action_dim:
@@ -380,14 +456,14 @@ def main() -> None:
     if test_action_conditions.shape[-1] != model_action_dim:
         raise ValueError(
             "Dataset action-condition width does not match the checkpoint: "
-            f"model={model_action_dim}, locked_test={test_action_conditions.shape[-1]}."
+            f"model={model_action_dim}, evaluation={test_action_conditions.shape[-1]}."
         )
     num_samples = int(args.num_samples if args.num_samples is not None else configured_args.get("num_samples", 8))
     sampling_steps = int(
         args.sampling_steps if args.sampling_steps is not None else configured_args.get("sampling_steps", 8)
     )
     constraints = candidate_constraints(checkpoint)
-    calibration_indices, _evaluation_indices = validation_calibration_indices(validation)
+    calibration_indices, validation_evaluation_indices = validation_calibration_indices(validation)
     validation_calibration_candidates = sample_candidates(
         model,
         model_kind,
@@ -421,7 +497,11 @@ def main() -> None:
     projected_radius = conformal_radius(
         conformal_nonconformity(projected_calibration_candidates, calibration_targets), coverage=0.90
     )
-    test_indices = np.arange(locked_test.sample_count, dtype=np.int64)
+    test_indices = (
+        validation_evaluation_indices
+        if args.validation_only
+        else np.arange(evaluation_dataset.sample_count, dtype=np.int64)
+    )
     raw_candidates = sample_candidates(
         model,
         model_kind,
@@ -437,19 +517,27 @@ def main() -> None:
     )
     projected_candidates = project_candidate_trajectories(
         raw_candidates,
-        torch.as_tensor(locked_test.reference_positions),
-        torch.as_tensor(locked_test.reference_velocities),
-        locked_test.dt_seconds,
+        torch.as_tensor(evaluation_dataset.reference_positions).index_select(
+            0, torch.as_tensor(test_indices, dtype=torch.long)
+        ),
+        torch.as_tensor(evaluation_dataset.reference_velocities).index_select(
+            0, torch.as_tensor(test_indices, dtype=torch.long)
+        ),
+        evaluation_dataset.dt_seconds,
         float(constraints["max_speed"]),
         None if constraints["max_acceleration"] is None else float(constraints["max_acceleration"]),
-        torch.as_tensor(locked_test.world_lower_bounds),
-        torch.as_tensor(locked_test.world_upper_bounds),
+        torch.as_tensor(evaluation_dataset.world_lower_bounds).index_select(
+            0, torch.as_tensor(test_indices, dtype=torch.long)
+        ),
+        torch.as_tensor(evaluation_dataset.world_upper_bounds).index_select(
+            0, torch.as_tensor(test_indices, dtype=torch.long)
+        ),
         args.projection_iterations,
     )
-    raw_metrics = metrics(raw_candidates, locked_test, test_indices, constraints, raw_radius)
-    projected_metrics = metrics(projected_candidates, locked_test, test_indices, constraints, projected_radius)
-    raw_modes = mode_metrics(raw_candidates, locked_test, test_indices, constraints, raw_radius)
-    projected_modes = mode_metrics(projected_candidates, locked_test, test_indices, constraints, projected_radius)
+    raw_metrics = metrics(raw_candidates, evaluation_dataset, test_indices, constraints, raw_radius)
+    projected_metrics = metrics(projected_candidates, evaluation_dataset, test_indices, constraints, projected_radius)
+    raw_modes = mode_metrics(raw_candidates, evaluation_dataset, test_indices, constraints, raw_radius)
+    projected_modes = mode_metrics(projected_candidates, evaluation_dataset, test_indices, constraints, projected_radius)
     latency = measure_latency(
         model,
         model_kind,
@@ -465,7 +553,8 @@ def main() -> None:
         "training_output": str(training_output),
         "evaluation_output": str(output),
         "validation_dataset": str(args.validation_dataset.resolve()),
-        "locked_test_dataset": str(args.locked_test_dataset.resolve()),
+        "evaluation_split": "validation_second_half_episode_seeds" if args.validation_only else "locked_test",
+        "locked_test_dataset": None if args.validation_only else str(args.locked_test_dataset.resolve()),
         "model_kind": model_kind,
         "model_backend": checkpoint.get("model_backend"),
         "action_conditioning": action_conditioning,
@@ -494,8 +583,10 @@ def main() -> None:
         "source_hashes": source_hashes(),
         "checkpoint_final_metrics": model_args,
     }
-    output.joinpath("locked_test_metrics.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
-    output.joinpath("locked_test_config.yaml").write_text(
+    artifact_stem = "validation_selection_metrics" if args.validation_only else "locked_test_metrics"
+    config_stem = "validation_selection_config" if args.validation_only else "locked_test_config"
+    output.joinpath(f"{artifact_stem}.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
+    output.joinpath(f"{config_stem}.yaml").write_text(
         yaml.safe_dump({key: value for key, value in result.items() if key not in {"raw_by_target_motion_mode", "projected_by_target_motion_mode"}}, sort_keys=False),
         encoding="utf-8",
     )

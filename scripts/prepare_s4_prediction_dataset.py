@@ -25,6 +25,12 @@ from encirclement3d.trajectory_dataset import PredictionDataset, save_prediction
 ACTION_STREAMS = ("planned", "commanded", "delayed", "executed")
 SHAPE_CODES = {"cylinder": 0, "box": 1, "wall": 2}
 
+# The first 15 legacy policy-observation values are stable across the v3
+# collection contract. Shape-aware geometry is appended after that prefix.
+_BELIEF_RELATIVE_POSITION = slice(3, 6)
+_BELIEF_VELOCITY = slice(6, 9)
+_BELIEF_CONFIDENCE_INDEX = 11
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -52,6 +58,65 @@ def load_scene_records(path: Path) -> dict[int, dict[str, Any]]:
     return records
 
 
+def policy_safe_team_references(
+    raw: dict[str, np.ndarray],
+    environment: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reconstruct the public team belief used as the forecast reference.
+
+    S4-v3 records the policy-safe local observations and the defender state at
+    every forecast origin.  The former v3 conversion used the simulator target
+    position as the trajectory origin, which is unsuitable for an online
+    prediction baseline.  This reconstruction uses only the public belief
+    fields stored in the raw archive; target truth is not read here.
+    """
+
+    required = {
+        "history_observations",
+        "history_message_age_steps",
+        "future_defender_positions",
+    }
+    missing = sorted(required.difference(raw))
+    if missing:
+        raise ValueError(
+            "Policy-safe S4 reference reconstruction requires: " + ", ".join(missing)
+        )
+    pursuit = dict(environment.get("task", {}).get("pursuit", {}))
+    if not bool(pursuit.get("include_uncertainty_features", False)):
+        raise ValueError("S4-v3 belief reconstruction requires uncertainty features in policy observations.")
+    world = dict(environment.get("world", {}))
+    agents = dict(environment.get("agents", {}))
+    half_extent = float(world.get("half_extent_xy", 0.0))
+    target_max_speed = float(agents.get("target_max_speed", 0.0))
+    if not np.isfinite([half_extent, target_max_speed]).all() or half_extent <= 0.0 or target_max_speed <= 0.0:
+        raise ValueError("Environment must define positive world.half_extent_xy and agents.target_max_speed.")
+
+    observations = np.asarray(raw["history_observations"], dtype=np.float32)
+    message_ages = np.asarray(raw["history_message_age_steps"][:, -1], dtype=np.float32)
+    defender_positions = np.asarray(raw["future_defender_positions"][:, 0], dtype=np.float32)
+    if (
+        observations.ndim != 4
+        or observations.shape[-1] <= _BELIEF_CONFIDENCE_INDEX
+        or message_ages.shape != observations.shape[:1] + observations.shape[2:3]
+        or defender_positions.shape != observations.shape[:1] + observations.shape[2:3] + (3,)
+    ):
+        raise ValueError("S4-v3 public belief fields have incompatible shapes.")
+
+    last_observations = observations[:, -1]
+    belief_positions = (
+        defender_positions + last_observations[..., _BELIEF_RELATIVE_POSITION] * half_extent
+    )
+    belief_velocities = last_observations[..., _BELIEF_VELOCITY] * target_max_speed
+    confidences = last_observations[..., _BELIEF_CONFIDENCE_INDEX]
+    weights = np.maximum(confidences, 1.0e-3) / (1.0 + np.maximum(message_ages, 0.0))
+    weights /= np.maximum(weights.sum(axis=1, keepdims=True), 1.0e-12)
+    reference_positions = np.sum(belief_positions * weights[..., None], axis=1)
+    reference_velocities = np.sum(belief_velocities * weights[..., None], axis=1)
+    if not np.isfinite(reference_positions).all() or not np.isfinite(reference_velocities).all():
+        raise RuntimeError("Policy-safe team belief reconstruction produced non-finite values.")
+    return reference_positions.astype(np.float32), reference_velocities.astype(np.float32)
+
+
 def main() -> None:
     args = parse_args()
     raw_dir = args.raw_dataset.resolve()
@@ -69,12 +134,15 @@ def main() -> None:
     scenes = load_scene_records(raw_dir / "scenes.jsonl")
     required = {
         "history_observations",
+        "history_message_age_steps",
         "future_target_positions",
         "reference_target_positions",
-        "reference_target_velocities",
+        "future_defender_positions",
         "episode_indices",
         "episode_seeds",
         "sample_timesteps",
+        "branch_sign",
+        "branch_decision_steps",
     }
     missing = sorted(required.difference(raw))
     if missing:
@@ -87,30 +155,29 @@ def main() -> None:
 
     observations = np.asarray(raw["history_observations"], dtype=np.float32)
     absolute_targets = np.asarray(raw["future_target_positions"], dtype=np.float32)
-    reference_positions = np.asarray(raw["reference_target_positions"], dtype=np.float32)
-    reference_velocities = np.asarray(raw["reference_target_velocities"], dtype=np.float32)
+    target_truth_at_origin = np.asarray(raw["reference_target_positions"], dtype=np.float32)
     history_actions = np.asarray(raw[history_key], dtype=np.float32)
     future_actions = np.asarray(raw[future_key], dtype=np.float32)
     if observations.ndim != 4 or absolute_targets.ndim != 3:
         raise ValueError("Raw S4 observations or target positions have incompatible shapes.")
-    targets = absolute_targets - reference_positions[:, None, :]
     sample_count, history_length, defender_count, _feature_dim = observations.shape
     if (
-        targets.shape[0] != sample_count
-        or reference_positions.shape != (sample_count, 3)
-        or reference_velocities.shape != (sample_count, 3)
+        absolute_targets.shape[0] != sample_count
+        or target_truth_at_origin.shape != (sample_count, 3)
         or history_actions.shape[:3] != (sample_count, history_length, defender_count)
     ):
         raise ValueError("Raw S4 history and target sample dimensions do not match.")
-    if future_actions.shape[:3] != (sample_count, targets.shape[1], defender_count):
+    if future_actions.shape[:3] != (sample_count, absolute_targets.shape[1], defender_count):
         raise ValueError("Raw S4 future action stream does not align with the target horizon.")
 
     environment = load_mapping(args.environment_config)
     dt_seconds = float(environment.get("world", {}).get("dt", 0.0))
     if not np.isfinite(dt_seconds) or dt_seconds <= 0.0:
         raise ValueError("Environment config must define a positive world.dt.")
+    reference_positions, reference_velocities = policy_safe_team_references(raw, environment)
+    targets = absolute_targets - reference_positions[:, None, :]
     future_velocities = np.diff(
-        np.concatenate([reference_positions[:, None, :], absolute_targets], axis=1), axis=1
+        np.concatenate([target_truth_at_origin[:, None, :], absolute_targets], axis=1), axis=1
     ) / dt_seconds
     episode_indices = np.asarray(raw["episode_indices"], dtype=np.int64)
     half_extent = float(environment["world"]["half_extent_xy"])
@@ -159,6 +226,8 @@ def main() -> None:
         future_target_velocities=future_velocities.astype(np.float32),
         history_action_features=history_actions.reshape(sample_count, history_length, defender_count * 3),
         future_action_conditions=future_actions.reshape(sample_count, targets.shape[1], defender_count * 3),
+        target_branch_signs=np.asarray(raw["branch_sign"], dtype=np.int8),
+        target_branch_decision_steps=np.asarray(raw["branch_decision_steps"], dtype=np.int64),
         world_lower_bounds=lower_bounds,
         world_upper_bounds=upper_bounds,
         obstacle_centers_xy=np.asarray(obstacle_centers, dtype=np.float32),
@@ -172,7 +241,7 @@ def main() -> None:
     raw_metadata = json.loads(raw_metadata_path.read_text(encoding="utf-8"))
     metadata = {
         "dataset_name": f"{raw_metadata.get('dataset_name', 's4')}_predictor",
-        "schema_version": 1,
+        "schema_version": 2,
         "source_raw_dataset": str(raw_dir),
         "source_raw_schema_version": raw_metadata.get("schema_version"),
         "sample_count": sample_count,
@@ -186,7 +255,16 @@ def main() -> None:
             "future_action_conditions": "flattened per-defender planned/execution stream aligned with forecast horizon",
             "future_action_online_availability": "must be supplied by the online planner; logged rollout sequence is an offline condition",
         },
-        "reference_contract": "reference_target_positions are subtracted from absolute future target positions",
+        "reference_contract": {
+            "prediction_origin": "confidence-and-age weighted public team target belief",
+            "prediction_velocity": "confidence-and-age weighted public team belief velocity",
+            "target_truth_usage": "future supervised labels and physical future-velocity diagnostics only",
+            "legacy_v3_truth_origin": "not used by this predictor-v4 conversion",
+        },
+        "branch_label_contract": {
+            "target_branch_signs": "supervised/evaluation-only lower=-1 upper=+1 labels",
+            "target_branch_decision_steps": "simulator-private decision timestep; not a predictor input",
+        },
         "dt_seconds": dt_seconds,
         "config": environment,
         "raw_metadata": raw_metadata,

@@ -8,8 +8,10 @@ import pytest
 
 from scripts.collect_prediction_dataset import TARGET_MOTION_MODES, parse_args as parse_collection_args
 from scripts.evaluate_prediction_models import main as evaluate_prediction_main
+from scripts.evaluate_prediction_models import branch_metrics
 from scripts.evaluate_prediction_models import flatten_inputs as flatten_evaluation_inputs
 from scripts.evaluate_prediction_models import parse_args as parse_evaluation_args
+from scripts.prepare_s4_prediction_dataset import policy_safe_team_references
 from encirclement3d.prediction import (
     CandidateTrajectorySet,
     ConditionalDiffusionTrajectoryPredictor,
@@ -186,6 +188,55 @@ def test_evaluator_preserves_history_and_future_action_contract() -> None:
     none_inputs, none_actions = flatten_evaluation_inputs(dataset, "none")
     assert none_inputs.shape == (2, 3, 8)
     assert none_actions.shape == (2, 5, 0)
+
+
+def test_branch_metrics_use_only_post_decision_windows() -> None:
+    dataset = PredictionDataset(
+        history_observations=np.zeros((2, 2, 1, 12), dtype=np.float32),
+        future_target_displacements=np.zeros((2, 1, 3), dtype=np.float32),
+        reference_positions=np.zeros((2, 3), dtype=np.float32),
+        reference_velocities=np.zeros((2, 3), dtype=np.float32),
+        episode_indices=np.array([0, 1], dtype=np.int64),
+        timesteps=np.array([3, 2], dtype=np.int64),
+        episode_seeds=np.array([10, 11], dtype=np.int64),
+        target_motion_modes=np.asarray(["adaptive_branching", "adaptive_branching"]),
+        dt_seconds=0.1,
+        target_branch_signs=np.array([-1, 1], dtype=np.int8),
+        target_branch_decision_steps=np.array([3, 3], dtype=np.int64),
+    )
+    candidates = torch.tensor(
+        [
+            [[[0.0, -1.0, 0.0]], [[0.0, 1.0, 0.0]]],
+            [[[0.0, 1.0, 0.0]], [[0.0, -1.0, 0.0]]],
+        ]
+    )
+    result = branch_metrics(candidates, dataset, np.array([0, 1], dtype=np.int64))
+    assert result["branch_eligible_sample_count"] == 1.0
+    assert result["branch_top1_accuracy"] == 1.0
+    assert result["branch_any_candidate_coverage"] == 1.0
+    assert result["branch_bimodal_candidate_fraction"] == 1.0
+
+
+def test_policy_safe_s4_reference_uses_public_belief_fields() -> None:
+    observations = np.zeros((1, 2, 2, 12), dtype=np.float32)
+    observations[0, -1, 0, 3:6] = np.array([0.1, 0.0, 0.0], dtype=np.float32)
+    observations[0, -1, 1, 3:6] = np.array([-0.1, 0.0, 0.0], dtype=np.float32)
+    observations[0, -1, 0, 6:9] = np.array([0.5, 0.0, 0.0], dtype=np.float32)
+    observations[0, -1, 1, 6:9] = np.array([0.25, 0.0, 0.0], dtype=np.float32)
+    observations[0, -1, :, 11] = 1.0
+    raw = {
+        "history_observations": observations,
+        "history_message_age_steps": np.array([[[0, 0], [0, 1]]], dtype=np.int16),
+        "future_defender_positions": np.array([[[[1.0, 0.0, 1.0], [3.0, 0.0, 1.0]]]], dtype=np.float32),
+    }
+    environment = {
+        "world": {"half_extent_xy": 10.0},
+        "agents": {"target_max_speed": 4.0},
+        "task": {"pursuit": {"include_uncertainty_features": True}},
+    }
+    positions, velocities = policy_safe_team_references(raw, environment)
+    np.testing.assert_allclose(positions, [[2.0, 0.0, 1.0]])
+    np.testing.assert_allclose(velocities, [[5.0 / 3.0, 0.0, 0.0]])
 
 
 def test_prediction_metrics_report_best_of_k() -> None:

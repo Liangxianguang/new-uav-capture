@@ -24,6 +24,8 @@ class PredictionDataset:
     future_target_velocities: np.ndarray | None = None
     history_action_features: np.ndarray | None = None
     future_action_conditions: np.ndarray | None = None
+    target_branch_signs: np.ndarray | None = None
+    target_branch_decision_steps: np.ndarray | None = None
     world_lower_bounds: np.ndarray | None = None
     world_upper_bounds: np.ndarray | None = None
     obstacle_centers_xy: np.ndarray | None = None
@@ -67,6 +69,10 @@ class PredictionDataset:
             )
         )
 
+    @property
+    def has_branch_labels(self) -> bool:
+        return self.target_branch_signs is not None and self.target_branch_decision_steps is not None
+
     def as_dict(self) -> dict[str, np.ndarray]:
         values = {
             "history_observations": self.history_observations,
@@ -85,6 +91,9 @@ class PredictionDataset:
             values["history_action_features"] = self.history_action_features
         if self.future_action_conditions is not None:
             values["future_action_conditions"] = self.future_action_conditions
+        if self.has_branch_labels:
+            values["target_branch_signs"] = self.target_branch_signs
+            values["target_branch_decision_steps"] = self.target_branch_decision_steps
         if self.has_geometry_context:
             values.update(
                 {
@@ -270,10 +279,13 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
         raise ValueError("Prediction datasets must consistently include future target velocities.")
     history_action_presence = [item.history_action_features is not None for item in datasets]
     future_action_presence = [item.future_action_conditions is not None for item in datasets]
+    branch_label_presence = [item.has_branch_labels for item in datasets]
     if any(history_action_presence) and not all(history_action_presence):
         raise ValueError("Prediction datasets must consistently include history action features.")
     if any(future_action_presence) and not all(future_action_presence):
         raise ValueError("Prediction datasets must consistently include future action conditions.")
+    if any(branch_label_presence) and not all(branch_label_presence):
+        raise ValueError("Prediction datasets must consistently include target branch labels.")
     first = datasets[0]
     for dataset in datasets[1:]:
         if (
@@ -320,6 +332,20 @@ def concatenate_prediction_datasets(datasets: list[PredictionDataset]) -> Predic
         future_action_conditions=(
             np.concatenate([item.future_action_conditions for item in datasets if item.future_action_conditions is not None], axis=0)
             if all(item.future_action_conditions is not None for item in datasets)
+            else None
+        ),
+        target_branch_signs=(
+            np.concatenate(
+                [item.target_branch_signs for item in datasets if item.target_branch_signs is not None], axis=0
+            )
+            if all(item.has_branch_labels for item in datasets)
+            else None
+        ),
+        target_branch_decision_steps=(
+            np.concatenate(
+                [item.target_branch_decision_steps for item in datasets if item.target_branch_decision_steps is not None], axis=0
+            )
+            if all(item.has_branch_labels for item in datasets)
             else None
         ),
         reference_positions=np.concatenate([item.reference_positions for item in datasets], axis=0),
@@ -405,6 +431,17 @@ def validate_prediction_dataset(dataset: PredictionDataset) -> None:
             raise ValueError(
                 "future_action_conditions must have shape [samples, horizon, action_features]."
             )
+    if (dataset.target_branch_signs is None) != (dataset.target_branch_decision_steps is None):
+        raise ValueError("Target branch signs and decision steps must be present together.")
+    if dataset.has_branch_labels:
+        branch_signs = np.asarray(dataset.target_branch_signs)
+        decision_steps = np.asarray(dataset.target_branch_decision_steps)
+        if branch_signs.shape != (sample_count,) or not np.isin(branch_signs, (-1, 1)).all():
+            raise ValueError("target_branch_signs must contain one -1 or +1 label per sample.")
+        if decision_steps.shape != (sample_count,) or not np.issubdtype(decision_steps.dtype, np.integer):
+            raise ValueError("target_branch_decision_steps must contain one integer per sample.")
+        if np.any(decision_steps < 0):
+            raise ValueError("target_branch_decision_steps must be non-negative.")
     if dataset.reference_positions.shape != (sample_count, 3):
         raise ValueError("reference_positions must have shape [samples, 3].")
     if dataset.reference_velocities.shape != (sample_count, 3):
@@ -551,6 +588,16 @@ def load_prediction_dataset(path: str) -> PredictionDataset:
             future_action_conditions=(
                 np.asarray(archive["future_action_conditions"], dtype=np.float32)
                 if "future_action_conditions" in archive.files
+                else None
+            ),
+            target_branch_signs=(
+                np.asarray(archive["target_branch_signs"], dtype=np.int8)
+                if "target_branch_signs" in archive.files
+                else None
+            ),
+            target_branch_decision_steps=(
+                np.asarray(archive["target_branch_decision_steps"], dtype=np.int64)
+                if "target_branch_decision_steps" in archive.files
                 else None
             ),
             **geometry,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -107,6 +109,36 @@ def test_prediction_dataset_round_trip_rejects_non_finite_values(tmp_path) -> No
                 dataset.dt_seconds,
             )
         )
+
+
+def test_prediction_dataset_round_trips_branch_labels(tmp_path) -> None:
+    frames = [np.zeros((4, 2), dtype=np.float32) for _ in range(4)]
+    references = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    targets = [np.ones(3, dtype=np.float32) for _ in range(4)]
+    velocities = [np.zeros(3, dtype=np.float32) for _ in range(4)]
+    dataset = build_episode_samples(
+        frames,
+        references,
+        targets,
+        velocities,
+        dt_seconds=0.1,
+        history_length=2,
+        horizon_steps=1,
+        episode_index=0,
+        episode_seed=10,
+        target_motion_mode="adaptive_branching",
+    )
+    labelled = replace(
+        dataset,
+        target_branch_signs=np.full(dataset.sample_count, -1, dtype=np.int8),
+        target_branch_decision_steps=np.arange(dataset.sample_count, dtype=np.int64),
+    )
+    path = tmp_path / "branch_labels.npz"
+    save_prediction_dataset(labelled, str(path))
+    loaded = load_prediction_dataset(str(path))
+    assert loaded.has_branch_labels
+    np.testing.assert_array_equal(loaded.target_branch_signs, labelled.target_branch_signs)
+    np.testing.assert_array_equal(loaded.target_branch_decision_steps, labelled.target_branch_decision_steps)
 
 
 def test_geometry_context_round_trips_and_validates_bounds_and_obstacle_sizes(tmp_path) -> None:
