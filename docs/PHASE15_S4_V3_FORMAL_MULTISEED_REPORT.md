@@ -130,9 +130,10 @@ control percentiles remain mandatory report fields.
 
 ## 4. Next Formal Experiments
 
-1. Select `none`, history-only, causal future-plan-only, and both action
-   conditions on validation. Repeat the winner once on locked test; do not use
-   the locked test to choose a condition.
+1. The `none`/history-only/causal-future-plan-only/both action-conditioning
+   ablation is complete: validation selected `both`, and the pre-registered
+   all-condition locked-test confirmation retained that ordering. Freeze
+   `both`; do not use the locked test to make further action-feature choices.
 2. Compare a single trajectory with four and eight candidates. Report
    minADE/minFDE, branch accuracy, coverage, feasible-candidate rate, pairwise
    diversity, NLL or energy score, and calibration error. Calibrate candidate

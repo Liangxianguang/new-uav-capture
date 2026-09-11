@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import re
 from pathlib import Path
@@ -24,7 +25,13 @@ SEED_PATTERN = re.compile(r"^(?P<model>.+)_seed(?P<seed>[0-9]+)$")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--root", type=Path)
+    parser.add_argument(
+        "--group",
+        action="append",
+        metavar="NAME=GLOB",
+        help="Explicit model family and result-directory glob. May be repeated.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--reference-model", default="gru")
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
@@ -44,26 +51,62 @@ def nested_value(document: dict[str, Any], path: str) -> float:
     return result
 
 
-def load_records(root: Path, metrics: tuple[str, ...]) -> dict[str, dict[int, dict[str, float]]]:
+def load_records_from_directories(
+    directories: list[tuple[str, Path]],
+    metrics: tuple[str, ...],
+) -> dict[str, dict[int, dict[str, float]]]:
     grouped: dict[str, dict[int, dict[str, float]]] = {}
-    for directory in sorted(root.iterdir()):
-        if not directory.is_dir():
-            continue
+    for model, directory in directories:
         match = SEED_PATTERN.match(directory.name)
         if match is None:
-            continue
+            raise ValueError(f"Result directory must end with _seed<integer>: {directory}")
         artifact = directory / "locked_test_metrics.json"
         if not artifact.is_file():
             raise FileNotFoundError(f"Missing locked-test metrics: {artifact}")
         document = json.loads(artifact.read_text(encoding="utf-8"))
-        model = match.group("model")
         seed = int(match.group("seed"))
         if seed in grouped.setdefault(model, {}):
             raise ValueError(f"Duplicate model/seed result: {model}/{seed}")
         grouped[model][seed] = {metric: nested_value(document, metric) for metric in metrics}
     if not grouped:
-        raise ValueError(f"No model_seed directories found under {root}")
+        raise ValueError("No model_seed result directories were supplied.")
     return grouped
+
+
+def load_records(root: Path, metrics: tuple[str, ...]) -> dict[str, dict[int, dict[str, float]]]:
+    directories = [
+        (match.group("model"), directory)
+        for directory in sorted(root.iterdir())
+        if directory.is_dir() and (match := SEED_PATTERN.match(directory.name)) is not None
+    ]
+    if not directories:
+        raise ValueError(f"No model_seed directories found under {root}")
+    return load_records_from_directories(directories, metrics)
+
+
+def parse_group(specification: str) -> tuple[str, str]:
+    if "=" not in specification:
+        raise ValueError("--group must use NAME=GLOB format.")
+    name, pattern = specification.split("=", 1)
+    name, pattern = name.strip(), pattern.strip()
+    if not name or not pattern:
+        raise ValueError("--group requires both a name and a glob pattern.")
+    return name, pattern
+
+
+def load_group_records(specifications: list[str], metrics: tuple[str, ...]) -> dict[str, dict[int, dict[str, float]]]:
+    directories: list[tuple[str, Path]] = []
+    names: set[str] = set()
+    for specification in specifications:
+        name, pattern = parse_group(specification)
+        if name in names:
+            raise ValueError(f"Duplicate group name: {name}")
+        names.add(name)
+        paths = [Path(item).resolve() for item in sorted(glob.glob(pattern)) if Path(item).is_dir()]
+        if not paths:
+            raise FileNotFoundError(f"No result directories matched {pattern!r}")
+        directories.extend((name, path) for path in paths)
+    return load_records_from_directories(directories, metrics)
 
 
 def bootstrap_mean_ci(values: np.ndarray, rng: np.random.Generator, samples: int) -> tuple[float, float]:
@@ -159,10 +202,14 @@ def markdown_report(summary: dict[str, Any], metrics: tuple[str, ...], reference
 
 def main() -> None:
     args = parse_args()
-    root = args.root.resolve()
+    if args.root is None and not args.group:
+        raise ValueError("Supply --root or at least one --group NAME=GLOB.")
+    if args.root is not None and args.group:
+        raise ValueError("Use either --root or --group, not both.")
+    root = None if args.root is None else args.root.resolve()
     output = args.output.resolve()
     metrics = DEFAULT_METRICS
-    grouped = load_records(root, metrics)
+    grouped = load_group_records(args.group, metrics) if args.group else load_records(root, metrics)
     summary = summarize(
         grouped,
         metrics,
@@ -171,7 +218,8 @@ def main() -> None:
         args.bootstrap_seed,
     )
     payload = {
-        "root": str(root),
+        "root": None if root is None else str(root),
+        "groups": list(args.group or ()),
         "reference_model": args.reference_model,
         "metrics": list(metrics),
         "bootstrap_samples": args.bootstrap_samples,
