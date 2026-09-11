@@ -65,6 +65,7 @@ from encirclement3d.prediction import (  # noqa: E402
 )
 from encirclement3d.pursuit_controllers import (  # noqa: E402
     DynamicEncirclementController,
+    PurePursuitController,
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
@@ -513,6 +514,7 @@ def run_episode(
             validate_scenario=validate_scenario,
         )
     fallback_controller = DynamicEncirclementController(env)
+    pure_pursuit_controller = PurePursuitController(env)
     resolved_safety_layer = safety_layer or ("local_cbf" if use_local_cbf else "none")
     if resolved_safety_layer not in {"none", "local_cbf", "robust_cbf_qp"}:
         raise ValueError(f"Unsupported safety layer: {resolved_safety_layer}")
@@ -549,7 +551,7 @@ def run_episode(
         )
     runtime = None
     previous_planned_sequence: np.ndarray | None = None
-    if method != "dynamic_encirclement":
+    if method not in {"dynamic_encirclement", "pure_pursuit"}:
         if candidate_source == "checkpoint" and checkpoint_data is None:
             raise ValueError("--checkpoint is required for checkpoint candidate source.")
         checkpoint_config = {} if checkpoint_data is None else dict(checkpoint_data[3].get("model_config", {}))
@@ -589,8 +591,14 @@ def run_episode(
     while True:
         control_started = time.perf_counter()
         fallback_actions = fallback_controller.act(observation)
-        if method == "dynamic_encirclement":
-            nominal_actions = fallback_actions
+        prediction_refreshed = False
+        prediction_age_steps = 0
+        if method in {"dynamic_encirclement", "pure_pursuit"}:
+            nominal_actions = (
+                fallback_actions
+                if method == "dynamic_encirclement"
+                else pure_pursuit_controller.act(observation)
+            )
             planner_diagnostics = _default_diagnostics()
             predictor_latency_ms = 0.0
             candidate_distance_metrics = {

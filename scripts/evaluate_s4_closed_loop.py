@@ -38,6 +38,7 @@ from evaluate_s4_branching import config_for_spec, grouped_summary, load_protoco
 
 METHODS = (
     "dynamic_encirclement",
+    "pure_pursuit",
     "expected",
     "worst_case",
     "cvar",
