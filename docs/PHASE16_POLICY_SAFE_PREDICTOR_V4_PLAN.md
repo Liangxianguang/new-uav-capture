@@ -1,7 +1,7 @@
 # Phase 16 Policy-Safe Predictor-v4 Experiment Plan
 
-> Status: dataset conversion and audit complete; observation-only baseline
-> complete on validation only; learned predictor training has not started.
+> Status: dataset conversion/audit and validation-only learned-model selection
+> complete; the locked test is now frozen for one-time confirmation.
 >
 > Decision: the Phase 15 raw S4-v3 collection is retained, but Phase 15
 > predictor numbers that learned targets relative to simulator truth at the
@@ -79,6 +79,48 @@ coverage: it emits exactly one branch. Later diffusion results must report
 top-1 accuracy, uniform-vote accuracy, any-candidate branch coverage, and the
 bimodal-candidate fraction separately. Candidate weights are currently
 uniform and uncalibrated; neither vote nor coverage may be called a probability.
+
+### Validation-only learned-model selection
+
+Three matched training seeds (`727201`, `727202`, `727203`) were trained for
+30 epochs under the fixed v4 contract. Selection evaluation used only the
+second half of validation episode seeds; split-conformal calibration used only
+the first half. The reported error and feasibility values below are from
+projected candidates, not the unconstrained neural output.
+
+| Model / condition | K | Projected minFDE (m) | Projected feasible | Any-branch coverage | Bimodal candidates | Predictor p95 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| GRU `both` | 1 | 2.296 | 26.99% | 99.97% | 0.00% | 5.21 |
+| Diagonal SSM diffusion | 1 | 3.556 | 34.87% | 90.68% | 0.00% | 8.95 |
+| Diagonal SSM diffusion | 4 | 2.999 | 34.12% | 99.35% | 26.27% | 10.69 |
+| Diagonal SSM diffusion | **8** | **2.797** | **34.68%** | **99.77%** | **37.06%** | **17.14** |
+| Dense S4-DPLR diffusion | **8** | 2.817 | 32.98% | 99.80% | 38.60% | 19.79 |
+| Official S4 diffusion | **8** | 2.813 | 33.21% | 99.77% | 38.67% | 5.68 |
+
+The complete machine-readable artifacts are
+`results/phase16_validation_gru_action_condition_aggregate.json`,
+`results/phase16_validation_model_selection_aggregate.json`, and the K=1/4/8
+diffusion aggregates in the same results directory. These are validation-only
+artifacts and contain no locked-test path. The action-condition ablation shows
+that GRU `both` is better than `none` on projected minFDE (`2.296` vs
+`2.570` m), while `future` is statistically indistinguishable from `both`
+(`2.299` m); therefore the evidence supports the combined causal interface,
+not an isolated historical-action gain.
+
+The locked configuration is now frozen as follows:
+
+- primary single-mode reference: GRU `both`, K=1;
+- primary lightweight multimodal model: Diagonal SSM diffusion, K=8;
+- architectural S4 references: dense S4-DPLR and official upstream S4,
+  both with K=8;
+- all use the same projection iterations, target normalizer, calibration
+  protocol, validation-selected action condition, and three training seeds.
+
+The validation evidence does **not** establish S4 superiority: GRU has the
+lowest projected error, while the diffusion families provide more candidate
+diversity and somewhat higher physical feasibility than GRU. The locked test
+is therefore a confirmation of a pre-registered comparison, not an
+architecture-selection step.
 
 ## 3. Pre-registered Selection Protocol
 
@@ -166,6 +208,8 @@ only an oracle minimum-distance gain.
 
 ### D. One-time Phase 16 locked-test prediction evaluation
 
+- [x] Run validation-only model selection and freeze the primary configurations
+  above before opening the locked test.
 - [ ] Run the public-belief constant-velocity baseline and every frozen
   primary learned comparison on the 1,539 locked-test windows.
 - [ ] Calibrate only from validation; do not refit normalization, conformal
