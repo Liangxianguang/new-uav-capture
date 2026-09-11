@@ -59,6 +59,37 @@ fallback because the structured CUDA kernel is unavailable. Its runtime is
 therefore a valid CPU measurement for this environment, not a deployment
 throughput claim.
 
+## Candidate-Count Ablation
+
+The K=1 versus K=8 ablation fixes checkpoint, training seed, locked scene,
+sampling seed, refresh policy, local CBF, and planner. It changes only the
+number of diffusion trajectories passed to DN-MPC. GRU is deliberately
+excluded: it produces one deterministic mean trajectory, so duplicating it
+would not constitute a multimodal comparison.
+
+| Predictor | Branch | K=1 safe capture | K=8 safe capture | Paired K=8 minus K=1 | K=1 collision | K=8 collision |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Diagonal SSM diffusion | Distributed delayed | 95.56% | 95.56% | 0.00 pp [0.00, 0.00] | 0.00% | 0.00% |
+| Official S4 diffusion | Distributed delayed | 95.56% | 95.56% | 0.00 pp [0.00, 0.00] | 0.00% | 0.00% |
+| Diagonal SSM diffusion | Worst-case | 75.19% | 82.96% | **+7.78 pp [+3.70, +12.22]** | 0.74% | 0.00% |
+| Official S4 diffusion | Worst-case | 77.41% | 82.96% | **+5.56 pp [+1.85, +9.26]** | 0.37% | 0.00% |
+
+Here the primary distributed branch is already saturated at 86/90 captures per
+seed, so additional candidate diversity cannot improve its observed capture
+count. In contrast, the conservative worst-case objective makes the candidate
+set consequential: K=8 reduces timeout and removes the small K=1
+collision/boundary-failure incidence. This establishes a bounded, planner-
+specific closed-loop benefit of multimodal diffusion candidates. It does not
+prove that K=8 improves all planners or geometries.
+
+Observed K=1 total p95 latency was `80.16 ms` (diagonal SSM distributed) and
+`89.20 ms` (official S4 distributed), compared with `90.81 ms` and `90.02 ms`
+for K=8. These runs used different parallel CPU contention levels, so the
+figures are retained as runtime profiles rather than a controlled speedup
+claim. The K=1/K=8 aggregate artifacts are
+`results/phase16_locked_closed_loop_diagonal_ssm_multimodal_aggregate.json`
+and `results/phase16_locked_closed_loop_official_s4_multimodal_aggregate.json`.
+
 ## Interpretation
 
 This confirms the validation-selected GRU + distributed delayed DN-MPC + local
@@ -79,9 +110,9 @@ three-family paired artifact is
 
 ## Remaining Work
 
-1. Run a matched candidate-cardinality ablation (GRU K=8 and SSM/S4 K=1) to
-   separate architecture, diffusion, and candidate-count effects.
-2. Run pre-registered no-safety, multimodality, action-conditioning, and
+1. Run a controlled single-process runtime benchmark for K=1/K=8 if throughput
+   becomes a method claim; do not infer it from the parallel evaluation runs.
+2. Run pre-registered no-safety, action-conditioning, and
    planner/safety ablations without reopening model selection.
 3. Evaluate OOD geometry, unseen target policies, and stronger delay/dropout/
    tracking-error blocks.
