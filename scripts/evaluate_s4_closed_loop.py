@@ -1,0 +1,265 @@
+"""Evaluate action-conditioned prediction checkpoints on frozen S4 scenes."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import torch
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+
+from encirclement3d.distributed_dn_mpc import DistributedDNMPCConfig  # noqa: E402
+from encirclement3d.minimax_mpc import MinimaxMPCConfig  # noqa: E402
+from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.safety_qp import RobustCBFQPConfig  # noqa: E402
+from encirclement3d.showcase import scenario_from_metadata  # noqa: E402
+from evaluate_minimax_mpc import (  # noqa: E402
+    DEFAULT_ENVIRONMENT_CONFIG,
+    DEFAULT_MPC_CONFIG,
+    add_safety_source_hashes,
+    load_yaml,
+    model_from_checkpoint,
+    run_episode,
+    select_device,
+    source_hashes,
+)
+from evaluate_s4_branching import config_for_spec, grouped_summary, load_protocol  # noqa: E402
+
+
+METHODS = (
+    "dynamic_encirclement",
+    "expected",
+    "worst_case",
+    "cvar",
+    "distributed_ideal",
+    "distributed_delayed",
+    "distributed_dropout",
+    "distributed_none",
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scenes", type=Path, required=True)
+    parser.add_argument("--protocol", type=Path, default=PROJECT_ROOT / "configs" / "phase15_s4_branching_pilot.yaml")
+    parser.add_argument("--environment-config", type=Path, default=DEFAULT_ENVIRONMENT_CONFIG)
+    parser.add_argument("--mpc-config", type=Path, default=DEFAULT_MPC_CONFIG)
+    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--official-s4-root", type=Path)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--candidate-source", choices=("checkpoint", "belief"), default="checkpoint")
+    parser.add_argument("--methods", nargs="+", choices=METHODS, default=["dynamic_encirclement", "worst_case"])
+    parser.add_argument("--episodes", type=int)
+    parser.add_argument("--max-steps", type=int)
+    parser.add_argument("--num-samples", type=int, default=4)
+    parser.add_argument("--sampling-steps", type=int, default=4)
+    parser.add_argument("--sampling-seed", type=int, default=745102)
+    parser.add_argument("--projection-iterations", type=int, default=4)
+    parser.add_argument("--prediction-refresh-interval-steps", type=int, default=20)
+    parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
+    parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
+    parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
+    return parser.parse_args()
+
+
+def read_scenes(path: Path, limit: int | None) -> list[dict[str, Any]]:
+    records = [json.loads(line) for line in path.resolve().read_text(encoding="utf-8").splitlines() if line.strip()]
+    records.sort(key=lambda value: int(value["episode_index"]))
+    if limit is not None:
+        if limit <= 0:
+            raise ValueError("episodes must be positive when supplied.")
+        records = records[:limit]
+    if not records:
+        raise ValueError("The frozen scene file contains no records.")
+    required = {"episode_index", "episode_seed", "scenario", "target_speed_scale", "defender_bias", "pursuit_overrides"}
+    missing = required.difference(records[0])
+    if missing:
+        raise ValueError(f"Frozen scene record is missing: {', '.join(sorted(missing))}")
+    return records
+
+
+def protocol_for_frozen_scenes(protocol_path: Path, records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Adapt only non-geometric protocol metadata to the frozen scene contract."""
+
+    protocol = load_protocol(protocol_path)
+    settings = dict(protocol["s4"])
+    settings["target_speed_scales"] = sorted({float(record["target_speed_scale"]) for record in records})
+    settings["defender_biases"] = sorted({str(record["defender_bias"]) for record in records})
+    settings["observation_conditions"] = []
+    seen: set[str] = set()
+    for record in records:
+        name = str(record.get("observation_condition", "nominal"))
+        if name in seen:
+            continue
+        seen.add(name)
+        settings["observation_conditions"].append(
+            {
+                "name": name,
+                "pursuit_overrides": copy.deepcopy(record["pursuit_overrides"]),
+            }
+        )
+    protocol["s4"] = settings
+    return protocol
+
+
+def source_hashes_closed_loop(protocol: Path, scenes: Path, mpc: Path) -> dict[str, str]:
+    hashes = source_hashes(mpc)
+    for path in (
+        PROJECT_ROOT / "scripts" / "evaluate_s4_closed_loop.py",
+        PROJECT_ROOT / "scripts" / "evaluate_s4_branching.py",
+        protocol.resolve(),
+        scenes.resolve(),
+    ):
+        hashes[str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
+
+
+def main() -> None:
+    args = parse_args()
+    output = args.output_dir.resolve()
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
+    if args.candidate_source == "checkpoint" and args.checkpoint is None:
+        raise ValueError("--checkpoint is required when --candidate-source=checkpoint.")
+    if args.prediction_refresh_interval_steps <= 0 or args.num_samples <= 0 or args.sampling_steps <= 0:
+        raise ValueError("prediction sampling and refresh settings must be positive.")
+
+    records = read_scenes(args.scenes, args.episodes)
+    protocol = protocol_for_frozen_scenes(args.protocol.resolve(), records)
+    mpc_document = load_yaml(args.mpc_config)
+    planner_config = MinimaxMPCConfig.from_mapping(dict(mpc_document.get("planner", {})))
+    distributed_mapping = dict(mpc_document.get("distributed", {}))
+    device = select_device(args.device)
+    checkpoint_data = (
+        model_from_checkpoint(args.checkpoint, device, args.official_s4_root)
+        if args.checkpoint is not None
+        else None
+    )
+    if checkpoint_data is not None:
+        checkpoint_config = checkpoint_data[3].get("model_config", {})
+        if int(checkpoint_config.get("horizon_count", 0)) < planner_config.horizon_steps:
+            raise ValueError("Prediction checkpoint horizon is shorter than planner horizon.")
+
+    safety_config = None
+    if args.safety_layer == "robust_cbf_qp":
+        safety_document = load_yaml(args.safety_config)
+        safety_mapping = dict(safety_document.get("safety", {}))
+        probe_spec = records[0]
+        probe_config = config_for_spec(args.environment_config, protocol, probe_spec, args.max_steps)
+        probe_env = CaptureRadiusPursuit3DEnv(
+            probe_config,
+            obstacle_count=1,
+            target_speed_scale=float(probe_spec["target_speed_scale"]),
+        )
+        safety_mapping.setdefault("max_speed_mps", float(probe_env.agents["defender_max_speed"]))
+        safety_mapping.setdefault("max_acceleration_mps2", float(probe_env.agents["defender_max_acceleration"]))
+        safety_mapping.setdefault("safety_margin_m", float(probe_env.pursuit["safety_margin"]))
+        safety_config = RobustCBFQPConfig.from_mapping(safety_mapping)
+
+    output.mkdir(parents=True, exist_ok=True)
+    hashes = source_hashes_closed_loop(args.protocol, args.scenes, args.mpc_config)
+    if args.safety_layer == "robust_cbf_qp":
+        add_safety_source_hashes(hashes, args.safety_config)
+    run_config = {
+        "scenes": str(args.scenes.resolve()),
+        "protocol": str(args.protocol.resolve()),
+        "environment_config": str(args.environment_config.resolve()),
+        "mpc_config": str(args.mpc_config.resolve()),
+        "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
+        "official_s4_root": None if args.official_s4_root is None else str(args.official_s4_root.resolve()),
+        "candidate_source": args.candidate_source,
+        "methods": list(args.methods),
+        "episodes": len(records),
+        "max_steps": args.max_steps,
+        "num_samples": args.num_samples,
+        "sampling_steps": args.sampling_steps,
+        "sampling_seed": args.sampling_seed,
+        "projection_iterations": args.projection_iterations,
+        "prediction_refresh_interval_steps": args.prediction_refresh_interval_steps,
+        "device": str(device),
+        "safety_layer": args.safety_layer,
+        "source_hashes": hashes,
+    }
+    output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
+    output.joinpath("scenes.jsonl").write_text(
+        "".join(json.dumps(record, allow_nan=True) + "\n" for record in records), encoding="utf-8"
+    )
+
+    all_summaries: dict[str, Any] = {}
+    distributed_modes = {
+        "distributed_ideal": "ideal",
+        "distributed_delayed": "delayed",
+        "distributed_dropout": "dropout",
+        "distributed_none": "none",
+    }
+    for method in args.methods:
+        method_output = output / method
+        method_output.mkdir(parents=True, exist_ok=True)
+        rows: list[dict[str, Any]] = []
+        steps: list[dict[str, Any]] = []
+        with method_output.joinpath("episodes.jsonl").open("w", encoding="utf-8") as episode_file, method_output.joinpath("steps.jsonl").open("w", encoding="utf-8") as step_file:
+            for record in records:
+                spec = dict(record)
+                config = config_for_spec(args.environment_config, protocol, spec, args.max_steps)
+                distributed_config = None
+                if method in distributed_modes:
+                    distributed_config = DistributedDNMPCConfig.from_mapping(
+                        {**distributed_mapping, "communication_mode": distributed_modes[method]}
+                    )
+                row, episode_steps = run_episode(
+                    config,
+                    seed=int(spec["episode_seed"]),
+                    method=method,
+                    planner_config=planner_config,
+                    candidate_source=args.candidate_source,
+                    checkpoint_data=checkpoint_data,
+                    device=device,
+                    num_samples=args.num_samples,
+                    sampling_steps=args.sampling_steps,
+                    sampling_seed=args.sampling_seed + int(spec["episode_index"]) * 1000,
+                    projection_iterations=args.projection_iterations,
+                    use_local_cbf=args.safety_layer == "local_cbf",
+                    safety_layer=args.safety_layer,
+                    robust_safety_config=safety_config,
+                    prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
+                    distributed_config=distributed_config,
+                    scenario=scenario_from_metadata(spec["scenario"]),
+                    validate_scenario=False,
+                )
+                row.update(
+                    {
+                        "episode_index": int(spec["episode_index"]),
+                        "target_speed_scale": float(spec["target_speed_scale"]),
+                        "defender_bias": str(spec["defender_bias"]),
+                        "observation_condition": str(spec.get("observation_condition", "unknown")),
+                        "rollout_policy": str(spec.get("rollout_policy", "unknown")),
+                        "target_branch_sign_label": spec.get("target_branch_sign"),
+                    }
+                )
+                rows.append(row)
+                episode_file.write(json.dumps(row, allow_nan=True) + "\n")
+                for step in episode_steps:
+                    step_record = {"episode_index": int(spec["episode_index"]), **step}
+                    steps.append(step_record)
+                    step_file.write(json.dumps(step_record, allow_nan=True) + "\n")
+        summary = grouped_summary(rows, steps)
+        method_output.joinpath("summary.json").write_text(json.dumps(summary, indent=2, allow_nan=True), encoding="utf-8")
+        all_summaries[method] = summary
+
+    result = {"protocol": run_config, "methods": all_summaries, "decision": "locked_test_diagnostic"}
+    output.joinpath("summary.json").write_text(json.dumps(result, indent=2, allow_nan=True), encoding="utf-8")
+    print(json.dumps(result, indent=2, allow_nan=True), flush=True)
+
+
+if __name__ == "__main__":
+    main()

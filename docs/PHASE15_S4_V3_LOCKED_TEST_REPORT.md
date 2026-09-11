@@ -1,4 +1,8 @@
-# Phase 15 S4-v3 Locked-Test Report
+# Phase 15 S4-v3 Preliminary Locked-Test Report
+
+> Historical one-seed, three-epoch pilot only. It is superseded for all Phase
+> 15 decisions by `PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`, which contains
+> the 30-epoch, three-seed offline and causal online closed-loop results.
 
 ## Protocol
 

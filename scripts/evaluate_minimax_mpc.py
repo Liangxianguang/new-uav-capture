@@ -58,6 +58,8 @@ from encirclement3d.observation_encoding import policy_observations  # noqa: E40
 from encirclement3d.prediction import (  # noqa: E402
     ConditionalDiffusionTrajectoryPredictor,
     HistoryTargetPredictor,
+    OfficialS4ConditionalDiffusionTrajectoryPredictor,
+    S4ConditionalDiffusionTrajectoryPredictor,
     TrajectoryNormalizer,
     project_candidate_trajectories,
 )
@@ -81,6 +83,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mpc-config", type=Path, default=DEFAULT_MPC_CONFIG)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument(
+        "--official-s4-root",
+        type=Path,
+        help="Override the upstream state-spaces/s4 source root stored in an official checkpoint.",
+    )
     parser.add_argument("--candidate-source", choices=("checkpoint", "belief"), default="checkpoint")
     parser.add_argument(
         "--methods",
@@ -185,21 +192,48 @@ def weighted_belief_velocity(observation: dict[str, Any]) -> np.ndarray:
 def model_from_checkpoint(
     checkpoint_path: Path,
     device: torch.device,
+    official_s4_root: Path | None = None,
 ) -> tuple[torch.nn.Module, str, TrajectoryNormalizer, dict[str, Any]]:
     checkpoint = torch.load(checkpoint_path.resolve(), map_location="cpu", weights_only=True)
     if not isinstance(checkpoint, dict):
         raise ValueError("Prediction checkpoint must contain a mapping.")
     model_kind = str(checkpoint.get("model_kind", ""))
-    model_config = checkpoint.get("model_config")
-    if not isinstance(model_config, dict):
+    raw_model_config = checkpoint.get("model_config")
+    if not isinstance(raw_model_config, dict):
         raise ValueError("Prediction checkpoint is missing model_config.")
+    model_config = dict(raw_model_config)
+    state_dict = checkpoint.get("state_dict", {})
+    if not isinstance(state_dict, dict):
+        raise ValueError("Prediction checkpoint is missing state_dict.")
+    if "diffusion_steps" not in model_config and "betas" in state_dict:
+        model_config["diffusion_steps"] = int(state_dict["betas"].shape[0])
+    if model_kind == "s4_diffusion":
+        if "state_dim" not in model_config and "encoder.log_real_eigenvalues" in state_dict:
+            model_config["state_dim"] = int(state_dict["encoder.log_real_eigenvalues"].shape[-1])
+        if "rank" not in model_config and "encoder.p_real" in state_dict:
+            model_config["rank"] = int(state_dict["encoder.p_real"].shape[-1])
+    if model_kind == "official_s4_diffusion":
+        if official_s4_root is not None:
+            model_config["official_s4_root"] = str(official_s4_root.resolve())
+        if not model_config.get("official_s4_root"):
+            raise ValueError("official_s4_diffusion requires --official-s4-root or a checkpoint root.")
+        if "state_dim" not in model_config and "encoder.kernels.0.A_real" in state_dict:
+            model_config["state_dim"] = int(state_dict["encoder.kernels.0.A_real"].shape[-1] * 2)
+        if "rank" not in model_config and "encoder.kernels.0.P" in state_dict:
+            model_config["rank"] = int(state_dict["encoder.kernels.0.P"].shape[0])
+        # This is provenance metadata, not a constructor argument.
+        model_config.pop("official_s4_source_hashes", None)
     if model_kind == "gru":
         model: torch.nn.Module = HistoryTargetPredictor(**model_config)
     elif model_kind == "diffusion":
         model = ConditionalDiffusionTrajectoryPredictor(**model_config)
+    elif model_kind == "s4_diffusion":
+        model = S4ConditionalDiffusionTrajectoryPredictor(**model_config)
+    elif model_kind == "official_s4_diffusion":
+        model = OfficialS4ConditionalDiffusionTrajectoryPredictor(**model_config)
     else:
         raise ValueError(f"Unsupported prediction model kind: {model_kind}")
-    model.load_state_dict(checkpoint["state_dict"], strict=True)
+    model.load_state_dict(state_dict, strict=True)
     model.to(device).eval()
     normalizer_config = checkpoint.get("target_normalizer")
     if not isinstance(normalizer_config, dict):
@@ -233,29 +267,84 @@ class PredictionRuntime:
     cached_scenarios: ScenarioTrajectorySet | None = None
     cached_age_steps: int = 0
     refresh_count: int = 0
+    action_condition_dim: int = 0
+    history_action_feature_dim: int = 0
+    model_input_dim: int = 0
+    model_horizon_count: int = 0
+    history_actions: list[np.ndarray] | None = None
+    last_future_action_condition_available: bool = False
 
     def reset(self) -> None:
         self.history = []
+        self.history_actions = []
         self.step_index = 0
         self.cached_scenarios = None
         self.cached_age_steps = 0
         self.refresh_count = 0
+        self.last_future_action_condition_available = False
+
+    def _append_current_frame(self, observation: dict[str, Any]) -> None:
+        frame = policy_observations(self.env, observation).astype(np.float32)
+        if self.history is None or self.history_actions is None:
+            self.reset()
+        assert self.history is not None and self.history_actions is not None
+        self.history.append(frame.copy())
+        self.history_actions.append(np.asarray(self.env.last_executed_actions, dtype=np.float32).copy())
+        if len(self.history) > self.history_length:
+            self.history.pop(0)
+            self.history_actions.pop(0)
+
+    def _future_action_condition(
+        self,
+        future_action_sequence: np.ndarray | None,
+        defender_count: int,
+    ) -> torch.Tensor | None:
+        if self.action_condition_dim <= 0:
+            self.last_future_action_condition_available = False
+            return None
+        horizon = int(self.model_horizon_count)
+        if horizon <= 0:
+            raise ValueError("Action-conditioned checkpoints must declare a positive model horizon.")
+        if future_action_sequence is None:
+            sequence = np.zeros((horizon, defender_count, 3), dtype=np.float32)
+            self.last_future_action_condition_available = False
+        else:
+            sequence = np.asarray(future_action_sequence, dtype=np.float32)
+            if sequence.ndim != 3 or sequence.shape[1:] != (defender_count, 3):
+                raise ValueError(
+                    "future_action_sequence must have shape [steps, defenders, 3]."
+                )
+            if sequence.shape[0] == 0:
+                sequence = np.zeros((horizon, defender_count, 3), dtype=np.float32)
+                self.last_future_action_condition_available = False
+            else:
+                self.last_future_action_condition_available = True
+                if sequence.shape[0] < horizon:
+                    sequence = np.concatenate(
+                        [sequence, np.repeat(sequence[-1:, :, :], horizon - sequence.shape[0], axis=0)],
+                        axis=0,
+                    )
+                sequence = sequence[:horizon]
+        flattened = sequence.reshape(1, horizon, -1)
+        if flattened.shape[-1] != self.action_condition_dim:
+            raise ValueError(
+                "The checkpoint action condition width does not match the defender action width: "
+                f"model={self.action_condition_dim}, runtime={flattened.shape[-1]}"
+            )
+        return torch.as_tensor(flattened, dtype=torch.float32, device=self.device)
 
     def predict(
         self,
         observation: dict[str, Any],
         planner_horizon: int,
+        future_action_sequence: np.ndarray | None = None,
     ) -> tuple[ScenarioTrajectorySet, float, bool, int]:
         started = time.perf_counter()
         if self.refresh_interval_steps <= 0:
             raise ValueError("refresh_interval_steps must be positive.")
         refresh = self.cached_scenarios is None or self.step_index % self.refresh_interval_steps == 0
         if not refresh:
-            assert self.history is not None
-            frame = policy_observations(self.env, observation).astype(np.float32)
-            self.history.append(frame.copy())
-            if len(self.history) > self.history_length:
-                self.history.pop(0)
+            self._append_current_frame(observation)
             self.step_index += 1
             self.cached_age_steps += 1
             return self.cached_scenarios, 0.0, False, self.cached_age_steps
@@ -274,19 +363,32 @@ class PredictionRuntime:
             return result, (time.perf_counter() - started) * 1000.0, True, 0
         if self.model is None or self.normalizer is None or self.model_kind is None:
             raise RuntimeError("checkpoint prediction runtime is not initialized")
-        frame = policy_observations(self.env, observation).astype(np.float32)
-        if self.history is None:
-            self.reset()
-        assert self.history is not None
-        self.history.append(frame.copy())
-        if len(self.history) > self.history_length:
-            self.history.pop(0)
+        self._append_current_frame(observation)
+        assert self.history is not None and self.history_actions is not None
         padded = [self.history[0]] * (self.history_length - len(self.history)) + self.history
+        padded_actions = [self.history_actions[0]] * (self.history_length - len(self.history_actions)) + self.history_actions
         window = np.stack(padded, axis=0).reshape(self.history_length, -1)
+        action_window = np.stack(padded_actions, axis=0).reshape(self.history_length, -1)
+        if self.history_action_feature_dim:
+            if action_window.shape[-1] != self.history_action_feature_dim:
+                raise ValueError(
+                    "The checkpoint history action width does not match the runtime action width: "
+                    f"model={self.history_action_feature_dim}, runtime={action_window.shape[-1]}"
+                )
+            window = np.concatenate([window, action_window], axis=-1)
+        if self.model_input_dim and window.shape[-1] != self.model_input_dim:
+            raise ValueError(
+                "The checkpoint input width does not match the runtime observation/action history: "
+                f"model={self.model_input_dim}, runtime={window.shape[-1]}"
+            )
         inputs = torch.as_tensor(window[None], dtype=torch.float32, device=self.device)
+        action_condition = self._future_action_condition(
+            future_action_sequence,
+            int(self.history[0].shape[0]),
+        )
         with torch.no_grad():
             if self.model_kind == "gru":
-                mean, _log_variance = self.model(inputs)
+                mean, _log_variance = self.model(inputs, action_condition)
                 raw_displacements = self.normalizer.denormalize(mean[:, None])
             else:
                 generator = torch.Generator(device=self.device.type).manual_seed(
@@ -297,6 +399,7 @@ class PredictionRuntime:
                     num_samples=self.num_samples,
                     sampling_steps=self.sampling_steps,
                     generator=generator,
+                    action_condition=action_condition,
                 )
                 raw_displacements = self.normalizer.denormalize(candidate_set.trajectories)
         reference = self._belief_reference(observation)
@@ -445,9 +548,20 @@ def run_episode(
             distributed_config,
         )
     runtime = None
+    previous_planned_sequence: np.ndarray | None = None
     if method != "dynamic_encirclement":
         if candidate_source == "checkpoint" and checkpoint_data is None:
             raise ValueError("--checkpoint is required for checkpoint candidate source.")
+        checkpoint_config = {} if checkpoint_data is None else dict(checkpoint_data[3].get("model_config", {}))
+        base_frame = policy_observations(env, observation).astype(np.float32)
+        model_input_dim = int(checkpoint_config.get("input_dim", base_frame.size))
+        history_action_feature_dim = model_input_dim - int(base_frame.size)
+        expected_action_width = int(env.n_defenders * 3)
+        if history_action_feature_dim not in {0, expected_action_width}:
+            raise ValueError(
+                "Prediction checkpoint input width is incompatible with the online action-history contract: "
+                f"base={base_frame.size}, model={model_input_dim}, expected history width 0 or {expected_action_width}."
+            )
         runtime = PredictionRuntime(
             env=env,
             source=candidate_source,
@@ -461,6 +575,10 @@ def run_episode(
             projection_iterations=projection_iterations,
             refresh_interval_steps=prediction_refresh_interval_steps,
             history_length=16,
+            action_condition_dim=int(checkpoint_config.get("action_condition_dim", 0)),
+            history_action_feature_dim=history_action_feature_dim,
+            model_input_dim=model_input_dim,
+            model_horizon_count=int(checkpoint_config.get("horizon_count", planner_config.horizon_steps)),
         )
         runtime.reset()
 
@@ -485,6 +603,7 @@ def run_episode(
             scenarios, predictor_latency_ms, prediction_refreshed, prediction_age_steps = runtime.predict(
                 observation,
                 planner_config.horizon_steps,
+                future_action_sequence=previous_planned_sequence,
             )
             planner_config_for_method = MinimaxMPCConfig(
                 **{
@@ -509,6 +628,7 @@ def run_episode(
                     scenarios,
                     fallback_actions=fallback_actions,
                 )
+            previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
             candidate_distance_metrics = evaluate_candidate_capture_distances(
@@ -615,6 +735,13 @@ def run_episode(
                 "predictor_latency_ms": float(predictor_latency_ms),
                 "prediction_refreshed": 1.0 if method != "dynamic_encirclement" and prediction_refreshed else 0.0,
                 "prediction_age_steps": float(prediction_age_steps if method != "dynamic_encirclement" else 0.0),
+                "future_action_condition_available": (
+                    1.0
+                    if method != "dynamic_encirclement"
+                    and runtime is not None
+                    and runtime.last_future_action_condition_available
+                    else 0.0
+                ),
                 "planner_latency_ms": float(planner_diagnostics.latency_ms),
                 "planner_status": 1.0 if planner_status == "success" else 0.0,
                 "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
@@ -775,6 +902,9 @@ def run_episode(
         "mean_planner_latency_ms": float(np.nanmean([row["planner_latency_ms"] for row in step_rows])),
         "mean_predictor_latency_ms": float(np.nanmean([row["predictor_latency_ms"] for row in step_rows])),
         "prediction_refresh_rate": float(np.mean([row["prediction_refreshed"] for row in step_rows])),
+        "future_action_condition_available_rate": float(
+            np.mean([row["future_action_condition_available"] for row in step_rows])
+        ),
         "mean_prediction_age_steps": float(np.mean([row["prediction_age_steps"] for row in step_rows])),
         "max_prediction_age_steps": int(max(row["prediction_age_steps"] for row in step_rows)),
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
@@ -1018,6 +1148,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             "p99": percentile(predictor_latencies, 99),
         },
         "prediction_refresh_rate": finite_mean([row["prediction_refresh_rate"] for row in rows]),
+        "future_action_condition_available_rate": finite_mean(
+            [row["future_action_condition_available_rate"] for row in rows]
+        ),
         "mean_prediction_age_steps": finite_mean([row["mean_prediction_age_steps"] for row in rows]),
         "max_prediction_age_steps": int(max(row["max_prediction_age_steps"] for row in rows)),
         "safety_latency_ms": {
@@ -1118,7 +1251,11 @@ def main() -> None:
         raise ValueError("prediction sampling, projection and refresh settings must be positive.")
     if args.candidate_source == "checkpoint" and not args.checkpoint:
         raise ValueError("--checkpoint is required when --candidate-source=checkpoint.")
-    checkpoint_data = model_from_checkpoint(args.checkpoint, device) if args.checkpoint else None
+    checkpoint_data = (
+        model_from_checkpoint(args.checkpoint, device, args.official_s4_root)
+        if args.checkpoint
+        else None
+    )
     if checkpoint_data is not None:
         model_config = checkpoint_data[3].get("model_config", {})
         if int(model_config.get("horizon_count", 0)) < planner_config.horizon_steps:

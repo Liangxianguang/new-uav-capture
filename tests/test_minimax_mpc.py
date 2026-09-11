@@ -18,6 +18,8 @@ from encirclement3d.minimax_mpc import (
     make_belief_candidate_set,
 )
 from encirclement3d.safety_qp import RobustCBFQPConfig
+from encirclement3d.observation_encoding import policy_observations
+from encirclement3d.prediction import HistoryTargetPredictor, TrajectoryNormalizer
 from scripts.evaluate_minimax_mpc import PredictionRuntime, run_episode
 
 
@@ -190,6 +192,53 @@ def test_prediction_runtime_reuses_cached_candidates_and_records_age() -> None:
     assert third_refreshed is True
     assert third_age == 0
     assert third is not first
+
+
+def test_action_conditioned_runtime_uses_executed_history_and_cached_plan() -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(encoding="utf-8")
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=1, target_speed_scale=0.45)
+    observation = env.reset(seed=648302)
+    base_width = int(policy_observations(env, observation).size)
+    action_width = int(env.n_defenders * 3)
+    model = HistoryTargetPredictor(
+        input_dim=base_width + action_width,
+        horizon_count=4,
+        hidden_dim=8,
+        num_layers=1,
+        action_condition_dim=action_width,
+    )
+    runtime = PredictionRuntime(
+        env=env,
+        source="checkpoint",
+        device=torch.device("cpu"),
+        model=model,
+        model_kind="gru",
+        normalizer=TrajectoryNormalizer.fixed(horizon_count=4, scale=10.0),
+        num_samples=2,
+        sampling_steps=2,
+        refresh_interval_steps=1,
+        history_length=3,
+        action_condition_dim=action_width,
+        history_action_feature_dim=action_width,
+        model_input_dim=base_width + action_width,
+        model_horizon_count=4,
+    )
+    runtime.reset()
+    first, _latency, _refreshed, _age = runtime.predict(observation, planner_horizon=4)
+    assert first.dynamics_status == "projected"
+    assert runtime.last_future_action_condition_available is False
+
+    observation, _reward, _terminated, _truncated, _info = env.step(np.zeros((env.n_defenders, 3)))
+    planned = np.zeros((2, env.n_defenders, 3), dtype=np.float64)
+    second, _latency, _refreshed, _age = runtime.predict(
+        observation,
+        planner_horizon=4,
+        future_action_sequence=planned,
+    )
+    assert second.dynamics_status == "projected"
+    assert runtime.last_future_action_condition_available is True
 
 
 def test_joint_episode_records_velocity_level_robust_safety_metrics() -> None:
