@@ -270,6 +270,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE21_UAKR_RELIABILITY_AUDIT_REPORT.md`。当前 UAKR 是有希望但尚未晋级的方向。
 
+### P18：Phase 22 UAKR mirror-group confirmation audit
+
+- [x] 将 reliability audit 扩展为 `mirror_group_half`，按完整 mirror group 分配 calibration/confirmation，避免 episode 顺序切分导致的分布偏移。
+- [x] 在三种子、135 个 per-run mirror-group 单元上完成固定 seed `20260912` 的审计：calibration/confirmation 为 67/68 组、134/136 episodes。
+- [x] mean-U AUROC 为 `0.771`（calibration）和 `0.687`（confirmation），max-U 为 `0.720/0.667`；confirmation mean-U 最高/最低四分位 failure rate 为 `8.82%/0%`。
+- [x] 判定为“弱 ranking signal、未校准”：不得直接接入风险门控或把 uncertainty 写成 failure probability。
+- [ ] 在 calibration groups 上拟合预注册标签的 calibration map，并只在 confirmation groups 上评估冻结映射；分别记录 prediction miss、next-step safety violation 和 timeout。
+
+详见 `docs/PHASE22_UAKR_MIRROR_GROUP_CONFIRMATION_REPORT.md`。只有映射在 confirmation 上稳定，才允许进入新的闭环 pilot。
+
 ## 7. 当前推荐执行顺序
 
 ```text

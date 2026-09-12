@@ -33,6 +33,7 @@ metric.
 | Phase 19 | Severe-unreachability-gated RNIC pilot | On a paired 20-scene validation pilot, thresholds `-0.75/-0.50/-0.25 s` leave safe capture/collision unchanged at 95.0%/5.0% while increasing total p95 to 66.15--67.97 ms; retain as a negative ablation, not a promoted method. | `PHASE19_GATED_RNIC_PILOT_REPORT.md`, `phase19_gated_rnic_validation.yaml` |
 | Phase 20 | UAKR threshold-calibration pilot | Lowering thresholds to `0.30/0.55` raises mean K to 3.19 but reduces the paired 20-scene safe capture from 95.0% to 90.0% and raises total p95 to 138.04 ms; retain as a negative ablation. | `PHASE20_UAKR_THRESHOLD_CALIBRATION_PILOT_REPORT.md` |
 | Phase 21 | UAKR reliability audit | On 270 retained validation episodes, mean uncertainty ranks failure/collision with AUROC 0.740 and maximum uncertainty with AUROC 0.703; the signal is useful but quartile risk is not strictly monotonic, so calibration and confirmation remain open. | `PHASE21_UAKR_RELIABILITY_AUDIT_REPORT.md`, `scripts/analyze_uakr_reliability.py` |
+| Phase 22 | UAKR mirror-group confirmation audit | With complete mirror groups split into 134 calibration and 136 confirmation episodes, mean-U AUROC is 0.771/0.687 and max-U AUROC 0.720/0.667; ranking transfers weakly but is not calibrated enough for online risk gating. | `PHASE22_UAKR_MIRROR_GROUP_CONFIRMATION_REPORT.md` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.
 Its predictor results used the former simulator-truth forecast origin and are

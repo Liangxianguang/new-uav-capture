@@ -37,3 +37,27 @@ def test_uakr_reliability_audit_reports_monotonic_failure_signal(tmp_path: Path)
     quartiles = result["quartiles"]["mean_uncertainty"]
     assert quartiles[0]["failure_rate"] == 0.0
     assert quartiles[-1]["failure_rate"] == 1.0
+
+
+def test_mirror_group_split_keeps_groups_intact(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    _write_run(run, [(0.1, True), (0.2, True), (0.3, True), (0.4, True), (0.8, False), (0.9, False), (0.7, False), (0.6, False)])
+    manifest = tmp_path / "scenes.jsonl"
+    records = [
+        {"episode_index": index, "mirror_group_id": f"group-{index // 2}"}
+        for index in range(8)
+    ]
+    manifest.write_text("\n".join(json.dumps(record) for record in records), encoding="utf-8")
+
+    result = analyze(
+        [run],
+        scene_manifest=manifest,
+        split_strategy="mirror_group_half",
+        split_seed=17,
+    )
+
+    assert result["split_metadata"]["group_count"] == 4
+    assert result["split_metadata"]["calibration_group_count"] == 2
+    assert result["split_metadata"]["confirmation_group_count"] == 2
+    assert result["split_metadata"]["calibration_episode_count"] == 4
+    assert result["split_metadata"]["confirmation_episode_count"] == 4
