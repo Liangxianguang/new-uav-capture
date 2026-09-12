@@ -32,6 +32,7 @@ def test_summarize_file_reports_cause_and_hash(tmp_path) -> None:
     assert report["classifier_complete"] is True
     assert report["classified_qdr_rows"] == 1
     assert report["prefix_admissible_rate"] == 0.0
+    assert report["first_violation_step_min"] == 2.0
     assert report["first_violation_cause_counts"] == {"boundary": 1}
     assert len(report["sha256"]) == 64
 
@@ -45,3 +46,17 @@ def test_summarize_file_does_not_infer_legacy_cause(tmp_path) -> None:
     assert report["classifier_complete"] is False
     assert report["missing_classifier_rows"] == 1
     assert report["first_violation_cause_counts"] == {}
+
+
+def test_summarize_file_ignores_no_violation_sentinel_for_first_step(tmp_path) -> None:
+    path = tmp_path / "mixed_steps.jsonl"
+    path.write_text(
+        json.dumps(_row(qdr_prefix_admissible=1.0, qdr_prefix_first_violation_step=-1.0))
+        + "\n"
+        + json.dumps(_row(episode_index=1, qdr_prefix_first_violation_step=1.0))
+        + "\n"
+    )
+
+    report = summarize_file(path)
+
+    assert report["first_violation_step_min"] == 1.0

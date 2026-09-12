@@ -80,6 +80,8 @@ def summarize_file(path: Path) -> dict[str, Any]:
 
     def metric(key: str, reducer: str = "mean") -> float | None:
         values = _finite([row.get(key) for row in classified])
+        if key == "qdr_prefix_first_violation_step":
+            values = [value for value in values if value > 0.0]
         if not values:
             return None
         if reducer == "min":

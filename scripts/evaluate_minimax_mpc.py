@@ -1439,7 +1439,9 @@ def run_episode(
         ),
         "qdr_prefix_minimum_barrier_m": _diagnostic_min(step_rows, "qdr_prefix_minimum_barrier_m"),
         "qdr_prefix_admissible_rate": _diagnostic_mean(step_rows, "qdr_prefix_admissible"),
-        "qdr_prefix_first_violation_step": _diagnostic_min(step_rows, "qdr_prefix_first_violation_step"),
+        "qdr_prefix_first_violation_step": _diagnostic_positive_min(
+            step_rows, "qdr_prefix_first_violation_step"
+        ),
         "qdr_prefix_violation_step_count": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_count"),
         "qdr_prefix_violation_step_ratio": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_ratio"),
         "qdr_prefix_violation_cause_counts": _diagnostic_category_counts(
@@ -1643,6 +1645,11 @@ def _diagnostic_rate(step_rows: list[dict[str, Any]], key: str) -> float:
 
 def _diagnostic_min(step_rows: list[dict[str, Any]], key: str) -> float:
     values = _diagnostic_values(step_rows, key)
+    return float(np.min(values)) if values else float("nan")
+
+
+def _diagnostic_positive_min(step_rows: list[dict[str, Any]], key: str) -> float:
+    values = [value for value in _diagnostic_values(step_rows, key) if value > 0.0]
     return float(np.min(values)) if values else float("nan")
 
 

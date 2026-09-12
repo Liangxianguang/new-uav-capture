@@ -57,6 +57,32 @@ The aligned arm's prefix endpoint audit coverage is `91.08%`, compared with
 an execution safety certificate; endpoint checks that are not reached before
 episode termination are not counted as valid certificates.
 
+### Prefix-risk classification rerun
+
+The aligned arm was rerun with the released prefix-classifier logging schema,
+keeping the same 20 scenes, checkpoint, sampling seed, queue contract and
+controller settings. Across `465` QDR control steps, `92.47%` were classified
+as prefix-admissible and `7.53%` contained at least one public-geometry
+violation. The minimum prefix barrier was `-0.579 m`. The first violating
+control-step causes were counted as:
+
+| Cause | Violating control steps |
+| --- | ---: |
+| obstacle | 30 |
+| inter-agent | 3 |
+| boundary | 2 |
+
+These counts are control-step diagnostics rather than episode-level failure
+counts. They show that a non-trivial portion of the QDR prefix is already
+outside the declared geometric safe set before the newly planned action can
+take effect. The result supports treating queue execution as a precondition
+and does not justify claiming that a delayed-state CBF projection repairs the
+immutable queue.
+
+The machine-readable audit is retained at
+`results/phase26_qdr_prefix_audit_aligned_seed727201.json` and the rerun
+itself at `results/phase26_qdr_prefix_audit_aligned_seed727201/`.
+
 ## Decision
 
 The new delayed-state safety projection is retained as an explicit, tested
