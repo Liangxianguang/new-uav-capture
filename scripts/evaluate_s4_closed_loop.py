@@ -144,6 +144,21 @@ def source_hashes_closed_loop(protocol: Path, scenes: Path, mpc: Path) -> dict[s
     return hashes
 
 
+def apply_phase17_execution_mapping(
+    config: dict[str, Any],
+    phase17_execution_mapping: dict[str, Any],
+    *,
+    frozen_scene_record: dict[str, Any],
+) -> None:
+    """Apply defaults without overwriting a frozen scene execution contract."""
+
+    if not phase17_execution_mapping or "execution_overrides" in frozen_scene_record:
+        return
+    config.setdefault("dynamics", {}).setdefault("execution", {}).update(
+        copy.deepcopy(phase17_execution_mapping)
+    )
+
+
 def main() -> None:
     args = parse_args()
     output = args.output_dir.resolve()
@@ -259,10 +274,11 @@ def main() -> None:
             for record in records:
                 spec = dict(record)
                 config = config_for_spec(args.environment_config, protocol, spec, args.max_steps)
-                if phase17_execution_mapping:
-                    config.setdefault("dynamics", {}).setdefault("execution", {}).update(
-                        phase17_execution_mapping
-                    )
+                apply_phase17_execution_mapping(
+                    config,
+                    phase17_execution_mapping,
+                    frozen_scene_record=spec,
+                )
                 distributed_config = None
                 if method in distributed_modes:
                     distributed_config = DistributedDNMPCConfig.from_mapping(
