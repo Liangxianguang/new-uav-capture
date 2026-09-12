@@ -41,9 +41,10 @@
 3. velocity-level robust CBF-QP 在预先筛选的 robust-safe reset 上通过了一步独立证书检查，但这不是执行扰动下的闭环安全证明。
 4. 将 robust CBF-QP 直接接入 P4 流程后，safe capture 只有 50.00%，collision 为 49.00%，boundary violation 为 16.00%；因此当前端到端组合路径为 **No-Go**。
 5. P7.2 新复核目录 `results/phase7_p7_2_independent_certificate_reaudit_v5/` 已具备完整配置、summary、episode/step 日志和 TensorBoard；当前 source 下独立 current/next-state certificate 均为 `100%`，但与历史 P7 v2 仅有 `50/100` episode 结局一致，safe capture 从 `50%` 变为 `99%`，因此 exact behavior-parity gate 为 No-Go，不能替换历史 P7 结论。详见 `docs/PHASE28_P7_2_INDEPENDENT_CERTIFICATE_REAUDIT_REPORT.md`。
+6. P8 viability-guard full development audit 已完成：hard `flush_pending`、8 seeds 下 safe capture `12.50%`，collision/boundary `0%/0%`，timeout `37.50%`，safety abort `50.00%`，actual post-state safety `100%`，但 continuous certificate 仅 `18.31%`，safety p95 `1207.35 ms`。这是 safety--liveness Pareto No-Go，不能写成 R-CLBF-QP 证明。详见 `docs/PHASE29_VIABILITY_GUARD_AUDIT_REPORT.md`。
 
-6. 最新 Phase 14 八种子 authority matrix 已完成，但三种权限均未达到 hard `80%` safe-capture 工作门槛；下一步必须先做证书/队列失败分解，再扩大 unseen seed。
-7. 最新 continuous-QP progress/recovery audit 仍未通过：2-seed/250-step hard `flush_pending` 的 safe capture 为 `0%`，actual post robust safety 为 `71.4%`，continuous certificate 为 `12.4%`；重复 emergency brake 消除了该小样本中的物理碰撞/越界，但没有恢复 robust tube 不变性。详见 `docs/PHASE14_PROGRESS_RECOVERY_REPORT.md`。
+7. 最新 Phase 14 八种子 authority matrix 已完成，但三种权限均未达到 hard `80%` safe-capture 工作门槛；下一步必须先做证书/队列失败分解，再扩大 unseen seed。
+8. 最新 continuous-QP progress/recovery audit 仍未通过：2-seed/250-step hard `flush_pending` 的 safe capture 为 `0%`，actual post robust safety 为 `71.4%`，continuous certificate 为 `12.4%`；重复 emergency brake 消除了该小样本中的物理碰撞/越界，但没有恢复 robust tube 不变性。详见 `docs/PHASE14_PROGRESS_RECOVERY_REPORT.md`。
 
 ## 2. 当前捕获率
 
@@ -158,7 +159,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 修正 delayed fallback 的进展评分：在 `queue length + 1` 的首个可控时刻评价新动作，而不是只评价旧队列前缀。
 - [x] 对 prefix 仍不可行的状态重复保持 emergency brake；只有 prefix 恢复可行后才允许 resume。
 - [x] 修正 `actual_post_robust_state_safe` 的统计口径，使其真正包含 reachable-tube robust barrier。
-- [ ] 增加 braking/viability-aware recovery guard，在当前状态进入不可恢复区之前触发保守恢复。
+- [x] 完成 braking/viability-aware recovery guard 的 8-seed development audit；actual post-state safety `100%`，但 safe capture `12.50%`、abort `50.00%`、continuous certificate `18.31%`，判定为 safety--liveness Pareto No-Go。
 - [ ] 将 safe abort、robust-contract violation 和 physical collision 分开建模，并在 episode 终止协议中明确其优先级。
 
 **P8 gate（建议预注册）：** 初始契约有效率 100%；post-step independent safety、fallback 后安全率和关键场景证书覆盖率至少 99%；QP infeasible、未解释 solver failure 和未认证 fallback 均低于 1%；collision/boundary 不得劣于 local CBF baseline；否则停止扩大模型，报告安全--捕获 Pareto。
