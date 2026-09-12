@@ -1,8 +1,8 @@
 # 三个创新点完整 TodoList 目标计划书
 
-> 版本：v1.0  
-> 更新时间：2026-09-12  
-> 适用仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)  
+> 版本：v1.0
+> 更新时间：2026-09-12
+> 适用仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 研究对象：部分观测、通信/执行延迟和高机动目标下的多无人机围捕拦截
 
 ## 0. 先给结论
@@ -30,7 +30,7 @@
 
 ### 1.2 两句话 pitch
 
-**问题句：** 延迟和高机动目标使多无人机规划器同时面临状态错位、预测预算浪费和“近但不可达”的拦截点，单纯增加候选轨迹或优化迭代不能稳定解决这三个问题。  
+**问题句：** 延迟和高机动目标使多无人机规划器同时面临状态错位、预测预算浪费和“近但不可达”的拦截点，单纯增加候选轨迹或优化迭代不能稳定解决这三个问题。
 **方法句：** 我们提出一个可审计的 QDR–UAKR–RNIC 闭环：用命令队列生成将要执行的延迟状态，用不确定性触发候选数/重规划预算，用动力学可达时间裕量归一化拦截代价，从而在固定安全控制接口下提升延迟和 OOD 条件下的安全捕获效率。
 
 ### 1.3 不允许的表述
@@ -508,4 +508,3 @@ docs(phaseX): report <decision>
 - 论文明确写出当前安全层的适用范围和失败边界。
 
 在这些条件满足之前，最稳妥的论文标题方向应是“queue-aware delayed distributed encirclement with adaptive prediction budgeting and reachability-normalized planning”，而不是宣称已经完成形式化安全闭环。
-
