@@ -54,6 +54,10 @@ from encirclement3d.distributed_dn_mpc import (  # noqa: E402
     DistributedDNMPCConfig,
     DistributedMinimaxDNMPC,
 )
+from encirclement3d.adaptive_prediction import (  # noqa: E402
+    AdaptivePredictionDecision,
+    AdaptivePredictionPolicy,
+)
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
 from encirclement3d.prediction import (  # noqa: E402
     ConditionalDiffusionTrajectoryPredictor,
@@ -137,6 +141,34 @@ def parse_args() -> argparse.Namespace:
         help="Disable queue-aware rollout even when enabled by the experiment YAML.",
     )
     parser.set_defaults(queue_aware_rollout=None)
+    adaptive_group = parser.add_mutually_exclusive_group()
+    adaptive_group.add_argument(
+        "--adaptive-k",
+        dest="adaptive_k",
+        action="store_true",
+        help="Enable uncertainty-triggered candidate-count and replanning scheduling.",
+    )
+    adaptive_group.add_argument(
+        "--no-adaptive-k",
+        dest="adaptive_k",
+        action="store_false",
+        help="Disable adaptive candidate scheduling even when enabled by the YAML.",
+    )
+    parser.set_defaults(adaptive_k=None)
+    rnic_group = parser.add_mutually_exclusive_group()
+    rnic_group.add_argument(
+        "--rnic",
+        dest="rnic",
+        action="store_true",
+        help="Enable reachability-normalized interception cost.",
+    )
+    rnic_group.add_argument(
+        "--no-rnic",
+        dest="rnic",
+        action="store_false",
+        help="Disable reachability-normalized interception cost.",
+    )
+    parser.set_defaults(rnic=None)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -178,6 +210,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "queue_aware_rollout.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "adaptive_prediction.py",
         PROJECT_ROOT / "configs" / "innovation_mpc.yaml",
     )
     hashes = {
@@ -293,6 +326,9 @@ class PredictionRuntime:
     model_horizon_count: int = 0
     history_actions: list[np.ndarray] | None = None
     last_future_action_condition_available: bool = False
+    adaptive_policy: AdaptivePredictionPolicy | None = None
+    last_adaptive_decision: AdaptivePredictionDecision | None = None
+    last_prediction_residual_m: float | None = None
 
     def reset(self) -> None:
         self.history = []
@@ -302,6 +338,10 @@ class PredictionRuntime:
         self.cached_age_steps = 0
         self.refresh_count = 0
         self.last_future_action_condition_available = False
+        self.last_adaptive_decision = None
+        self.last_prediction_residual_m = None
+        if self.adaptive_policy is not None:
+            self.adaptive_policy.reset()
 
     def _append_current_frame(self, observation: dict[str, Any]) -> None:
         frame = policy_observations(self.env, observation).astype(np.float32)
@@ -360,11 +400,43 @@ class PredictionRuntime:
         future_action_sequence: np.ndarray | None = None,
     ) -> tuple[ScenarioTrajectorySet, float, bool, int]:
         started = time.perf_counter()
-        if self.refresh_interval_steps <= 0:
-            raise ValueError("refresh_interval_steps must be positive.")
-        refresh = self.cached_scenarios is None or self.step_index % self.refresh_interval_steps == 0
+        adaptive = self.adaptive_policy is not None
+        previous_residual_m: float | None = None
+        if self.cached_scenarios is not None:
+            cached_reference = np.average(
+                self.cached_scenarios.trajectories[:, 0],
+                axis=0,
+                weights=self.cached_scenarios.normalized_weights,
+            )
+            current_reference = self._belief_reference(observation)
+            previous_residual_m = float(np.linalg.norm(cached_reference - current_reference))
+        self.last_prediction_residual_m = previous_residual_m
+        if adaptive:
+            decision_age_steps = self.cached_age_steps + (1 if self.cached_scenarios is not None else 0)
+            decision = self.adaptive_policy.decide(
+                observation,
+                cached_age_steps=decision_age_steps,
+                has_cache=self.cached_scenarios is not None,
+                previous_residual_m=previous_residual_m,
+            )
+            self.last_adaptive_decision = decision
+            sample_count = int(decision.num_samples)
+            refresh = bool(decision.refresh)
+        else:
+            if self.refresh_interval_steps <= 0:
+                raise ValueError("refresh_interval_steps must be positive.")
+            sample_count = int(self.num_samples)
+            refresh = self.cached_scenarios is None or self.step_index % self.refresh_interval_steps == 0
         if not refresh:
             self._append_current_frame(observation)
+            if adaptive and self.cached_scenarios is not None:
+                self.cached_scenarios = shift_scenario_trajectory_set(
+                    self.cached_scenarios,
+                    offset_steps=1,
+                    horizon_steps=planner_horizon,
+                    dt_seconds=self.env.dt,
+                    max_speed_mps=float(self.env.agents["target_max_speed"]),
+                )
             self.step_index += 1
             self.cached_age_steps += 1
             return self.cached_scenarios, 0.0, False, self.cached_age_steps
@@ -374,7 +446,7 @@ class PredictionRuntime:
                 horizon_steps=planner_horizon,
                 dt_seconds=self.env.dt,
                 max_speed_mps=float(self.env.agents["target_max_speed"]),
-                candidate_count=self.num_samples,
+                candidate_count=sample_count,
             )
             self.cached_scenarios = result
             self.cached_age_steps = 0
@@ -411,12 +483,19 @@ class PredictionRuntime:
                 mean, _log_variance = self.model(inputs, action_condition)
                 raw_displacements = self.normalizer.denormalize(mean[:, None])
             else:
-                generator = torch.Generator(device=self.device.type).manual_seed(
-                    int(self.sampling_seed + self.step_index)
-                )
+                if adaptive:
+                    sampling_seed = (
+                        int(self.sampling_seed)
+                        + int(self.step_index) * 1000003
+                        + int(sample_count) * 1009
+                        + int(self.refresh_count) * 9176
+                    )
+                else:
+                    sampling_seed = int(self.sampling_seed + self.step_index)
+                generator = torch.Generator(device=self.device.type).manual_seed(int(sampling_seed))
                 candidate_set = self.model.sample_set(
                     inputs,
-                    num_samples=self.num_samples,
+                    num_samples=sample_count,
                     sampling_steps=self.sampling_steps,
                     generator=generator,
                     action_condition=action_condition,
@@ -512,6 +591,7 @@ def run_episode(
     robust_safety_config: RobustCBFQPConfig | None = None,
     prediction_refresh_interval_steps: int = 1,
     queue_aware_rollout: bool = False,
+    adaptive_prediction_config: dict[str, Any] | None = None,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
@@ -601,6 +681,11 @@ def run_episode(
             history_action_feature_dim=history_action_feature_dim,
             model_input_dim=model_input_dim,
             model_horizon_count=int(checkpoint_config.get("horizon_count", planner_config.horizon_steps)),
+            adaptive_policy=(
+                None
+                if adaptive_prediction_config is None
+                else AdaptivePredictionPolicy.from_mapping(adaptive_prediction_config)
+            ),
         )
         runtime.reset()
 
@@ -617,6 +702,15 @@ def run_episode(
         qdr_queue_length = 0
         qdr_first_controllable_step = 0
         qdr_latency_ms = 0.0
+        adaptive_enabled = False
+        adaptive_uncertainty_score = 0.0
+        adaptive_bucket_index = 0
+        adaptive_num_samples = 0
+        adaptive_refresh_interval_steps = prediction_refresh_interval_steps
+        adaptive_forced_refresh = False
+        adaptive_cache_age_steps = 0
+        adaptive_prediction_residual_m = 0.0
+        adaptive_refresh_reason: str | None = None
         if method in {"dynamic_encirclement", "pure_pursuit"}:
             nominal_actions = (
                 fallback_actions
@@ -637,6 +731,17 @@ def run_episode(
                 planner_config.horizon_steps,
                 future_action_sequence=previous_planned_sequence,
             )
+            if runtime.last_adaptive_decision is not None:
+                decision = runtime.last_adaptive_decision
+                adaptive_enabled = True
+                adaptive_uncertainty_score = float(decision.uncertainty_score)
+                adaptive_bucket_index = int(decision.bucket_index)
+                adaptive_num_samples = int(decision.num_samples)
+                adaptive_refresh_interval_steps = int(decision.refresh_interval_steps)
+                adaptive_forced_refresh = bool(decision.forced_refresh)
+                adaptive_cache_age_steps = int(prediction_age_steps)
+                adaptive_prediction_residual_m = float(runtime.last_prediction_residual_m or 0.0)
+                adaptive_refresh_reason = decision.forced_refresh_reason
             planner_config_for_method = MinimaxMPCConfig(
                 **{
                     **planner_config.__dict__,
@@ -789,6 +894,15 @@ def run_episode(
                 "qdr_queue_length": float(qdr_queue_length),
                 "qdr_first_controllable_step": float(qdr_first_controllable_step),
                 "qdr_latency_ms": float(qdr_latency_ms),
+                "adaptive_enabled": 1.0 if adaptive_enabled else 0.0,
+                "adaptive_uncertainty_score": float(adaptive_uncertainty_score),
+                "adaptive_bucket_index": float(adaptive_bucket_index),
+                "adaptive_num_samples": float(adaptive_num_samples),
+                "adaptive_refresh_interval_steps": float(adaptive_refresh_interval_steps),
+                "adaptive_forced_refresh": 1.0 if adaptive_forced_refresh else 0.0,
+                "adaptive_cache_age_steps": float(adaptive_cache_age_steps),
+                "adaptive_prediction_residual_m": float(adaptive_prediction_residual_m),
+                "adaptive_refresh_reason": adaptive_refresh_reason,
                 "future_action_condition_available": (
                     1.0
                     if method != "dynamic_encirclement"
@@ -971,6 +1085,27 @@ def run_episode(
             "p50": percentile([row["qdr_latency_ms"] for row in step_rows], 50),
             "p95": percentile([row["qdr_latency_ms"] for row in step_rows], 95),
             "p99": percentile([row["qdr_latency_ms"] for row in step_rows], 99),
+        },
+        "adaptive_enabled_rate": float(np.mean([row["adaptive_enabled"] for row in step_rows])),
+        "mean_adaptive_uncertainty_score": float(
+            np.mean([row["adaptive_uncertainty_score"] for row in step_rows])
+        ),
+        "mean_adaptive_k": float(np.mean([row["adaptive_num_samples"] for row in step_rows])),
+        "mean_adaptive_refresh_interval_steps": float(
+            np.mean([row["adaptive_refresh_interval_steps"] for row in step_rows])
+        ),
+        "adaptive_forced_refresh_rate": float(
+            np.mean([row["adaptive_forced_refresh"] for row in step_rows])
+        ),
+        "mean_adaptive_cache_age_steps": float(
+            np.mean([row["adaptive_cache_age_steps"] for row in step_rows])
+        ),
+        "mean_adaptive_prediction_residual_m": float(
+            np.mean([row["adaptive_prediction_residual_m"] for row in step_rows])
+        ),
+        "adaptive_bucket_counts": {
+            bucket: int(sum(row["adaptive_bucket_index"] == index for row in step_rows))
+            for bucket, index in (("low", 0), ("medium", 1), ("high", 2))
         },
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
         "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
@@ -1238,6 +1373,27 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
                 99,
             ),
         },
+        "adaptive_enabled_rate": finite_mean([row["adaptive_enabled_rate"] for row in rows]),
+        "mean_adaptive_uncertainty_score": finite_mean(
+            [row["mean_adaptive_uncertainty_score"] for row in rows]
+        ),
+        "mean_adaptive_k": finite_mean([row["mean_adaptive_k"] for row in rows]),
+        "mean_adaptive_refresh_interval_steps": finite_mean(
+            [row["mean_adaptive_refresh_interval_steps"] for row in rows]
+        ),
+        "adaptive_forced_refresh_rate": finite_mean(
+            [row["adaptive_forced_refresh_rate"] for row in rows]
+        ),
+        "mean_adaptive_cache_age_steps": finite_mean(
+            [row["mean_adaptive_cache_age_steps"] for row in rows]
+        ),
+        "mean_adaptive_prediction_residual_m": finite_mean(
+            [row["mean_adaptive_prediction_residual_m"] for row in rows]
+        ),
+        "adaptive_bucket_counts": {
+            bucket: int(sum(row.get("adaptive_bucket_counts", {}).get(bucket, 0) for row in rows))
+            for bucket in ("low", "medium", "high")
+        },
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -1292,6 +1448,13 @@ def main() -> None:
     distributed_mapping = dict(mpc_document.get("distributed", {}))
     evaluation_mapping = dict(mpc_document.get("evaluation", {}))
     prediction_mapping = dict(mpc_document.get("prediction", {}))
+    phase17_mapping = dict(mpc_document.get("phase17", {}))
+    rnic = bool(
+        phase17_mapping.get("reachability_normalized_cost", False)
+        if args.rnic is None
+        else args.rnic
+    )
+    planner_mapping["reachability_normalized_cost_enabled"] = rnic
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -1327,12 +1490,19 @@ def main() -> None:
         if args.prediction_refresh_interval_steps is not None
         else prediction_mapping.get("refresh_interval_steps", 1)
     )
-    phase17_mapping = dict(mpc_document.get("phase17", {}))
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)
         if args.queue_aware_rollout is None
         else args.queue_aware_rollout
     )
+    adaptive_k = bool(
+        phase17_mapping.get("adaptive_k", False)
+        if args.adaptive_k is None
+        else args.adaptive_k
+    )
+    adaptive_budget_mapping = dict(prediction_mapping.get("adaptive_budget", {}))
+    if adaptive_k and not adaptive_budget_mapping:
+        raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     if (
         num_samples <= 0
         or sampling_steps <= 0
@@ -1419,6 +1589,9 @@ def main() -> None:
             "safety_config": str(args.safety_config.resolve()) if args.safety_layer == "robust_cbf_qp" else None,
             "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
             "queue_aware_rollout": queue_aware_rollout,
+            "adaptive_k": adaptive_k,
+            "adaptive_budget": adaptive_budget_mapping,
+            "reachability_normalized_cost": rnic,
         },
         "source_hashes": hashes,
     }
@@ -1473,6 +1646,7 @@ def main() -> None:
                     robust_safety_config=robust_safety_config,
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
+                    adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
                     distributed_config=distributed_config,
                 )
                 rows.append(row)
@@ -1546,6 +1720,14 @@ def main() -> None:
                     "qdr_enabled",
                     "qdr_queue_length",
                     "qdr_first_controllable_step",
+                    "adaptive_enabled",
+                    "adaptive_uncertainty_score",
+                    "adaptive_bucket_index",
+                    "adaptive_num_samples",
+                    "adaptive_refresh_interval_steps",
+                    "adaptive_forced_refresh",
+                    "adaptive_cache_age_steps",
+                    "adaptive_prediction_residual_m",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -1586,6 +1768,25 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/latency_p50_ms", summary["qdr_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/QDR/latency_p95_ms", summary["qdr_latency_ms"]["p95"], 0)
             writer.add_scalar("Summary/QDR/latency_p99_ms", summary["qdr_latency_ms"]["p99"], 0)
+            writer.add_scalar("Summary/UAKR/mean_uncertainty_score", summary["mean_adaptive_uncertainty_score"], 0)
+            writer.add_scalar("Summary/UAKR/mean_K", summary["mean_adaptive_k"], 0)
+            writer.add_scalar(
+                "Summary/UAKR/mean_refresh_interval_steps",
+                summary["mean_adaptive_refresh_interval_steps"],
+                0,
+            )
+            writer.add_scalar("Summary/UAKR/forced_refresh_rate", summary["adaptive_forced_refresh_rate"], 0)
+            writer.add_scalar("Summary/UAKR/mean_cache_age_steps", summary["mean_adaptive_cache_age_steps"], 0)
+            writer.add_scalar(
+                "Summary/UAKR/mean_prediction_residual_m",
+                summary["mean_adaptive_prediction_residual_m"],
+                0,
+            )
+            writer.add_text(
+                "Summary/UAKR/BucketCounts",
+                json.dumps(summary.get("adaptive_bucket_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_hparams(
                 {
                     "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
@@ -1599,6 +1800,7 @@ def main() -> None:
                     "safety_layer": args.safety_layer if use_local_cbf or args.safety_layer == "robust_cbf_qp" else "none",
                     "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
                     "queue_aware_rollout": int(queue_aware_rollout),
+                    "adaptive_k": int(adaptive_k),
                 },
                 {
                     "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),

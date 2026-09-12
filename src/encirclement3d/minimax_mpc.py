@@ -16,6 +16,7 @@ from typing import Any, Iterable, Literal
 import numpy as np
 
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
+from .reachability_interception import reachability_normalized_interception_cost
 
 
 RiskMode = Literal["expected", "worst_case", "cvar"]
@@ -117,6 +118,11 @@ class MinimaxMPCConfig:
     weight_boundary: float = 25.0
     weight_inter_agent: float = 25.0
     weight_relative_speed: float = 0.02
+    reachability_normalized_cost_enabled: bool = False
+    weight_reachability: float = 0.0
+    reachability_time_margin_s: float = 0.15
+    reachability_time_scale_s: float = 0.50
+    reachability_max_acceleration_mps2: float = 6.0
     max_role_variants: int = 4
     perimeter_scales: tuple[float, ...] = (0.75, 1.0)
 
@@ -160,9 +166,16 @@ class MinimaxMPCConfig:
             self.weight_boundary,
             self.weight_inter_agent,
             self.weight_relative_speed,
+            self.weight_reachability,
         )
         if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in weights):
             raise ValueError("Cost weights must be finite and non-negative.")
+        if not np.isfinite(float(self.reachability_time_margin_s)) or float(self.reachability_time_margin_s) < 0.0:
+            raise ValueError("reachability_time_margin_s must be finite and non-negative")
+        if not np.isfinite(float(self.reachability_time_scale_s)) or float(self.reachability_time_scale_s) <= 0.0:
+            raise ValueError("reachability_time_scale_s must be finite and positive")
+        if not np.isfinite(float(self.reachability_max_acceleration_mps2)) or float(self.reachability_max_acceleration_mps2) <= 0.0:
+            raise ValueError("reachability_max_acceleration_mps2 must be finite and positive")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "MinimaxMPCConfig":
@@ -668,6 +681,8 @@ class ScenarioMinimaxMPC:
         ).copy()
         scenario_costs = np.zeros((sequence_count, candidate_count), dtype=np.float64)
         constraint_violations = np.zeros((sequence_count, candidate_count), dtype=np.float64)
+        position_paths: list[np.ndarray] = []
+        velocity_paths: list[np.ndarray] = []
         lower = np.asarray(observation.get("world_lower_bounds", [-np.inf, -np.inf, -np.inf]), dtype=np.float64)
         upper = np.asarray(observation.get("world_upper_bounds", [np.inf, np.inf, np.inf]), dtype=np.float64)
         if "world_lower_bounds" not in observation:
@@ -683,6 +698,8 @@ class ScenarioMinimaxMPC:
                 action_change_limit_mps=self.config.action_change_limit_mps,
             )
             positions += action * self.config.dt_seconds
+            position_paths.append(positions.copy())
+            velocity_paths.append(action.copy())
             target = paths[:, timestep]
             delta = positions[:, None, :, :] - target[None, :, None, :]
             distances = np.linalg.norm(delta, axis=-1)
@@ -756,6 +773,18 @@ class ScenarioMinimaxMPC:
                         constraint_violations,
                         inter_agent_violation[:, None],
                     )
+        if self.config.reachability_normalized_cost_enabled:
+            reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
+                np.stack(position_paths, axis=1),
+                np.stack(velocity_paths, axis=1),
+                paths,
+                dt_seconds=self.config.dt_seconds,
+                max_speed_mps=self.config.max_speed_mps,
+                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                time_margin_s=self.config.reachability_time_margin_s,
+                time_scale_s=self.config.reachability_time_scale_s,
+            )
+            scenario_costs += self.config.weight_reachability * reachability_cost
         return scenario_costs, constraint_violations
 
 

@@ -1,6 +1,6 @@
 # Phase 17: Queue-Aware Adaptive Reachability DN-MPC TodoList
 
-> 状态：预注册计划，尚未开始方法实现和结果评测。
+> 状态：QDR、UAKR、RNIC 的第一版适配器与 pilot 已实现；正式 validation/confirmation 尚未开始，当前结果均为诊断性小样本。
 >
 > 核心目标：在不重新训练主预测器、不重新打开 learned CLBF/R-CLBF-QP 路线的前提下，将三个可复现机制接入现有 distributed delayed DN-MPC：
 > 1. Queue-Aware Delayed-State Rollout（QDR）；

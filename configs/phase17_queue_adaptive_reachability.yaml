@@ -1,12 +1,12 @@
 experiment_name: phase17_queue_adaptive_reachability_qdr_smoke
 environment_config: capture_radius_pursuit_central_v4_flee.yaml
 
-# Phase 17 starts with the queue-aware state-alignment adapter.  UAKR and
-# RNIC are intentionally disabled until their validation sets are frozen.
+# Phase 17 smoke configuration.  RNIC remains disabled until its validation
+# set and cost scale are frozen; UAKR is enabled for an explicit pilot.
 phase17:
   queue_aware_rollout: true
-  adaptive_k: false
-  reachability_normalized_cost: false
+  adaptive_k: true
+  reachability_normalized_cost: true
   execution:
     enabled: true
     action_delay_steps: 2
@@ -39,6 +39,10 @@ planner:
   weight_boundary: 25.0
   weight_inter_agent: 25.0
   weight_relative_speed: 0.02
+  weight_reachability: 1.0
+  reachability_time_margin_s: 0.15
+  reachability_time_scale_s: 0.50
+  reachability_max_acceleration_mps2: 6.0
   max_role_variants: 4
   perimeter_scales: [0.75, 1.0]
 
@@ -50,6 +54,27 @@ prediction:
   sampling_seed: 745102
   projection_iterations: 4
   refresh_interval_steps: 1
+  adaptive_budget:
+    low_threshold: 0.35
+    high_threshold: 0.65
+    low_k: 1
+    medium_k: 4
+    high_k: 8
+    low_refresh_interval_steps: 4
+    medium_refresh_interval_steps: 2
+    high_refresh_interval_steps: 1
+    max_cache_age_steps: 4
+    hysteresis: 0.05
+    covariance_scale: 0.50
+    message_age_scale_steps: 8.0
+    speed_ratio_scale: 0.80
+    residual_scale_m: 0.50
+    covariance_weight: 0.30
+    age_weight: 0.20
+    confidence_weight: 0.20
+    speed_weight: 0.15
+    cache_weight: 0.10
+    residual_weight: 0.05
 
 evaluation:
   split: phase17_m0_smoke

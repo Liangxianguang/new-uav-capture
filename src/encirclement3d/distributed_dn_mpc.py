@@ -17,6 +17,7 @@ from typing import Any, Literal
 import numpy as np
 
 from .minimax_mpc import MinimaxMPCConfig, ScenarioTrajectorySet, aggregate_scenario_costs
+from .reachability_interception import reachability_normalized_interception_cost
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
 
 
@@ -646,6 +647,19 @@ class DistributedMinimaxDNMPC:
         change = actions - previous
         result += self.config.weight_control_change * np.sum(change * change, axis=(1, 2))[:, None]
         result += self.config.weight_relative_speed * np.linalg.norm(change, axis=-1).sum(axis=1)[:, None]
+
+        if self.config.reachability_normalized_cost_enabled:
+            reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
+                current[:, :, None, :],
+                actions[:, :, None, :],
+                paths,
+                dt_seconds=self.config.dt_seconds,
+                max_speed_mps=self.config.max_speed_mps,
+                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                time_margin_s=self.config.reachability_time_margin_s,
+                time_scale_s=self.config.reachability_time_scale_s,
+            )
+            result += self.config.weight_reachability * reachability_cost
 
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
