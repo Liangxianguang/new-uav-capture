@@ -1,6 +1,6 @@
 # Phase 17: Queue-Aware Adaptive Reachability DN-MPC TodoList
 
-> 状态：QDR、UAKR、RNIC 的第一版适配器、TensorBoard 字段和单元测试已实现；QDR validation paired gate 为 No-Go，UAKR validation 已完成但未通过安全非劣门槛，RNIC ID validation 已完成但行为无变化且增加延迟。下一步是补齐 RNIC speed-OOD 诊断、UAKR 可靠性分析和 QDR 失败轴实验，暂不开放完整组合主结论。
+> 状态：QDR、UAKR、RNIC 的第一版适配器、TensorBoard 字段和单元测试已实现；QDR validation paired gate 为 No-Go，UAKR validation 已完成但未通过安全非劣门槛，RNIC ID 与 target-speed OOD 均未改善行为且增加延迟。下一步是完成 RNIC 后验到达误差审计、UAKR 可靠性分析和 QDR 失败轴实验，暂不开放完整组合主结论。
 >
 > 核心目标：在不重新训练主预测器、不重新打开 learned CLBF/R-CLBF-QP 路线的前提下，将三个可复现机制接入现有 distributed delayed DN-MPC：
 > 1. Queue-Aware Delayed-State Rollout（QDR）；
@@ -431,10 +431,12 @@ non-inferiority. See `PHASE17_UAKR_VALIDATION_REPORT.md`.
 - [ ] 分解 interceptor-only 与 formation-slot RNIC。
 - [ ] 给出 RNIC Go/No-Go。
 
-**Current M3 decision:** No-Go on ID validation; the RNIC diagnostic schema is
-now implemented and TensorBoard-verified, while speed-OOD plus the
+**Current M3 decision:** No-Go on both ID and target-speed OOD validation. The
+RNIC diagnostic schema is implemented and TensorBoard-verified, but speed-OOD
+shows no timeout/collision improvement and adds latency; the
 predicted-versus-realized arrival audit remains pending. See
-`PHASE17_RNIC_VALIDATION_REPORT.md`.
+`PHASE17_RNIC_VALIDATION_REPORT.md` and
+`PHASE17_RNIC_TARGET_SPEED_OOD_REPORT.md`.
 
 ### M4：全因子 validation
 
