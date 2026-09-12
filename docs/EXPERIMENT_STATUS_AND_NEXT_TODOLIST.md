@@ -18,6 +18,8 @@
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
 
+> Phase 18c tube-width UAKR smoke 更新：将冻结 tube width 以 `weight=0.15`、`scale=10 m` 真正加入 UAKR 调度；相对无管，mean K `3.364→3.952`、prediction refresh ratio `45.64%→52.02%`，但 8 场景 safe capture、collision、boundary 仍为 `87.50%/12.50%/0%`，total p95 `55.99→57.87 ms`。这是负消融：增加了预算但没有闭环收益，不晋级为 UAKR 主贡献。详见 `docs/PHASE18C_TUBE_UAKR_SMOKE_REPORT.md`。
+
 > Phase 15 v3 正式更新：600 场景的数据划分和动作/时间戳契约审计已通过；30 epoch、3 seed 的冻结离线测试中，GRU 的 projected minFDE 为 `0.7244 +/- 0.0352 m`，官方 S4 为 `1.3373 +/- 0.0275 m`。每步刷新且因果动作条件可用率约 `92%--95%` 时，GRU + distributed delayed DN-MPC 为 `95.56% [92.96%, 97.78%]` safe capture，官方 S4 为 `94.44% [91.48%, 97.04%]`。不能声称 S4 优于 GRU；下一步是 validation-only 的 `none/history/future/both`、单/多模态和风险/刷新消融。详见 `docs/PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`。
 
 > Phase 15 action-conditioning 消融已完成：GRU 在相同 30 epoch、3 个匹配 seed 下，`both` 的 validation minFDE 为 `0.8000 +/- 0.0064 m`，优于 `future` 的 `0.8388 +/- 0.0099 m`、`history` 的 `0.9994 +/- 0.0076 m` 和 `none` 的 `1.0288 +/- 0.0101 m`；相对 `both` 的配对 minFDE delta 区间均为正。后续冻结测试确认了这一排序，`both` 的 projected minFDE 为 `0.7000 +/- 0.0057 m`、coverage 为 `94.59%`，但 candidate feasibility 只有 `77.60%`。`both` 已锁定为后续主配置，不能继续用 locked test 选模型；下一步是 no/local/robust safety 三路闭环和单/多模态消融。详见 `docs/PHASE15_S4_V3_ACTION_CONDITION_ABLATION_REPORT.md`。
@@ -229,6 +231,8 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [ ] 运行单进程、固定线程数的 disabled / RNIC-only / UAKR-diagnostic 三路对照，分别报告 safe capture、collision、timeout、clearance、predictor/planner/RNIC/total p50/p95/p99。
 - [ ] 只有新 confirmation 同时满足 trajectory coverage 与紧致性门槛后，才开放一个小规模未见 OOD block；在此之前不运行完整 2×2×2 组合矩阵。
 - [ ] Phase 18b 的 `99.79%` 不得直接晋级：先在新 confirmation 前冻结 radius/volume 上限，再验证 coverage--compactness 双门槛。
+- [x] 完成 Phase 18c tube-width→UAKR 受控 smoke；结果判定为 negative ablation，不能把更多 K/refresh 解释为性能提升。
+- [ ] 若继续使用 tube 触发 UAKR，必须在新 confirmation 前冻结计算预算上限，并证明 ID 非劣与 OOD 受益同时成立；否则仅保留 RNIC/coverage 诊断用途。
 
 **P14 gate：** confirmation full-trajectory coverage 不低于预注册目标（当前目标 90%），同时满足预注册 tube-radius/volume 上限；RNIC 或 UAKR 接入不得使 ID safe capture 低于固定参考的 `-2 pp` 非劣界，且不得增加 collision/boundary。任一条件失败则保留负结果并降级为诊断工具。
 

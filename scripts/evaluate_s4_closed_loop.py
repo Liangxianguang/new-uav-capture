@@ -73,6 +73,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional frozen delay-aware conformal tube JSON artifact.",
     )
+    parser.add_argument(
+        "--tube-budget-weight",
+        type=float,
+        help="Optional UAKR weight for the frozen public tube-width feature.",
+    )
+    parser.add_argument(
+        "--tube-radius-scale-m",
+        type=float,
+        help="Optional UAKR normalization scale for the tube-width feature in metres.",
+    )
     parser.add_argument("--prediction-refresh-interval-steps", type=int, default=20)
     queue_group = parser.add_mutually_exclusive_group()
     queue_group.add_argument("--queue-aware-rollout", dest="queue_aware_rollout", action="store_true")
@@ -198,6 +208,14 @@ def main() -> None:
         else args.adaptive_k
     )
     adaptive_budget_mapping = dict(mpc_document.get("prediction", {}).get("adaptive_budget", {}))
+    if args.tube_budget_weight is not None:
+        if not np.isfinite(float(args.tube_budget_weight)) or float(args.tube_budget_weight) < 0.0:
+            raise ValueError("tube-budget-weight must be finite and non-negative")
+        adaptive_budget_mapping["tube_weight"] = float(args.tube_budget_weight)
+    if args.tube_radius_scale_m is not None:
+        if not np.isfinite(float(args.tube_radius_scale_m)) or float(args.tube_radius_scale_m) <= 0.0:
+            raise ValueError("tube-radius-scale-m must be finite and positive")
+        adaptive_budget_mapping["tube_radius_scale_m"] = float(args.tube_radius_scale_m)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     phase17_execution_mapping = dict(phase17_mapping.get("execution", {}))

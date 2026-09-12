@@ -1,0 +1,47 @@
+experiment_name: phase18c_tube_width_uakr_smoke
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Controlled validation smoke: the frozen tube width is allowed to enter the
+# UAKR score.  This is not a formal confirmation or a safety certificate.
+candidate:
+  name: balanced_context_adaptive_conformal_tube_as_uakr_feature
+  calibration_artifact: phase18b_conformal_tube_balanced_seed727201_retry2/summary.json
+  information_boundary: public_belief_and_frozen_tube_only
+  formal_forward_invariance: false
+  locked_test_used: false
+
+uakr:
+  tube_weight: 0.15
+  tube_radius_scale_m: 10.0
+  low_threshold: 0.35
+  high_threshold: 0.65
+  low_k: 1
+  medium_k: 4
+  high_k: 8
+  low_refresh_interval_steps: 4
+  medium_refresh_interval_steps: 2
+  high_refresh_interval_steps: 1
+
+runtime:
+  qdr: false
+  uakr: true
+  rnic: true
+  safety_layer: local_cbf
+  candidate_sampling: 1
+  sampling_steps: 4
+  prediction_refresh_interval_steps: 1
+
+evaluation:
+  split: validation_selection
+  episodes: 8
+  paired_controls:
+    - no_tube
+    - tube_rnic_only
+    - tube_as_uakr_feature
+  device: cpu
+
+reporting:
+  tensorboard_required: true
+  report_k_bucket_counts: true
+  report_refresh_ratio: true
+  report_latency_percentiles: [50, 95, 99]
