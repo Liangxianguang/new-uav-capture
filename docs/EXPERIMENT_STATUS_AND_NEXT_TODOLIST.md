@@ -196,7 +196,10 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 ### P13：Phase 17 可复现三创新点路线
 
-- [ ] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 先预注册并实现 Queue-Aware Delayed-State Rollout；它修正规划状态和不可撤销队列前缀，不重新打开 robust CBF-QP。
+- [x] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 完成第一版 Queue-Aware Delayed-State Rollout 适配器、单元测试、配置快照和 TensorBoard smoke 记录；它修正规划状态和候选时间索引，不重新打开 robust CBF-QP。
+- [ ] 完成 QDR 的显式 immutable-prefix 代价/可恢复性诊断，并在 validation delay/noise 轴上通过 paired gate；当前 8-episode smoke 不支持收益结论。
+- [ ] 实现并冻结 Uncertainty-Triggered Adaptive K and Replanning（UAKR）。
+- [ ] 实现并冻结 Reachability-Normalized Interception Cost（RNIC）。
 - [ ] 实现只使用 policy-safe uncertainty 的 K={1,4,8} 与 refresh={4,2,1} 自适应调度；主结果使用可移植 Diagonal SSM diffusion，GRU 保持 K=1 参考。
 - [ ] 实现基于加速度/限速到达时间裕量的 Reachability-Normalized Interception Cost，并对 interceptor-only 与 formation-slot 两种版本消融。
 - [ ] 三个模块分别通过 pilot gate 后，运行 2×2×2 validation 全因子矩阵；按预注册规则保留最简单的通过组合。

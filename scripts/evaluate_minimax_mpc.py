@@ -69,6 +69,10 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.queue_aware_rollout import (  # noqa: E402
+    prepare_queue_aware_observation,
+    shift_scenario_trajectory_set,
+)
 from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
 from encirclement3d.showcase import prepare_showcase_episode  # noqa: E402
@@ -119,6 +123,20 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
     )
+    queue_group = parser.add_mutually_exclusive_group()
+    queue_group.add_argument(
+        "--queue-aware-rollout",
+        dest="queue_aware_rollout",
+        action="store_true",
+        help="Roll out the public delayed-command queue before planning and align candidate paths.",
+    )
+    queue_group.add_argument(
+        "--no-queue-aware-rollout",
+        dest="queue_aware_rollout",
+        action="store_false",
+        help="Disable queue-aware rollout even when enabled by the experiment YAML.",
+    )
+    parser.set_defaults(queue_aware_rollout=None)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -159,6 +177,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "queue_aware_rollout.py",
         PROJECT_ROOT / "configs" / "innovation_mpc.yaml",
     )
     hashes = {
@@ -492,6 +511,7 @@ def run_episode(
     safety_layer: str | None = None,
     robust_safety_config: RobustCBFQPConfig | None = None,
     prediction_refresh_interval_steps: int = 1,
+    queue_aware_rollout: bool = False,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
@@ -593,6 +613,10 @@ def run_episode(
         fallback_actions = fallback_controller.act(observation)
         prediction_refreshed = False
         prediction_age_steps = 0
+        qdr_enabled = False
+        qdr_queue_length = 0
+        qdr_first_controllable_step = 0
+        qdr_latency_ms = 0.0
         if method in {"dynamic_encirclement", "pure_pursuit"}:
             nominal_actions = (
                 fallback_actions
@@ -620,10 +644,28 @@ def run_episode(
                 }
             )
             planning_observation = _planning_observation(env, observation)
+            planning_scenarios = scenarios
+            if queue_aware_rollout:
+                qdr_started = time.perf_counter()
+                planning_observation, qdr_state = prepare_queue_aware_observation(
+                    planning_observation,
+                    dt_seconds=planner_config.dt_seconds,
+                )
+                planning_scenarios = shift_scenario_trajectory_set(
+                    scenarios,
+                    offset_steps=qdr_state.queue_length,
+                    horizon_steps=planner_config.horizon_steps,
+                    dt_seconds=planner_config.dt_seconds,
+                    max_speed_mps=planner_config.max_speed_mps,
+                )
+                qdr_enabled = True
+                qdr_queue_length = int(qdr_state.queue_length)
+                qdr_first_controllable_step = int(qdr_state.first_controllable_step)
+                qdr_latency_ms = (time.perf_counter() - qdr_started) * 1000.0
             if distributed_planner is not None:
                 plan = distributed_planner.plan(
                     planning_observation,
-                    scenarios,
+                    planning_scenarios,
                     step_index=env.step_count,
                     previous_action_sequence=previous_distributed_sequence,
                     fallback_actions=fallback_actions,
@@ -633,7 +675,7 @@ def run_episode(
                 planner = ScenarioMinimaxMPC(planner_config_for_method)
                 plan = planner.plan(
                     planning_observation,
-                    scenarios,
+                    planning_scenarios,
                     fallback_actions=fallback_actions,
                 )
             previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
@@ -642,11 +684,11 @@ def run_episode(
             candidate_distance_metrics = evaluate_candidate_capture_distances(
                 planning_observation,
                 plan.action_sequence,
-                scenarios.truncate(planner_config.horizon_steps),
+                planning_scenarios.truncate(planner_config.horizon_steps),
                 dt_seconds=planner_config.dt_seconds,
                 max_speed_mps=planner_config.max_speed_mps,
             )
-            candidate_weights = scenarios.normalized_weights
+            candidate_weights = planning_scenarios.normalized_weights
         candidate_minimum_distances = candidate_distance_metrics["minimum_distances_m"]
         candidate_terminal_distances = candidate_distance_metrics["terminal_distances_m"]
         if candidate_minimum_distances.size:
@@ -743,6 +785,10 @@ def run_episode(
                 "predictor_latency_ms": float(predictor_latency_ms),
                 "prediction_refreshed": 1.0 if method != "dynamic_encirclement" and prediction_refreshed else 0.0,
                 "prediction_age_steps": float(prediction_age_steps if method != "dynamic_encirclement" else 0.0),
+                "qdr_enabled": 1.0 if qdr_enabled else 0.0,
+                "qdr_queue_length": float(qdr_queue_length),
+                "qdr_first_controllable_step": float(qdr_first_controllable_step),
+                "qdr_latency_ms": float(qdr_latency_ms),
                 "future_action_condition_available": (
                     1.0
                     if method != "dynamic_encirclement"
@@ -915,6 +961,17 @@ def run_episode(
         ),
         "mean_prediction_age_steps": float(np.mean([row["prediction_age_steps"] for row in step_rows])),
         "max_prediction_age_steps": int(max(row["prediction_age_steps"] for row in step_rows)),
+        "queue_aware_rollout_rate": float(np.mean([row["qdr_enabled"] for row in step_rows])),
+        "mean_qdr_queue_length": float(np.mean([row["qdr_queue_length"] for row in step_rows])),
+        "max_qdr_queue_length": int(max(row["qdr_queue_length"] for row in step_rows)),
+        "mean_qdr_first_controllable_step": float(
+            np.mean([row["qdr_first_controllable_step"] for row in step_rows])
+        ),
+        "qdr_latency_ms": {
+            "p50": percentile([row["qdr_latency_ms"] for row in step_rows], 50),
+            "p95": percentile([row["qdr_latency_ms"] for row in step_rows], 95),
+            "p99": percentile([row["qdr_latency_ms"] for row in step_rows], 99),
+        },
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
         "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
         "safety_certificate_valid_rate": _diagnostic_rate(step_rows, "safety_certificate_valid"),
@@ -1161,6 +1218,26 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "mean_prediction_age_steps": finite_mean([row["mean_prediction_age_steps"] for row in rows]),
         "max_prediction_age_steps": int(max(row["max_prediction_age_steps"] for row in rows)),
+        "queue_aware_rollout_rate": finite_mean([row["queue_aware_rollout_rate"] for row in rows]),
+        "mean_qdr_queue_length": finite_mean([row["mean_qdr_queue_length"] for row in rows]),
+        "max_qdr_queue_length": int(max(row["max_qdr_queue_length"] for row in rows)),
+        "mean_qdr_first_controllable_step": finite_mean(
+            [row["mean_qdr_first_controllable_step"] for row in rows]
+        ),
+        "qdr_latency_ms": {
+            "p50": percentile(
+                [float(step["qdr_latency_ms"]) for step in step_rows],
+                50,
+            ),
+            "p95": percentile(
+                [float(step["qdr_latency_ms"]) for step in step_rows],
+                95,
+            ),
+            "p99": percentile(
+                [float(step["qdr_latency_ms"]) for step in step_rows],
+                99,
+            ),
+        },
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -1250,6 +1327,12 @@ def main() -> None:
         if args.prediction_refresh_interval_steps is not None
         else prediction_mapping.get("refresh_interval_steps", 1)
     )
+    phase17_mapping = dict(mpc_document.get("phase17", {}))
+    queue_aware_rollout = bool(
+        phase17_mapping.get("queue_aware_rollout", False)
+        if args.queue_aware_rollout is None
+        else args.queue_aware_rollout
+    )
     if (
         num_samples <= 0
         or sampling_steps <= 0
@@ -1271,6 +1354,11 @@ def main() -> None:
 
     base_config = load_yaml(args.environment_config)
     base_config = copy.deepcopy(base_config)
+    phase17_execution_mapping = dict(phase17_mapping.get("execution", {}))
+    if phase17_execution_mapping:
+        base_config.setdefault("dynamics", {}).setdefault("execution", {}).update(
+            phase17_execution_mapping
+        )
     base_config.setdefault("task", {}).setdefault("pursuit", {})["target_motion_mode"] = target_motion_mode
     base_config["experiments"] = [
         {
@@ -1313,6 +1401,7 @@ def main() -> None:
         "environment_config": str(args.environment_config.resolve()),
         "mpc_config": str(args.mpc_config.resolve()),
         "planner": planner_config.__dict__,
+        "phase17": phase17_mapping,
         "distributed": distributed_mapping,
         "evaluation": {
             "episodes": episodes,
@@ -1329,6 +1418,7 @@ def main() -> None:
             "safety_layer": args.safety_layer if use_local_cbf or args.safety_layer == "robust_cbf_qp" else "none",
             "safety_config": str(args.safety_config.resolve()) if args.safety_layer == "robust_cbf_qp" else None,
             "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
+            "queue_aware_rollout": queue_aware_rollout,
         },
         "source_hashes": hashes,
     }
@@ -1382,6 +1472,7 @@ def main() -> None:
                     safety_layer=(args.safety_layer if not args.without_local_cbf else "none"),
                     robust_safety_config=robust_safety_config,
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
+                    queue_aware_rollout=queue_aware_rollout,
                     distributed_config=distributed_config,
                 )
                 rows.append(row)
@@ -1452,6 +1543,9 @@ def main() -> None:
                     "mean_distributed_action_delta_mps",
                     "mean_candidate_worst_minimum_distance_m",
                     "mean_candidate_cvar_minimum_distance_m",
+                    "qdr_enabled",
+                    "qdr_queue_length",
+                    "qdr_first_controllable_step",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -1486,6 +1580,12 @@ def main() -> None:
             writer.add_scalar("Summary/TotalControlLatency/p50_ms", summary["total_control_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/TotalControlLatency/p95_ms", summary["total_control_latency_ms"]["p95"], 0)
             writer.add_scalar("Summary/TotalControlLatency/p99_ms", summary["total_control_latency_ms"]["p99"], 0)
+            writer.add_scalar("Summary/QDR/mean_queue_length", summary["mean_qdr_queue_length"], 0)
+            writer.add_scalar("Summary/QDR/max_queue_length", summary["max_qdr_queue_length"], 0)
+            writer.add_scalar("Summary/QDR/mean_first_controllable_step", summary["mean_qdr_first_controllable_step"], 0)
+            writer.add_scalar("Summary/QDR/latency_p50_ms", summary["qdr_latency_ms"]["p50"], 0)
+            writer.add_scalar("Summary/QDR/latency_p95_ms", summary["qdr_latency_ms"]["p95"], 0)
+            writer.add_scalar("Summary/QDR/latency_p99_ms", summary["qdr_latency_ms"]["p99"], 0)
             writer.add_hparams(
                 {
                     "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
@@ -1498,6 +1598,7 @@ def main() -> None:
                     "use_local_cbf": int(use_local_cbf),
                     "safety_layer": args.safety_layer if use_local_cbf or args.safety_layer == "robust_cbf_qp" else "none",
                     "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
+                    "queue_aware_rollout": int(queue_aware_rollout),
                 },
                 {
                     "hparam/safe_capture_rate": float(summary["safe_capture_rate"]),
