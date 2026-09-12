@@ -83,6 +83,35 @@ The machine-readable audit is retained at
 `results/phase26_qdr_prefix_audit_aligned_seed727201.json` and the rerun
 itself at `results/phase26_qdr_prefix_audit_aligned_seed727201/`.
 
+### Explicit queue-authority diagnostic
+
+To test whether the prefix failure is caused by immutable execution rather
+than by the planner itself, two additional 20-episode paired diagnostics were
+run with the same frozen scenes, checkpoint, sampling protocol and local CBF.
+The authority was changed only through the explicit simulator contract, and
+the emergency brake was requested only when the prefix classifier reported an
+unsafe prefix.
+
+| Authority | Safe capture | Collision | Boundary | Timeout | Prefix admissible | Recovery request rate | Total p50 / p95 / p99 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| immutable / aligned projection | 80.0% | 20.0% | 0.0% | 0.0% | 92.47% | 0.0% | 120.74 / 149.90 / 162.94 |
+| replace_nonexecuting | 75.0% | 20.0% | 0.0% | 5.0% | 90.15% | 9.85% | 114.89 / 139.07 / 148.43 |
+| flush_pending | 70.0% | 5.0% | 0.0% | 25.0% | 74.74% | 25.26% | 115.13 / 137.96 / 149.95 |
+
+The authority arms are diagnostic pilots, not significance claims. They show
+that `flush_pending` can trade collision for timeout, while
+`replace_nonexecuting` does not repair collision on this block. Neither arm
+meets the safe-capture non-inferiority direction, so neither is promoted as a
+QDR improvement. The key result is methodological: execution authority must
+be reported as part of the plant contract, not hidden inside a “safety layer”.
+
+Artifacts are retained at:
+
+```text
+results/phase26_qdr_authority_replace_seed727201_retry1/
+results/phase26_qdr_authority_flush_seed727201/
+```
+
 ## Decision
 
 The new delayed-state safety projection is retained as an explicit, tested

@@ -320,7 +320,8 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 新投影将 nominal prefix 最小 clearance 从 `-4.844 m` 改善到 `-0.229 m`，但 safe capture 仍为 `80.0%`、collision 仍为 `20.0%`，total p95 为 `149.90 ms`，高于 QDR-off 的 `141.40 ms`。
 - [x] 判定为“契约语义改善、闭环性能 No-Go”；不继续扫描 safety-projection margin。
 - [x] 发布 prefix-risk classifier：新 schema 的 465 个 QDR 控制步中 `92.47%` 前缀可行，`7.53%` 存在 public-geometry 违规；首个违规原因计数为 obstacle `30`、inter-agent `3`、boundary `2`。旧日志缺字段时分析器明确返回 incomplete，不做事后猜测。
-- [ ] 下一轮只研究 prefix precondition 与明确授权的 recovery authority，并分开报告 immutable、replace-nonexecuting 和 flush-pending。
+- [x] 完成显式 authority 诊断：replace-nonexecuting 为 `75%` safe capture / `20%` collision / `5%` timeout，flush-pending 为 `70%` / `5%` / `25%`；两者均未通过 safe-capture 非劣，保留为 safety--capture Pareto 失败边界。
+- [ ] 下一轮只研究经过预注册的 prefix precondition 与 recovery policy，不再扫描 safety-projection margin；任何 authority 变更必须作为 plant contract 单独报告。
 
 详见 `docs/PHASE26_QDR_SAFETY_PROJECTION_PILOT_REPORT.md`。
 

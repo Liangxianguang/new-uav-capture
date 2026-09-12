@@ -166,6 +166,11 @@ def parse_args() -> argparse.Namespace:
         help="Keep the local CBF anchored at the current state.",
     )
     parser.set_defaults(queue_aware_safety_projection=None)
+    parser.add_argument(
+        "--qdr-prefix-recovery-authority",
+        choices=("immutable", "replace_nonexecuting", "flush_pending"),
+        help="When a public-geometry QDR prefix is unsafe, request the configured emergency-brake authority.",
+    )
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument(
         "--adaptive-k",
@@ -727,6 +732,7 @@ def run_episode(
     prediction_refresh_interval_steps: int = 1,
     queue_aware_rollout: bool = False,
     queue_aware_safety_projection: bool = False,
+    qdr_prefix_recovery_authority: str | None = None,
     adaptive_prediction_config: dict[str, Any] | None = None,
     reachable_tube: DelayAwareConformalReachableTube | None = None,
     distributed_config: DistributedDNMPCConfig | None = None,
@@ -740,6 +746,15 @@ def run_episode(
         obstacle_count=int(config["experiments"][0]["obstacle_count"]),
         target_speed_scale=float(config["experiments"][0]["target_speed_scale"]),
     )
+    if qdr_prefix_recovery_authority is not None:
+        if not queue_aware_rollout:
+            raise ValueError("qdr prefix recovery authority requires queue-aware rollout")
+        allowed_authority = str(env.execution["pending_command_authority"])
+        if qdr_prefix_recovery_authority != allowed_authority:
+            raise ValueError(
+                "qdr prefix recovery authority must match the environment execution contract: "
+                f"requested={qdr_prefix_recovery_authority}, allowed={allowed_authority}"
+            )
     if scenario is None:
         observation = env.reset(seed=seed, record_history=record_history)
     else:
@@ -881,6 +896,7 @@ def run_episode(
         qdr_prefix_first_violation_cause = "none"
         qdr_prefix_violation_step_count = float("nan")
         qdr_prefix_violation_step_ratio = float("nan")
+        qdr_prefix_recovery_requested = 0.0
         qdr_authority_mode = "none"
         adaptive_enabled = False
         adaptive_uncertainty_score = 0.0
@@ -1142,9 +1158,22 @@ def run_episode(
         )
         safe_actions = env._clip_rows(safe_actions, float(env.agents["defender_max_speed"]))
         total_control_latency_ms = (time.perf_counter() - control_started) * 1000.0
+        command_authority = None
+        if (
+            qdr_enabled
+            and qdr_prefix_recovery_authority is not None
+            and qdr_prefix_recovery_authority != "immutable"
+            and qdr_prefix_admissible == 0.0
+        ):
+            command_authority = {
+                "mode": qdr_prefix_recovery_authority,
+                "emergency_brake": True,
+            }
+            qdr_prefix_recovery_requested = 1.0
         observation, _reward, terminated, truncated, final_info = env.step(
             safe_actions,
             record_history=record_history,
+            command_authority=command_authority,
         )
         if (
             rnic_enabled
@@ -1204,6 +1233,11 @@ def run_episode(
                 "qdr_prefix_first_violation_cause": qdr_prefix_first_violation_cause,
                 "qdr_prefix_violation_step_count": float(qdr_prefix_violation_step_count),
                 "qdr_prefix_violation_step_ratio": float(qdr_prefix_violation_step_ratio),
+                "qdr_prefix_recovery_requested": float(qdr_prefix_recovery_requested),
+                "qdr_prefix_recovery_applied": float(
+                    bool(final_info.get("emergency_brake_requested", False))
+                ),
+                "qdr_prefix_recovery_override_slots": float(final_info.get("queue_override_slots", 0)),
                 "qdr_authority_mode": qdr_authority_mode,
                 "qdr_endpoint_position_error_mean_m": float(qdr_endpoint_position_error_mean_m),
                 "qdr_endpoint_position_error_max_m": float(qdr_endpoint_position_error_max_m),
@@ -1444,6 +1478,15 @@ def run_episode(
         ),
         "qdr_prefix_violation_step_count": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_count"),
         "qdr_prefix_violation_step_ratio": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_ratio"),
+        "qdr_prefix_recovery_request_rate": _diagnostic_rate(
+            step_rows, "qdr_prefix_recovery_requested"
+        ),
+        "qdr_prefix_recovery_apply_rate": _diagnostic_rate(
+            step_rows, "qdr_prefix_recovery_applied"
+        ),
+        "qdr_prefix_recovery_override_slots": _diagnostic_mean(
+            step_rows, "qdr_prefix_recovery_override_slots"
+        ),
         "qdr_prefix_violation_cause_counts": _diagnostic_category_counts(
             step_rows, "qdr_prefix_first_violation_cause"
         ),
@@ -1834,6 +1877,15 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "qdr_prefix_violation_step_ratio": finite_mean(
             [row["qdr_prefix_violation_step_ratio"] for row in rows]
         ),
+        "qdr_prefix_recovery_request_rate": finite_mean(
+            [row["qdr_prefix_recovery_request_rate"] for row in rows]
+        ),
+        "qdr_prefix_recovery_apply_rate": finite_mean(
+            [row["qdr_prefix_recovery_apply_rate"] for row in rows]
+        ),
+        "qdr_prefix_recovery_override_slots": finite_mean(
+            [row["qdr_prefix_recovery_override_slots"] for row in rows]
+        ),
         "qdr_prefix_violation_cause_counts": _merge_category_counts(
             [row["qdr_prefix_violation_cause_counts"] for row in rows]
         ),
@@ -2021,6 +2073,14 @@ def main() -> None:
         raise ValueError("queue-aware-safety-projection requires queue-aware-rollout")
     if queue_aware_safety_projection and args.safety_layer != "local_cbf":
         raise ValueError("queue-aware-safety-projection is only supported with --safety-layer local_cbf")
+    qdr_prefix_recovery_authority = args.qdr_prefix_recovery_authority
+    if qdr_prefix_recovery_authority is None:
+        configured_authority = phase17_mapping.get("prefix_recovery_authority")
+        qdr_prefix_recovery_authority = (
+            None if configured_authority is None else str(configured_authority)
+        )
+    if qdr_prefix_recovery_authority is not None and not queue_aware_rollout:
+        raise ValueError("qdr prefix recovery authority requires queue-aware-rollout")
     adaptive_k = bool(
         phase17_mapping.get("adaptive_k", False)
         if args.adaptive_k is None
@@ -2086,6 +2146,10 @@ def main() -> None:
         base_config.setdefault("dynamics", {}).setdefault("execution", {}).update(
             phase17_execution_mapping
         )
+    if qdr_prefix_recovery_authority is not None:
+        base_config.setdefault("dynamics", {}).setdefault("execution", {})[
+            "pending_command_authority"
+        ] = qdr_prefix_recovery_authority
     base_config.setdefault("task", {}).setdefault("pursuit", {})["target_motion_mode"] = target_motion_mode
     base_config["experiments"] = [
         {
@@ -2157,6 +2221,7 @@ def main() -> None:
             "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
             "queue_aware_rollout": queue_aware_rollout,
             "queue_aware_safety_projection": queue_aware_safety_projection,
+            "qdr_prefix_recovery_authority": qdr_prefix_recovery_authority,
             "adaptive_k": adaptive_k,
             "adaptive_budget": adaptive_budget_mapping,
             "adaptive_risk_calibration": (
@@ -2225,6 +2290,7 @@ def main() -> None:
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
                     queue_aware_safety_projection=queue_aware_safety_projection,
+                    qdr_prefix_recovery_authority=qdr_prefix_recovery_authority,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
                     reachable_tube=reachable_tube,
                     distributed_config=distributed_config,
@@ -2312,6 +2378,9 @@ def main() -> None:
                     "qdr_prefix_first_violation_step",
                     "qdr_prefix_violation_step_count",
                     "qdr_prefix_violation_step_ratio",
+                    "qdr_prefix_recovery_requested",
+                    "qdr_prefix_recovery_applied",
+                    "qdr_prefix_recovery_override_slots",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -2407,6 +2476,16 @@ def main() -> None:
             writer.add_text(
                 "Summary/QDR/prefix_violation_cause_counts",
                 json.dumps(summary.get("qdr_prefix_violation_cause_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_request_rate",
+                summary["qdr_prefix_recovery_request_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_apply_rate",
+                summary["qdr_prefix_recovery_apply_rate"],
                 0,
             )
             writer.add_scalar(

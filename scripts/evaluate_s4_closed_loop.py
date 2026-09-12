@@ -102,6 +102,11 @@ def parse_args() -> argparse.Namespace:
         help="Keep local CBF anchored at the current state.",
     )
     parser.set_defaults(queue_aware_safety_projection=None)
+    parser.add_argument(
+        "--qdr-prefix-recovery-authority",
+        choices=("immutable", "replace_nonexecuting", "flush_pending"),
+        help="When a public-geometry QDR prefix is unsafe, request the configured emergency-brake authority.",
+    )
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
@@ -259,6 +264,14 @@ def main() -> None:
         raise ValueError("queue-aware-safety-projection requires queue-aware-rollout")
     if queue_aware_safety_projection and args.safety_layer != "local_cbf":
         raise ValueError("queue-aware-safety-projection is only supported with --safety-layer local_cbf")
+    qdr_prefix_recovery_authority = args.qdr_prefix_recovery_authority
+    if qdr_prefix_recovery_authority is None:
+        configured_authority = phase17_mapping.get("prefix_recovery_authority")
+        qdr_prefix_recovery_authority = (
+            None if configured_authority is None else str(configured_authority)
+        )
+    if qdr_prefix_recovery_authority is not None and not queue_aware_rollout:
+        raise ValueError("qdr prefix recovery authority requires queue-aware-rollout")
     adaptive_k = bool(
         phase17_mapping.get("adaptive_k", False)
         if args.adaptive_k is None
@@ -368,6 +381,7 @@ def main() -> None:
         "prediction_refresh_interval_steps": args.prediction_refresh_interval_steps,
         "queue_aware_rollout": queue_aware_rollout,
         "queue_aware_safety_projection": queue_aware_safety_projection,
+        "qdr_prefix_recovery_authority": qdr_prefix_recovery_authority,
         "adaptive_k": adaptive_k,
         "adaptive_budget": adaptive_budget_mapping,
         "adaptive_risk_calibration": (
@@ -413,6 +427,10 @@ def main() -> None:
                     phase17_execution_mapping,
                     frozen_scene_record=spec,
                 )
+                if qdr_prefix_recovery_authority is not None:
+                    config.setdefault("dynamics", {}).setdefault("execution", {})[
+                        "pending_command_authority"
+                    ] = qdr_prefix_recovery_authority
                 distributed_config = None
                 if method in distributed_modes:
                     distributed_config = DistributedDNMPCConfig.from_mapping(
@@ -436,6 +454,7 @@ def main() -> None:
                     prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
                     queue_aware_safety_projection=queue_aware_safety_projection,
+                    qdr_prefix_recovery_authority=qdr_prefix_recovery_authority,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
                     reachable_tube=reachable_tube,
                     distributed_config=distributed_config,
@@ -493,6 +512,9 @@ def main() -> None:
                     "qdr_prefix_first_violation_step",
                     "qdr_prefix_violation_step_count",
                     "qdr_prefix_violation_step_ratio",
+                    "qdr_prefix_recovery_requested",
+                    "qdr_prefix_recovery_applied",
+                    "qdr_prefix_recovery_override_slots",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -549,6 +571,8 @@ def main() -> None:
                 json.dumps(overall.get("qdr_prefix_violation_cause_counts", {}), sort_keys=True),
                 0,
             )
+            writer.add_scalar("Summary/QDR/prefix_recovery_request_rate", overall["qdr_prefix_recovery_request_rate"], 0)
+            writer.add_scalar("Summary/QDR/prefix_recovery_apply_rate", overall["qdr_prefix_recovery_apply_rate"], 0)
             writer.add_scalar(
                 "Summary/QDR/endpoint_position_error_mean_m",
                 overall["qdr_endpoint_position_error_mean_m"],
