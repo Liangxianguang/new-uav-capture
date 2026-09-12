@@ -194,6 +194,17 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [ ] 完整回归：`python -m pytest -q`、Python 编译检查、`git diff --check`。
 - [ ] 仅提交代码、测试和正式报告；保留用户已有的 `README.md` 与 `docs/EXPERIMENTAL_STUDY_REPORT.md`，不得误暂存。
 
+### P13：Phase 17 可复现三创新点路线
+
+- [ ] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 先预注册并实现 Queue-Aware Delayed-State Rollout；它修正规划状态和不可撤销队列前缀，不重新打开 robust CBF-QP。
+- [ ] 实现只使用 policy-safe uncertainty 的 K={1,4,8} 与 refresh={4,2,1} 自适应调度；主结果使用可移植 Diagonal SSM diffusion，GRU 保持 K=1 参考。
+- [ ] 实现基于加速度/限速到达时间裕量的 Reachability-Normalized Interception Cost，并对 interceptor-only 与 formation-slot 两种版本消融。
+- [ ] 三个模块分别通过 pilot gate 后，运行 2×2×2 validation 全因子矩阵；按预注册规则保留最简单的通过组合。
+- [ ] 方法冻结后才运行新建且未见的 ID/OOD confirmation；Phase 16 已公开 OOD 只作开发诊断。
+- [ ] 不设 100 ms 硬门槛，但必须逐组件报告 p50/p95/p99，并在同硬件单进程条件下进行公平比较。
+
+**P13 gate：** ID safe capture 满足 `-2 pp` 非劣；QDR/UAKR/RNIC 至少一个对应失败轴获得配对统计支持的改善；最终组合不增加 collision/boundary；所有阈值、seed、hash 和 step-level decision 可复现。详细 gate、指标、测试和六周日程见 `docs/PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
