@@ -16,7 +16,10 @@ from typing import Any, Iterable, Literal
 import numpy as np
 
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
-from .reachability_interception import reachability_normalized_interception_cost
+from .reachability_interception import (
+    formation_slot_reachability_cost,
+    reachability_normalized_interception_cost,
+)
 
 
 RiskMode = Literal["expected", "worst_case", "cvar"]
@@ -141,6 +144,8 @@ class MinimaxMPCConfig:
     weight_inter_agent: float = 25.0
     weight_relative_speed: float = 0.02
     reachability_normalized_cost_enabled: bool = False
+    reachability_cost_mode: Literal["interceptor", "formation_slot"] = "interceptor"
+    reachability_slot_radius_m: float | None = None
     weight_reachability: float = 0.0
     reachability_time_margin_s: float = 0.15
     reachability_time_scale_s: float = 0.50
@@ -174,6 +179,13 @@ class MinimaxMPCConfig:
             raise ValueError("action_change_limit_mps must be finite and positive when provided.")
         if self.risk_mode not in {"expected", "worst_case", "cvar"}:
             raise ValueError("risk_mode must be expected, worst_case, or cvar.")
+        if self.reachability_cost_mode not in {"interceptor", "formation_slot"}:
+            raise ValueError("reachability_cost_mode must be interceptor or formation_slot.")
+        if self.reachability_slot_radius_m is not None and (
+            not np.isfinite(float(self.reachability_slot_radius_m))
+            or float(self.reachability_slot_radius_m) <= 0.0
+        ):
+            raise ValueError("reachability_slot_radius_m must be finite and positive when provided.")
         if not 0.0 <= float(self.cvar_alpha) < 1.0:
             raise ValueError("cvar_alpha must lie in [0, 1).")
         if not self.perimeter_scales or any(float(value) <= 0.0 for value in self.perimeter_scales):
@@ -506,6 +518,7 @@ class ScenarioMinimaxMPC:
                 observation,
                 np.stack(sequences, axis=0),
                 np.asarray(candidates.trajectories, dtype=np.float64),
+                target_tube_radius_m=candidates.conformal_radius_by_step_m,
             )
             if not np.isfinite(scenario_cost_matrix).all():
                 raise FloatingPointError("scenario cost matrix contains non-finite values")
@@ -689,6 +702,8 @@ class ScenarioMinimaxMPC:
         observation: dict[str, Any],
         action_sequences: np.ndarray,
         target_paths: np.ndarray,
+        *,
+        target_tube_radius_m: np.ndarray | tuple[float, ...] | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Evaluate all shooting sequences and scenarios in one vectorized pass."""
 
@@ -801,18 +816,37 @@ class ScenarioMinimaxMPC:
                         inter_agent_violation[:, None],
                     )
         if self.config.reachability_normalized_cost_enabled:
-            reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
-                np.stack(position_paths, axis=1),
-                np.stack(velocity_paths, axis=1),
-                paths,
-                dt_seconds=self.config.dt_seconds,
-                max_speed_mps=self.config.max_speed_mps,
-                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
-                time_margin_s=self.config.reachability_time_margin_s,
-                time_scale_s=self.config.reachability_time_scale_s,
-                target_tube_radius_m=candidates.conformal_radius_by_step_m,
-                activation_slack_s=self.config.reachability_activation_slack_s,
-            )
+            if self.config.reachability_cost_mode == "formation_slot":
+                reachability_cost, _best_slack, _assignments, _arrival_times = formation_slot_reachability_cost(
+                    np.stack(position_paths, axis=1),
+                    np.stack(velocity_paths, axis=1),
+                    paths,
+                    slot_radius_m=float(
+                        self.config.role_perimeter_m
+                        if self.config.reachability_slot_radius_m is None
+                        else self.config.reachability_slot_radius_m
+                    ),
+                    dt_seconds=self.config.dt_seconds,
+                    max_speed_mps=self.config.max_speed_mps,
+                    max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                    time_margin_s=self.config.reachability_time_margin_s,
+                    time_scale_s=self.config.reachability_time_scale_s,
+                    target_tube_radius_m=target_tube_radius_m,
+                    activation_slack_s=self.config.reachability_activation_slack_s,
+                )
+            else:
+                reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
+                    np.stack(position_paths, axis=1),
+                    np.stack(velocity_paths, axis=1),
+                    paths,
+                    dt_seconds=self.config.dt_seconds,
+                    max_speed_mps=self.config.max_speed_mps,
+                    max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                    time_margin_s=self.config.reachability_time_margin_s,
+                    time_scale_s=self.config.reachability_time_scale_s,
+                    target_tube_radius_m=target_tube_radius_m,
+                    activation_slack_s=self.config.reachability_activation_slack_s,
+                )
             scenario_costs += self.config.weight_reachability * reachability_cost
         return scenario_costs, constraint_violations
 

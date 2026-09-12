@@ -126,3 +126,31 @@ def test_receding_horizon_warm_start_shifts_executed_action() -> None:
 
     np.testing.assert_array_equal(shifted[:-1], sequence[1:])
     np.testing.assert_array_equal(shifted[-1], sequence[-1])
+
+
+def test_distributed_formation_slot_rnic_scores_the_full_team_rollout() -> None:
+    config = MinimaxMPCConfig(
+        horizon_steps=4,
+        control_horizon_steps=2,
+        max_role_variants=2,
+        perimeter_scales=(1.0,),
+        reachability_normalized_cost_enabled=True,
+        reachability_cost_mode="formation_slot",
+        reachability_slot_radius_m=1.4,
+        weight_reachability=1.0,
+    )
+    planner = DistributedMinimaxDNMPC(
+        config,
+        DistributedDNMPCConfig(
+            communication_mode="delayed",
+            message_delay_steps=1,
+            max_iterations=1,
+            local_timeout_ms=1000.0,
+        ),
+    )
+
+    plan = planner.plan(_observation(), _scenarios(), step_index=0)
+
+    assert plan.diagnostics.status in {"success", "not_converged", "partial_fallback"}
+    assert np.isfinite(plan.diagnostics.scenario_costs).all()
+    assert plan.diagnostics.scenario_costs[0] >= 0.0

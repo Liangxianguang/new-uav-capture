@@ -229,6 +229,16 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional severe-unreachability threshold for gated RNIC; default preserves the legacy RNIC penalty.",
     )
+    parser.add_argument(
+        "--rnic-cost-mode",
+        choices=("interceptor", "formation_slot"),
+        help="Validation-only RNIC cost mode override.",
+    )
+    parser.add_argument(
+        "--rnic-slot-radius-m",
+        type=float,
+        help="Validation-only cooperative formation-slot radius override in metres.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -908,6 +918,7 @@ def run_episode(
         adaptive_prediction_residual_m = 0.0
         adaptive_refresh_reason: str | None = None
         rnic_enabled = False
+        rnic_cost_mode = "disabled"
         rnic_latency_ms = 0.0
         rnic_minimum_best_slack_s = float("nan")
         rnic_mean_best_slack_s = float("nan")
@@ -917,6 +928,7 @@ def run_episode(
         rnic_earliest_feasible_intercept_step = float("nan")
         rnic_mean_arrival_time_s = float("nan")
         rnic_maximum_arrival_time_s = float("nan")
+        rnic_assignment_switch_rate = float("nan")
         conformal_tube_enabled = False
         conformal_tube_mean_radius_m = float("nan")
         conformal_tube_max_radius_m = float("nan")
@@ -1037,6 +1049,7 @@ def run_episode(
                 )
             rnic_enabled = bool(planner_config_for_method.reachability_normalized_cost_enabled)
             if rnic_enabled:
+                rnic_cost_mode = str(planner_config_for_method.reachability_cost_mode)
                 planned_rnic_observation = planning_observation
                 planned_rnic_scenarios = planning_scenarios.truncate(planner_config.horizon_steps)
             if distributed_planner is not None:
@@ -1193,6 +1206,8 @@ def run_episode(
                 time_scale_s=planner_config.reachability_time_scale_s,
                 target_tube_radius_m=planned_rnic_scenarios.conformal_radius_by_step_m,
                 activation_slack_s=planner_config.reachability_activation_slack_s,
+                cost_mode=planner_config.reachability_cost_mode,
+                slot_radius_m=planner_config.reachability_slot_radius_m,
             )
             rnic_latency_ms = (time.perf_counter() - rnic_started) * 1000.0
             rnic_minimum_best_slack_s = float(rnic_diagnostics["minimum_best_slack_s"])
@@ -1205,6 +1220,7 @@ def run_episode(
             )
             rnic_mean_arrival_time_s = float(rnic_diagnostics["mean_arrival_time_s"])
             rnic_maximum_arrival_time_s = float(rnic_diagnostics["maximum_arrival_time_s"])
+            rnic_assignment_switch_rate = float(rnic_diagnostics["assignment_switch_rate"])
         path_length += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
         previous_positions = env.defender_positions.copy()
         planner_status = str(planner_diagnostics.status)
@@ -1254,6 +1270,7 @@ def run_episode(
                 "adaptive_prediction_residual_m": float(adaptive_prediction_residual_m),
                 "adaptive_refresh_reason": adaptive_refresh_reason,
                 "rnic_enabled": 1.0 if rnic_enabled else 0.0,
+                "rnic_cost_mode": rnic_cost_mode,
                 "rnic_latency_ms": float(rnic_latency_ms),
                 "rnic_minimum_best_slack_s": float(rnic_minimum_best_slack_s),
                 "rnic_mean_best_slack_s": float(rnic_mean_best_slack_s),
@@ -1263,6 +1280,7 @@ def run_episode(
                 "rnic_earliest_feasible_intercept_step": float(rnic_earliest_feasible_intercept_step),
                 "rnic_mean_arrival_time_s": float(rnic_mean_arrival_time_s),
                 "rnic_maximum_arrival_time_s": float(rnic_maximum_arrival_time_s),
+                "rnic_assignment_switch_rate": float(rnic_assignment_switch_rate),
                 "conformal_tube_enabled": 1.0 if conformal_tube_enabled else 0.0,
                 "conformal_tube_mean_radius_m": float(conformal_tube_mean_radius_m),
                 "conformal_tube_max_radius_m": float(conformal_tube_max_radius_m),
@@ -1542,6 +1560,7 @@ def run_episode(
             for bucket, index in (("low", 0), ("medium", 1), ("high", 2))
         },
         "rnic_enabled_rate": float(np.mean([row["rnic_enabled"] for row in step_rows])),
+        "rnic_cost_mode_counts": _diagnostic_category_counts(step_rows, "rnic_cost_mode"),
         "mean_rnic_latency_ms": float(np.nanmean([row["rnic_latency_ms"] for row in step_rows])),
         "rnic_minimum_best_slack_s": _diagnostic_min(step_rows, "rnic_minimum_best_slack_s"),
         "rnic_mean_best_slack_s": _diagnostic_mean(step_rows, "rnic_mean_best_slack_s"),
@@ -1553,6 +1572,7 @@ def run_episode(
         ),
         "rnic_mean_arrival_time_s": _diagnostic_mean(step_rows, "rnic_mean_arrival_time_s"),
         "rnic_maximum_arrival_time_s": _diagnostic_max(step_rows, "rnic_maximum_arrival_time_s"),
+        "rnic_assignment_switch_rate": _diagnostic_mean(step_rows, "rnic_assignment_switch_rate"),
         "conformal_tube_enabled_rate": float(np.mean([row["conformal_tube_enabled"] for row in step_rows])),
         "mean_conformal_tube_radius_m": _diagnostic_mean(step_rows, "conformal_tube_mean_radius_m"),
         "maximum_conformal_tube_radius_m": _diagnostic_max(step_rows, "conformal_tube_max_radius_m"),
@@ -1933,6 +1953,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             for bucket in ("low", "medium", "high")
         },
         "rnic_enabled_rate": finite_mean([row["rnic_enabled_rate"] for row in rows]),
+        "rnic_cost_mode_counts": _merge_category_counts(
+            [row.get("rnic_cost_mode_counts", {}) for row in rows]
+        ),
         "mean_rnic_latency_ms": finite_mean([row["mean_rnic_latency_ms"] for row in rows]),
         "rnic_latency_ms": {
             "p50": percentile([float(step["rnic_latency_ms"]) for step in step_rows], 50),
@@ -1958,6 +1981,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "rnic_mean_arrival_time_s": finite_mean([row["rnic_mean_arrival_time_s"] for row in rows]),
         "rnic_maximum_arrival_time_s": finite_max(
             [row["rnic_maximum_arrival_time_s"] for row in rows]
+        ),
+        "rnic_assignment_switch_rate": finite_mean(
+            [row["rnic_assignment_switch_rate"] for row in rows]
         ),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
@@ -2024,6 +2050,12 @@ def main() -> None:
         if not np.isfinite(float(args.rnic_activation_slack_s)):
             raise ValueError("rnic-activation-slack-s must be finite")
         planner_mapping["reachability_activation_slack_s"] = float(args.rnic_activation_slack_s)
+    if args.rnic_cost_mode is not None:
+        planner_mapping["reachability_cost_mode"] = str(args.rnic_cost_mode)
+    if args.rnic_slot_radius_m is not None:
+        if not np.isfinite(float(args.rnic_slot_radius_m)) or float(args.rnic_slot_radius_m) <= 0.0:
+            raise ValueError("rnic-slot-radius-m must be finite and positive")
+        planner_mapping["reachability_slot_radius_m"] = float(args.rnic_slot_radius_m)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -2404,6 +2436,7 @@ def main() -> None:
                     "rnic_earliest_feasible_intercept_step",
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
+                    "rnic_assignment_switch_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -2536,6 +2569,12 @@ def main() -> None:
             writer.add_scalar("Summary/RNIC/mean_best_slack_s", summary["rnic_mean_best_slack_s"], 0)
             writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", summary["rnic_unreachable_slot_ratio"], 0)
             writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", summary["rnic_earliest_feasible_intercept_step"], 0)
+            writer.add_scalar("Summary/RNIC/assignment_switch_rate", summary["rnic_assignment_switch_rate"], 0)
+            writer.add_text(
+                "Summary/RNIC/cost_mode_counts",
+                json.dumps(summary.get("rnic_cost_mode_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar("Summary/ConformalTube/enabled_rate", summary["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", summary["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", summary["maximum_conformal_tube_radius_m"], 0)

@@ -17,7 +17,10 @@ from typing import Any, Literal
 import numpy as np
 
 from .minimax_mpc import MinimaxMPCConfig, ScenarioTrajectorySet, aggregate_scenario_costs
-from .reachability_interception import reachability_normalized_interception_cost
+from .reachability_interception import (
+    formation_slot_reachability_cost,
+    reachability_normalized_interception_cost,
+)
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
 
 
@@ -575,6 +578,8 @@ class DistributedMinimaxDNMPC:
         own_actions: np.ndarray,
         known: dict[int, _PlannerMessage],
         peer_sequences: dict[int, np.ndarray],
+        *,
+        include_reachability: bool = True,
     ) -> np.ndarray:
         """Evaluate local action candidates against all target scenarios in one pass.
 
@@ -648,20 +653,80 @@ class DistributedMinimaxDNMPC:
         result += self.config.weight_control_change * np.sum(change * change, axis=(1, 2))[:, None]
         result += self.config.weight_relative_speed * np.linalg.norm(change, axis=-1).sum(axis=1)[:, None]
 
-        if self.config.reachability_normalized_cost_enabled:
-            reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
-                current[:, :, None, :],
-                actions[:, :, None, :],
-                paths,
-                dt_seconds=self.config.dt_seconds,
-                max_speed_mps=self.config.max_speed_mps,
-                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
-                time_margin_s=self.config.reachability_time_margin_s,
-                time_scale_s=self.config.reachability_time_scale_s,
-                target_tube_radius_m=scenarios.conformal_radius_by_step_m,
-                activation_slack_s=self.config.reachability_activation_slack_s,
-            )
-            result += self.config.weight_reachability * reachability_cost
+        if self.config.reachability_normalized_cost_enabled and include_reachability:
+            if self.config.reachability_cost_mode == "formation_slot":
+                # A local best response can use the cooperative slot objective
+                # only when it has a current public message for every peer.
+                # With missing/delayed peers, omitting this term is explicit;
+                # the final team score below still evaluates the full team
+                # rollout against the same formation objective.
+                expected_peers = set(range(positions.shape[0])) - {int(agent_id)}
+                if set(known) >= expected_peers:
+                    team_position_paths = [current]
+                    team_velocity_paths = [actions]
+                    for peer in range(positions.shape[0]):
+                        if peer == agent_id:
+                            continue
+                        message = known[peer]
+                        peer_actions = peer_sequences.get(peer)
+                        if peer_actions is None:
+                            peer_actions = np.broadcast_to(
+                                np.asarray(message.velocity, dtype=np.float64),
+                                (self.config.horizon_steps, 3),
+                            )
+                        else:
+                            peer_actions = _clip_rows(
+                                np.asarray(peer_actions, dtype=np.float64),
+                                self.config.max_speed_mps,
+                            )
+                        peer_position = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
+                            peer_actions * self.config.dt_seconds,
+                            axis=0,
+                        )
+                        team_position_paths.append(
+                            np.broadcast_to(peer_position, current.shape)
+                        )
+                        team_velocity_paths.append(
+                            np.broadcast_to(peer_actions, actions.shape)
+                        )
+                    formation_cost, _best_slack, _assignments, _arrival_times = formation_slot_reachability_cost(
+                        np.stack(team_position_paths, axis=2),
+                        np.stack(team_velocity_paths, axis=2),
+                        paths,
+                        slot_radius_m=float(
+                            self.config.role_perimeter_m
+                            if self.config.reachability_slot_radius_m is None
+                            else self.config.reachability_slot_radius_m
+                        ),
+                        dt_seconds=self.config.dt_seconds,
+                        max_speed_mps=self.config.max_speed_mps,
+                        max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                        time_margin_s=self.config.reachability_time_margin_s,
+                        time_scale_s=self.config.reachability_time_scale_s,
+                        target_tube_radius_m=scenarios.conformal_radius_by_step_m,
+                        activation_slack_s=self.config.reachability_activation_slack_s,
+                    )
+                    # Every agent receives one equal share. Summing the local
+                    # costs therefore preserves one cooperative RNIC term.
+                    result += (
+                        self.config.weight_reachability
+                        * formation_cost
+                        / max(positions.shape[0], 1)
+                    )
+            else:
+                reachability_cost, _best_slack, _arrival_times = reachability_normalized_interception_cost(
+                    current[:, :, None, :],
+                    actions[:, :, None, :],
+                    paths,
+                    dt_seconds=self.config.dt_seconds,
+                    max_speed_mps=self.config.max_speed_mps,
+                    max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                    time_margin_s=self.config.reachability_time_margin_s,
+                    time_scale_s=self.config.reachability_time_scale_s,
+                    target_tube_radius_m=scenarios.conformal_radius_by_step_m,
+                    activation_slack_s=self.config.reachability_activation_slack_s,
+                )
+                result += self.config.weight_reachability * reachability_cost
 
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
@@ -733,6 +798,8 @@ class DistributedMinimaxDNMPC:
         own_actions: np.ndarray,
         known: dict[int, _PlannerMessage],
         peer_sequences: dict[int, np.ndarray],
+        *,
+        include_reachability: bool = True,
     ) -> np.ndarray:
         return self._local_scenario_cost_matrix(
             observation,
@@ -741,6 +808,7 @@ class DistributedMinimaxDNMPC:
             np.asarray(own_actions, dtype=np.float64)[None, ...],
             known,
             peer_sequences,
+            include_reachability=include_reachability,
         )[0]
 
     def _local_obstacles(self, observation: dict[str, Any], own_position: np.ndarray) -> list[dict[str, Any]]:
@@ -775,7 +843,35 @@ class DistributedMinimaxDNMPC:
                 sequences[:, agent_id],
                 known,
                 peer_sequences,
+                include_reachability=(self.config.reachability_cost_mode != "formation_slot"),
             )
+        if (
+            self.config.reachability_normalized_cost_enabled
+            and self.config.reachability_cost_mode == "formation_slot"
+        ):
+            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+            position_paths = positions[None, :, :] + np.cumsum(
+                np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
+                axis=0,
+            )
+            formation_cost, _best_slack, _assignments, _arrival_times = formation_slot_reachability_cost(
+                position_paths[None, :, :, :],
+                np.asarray(sequences, dtype=np.float64)[None, :, :, :],
+                np.asarray(scenarios.trajectories, dtype=np.float64),
+                slot_radius_m=float(
+                    self.config.role_perimeter_m
+                    if self.config.reachability_slot_radius_m is None
+                    else self.config.reachability_slot_radius_m
+                ),
+                dt_seconds=self.config.dt_seconds,
+                max_speed_mps=self.config.max_speed_mps,
+                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                time_margin_s=self.config.reachability_time_margin_s,
+                time_scale_s=self.config.reachability_time_scale_s,
+                target_tube_radius_m=scenarios.conformal_radius_by_step_m,
+                activation_slack_s=self.config.reachability_activation_slack_s,
+            )
+            total += self.config.weight_reachability * formation_cost[0]
         return total
 
     def _diagnostics(

@@ -3,11 +3,103 @@ from __future__ import annotations
 import numpy as np
 
 from encirclement3d.reachability_interception import (
+    formation_slot_reachability_cost,
     minimum_arrival_time,
     planned_rnic_diagnostics,
     reachability_normalized_interception_cost,
     rnic_summary,
 )
+
+
+def test_formation_slot_cost_selects_the_assignment_with_smallest_shortfall() -> None:
+    directions = np.array(
+        [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0]],
+        dtype=np.float64,
+    )
+    target = np.zeros((1, 1, 3), dtype=np.float64)
+    positions = directions[[1, 0, 2, 3]][None, None, :, :]
+    velocities = np.zeros_like(positions)
+
+    cost, slack, assignments, arrival = formation_slot_reachability_cost(
+        positions,
+        velocities,
+        target,
+        slot_radius_m=1.0,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        time_margin_s=0.15,
+        time_scale_s=0.5,
+        slot_directions=directions,
+    )
+
+    assert cost.shape == (1, 1)
+    assert slack.shape == (1, 1, 1)
+    assert assignments.shape == (1, 1, 1, 4)
+    assert arrival.shape == (1, 1, 1, 4, 4)
+    np.testing.assert_array_equal(assignments[0, 0, 0], [1, 0, 2, 3])
+    assert float(cost[0, 0]) > 0.0
+
+
+def test_formation_slot_cost_is_zero_for_reachable_slots_and_validates_limit() -> None:
+    directions = np.array(
+        [[1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0]],
+        dtype=np.float64,
+    )
+    directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+    positions = directions[None, None, :, :]
+    target = np.zeros((2, 1, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    cost, slack, assignments, _arrival = formation_slot_reachability_cost(
+        positions,
+        velocities,
+        target,
+        slot_radius_m=1.0,
+        dt_seconds=1.0,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        time_margin_s=0.15,
+        time_scale_s=0.5,
+    )
+
+    np.testing.assert_allclose(cost, 0.0)
+    assert np.all(slack >= 0.15)
+    assert np.all(assignments[0, :, 0] == np.arange(4))
+
+    too_many = np.zeros((1, 1, 7, 3), dtype=np.float64)
+    with np.testing.assert_raises(ValueError):
+        formation_slot_reachability_cost(
+            too_many,
+            np.zeros_like(too_many),
+            np.zeros((1, 1, 3), dtype=np.float64),
+            slot_radius_m=1.0,
+            dt_seconds=0.1,
+            max_speed_mps=5.0,
+            max_acceleration_mps2=6.0,
+        )
+
+
+def test_planned_formation_rnic_reports_assignment_switch_rate() -> None:
+    positions = np.array(
+        [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0]],
+        dtype=np.float64,
+    )
+    actions = np.zeros((2, 4, 3), dtype=np.float64)
+    targets = np.zeros((1, 2, 3), dtype=np.float64)
+    diagnostics = planned_rnic_diagnostics(
+        positions,
+        actions,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        cost_mode="formation_slot",
+        slot_radius_m=1.0,
+    )
+
+    assert diagnostics["cost_mode"] == "formation_slot"
+    assert diagnostics["assignment_switch_rate"] == 0.0
+    assert 0.0 <= diagnostics["margin_violation_ratio"] <= 1.0
 
 
 def test_minimum_arrival_time_respects_acceleration_and_speed_limits() -> None:

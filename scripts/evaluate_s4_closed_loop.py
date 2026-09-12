@@ -145,6 +145,16 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional severe-unreachability threshold for gated RNIC; default preserves the legacy RNIC penalty.",
     )
+    parser.add_argument(
+        "--rnic-cost-mode",
+        choices=("interceptor", "formation_slot"),
+        help="Validation-only RNIC cost mode override.",
+    )
+    parser.add_argument(
+        "--rnic-slot-radius-m",
+        type=float,
+        help="Validation-only cooperative formation-slot radius override in metres.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -249,6 +259,12 @@ def main() -> None:
         if not np.isfinite(float(args.rnic_activation_slack_s)):
             raise ValueError("rnic-activation-slack-s must be finite")
         planner_mapping["reachability_activation_slack_s"] = float(args.rnic_activation_slack_s)
+    if args.rnic_cost_mode is not None:
+        planner_mapping["reachability_cost_mode"] = str(args.rnic_cost_mode)
+    if args.rnic_slot_radius_m is not None:
+        if not np.isfinite(float(args.rnic_slot_radius_m)) or float(args.rnic_slot_radius_m) <= 0.0:
+            raise ValueError("rnic-slot-radius-m must be finite and positive")
+        planner_mapping["reachability_slot_radius_m"] = float(args.rnic_slot_radius_m)
     planner_config = MinimaxMPCConfig.from_mapping(planner_mapping)
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)
@@ -537,6 +553,7 @@ def main() -> None:
                     "rnic_earliest_feasible_intercept_step",
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
+                    "rnic_assignment_switch_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -602,6 +619,12 @@ def main() -> None:
             writer.add_scalar("Summary/RNIC/mean_best_slack_s", overall["rnic_mean_best_slack_s"], 0)
             writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", overall["rnic_unreachable_slot_ratio"], 0)
             writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", overall["rnic_earliest_feasible_intercept_step"], 0)
+            writer.add_scalar("Summary/RNIC/assignment_switch_rate", overall["rnic_assignment_switch_rate"], 0)
+            writer.add_text(
+                "Summary/RNIC/cost_mode_counts",
+                json.dumps(overall.get("rnic_cost_mode_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar("Summary/ConformalTube/enabled_rate", overall["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", overall["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", overall["maximum_conformal_tube_radius_m"], 0)
