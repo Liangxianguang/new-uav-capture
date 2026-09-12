@@ -165,6 +165,33 @@ def grouped_summary(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> 
         episode_ids = {int(row["episode_index"]) for row in subset}
         subset_steps = [step for step in steps if int(step["episode_index"]) in episode_ids]
         summary = summarize_rows(subset, subset_steps)
+        # Keep the S4 wrapper compatible with older imported summarizers while
+        # exposing the phase-18 tube diagnostics required by its TensorBoard
+        # writer.  Current summarize_rows already provides these fields; the
+        # fallback is intentionally diagnostic-only and never changes control.
+        tube_enabled = [float(step.get("conformal_tube_enabled", 0.0)) for step in subset_steps]
+        tube_radii = [
+            float(step["conformal_tube_mean_radius_m"])
+            for step in subset_steps
+            if step.get("conformal_tube_mean_radius_m") is not None
+            and np.isfinite(float(step["conformal_tube_mean_radius_m"]))
+        ]
+        tube_maxima = [
+            float(step["conformal_tube_max_radius_m"])
+            for step in subset_steps
+            if step.get("conformal_tube_max_radius_m") is not None
+            and np.isfinite(float(step["conformal_tube_max_radius_m"]))
+        ]
+        tube_budgets = [
+            float(step["conformal_tube_budget_score"])
+            for step in subset_steps
+            if step.get("conformal_tube_budget_score") is not None
+            and np.isfinite(float(step["conformal_tube_budget_score"]))
+        ]
+        summary.setdefault("conformal_tube_enabled_rate", float(np.mean(tube_enabled)) if tube_enabled else 0.0)
+        summary.setdefault("mean_conformal_tube_radius_m", float(np.mean(tube_radii)) if tube_radii else float("nan"))
+        summary.setdefault("maximum_conformal_tube_radius_m", float(np.max(tube_maxima)) if tube_maxima else float("nan"))
+        summary.setdefault("mean_conformal_tube_budget_score", float(np.mean(tube_budgets)) if tube_budgets else float("nan"))
         choices = Counter(
             "upper" if int(row["target_branch_sign"]) > 0 else "lower"
             for row in subset

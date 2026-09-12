@@ -1,0 +1,51 @@
+experiment_name: phase18_delay_aware_conformal_reachable_tube_pilot
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Phase 18 is a validation-only development candidate.  It does not reopen
+# the locked test and it is not a formal safety certificate.
+candidate:
+  name: delay_aware_conformal_reachable_tube
+  information_boundary: public_belief_only_at_runtime
+  formal_forward_invariance: false
+  locked_test_used: false
+  target_truth_allowed_in_runtime: false
+
+calibration:
+  split: validation_first_half_episode_seeds
+  confirmation: validation_second_half_episode_seeds
+  coverage: 0.90
+  num_samples: 8
+  sampling_steps: 4
+  sampling_seed: 745102
+  batch_size: 256
+  projection_iterations: 4
+  uncertainty_gain: 0.25
+  target_speed_mps: 3.6
+  radius_definition: horizon_conformal_quantile_with_simultaneous_multiplier
+
+runtime:
+  horizon_alignment: queue_length_plus_prediction_age
+  tail_extension: target_speed_times_dt
+  rnic_integration: conservative_distance_plus_tube_radius
+  adaptive_budget_feature: diagnostic_only_in_pilot
+  tube_weight_in_uakr: 0.0
+  safety_layer: local_cbf
+  qdr: false
+  uakr: true
+  rnic: true
+
+evaluation:
+  split: validation_selection
+  smoke_episodes: 8
+  formal_confirmation_episodes: not_run
+  methods: [distributed_delayed]
+  device: cpu
+
+reporting:
+  tensorboard_required: true
+  preserve_calibration_scores: true
+  preserve_confirmation_scores: true
+  preserve_summary_json: true
+  preserve_source_hashes: true
+  report_latency_percentiles: [50, 95, 99]
+  report_calibration_and_confirmation_coverage: true

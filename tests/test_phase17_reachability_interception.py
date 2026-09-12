@@ -73,3 +73,31 @@ def test_planned_rnic_diagnostics_reconstructs_selected_team_rollout() -> None:
     assert 0.0 <= diagnostics["unreachable_slot_ratio"] <= 1.0
     assert 0.0 <= diagnostics["margin_violation_ratio"] <= 1.0
     assert diagnostics["maximum_arrival_time_s"] >= diagnostics["mean_arrival_time_s"]
+
+
+def test_target_tube_radius_makes_rnic_cost_more_conservative() -> None:
+    positions = np.zeros((1, 2, 1, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    targets = np.array([[[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]], dtype=np.float64)
+    baseline, _slack, _arrival = reachability_normalized_interception_cost(
+        positions,
+        velocities,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=2.0,
+        time_margin_s=0.0,
+        time_scale_s=0.5,
+    )
+    tube, _slack, _arrival = reachability_normalized_interception_cost(
+        positions,
+        velocities,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=2.0,
+        time_margin_s=0.0,
+        time_scale_s=0.5,
+        target_tube_radius_m=(0.2, 0.2),
+    )
+    assert float(tube[0, 0]) >= float(baseline[0, 0])

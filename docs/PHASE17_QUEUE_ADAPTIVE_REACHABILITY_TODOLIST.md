@@ -1,6 +1,6 @@
 # Phase 17: Queue-Aware Adaptive Reachability DN-MPC TodoList
 
-> 状态：QDR、UAKR、RNIC 的第一版适配器、TensorBoard 字段和单元测试已实现；QDR validation paired gate 为 No-Go，UAKR validation 已完成但未通过安全非劣门槛，RNIC 在 ID、target-speed OOD 和 delay/execution OOD 均未形成主结果收益且增加延迟。下一步是完成 RNIC 后验到达误差审计、UAKR 可靠性分析和新的 delay-aware conformal reachable-tube 方案，暂不开放完整组合主结论。
+> 状态：QDR、UAKR、RNIC 的第一版适配器、TensorBoard 字段和单元测试已实现；QDR validation paired gate 为 No-Go，UAKR validation 已完成但未通过安全非劣门槛，RNIC 在 ID、target-speed OOD 和 delay/execution OOD 均未形成主结果收益且增加延迟。Phase 18 的 delay-aware split-conformal reachable-tube 已完成实现与 validation-only smoke，但确认集完整轨迹覆盖率仅 85.92%（目标 90%），因此仍为 No-Go，暂不开放完整组合主结论。
 >
 > 核心目标：在不重新训练主预测器、不重新打开 learned CLBF/R-CLBF-QP 路线的前提下，将三个可复现机制接入现有 distributed delayed DN-MPC：
 > 1. Queue-Aware Delayed-State Rollout（QDR）；
@@ -40,7 +40,7 @@ Phase 16 已经给出三个直接动机：
 - RNIC 的一维加速度受限到达时间是 planner heuristic，除非后续给出完整三维最短时间证明，否则不能称为精确可达集。
 - robust CBF-QP 仍为独立 No-Go 诊断，不进入 Phase 17 主结果。
 
-当前验证状态：QDR=No-Go；UAKR=compute-savings-only/closed-loop No-Go；RNIC=ID behavior-neutral/latency No-Go，speed-OOD gate pending。
+当前验证状态：QDR=No-Go；UAKR=compute-savings-only/closed-loop No-Go；RNIC=ID/OOD No-Go；Phase 18 conformal tube=implementation complete but confirmation-coverage No-Go。
 
 ## 3. 冻结协议与防止测试泄漏
 
@@ -438,6 +438,20 @@ predicted-versus-realized arrival audit remains pending. See
 `PHASE17_RNIC_VALIDATION_REPORT.md`,
 `PHASE17_RNIC_TARGET_SPEED_OOD_REPORT.md` and
 `PHASE17_RNIC_DELAY_EXECUTION_OOD_REPORT.md`.
+
+### M3.1：Phase 18 delay-aware conformal reachable tube
+
+- [x] 实现冻结的 horizon-dependent split-conformal 半径序列，并按 queue length 与 prediction age 对齐。
+- [x] 校准只使用 validation 前半 episode seeds，第二半作为未参与拟合的 confirmation；locked-test 未读取。
+- [x] 接入 centralized/local RNIC、UAKR tube-width diagnostic、TensorBoard 和 per-step JSONL。
+- [x] 完成 8-episode online smoke，验证管半径与候选 horizon 对齐并生成完整工件。
+- [x] 明确记录失败：calibration full-trajectory coverage `90.18%`，confirmation `85.92%`，半径约 `6.09--8.59 m`，online 最大约 `10.11 m`。
+- [ ] 不得将该版本写成安全证明或正式 OOD 主结果；先完成按 motion mode / delay regime 的条件校准与轨迹级 coverage--volume 双门槛。
+
+**Current M3.1 decision:** No-Go for promotion. The candidate is retained as a
+reproducible negative/repair result; its confirmation artifact must remain
+frozen while a new development-only calibration version is prepared. Full
+QDR × UAKR × RNIC factorial evaluation remains blocked.
 
 ### M4：全因子 validation
 

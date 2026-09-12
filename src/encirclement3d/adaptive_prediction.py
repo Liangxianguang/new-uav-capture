@@ -37,6 +37,8 @@ class AdaptivePredictionConfig:
     speed_weight: float = 0.15
     cache_weight: float = 0.10
     residual_weight: float = 0.05
+    tube_radius_scale_m: float = 2.0
+    tube_weight: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 <= float(self.low_threshold) < float(self.high_threshold) <= 1.0:
@@ -51,6 +53,7 @@ class AdaptivePredictionConfig:
             self.message_age_scale_steps,
             self.speed_ratio_scale,
             self.residual_scale_m,
+            self.tube_radius_scale_m,
         )
         if any(not np.isfinite(float(value)) or float(value) <= 0.0 for value in scales):
             raise ValueError("adaptive feature scales must be finite and positive")
@@ -61,6 +64,7 @@ class AdaptivePredictionConfig:
             self.speed_weight,
             self.cache_weight,
             self.residual_weight,
+            self.tube_weight,
         )
         if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in weights):
             raise ValueError("adaptive feature weights must be finite and non-negative")
@@ -142,6 +146,7 @@ class AdaptivePredictionPolicy:
         *,
         cached_age_steps: int,
         previous_residual_m: float | None,
+        reachable_tube_radius_m: float | None,
     ) -> dict[str, float]:
         covariance = np.asarray(
             observation.get("target_observation_covariance", np.zeros((1, 3, 3))),
@@ -173,6 +178,11 @@ class AdaptivePredictionPolicy:
             "cache_age": float(np.clip(float(cached_age_steps) / self.config.max_cache_age_steps, 0.0, 1.0)),
             "one_step_residual": float(np.clip(residual / self.config.residual_scale_m, 0.0, 1.0)),
         }
+        if self.config.tube_weight > 0.0:
+            tube_radius = 0.0 if reachable_tube_radius_m is None else max(float(reachable_tube_radius_m), 0.0)
+            components["tube_width"] = float(
+                np.clip(tube_radius / self.config.tube_radius_scale_m, 0.0, 1.0)
+            )
         return components
 
     def _bucket_for_score(self, score: float) -> str:
@@ -199,6 +209,7 @@ class AdaptivePredictionPolicy:
         cached_age_steps: int,
         has_cache: bool,
         previous_residual_m: float | None = None,
+        reachable_tube_radius_m: float | None = None,
     ) -> AdaptivePredictionDecision:
         if int(cached_age_steps) < 0:
             raise ValueError("cached_age_steps must be non-negative")
@@ -206,18 +217,18 @@ class AdaptivePredictionPolicy:
             observation,
             cached_age_steps=cached_age_steps,
             previous_residual_m=previous_residual_m,
+            reachable_tube_radius_m=reachable_tube_radius_m,
         )
-        weights = np.asarray(
-            [
-                self.config.covariance_weight,
-                self.config.age_weight,
-                self.config.confidence_weight,
-                self.config.speed_weight,
-                self.config.cache_weight,
-                self.config.residual_weight,
-            ],
-            dtype=np.float64,
-        )
+        configured_weights = {
+            "covariance": self.config.covariance_weight,
+            "message_age": self.config.age_weight,
+            "confidence_deficit": self.config.confidence_weight,
+            "speed_ratio": self.config.speed_weight,
+            "cache_age": self.config.cache_weight,
+            "one_step_residual": self.config.residual_weight,
+            "tube_width": self.config.tube_weight,
+        }
+        weights = np.asarray([configured_weights[name] for name in components], dtype=np.float64)
         values = np.asarray(list(components.values()), dtype=np.float64)
         score = float(np.clip(np.dot(weights, values) / weights.sum(), 0.0, 1.0))
         bucket = self._bucket_for_score(score)

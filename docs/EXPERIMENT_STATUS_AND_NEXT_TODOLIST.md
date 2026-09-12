@@ -1,6 +1,6 @@
 # 当前实验状态与后续 TodoList
 
-> 更新时间：2026-09-11
+> 更新时间：2026-09-12
 > 仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 当前总判定：**Conditional Go**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，完整方法尚未完成。
 
@@ -13,6 +13,8 @@
 > Phase 16 通信/执行 OOD 更新：新增并冻结 `delay6_dropout20` 与 `delay8_dropout25` 两个感知条件，各 50 个 episode，并真正激活 2-step command delay、执行噪声、速度/加速度随机缩放和一阶跟踪 dynamics。三种子 distributed delayed + local CBF 的 safe capture 为 `47.00% [41.00%, 53.00%]`，collision / boundary 为 `53.00% / 19.00%`，total p50/p95/p99 为 `86.09/122.82/178.46 ms`；worst-case safe capture 为 `53.67%`，collision / boundary 为 `46.33% / 24.00%`。这是当前执行感知安全契约的 No-Go 诊断，不是模型成功结果或安全证明。详见 `docs/PHASE16_OOD_DELAY_EXECUTION_REPORT.md`。
 
 > Phase 16 目标行为 OOD 更新：新增并冻结 `short_lookahead`（0.20 s）与 `long_lookahead_margin`（1.20 s / 0.20 s）两种训练外的目标分支决策规则，各 50 个 episode，保持速度、几何和执行配置在 ID 支持内。三种子 distributed delayed + local CBF 的 safe capture 为 `94.33% [91.33%, 97.33%]`，collision / boundary 均为 `0%`，timeout 为 `5.67%`，说明该两种行为参数外推没有可见退化；这只是单轴描述性证据，不能外推到任意对抗策略。详见 `docs/PHASE16_OOD_TARGET_BEHAVIOR_REPORT.md`。
+
+> Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 15 v3 正式更新：600 场景的数据划分和动作/时间戳契约审计已通过；30 epoch、3 seed 的冻结离线测试中，GRU 的 projected minFDE 为 `0.7244 +/- 0.0352 m`，官方 S4 为 `1.3373 +/- 0.0275 m`。每步刷新且因果动作条件可用率约 `92%--95%` 时，GRU + distributed delayed DN-MPC 为 `95.56% [92.96%, 97.78%]` safe capture，官方 S4 为 `94.44% [91.48%, 97.04%]`。不能声称 S4 优于 GRU；下一步是 validation-only 的 `none/history/future/both`、单/多模态和风险/刷新消融。详见 `docs/PHASE15_S4_V3_FORMAL_MULTISEED_REPORT.md`。
 
@@ -209,6 +211,22 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [ ] 不设 100 ms 硬门槛，但必须逐组件报告 p50/p95/p99，并在同硬件单进程条件下进行公平比较。
 
 **P13 gate：** ID safe capture 满足 `-2 pp` 非劣；QDR/UAKR/RNIC 至少一个对应失败轴获得配对统计支持的改善；最终组合不增加 collision/boundary；所有阈值、seed、hash 和 step-level decision 可复现。详细 gate、指标、测试和六周日程见 `docs/PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md`。
+
+### P14：Phase 18 可达管修复与下一轮实验
+
+- [x] 完成 `DelayAwareConformalReachableTube`：horizon 逐步半径、同时覆盖倍率、有限样本上分位数和 provenance。
+- [x] 校准脚本严格分离 validation 前半 calibration 与后半 confirmation；禁止读取 locked-test，并保存 score JSONL、summary、config、source hash 和 TensorBoard。
+- [x] 将管半径按 `queue_length + prediction_age` 对齐，短 horizon 截断、长 horizon 按目标速度尾部外推，并在 `ScenarioTrajectorySet` 中做长度校验。
+- [x] 在 central/local RNIC 使用 `distance + tube_radius` 的保守规划 surrogate；代码注释明确其不是动态可达集证明。
+- [x] 完成 8-episode online smoke；确认闭环日志和 TensorBoard 写入 `enabled_rate`、mean/max radius、budget score 以及 p50/p95/p99。
+- [x] 固化失败结果：confirmation full-trajectory coverage `85.92%` 低于目标 `90%`，且管半径约 `6.09--8.59 m`，因此不晋级为正式方法。
+- [ ] 冻结 Phase 18 失败 artifact，不用 confirmation 或 locked-test 调半径、coverage、uncertainty gain 或 RNIC 权重。
+- [ ] 新建 development-only split，按 target motion mode、observation/message age 和 execution-delay regime 做条件校准；保留全新 confirmation split。
+- [ ] 并行比较 horizon schedule 与 trajectory-level scalar conformal score，预注册 coverage、tube volume/radius 和 interception performance 的双门槛。
+- [ ] 运行单进程、固定线程数的 disabled / RNIC-only / UAKR-diagnostic 三路对照，分别报告 safe capture、collision、timeout、clearance、predictor/planner/RNIC/total p50/p95/p99。
+- [ ] 只有新 confirmation 同时满足 trajectory coverage 与紧致性门槛后，才开放一个小规模未见 OOD block；在此之前不运行完整 2×2×2 组合矩阵。
+
+**P14 gate：** confirmation full-trajectory coverage 不低于预注册目标（当前目标 90%），同时满足预注册 tube-radius/volume 上限；RNIC 或 UAKR 接入不得使 ID safe capture 低于固定参考的 `-2 pp` 非劣界，且不得增加 collision/boundary。任一条件失败则保留负结果并降级为诊断工具。
 
 ## 7. 当前推荐执行顺序
 

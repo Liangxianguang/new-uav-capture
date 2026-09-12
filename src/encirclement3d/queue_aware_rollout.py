@@ -298,6 +298,25 @@ def _extend_trajectory_tail(
     return np.concatenate([source[:-1], np.stack(tail, axis=0)], axis=0)
 
 
+def _extend_radius_tail(
+    radius: np.ndarray,
+    *,
+    required_steps: int,
+    dt_seconds: float,
+    max_speed_mps: float,
+) -> np.ndarray:
+    """Extend an uncertainty schedule by the bounded target travel distance."""
+
+    source = np.asarray(radius, dtype=np.float64)
+    if source.ndim != 1 or source.size <= 0 or not np.isfinite(source).all() or np.any(source < 0.0):
+        raise ValueError("radius schedule must be a finite non-negative vector")
+    if required_steps <= source.shape[0]:
+        return source[:required_steps].copy()
+    extra = np.arange(1, required_steps - source.shape[0] + 1, dtype=np.float64)
+    tail = source[-1] + extra * float(dt_seconds) * float(max_speed_mps)
+    return np.concatenate([source, tail])
+
+
 def shift_scenario_trajectory_set(
     scenarios: ScenarioTrajectorySet,
     *,
@@ -333,12 +352,21 @@ def shift_scenario_trajectory_set(
         ],
         axis=0,
     )
+    aligned_radius = None
+    if scenarios.conformal_radius_by_step_m is not None:
+        aligned_radius = _extend_radius_tail(
+            np.asarray(scenarios.conformal_radius_by_step_m, dtype=np.float64),
+            required_steps=required,
+            dt_seconds=dt_seconds,
+            max_speed_mps=max_speed_mps,
+        )[offset:required]
     return ScenarioTrajectorySet(
         trajectories=aligned,
         weights=np.asarray(scenarios.weights, dtype=np.float64).copy(),
         score_kind=scenarios.score_kind,
         dynamics_status=scenarios.dynamics_status,
-        conformal_radius_m=scenarios.conformal_radius_m,
+        conformal_radius_m=(None if aligned_radius is not None else scenarios.conformal_radius_m),
+        conformal_radius_by_step_m=None if aligned_radius is None else tuple(float(value) for value in aligned_radius),
         source_model_hash=scenarios.source_model_hash,
         timestamp_step=scenarios.timestamp_step,
     )

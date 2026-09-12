@@ -22,6 +22,7 @@ from encirclement3d.distributed_dn_mpc import DistributedDNMPCConfig  # noqa: E4
 from encirclement3d.minimax_mpc import MinimaxMPCConfig  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig  # noqa: E402
+from encirclement3d.delay_aware_conformal_tube import DelayAwareConformalReachableTube  # noqa: E402
 from encirclement3d.showcase import scenario_from_metadata  # noqa: E402
 from evaluate_minimax_mpc import (  # noqa: E402
     DEFAULT_ENVIRONMENT_CONFIG,
@@ -67,6 +68,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sampling-steps", type=int, default=4)
     parser.add_argument("--sampling-seed", type=int, default=745102)
     parser.add_argument("--projection-iterations", type=int, default=4)
+    parser.add_argument(
+        "--reachable-tube-calibration",
+        type=Path,
+        help="Optional frozen delay-aware conformal tube JSON artifact.",
+    )
     parser.add_argument("--prediction-refresh-interval-steps", type=int, default=20)
     queue_group = parser.add_mutually_exclusive_group()
     queue_group.add_argument("--queue-aware-rollout", dest="queue_aware_rollout", action="store_true")
@@ -223,8 +229,19 @@ def main() -> None:
         safety_mapping.setdefault("safety_margin_m", float(probe_env.pursuit["safety_margin"]))
         safety_config = RobustCBFQPConfig.from_mapping(safety_mapping)
 
+    reachable_tube = (
+        None
+        if args.reachable_tube_calibration is None
+        else DelayAwareConformalReachableTube.from_json(args.reachable_tube_calibration)
+    )
+
     output.mkdir(parents=True, exist_ok=True)
     hashes = source_hashes_closed_loop(args.protocol, args.scenes, args.mpc_config)
+    if args.reachable_tube_calibration is not None:
+        tube_path = args.reachable_tube_calibration.resolve()
+        hashes[str(tube_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
+            tube_path.read_bytes()
+        ).hexdigest()
     if args.safety_layer == "robust_cbf_qp":
         add_safety_source_hashes(hashes, args.safety_config)
     run_config = {
@@ -247,6 +264,11 @@ def main() -> None:
         "adaptive_k": adaptive_k,
         "adaptive_budget": adaptive_budget_mapping,
         "reachability_normalized_cost": rnic,
+        "reachable_tube_calibration": (
+            None
+            if args.reachable_tube_calibration is None
+            else str(args.reachable_tube_calibration.resolve())
+        ),
         "phase17": phase17_mapping,
         "device": str(device),
         "safety_layer": args.safety_layer,
@@ -302,6 +324,7 @@ def main() -> None:
                     prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
+                    reachable_tube=reachable_tube,
                     distributed_config=distributed_config,
                     scenario=scenario_from_metadata(spec["scenario"]),
                     validate_scenario=False,
@@ -371,6 +394,10 @@ def main() -> None:
                     "rnic_earliest_feasible_intercept_step",
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
+                    "conformal_tube_enabled_rate",
+                    "mean_conformal_tube_radius_m",
+                    "maximum_conformal_tube_radius_m",
+                    "mean_conformal_tube_budget_score",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -423,6 +450,10 @@ def main() -> None:
             writer.add_scalar("Summary/RNIC/mean_best_slack_s", overall["rnic_mean_best_slack_s"], 0)
             writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", overall["rnic_unreachable_slot_ratio"], 0)
             writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", overall["rnic_earliest_feasible_intercept_step"], 0)
+            writer.add_scalar("Summary/ConformalTube/enabled_rate", overall["conformal_tube_enabled_rate"], 0)
+            writer.add_scalar("Summary/ConformalTube/mean_radius_m", overall["mean_conformal_tube_radius_m"], 0)
+            writer.add_scalar("Summary/ConformalTube/maximum_radius_m", overall["maximum_conformal_tube_radius_m"], 0)
+            writer.add_scalar("Summary/ConformalTube/mean_budget_score", overall["mean_conformal_tube_budget_score"], 0)
             writer.add_hparams(
                 {
                     "method": method,

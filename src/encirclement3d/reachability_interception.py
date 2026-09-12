@@ -57,6 +57,7 @@ def reachability_normalized_interception_cost(
     max_acceleration_mps2: float,
     time_margin_s: float = 0.15,
     time_scale_s: float = 0.50,
+    target_tube_radius_m: np.ndarray | tuple[float, ...] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return RNIC cost, best slack and per-defender arrival times.
 
@@ -85,6 +86,17 @@ def reachability_normalized_interception_cost(
 
     sequence_count, horizon, defender_count, _ = positions.shape
     scenario_count = targets.shape[0]
+    if target_tube_radius_m is None:
+        tube_radius = np.zeros(horizon, dtype=np.float64)
+    else:
+        tube_radius = np.asarray(target_tube_radius_m, dtype=np.float64)
+        if (
+            tube_radius.ndim != 1
+            or tube_radius.shape[0] != horizon
+            or not np.isfinite(tube_radius).all()
+            or np.any(tube_radius < 0.0)
+        ):
+            raise ValueError("target_tube_radius_m must be finite, non-negative and match the horizon")
     cost = np.zeros((sequence_count, scenario_count), dtype=np.float64)
     best_slack = np.empty((sequence_count, scenario_count, horizon), dtype=np.float64)
     arrival_times = np.empty((sequence_count, scenario_count, horizon, defender_count), dtype=np.float64)
@@ -93,7 +105,10 @@ def reachability_normalized_interception_cost(
         velocity = velocities[:, None, timestep, :, :]
         target = targets[None, :, timestep, None, :]
         delta = target - position
-        distance = np.linalg.norm(delta, axis=-1)
+        # A target tube enlarges the center-line distance by its radius.  This
+        # is a conservative planning surrogate, not a claim that every point
+        # in the tube is dynamically reachable.
+        distance = np.linalg.norm(delta, axis=-1) + tube_radius[timestep]
         direction = delta / np.maximum(distance[..., None], 1.0e-12)
         projection = np.sum(velocity * direction, axis=-1)
         arrival = minimum_arrival_time(
@@ -137,6 +152,7 @@ def planned_rnic_diagnostics(
     max_acceleration_mps2: float,
     time_margin_s: float = 0.15,
     time_scale_s: float = 0.50,
+    target_tube_radius_m: np.ndarray | tuple[float, ...] | None = None,
 ) -> dict[str, float]:
     """Return auditable RNIC diagnostics for one selected team plan.
 
@@ -169,6 +185,7 @@ def planned_rnic_diagnostics(
         max_acceleration_mps2=max_acceleration_mps2,
         time_margin_s=time_margin_s,
         time_scale_s=time_scale_s,
+        target_tube_radius_m=target_tube_radius_m,
     )
     best = best_slack[0]
     arrival = arrival_times[0]

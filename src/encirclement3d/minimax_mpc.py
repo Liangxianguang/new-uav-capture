@@ -38,6 +38,7 @@ class ScenarioTrajectorySet:
     score_kind: str = "uniform_uncalibrated"
     dynamics_status: ProjectionStatus = "projected"
     conformal_radius_m: float | None = None
+    conformal_radius_by_step_m: tuple[float, ...] | None = None
     source_model_hash: str | None = None
     timestamp_step: int = -1
 
@@ -60,6 +61,18 @@ class ScenarioTrajectorySet:
             not np.isfinite(float(self.conformal_radius_m)) or float(self.conformal_radius_m) < 0.0
         ):
             raise ValueError("conformal_radius_m must be finite and non-negative when supplied.")
+        if self.conformal_radius_by_step_m is not None:
+            radius = np.asarray(self.conformal_radius_by_step_m, dtype=np.float64)
+            if (
+                radius.ndim != 1
+                or radius.shape[0] != trajectories.shape[1]
+                or not np.isfinite(radius).all()
+                or np.any(radius < 0.0)
+            ):
+                raise ValueError("conformal_radius_by_step_m must match the candidate horizon and be non-negative.")
+            object.__setattr__(self, "conformal_radius_by_step_m", tuple(float(value) for value in radius))
+            if self.conformal_radius_m is None:
+                object.__setattr__(self, "conformal_radius_m", float(np.mean(radius)))
 
     @property
     def candidate_count(self) -> int:
@@ -84,7 +97,16 @@ class ScenarioTrajectorySet:
             weights=np.asarray(self.weights).copy(),
             score_kind=self.score_kind,
             dynamics_status=self.dynamics_status,
-            conformal_radius_m=self.conformal_radius_m,
+            conformal_radius_m=(
+                None
+                if self.conformal_radius_by_step_m is not None
+                else self.conformal_radius_m
+            ),
+            conformal_radius_by_step_m=(
+                None
+                if self.conformal_radius_by_step_m is None
+                else self.conformal_radius_by_step_m[:horizon_steps]
+            ),
             source_model_hash=self.source_model_hash,
             timestamp_step=self.timestamp_step,
         )
@@ -783,6 +805,7 @@ class ScenarioMinimaxMPC:
                 max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
                 time_margin_s=self.config.reachability_time_margin_s,
                 time_scale_s=self.config.reachability_time_scale_s,
+                target_tube_radius_m=candidates.conformal_radius_by_step_m,
             )
             scenario_costs += self.config.weight_reachability * reachability_cost
         return scenario_costs, constraint_violations

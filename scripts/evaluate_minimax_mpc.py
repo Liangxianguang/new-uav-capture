@@ -74,6 +74,9 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.reachability_interception import planned_rnic_diagnostics  # noqa: E402
+from encirclement3d.delay_aware_conformal_tube import (  # noqa: E402
+    DelayAwareConformalReachableTube,
+)
 from encirclement3d.queue_aware_rollout import (  # noqa: E402
     endpoint_error_diagnostics,
     prepare_queue_aware_observation,
@@ -129,6 +132,11 @@ def parse_args() -> argparse.Namespace:
         "--prediction-refresh-interval-steps",
         type=int,
         help="Refresh learned prediction every N control steps; 1 preserves per-step sampling.",
+    )
+    parser.add_argument(
+        "--reachable-tube-calibration",
+        type=Path,
+        help="Optional frozen delay-aware conformal tube JSON artifact.",
     )
     queue_group = parser.add_mutually_exclusive_group()
     queue_group.add_argument(
@@ -214,6 +222,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "queue_aware_rollout.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "adaptive_prediction.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "delay_aware_conformal_tube.py",
         PROJECT_ROOT / "configs" / "innovation_mpc.yaml",
     )
     hashes = {
@@ -332,6 +341,7 @@ class PredictionRuntime:
     adaptive_policy: AdaptivePredictionPolicy | None = None
     last_adaptive_decision: AdaptivePredictionDecision | None = None
     last_prediction_residual_m: float | None = None
+    conformal_tube: DelayAwareConformalReachableTube | None = None
 
     def reset(self) -> None:
         self.history = []
@@ -414,6 +424,24 @@ class PredictionRuntime:
             current_reference = self._belief_reference(observation)
             previous_residual_m = float(np.linalg.norm(cached_reference - current_reference))
         self.last_prediction_residual_m = previous_residual_m
+        tube_radius_for_budget: float | None = None
+        if self.conformal_tube is not None:
+            if self.cached_scenarios is not None and self.cached_scenarios.conformal_radius_by_step_m is not None:
+                tube_radius_for_budget = float(np.max(self.cached_scenarios.conformal_radius_by_step_m))
+            else:
+                tube_radius_for_budget = float(
+                    np.max(
+                        self.conformal_tube.radius_by_step(
+                            planner_horizon,
+                            queue_length=len(
+                                observation.get(
+                                    "execution_action_queue",
+                                    observation.get("execution", {}).get("action_queue", []),
+                                )
+                            ),
+                        )
+                    )
+                )
         if adaptive:
             decision_age_steps = self.cached_age_steps + (1 if self.cached_scenarios is not None else 0)
             decision = self.adaptive_policy.decide(
@@ -421,6 +449,7 @@ class PredictionRuntime:
                 cached_age_steps=decision_age_steps,
                 has_cache=self.cached_scenarios is not None,
                 previous_residual_m=previous_residual_m,
+                reachable_tube_radius_m=tube_radius_for_budget,
             )
             self.last_adaptive_decision = decision
             sample_count = int(decision.num_samples)
@@ -443,6 +472,22 @@ class PredictionRuntime:
             self.step_index += 1
             self.cached_age_steps += 1
             return self.cached_scenarios, 0.0, False, self.cached_age_steps
+        tube_radius_schedule = None
+        if self.conformal_tube is not None:
+            tube_horizon = max(
+                int(planner_horizon),
+                int(self.model_horizon_count) if self.model_horizon_count > 0 else int(planner_horizon),
+            )
+            tube_radius_schedule = self.conformal_tube.radius_by_step(
+                tube_horizon,
+                queue_length=0,
+                prediction_age_steps=0,
+                uncertainty_score=(
+                    0.0
+                    if self.last_adaptive_decision is None
+                    else float(self.last_adaptive_decision.uncertainty_score)
+                ),
+            )
         if self.source == "belief":
             result = make_belief_candidate_set(
                 observation,
@@ -451,6 +496,16 @@ class PredictionRuntime:
                 max_speed_mps=float(self.env.agents["target_max_speed"]),
                 candidate_count=sample_count,
             )
+            if tube_radius_schedule is not None:
+                result = ScenarioTrajectorySet(
+                    trajectories=result.trajectories,
+                    weights=result.weights,
+                    score_kind="calibrated_region",
+                    dynamics_status=result.dynamics_status,
+                    conformal_radius_by_step_m=tuple(float(value) for value in tube_radius_schedule),
+                    source_model_hash=self.conformal_tube.source_model_hash,
+                    timestamp_step=result.timestamp_step,
+                )
             self.cached_scenarios = result
             self.cached_age_steps = 0
             self.refresh_count += 1
@@ -523,6 +578,12 @@ class PredictionRuntime:
             weights=np.ones(trajectories.shape[0], dtype=np.float64),
             score_kind="uniform_uncalibrated",
             dynamics_status="projected",
+            conformal_radius_by_step_m=(
+                None
+                if tube_radius_schedule is None
+                else tuple(float(value) for value in tube_radius_schedule)
+            ),
+            source_model_hash=(None if self.conformal_tube is None else self.conformal_tube.source_model_hash),
         )
         self.cached_scenarios = result
         self.cached_age_steps = 0
@@ -595,6 +656,7 @@ def run_episode(
     prediction_refresh_interval_steps: int = 1,
     queue_aware_rollout: bool = False,
     adaptive_prediction_config: dict[str, Any] | None = None,
+    reachable_tube: DelayAwareConformalReachableTube | None = None,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
@@ -689,6 +751,7 @@ def run_episode(
                 if adaptive_prediction_config is None
                 else AdaptivePredictionPolicy.from_mapping(adaptive_prediction_config)
             ),
+            conformal_tube=reachable_tube,
         )
         runtime.reset()
 
@@ -757,6 +820,10 @@ def run_episode(
         rnic_earliest_feasible_intercept_step = float("nan")
         rnic_mean_arrival_time_s = float("nan")
         rnic_maximum_arrival_time_s = float("nan")
+        conformal_tube_enabled = False
+        conformal_tube_mean_radius_m = float("nan")
+        conformal_tube_max_radius_m = float("nan")
+        conformal_tube_budget_score = float("nan")
         planned_rnic_observation: dict[str, Any] | None = None
         planned_rnic_scenarios: ScenarioTrajectorySet | None = None
         planned_rnic_action_sequence: np.ndarray | None = None
@@ -842,6 +909,19 @@ def run_episode(
                     )
                     qdr_endpoint_expected_checks += 1
                 qdr_latency_ms = (time.perf_counter() - qdr_started) * 1000.0
+            if planning_scenarios.conformal_radius_by_step_m is not None:
+                tube_radius = np.asarray(planning_scenarios.conformal_radius_by_step_m, dtype=np.float64)
+                conformal_tube_enabled = True
+                conformal_tube_mean_radius_m = float(np.mean(tube_radius))
+                conformal_tube_max_radius_m = float(np.max(tube_radius))
+                conformal_tube_budget_score = float(
+                    np.clip(
+                        conformal_tube_max_radius_m
+                        / max(2.0 * float(planner_config.capture_radius_m), 1.0e-6),
+                        0.0,
+                        1.0,
+                    )
+                )
             rnic_enabled = bool(planner_config_for_method.reachability_normalized_cost_enabled)
             if rnic_enabled:
                 planned_rnic_observation = planning_observation
@@ -978,6 +1058,7 @@ def run_episode(
                 max_acceleration_mps2=planner_config.reachability_max_acceleration_mps2,
                 time_margin_s=planner_config.reachability_time_margin_s,
                 time_scale_s=planner_config.reachability_time_scale_s,
+                target_tube_radius_m=planned_rnic_scenarios.conformal_radius_by_step_m,
             )
             rnic_latency_ms = (time.perf_counter() - rnic_started) * 1000.0
             rnic_minimum_best_slack_s = float(rnic_diagnostics["minimum_best_slack_s"])
@@ -1034,6 +1115,10 @@ def run_episode(
                 "rnic_earliest_feasible_intercept_step": float(rnic_earliest_feasible_intercept_step),
                 "rnic_mean_arrival_time_s": float(rnic_mean_arrival_time_s),
                 "rnic_maximum_arrival_time_s": float(rnic_maximum_arrival_time_s),
+                "conformal_tube_enabled": 1.0 if conformal_tube_enabled else 0.0,
+                "conformal_tube_mean_radius_m": float(conformal_tube_mean_radius_m),
+                "conformal_tube_max_radius_m": float(conformal_tube_max_radius_m),
+                "conformal_tube_budget_score": float(conformal_tube_budget_score),
                 "future_action_condition_available": (
                     1.0
                     if method != "dynamic_encirclement"
@@ -1292,6 +1377,10 @@ def run_episode(
         ),
         "rnic_mean_arrival_time_s": _diagnostic_mean(step_rows, "rnic_mean_arrival_time_s"),
         "rnic_maximum_arrival_time_s": _diagnostic_max(step_rows, "rnic_maximum_arrival_time_s"),
+        "conformal_tube_enabled_rate": float(np.mean([row["conformal_tube_enabled"] for row in step_rows])),
+        "mean_conformal_tube_radius_m": _diagnostic_mean(step_rows, "conformal_tube_mean_radius_m"),
+        "maximum_conformal_tube_radius_m": _diagnostic_max(step_rows, "conformal_tube_max_radius_m"),
+        "mean_conformal_tube_budget_score": _diagnostic_mean(step_rows, "conformal_tube_budget_score"),
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
         "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
         "safety_certificate_valid_rate": _diagnostic_rate(step_rows, "safety_certificate_valid"),
@@ -1768,6 +1857,11 @@ def main() -> None:
         if args.checkpoint
         else None
     )
+    reachable_tube = (
+        None
+        if args.reachable_tube_calibration is None
+        else DelayAwareConformalReachableTube.from_json(args.reachable_tube_calibration)
+    )
     if checkpoint_data is not None:
         model_config = checkpoint_data[3].get("model_config", {})
         if int(model_config.get("horizon_count", 0)) < planner_config.horizon_steps:
@@ -1815,6 +1909,11 @@ def main() -> None:
     }
     serialized_arguments["output_dir"] = str(output)
     hashes = source_hashes(args.mpc_config)
+    if args.reachable_tube_calibration is not None:
+        tube_path = args.reachable_tube_calibration.resolve()
+        hashes[str(tube_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
+            tube_path.read_bytes()
+        ).hexdigest()
     if args.safety_layer == "robust_cbf_qp":
         add_safety_source_hashes(hashes, args.safety_config)
     run_config = {
@@ -1843,6 +1942,11 @@ def main() -> None:
             "adaptive_k": adaptive_k,
             "adaptive_budget": adaptive_budget_mapping,
             "reachability_normalized_cost": rnic,
+            "reachable_tube_calibration": (
+                None
+                if args.reachable_tube_calibration is None
+                else str(args.reachable_tube_calibration.resolve())
+            ),
         },
         "source_hashes": hashes,
     }
@@ -1898,6 +2002,7 @@ def main() -> None:
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
+                    reachable_tube=reachable_tube,
                     distributed_config=distributed_config,
                 )
                 rows.append(row)
@@ -1998,6 +2103,10 @@ def main() -> None:
                     "rnic_earliest_feasible_intercept_step",
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
+                    "conformal_tube_enabled_rate",
+                    "mean_conformal_tube_radius_m",
+                    "maximum_conformal_tube_radius_m",
+                    "mean_conformal_tube_budget_score",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -2101,6 +2210,10 @@ def main() -> None:
             writer.add_scalar("Summary/RNIC/mean_best_slack_s", summary["rnic_mean_best_slack_s"], 0)
             writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", summary["rnic_unreachable_slot_ratio"], 0)
             writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", summary["rnic_earliest_feasible_intercept_step"], 0)
+            writer.add_scalar("Summary/ConformalTube/enabled_rate", summary["conformal_tube_enabled_rate"], 0)
+            writer.add_scalar("Summary/ConformalTube/mean_radius_m", summary["mean_conformal_tube_radius_m"], 0)
+            writer.add_scalar("Summary/ConformalTube/maximum_radius_m", summary["maximum_conformal_tube_radius_m"], 0)
+            writer.add_scalar("Summary/ConformalTube/mean_budget_score", summary["mean_conformal_tube_budget_score"], 0)
             writer.add_hparams(
                 {
                     "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
