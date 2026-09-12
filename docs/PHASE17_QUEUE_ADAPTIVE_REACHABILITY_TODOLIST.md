@@ -534,3 +534,29 @@ Phase 17 的成功不要求三个模块全部保留，也不要求 100 ms。成�
 6. 未通过的模块被删除或降级为消融，不包装为贡献。
 
 如果 QDR、UAKR、RNIC 都未通过各自 pilot gate，Phase 17 应以可复现的负结果结束，并保留 Phase 16 的 GRU K=1 + distributed delayed DN-MPC + local CBF 作为主模型，不继续扩大组合实验。
+
+## 16. 2026-09-12 diagnostic checkpoint and revised next gate
+
+- [x] Complete RNIC post-hoc reliability analysis on the three-seed
+  delay/execution-OOD block. The pooled collision AUROC of the logged nominal
+  slack is `0.504`, and collision rates over ascending risk quartiles are
+  `53.33%`, `65.33%`, `61.33%`, and `58.67%`; the score is not a calibrated
+  failure predictor. See `PHASE17_RNIC_DIAGNOSTIC_ANALYSIS.md`.
+- [x] Record the RNIC diagnostic as a No-Go subclaim. It must not be described
+  as a safety certificate or used to justify a stronger closed-loop claim.
+- [ ] Freeze a development-only, horizon-dependent conformal residual
+  calibration for the next candidate reachable tube. The calibration input
+  may use public-belief prediction residuals, queue length, observation/message
+  age, and bounded execution noise, but never locked-test outcomes.
+- [ ] Define a single inflation rule from the calibrated tube to the planner:
+  candidate budget, interception cost, and post-hoc coverage must use the same
+  radius; add a fail-open fallback when the tube is infeasible.
+- [ ] Run unit tests and a 20-episode development pilot. Stop if coverage is
+  below the target or if the fallback changes the baseline's collision rate in
+  the wrong direction.
+- [ ] Freeze thresholds and run an untouched confirmation block with paired
+  scenes. Report safe capture, collision, boundary, timeout, clearance,
+  coverage, fallback rate, and component/total p50/p95/p99 latency.
+- [ ] Only if this candidate passes its gate may a reduced 2×2 ablation be
+  opened. Otherwise retain Phase 16 as the primary model and present Phase 17
+  as a reproducible failure analysis.
