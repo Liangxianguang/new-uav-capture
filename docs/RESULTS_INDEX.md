@@ -18,6 +18,12 @@ contributions—Queue-Aware Delayed-State Rollout, Uncertainty-Triggered
 Adaptive K and Replanning, and Reachability-Normalized Interception Cost—is
 in `THREE_INNOVATIONS_MASTER_TODOLIST.md`.
 
+For lower-complexity, reproducible innovation alternatives after the current
+QDR/UAKR/RNIC No-Go boundaries, see
+`REPRODUCIBLE_INNOVATION_OPTIONS.md`. The current recommendation is to pilot
+escape-gap-aware cooperative MPC first, followed by freshness-calibrated
+decentralized belief fusion and failure-conditioned replay curriculum.
+
 | Phase | Evidence | Status | Authoritative report |
 | --- | --- | --- | --- |
 | Phase 2 | Portable SSM + conditional diffusion prediction | Conditional Go | `PHASE2_FORMAL_ANALYSIS_REPORT.md`, `PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md` |
