@@ -431,9 +431,10 @@ non-inferiority. See `PHASE17_UAKR_VALIDATION_REPORT.md`.
 - [ ] 分解 interceptor-only 与 formation-slot RNIC。
 - [ ] 给出 RNIC Go/No-Go。
 
-**Current M3 decision:** No-Go on ID validation; speed-OOD remains pending
-because RNIC-specific slack and realized-arrival diagnostics are not yet in
-the episode schema. See `PHASE17_RNIC_VALIDATION_REPORT.md`.
+**Current M3 decision:** No-Go on ID validation; the RNIC diagnostic schema is
+now implemented and TensorBoard-verified, while speed-OOD plus the
+predicted-versus-realized arrival audit remains pending. See
+`PHASE17_RNIC_VALIDATION_REPORT.md`.
 
 ### M4：全因子 validation
 

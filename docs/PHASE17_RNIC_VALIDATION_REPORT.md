@@ -37,21 +37,23 @@ this scene block and has introduced a substantial planner/total latency cost.
 This is a negative result, not evidence that reachability-normalized costs are
 generally ineffective.
 
-## Diagnostic limitation
+## Diagnostic status
 
-The current closed-loop episode schema does not yet persist the RNIC-specific
-diagnostics required by the protocol: selected intercept step, minimum and
-mean reachability slack, unreachable-slot ratio, and predicted-versus-realized
-arrival-time error. Therefore the RNIC speed-stress gate is not fully
-observable yet. The implementation must expose these diagnostics before the
-target-speed OOD experiment can be interpreted as a complete RNIC test.
+The initial three-seed ID validation above predates the diagnostic-schema
+commit, so its archived episode rows do not contain RNIC-specific fields. The
+follow-up schema smoke now emits and TensorBoard-logs minimum/mean/maximum
+reachability slack, margin-violation ratio, unreachable-slot ratio, earliest
+feasible intercept step, and nominal arrival-time statistics. The smoke uses
+no simulator target truth and does not feed the diagnostics back into control.
+Predicted-versus-realized arrival-time error still requires a dedicated
+post-hoc truth audit on the speed-OOD runs.
 
 ## Required follow-up
 
-1. Add step/episode logging for the RNIC diagnostics without feeding simulator
-   truth into control.
-2. Run the frozen target-speed OOD block with RNIC off/on and three matched
+1. Run the frozen target-speed OOD block with RNIC off/on and three matched
    seeds; keep geometry, target behavior and delay fixed.
+2. Add a post-hoc predicted-versus-realized arrival-time audit to the OOD
+   artifacts.
 3. Compare formation-slot and interceptor-only RNIC, then tune only on the
    development stress split.
 4. If speed-OOD timeout does not improve by the pre-registered margin, remove
