@@ -198,6 +198,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 - [x] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 完成第一版 Queue-Aware Delayed-State Rollout 适配器、单元测试、配置快照和 TensorBoard smoke 记录；它修正规划状态和候选时间索引，不重新打开 robust CBF-QP。
 - [ ] 完成 QDR 的显式 immutable-prefix 代价/可恢复性诊断，并在 validation delay/noise 轴上通过 paired gate；当前 8-episode smoke 不支持收益结论。
+- [ ] Phase 17 geometry-OOD Diagonal-SSM 20-episode pilot 已完成；结果显示 no-QDR 100%/0% collision、QDR fixed-K 85%/15% collision、UAKR+QDR 90%/10% collision，仍不足以作为正式统计结论。
 - [x] 完成 UAKR 的可解释策略、动态 K/refresh、缓存轨迹推进、残差触发与 TensorBoard 记录；当前 pilot 的 forced-refresh 偏高，尚未冻结阈值。
 - [x] 完成 RNIC 的受限到达时间代价、central/local DN-MPC 接入、单元测试与 TensorBoard 记录；当前 pilot 未带来行为收益且明显增加 planner latency，尚未通过 speed-OOD gate。
 - [ ] 实现只使用 policy-safe uncertainty 的 K={1,4,8} 与 refresh={4,2,1} 自适应调度；主结果使用可移植 Diagonal SSM diffusion，GRU 保持 K=1 参考。
