@@ -166,6 +166,16 @@ def parse_args() -> argparse.Namespace:
         help="Disable adaptive candidate scheduling even when enabled by the YAML.",
     )
     parser.set_defaults(adaptive_k=None)
+    parser.add_argument(
+        "--adaptive-low-threshold",
+        type=float,
+        help="Optional validation-only override for the UAKR low/medium threshold.",
+    )
+    parser.add_argument(
+        "--adaptive-high-threshold",
+        type=float,
+        help="Optional validation-only override for the UAKR medium/high threshold.",
+    )
     rnic_group = parser.add_mutually_exclusive_group()
     rnic_group.add_argument(
         "--rnic",
@@ -1851,6 +1861,14 @@ def main() -> None:
         else args.adaptive_k
     )
     adaptive_budget_mapping = dict(prediction_mapping.get("adaptive_budget", {}))
+    if args.adaptive_low_threshold is not None:
+        if not np.isfinite(float(args.adaptive_low_threshold)):
+            raise ValueError("adaptive-low-threshold must be finite")
+        adaptive_budget_mapping["low_threshold"] = float(args.adaptive_low_threshold)
+    if args.adaptive_high_threshold is not None:
+        if not np.isfinite(float(args.adaptive_high_threshold)):
+            raise ValueError("adaptive-high-threshold must be finite")
+        adaptive_budget_mapping["high_threshold"] = float(args.adaptive_high_threshold)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     if (

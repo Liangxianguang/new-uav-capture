@@ -92,6 +92,16 @@ def parse_args() -> argparse.Namespace:
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
     parser.set_defaults(adaptive_k=None)
+    parser.add_argument(
+        "--adaptive-low-threshold",
+        type=float,
+        help="Optional validation-only override for the UAKR low/medium threshold.",
+    )
+    parser.add_argument(
+        "--adaptive-high-threshold",
+        type=float,
+        help="Optional validation-only override for the UAKR medium/high threshold.",
+    )
     rnic_group = parser.add_mutually_exclusive_group()
     rnic_group.add_argument("--rnic", dest="rnic", action="store_true")
     rnic_group.add_argument("--no-rnic", dest="rnic", action="store_false")
@@ -225,6 +235,14 @@ def main() -> None:
         if not np.isfinite(float(args.tube_radius_scale_m)) or float(args.tube_radius_scale_m) <= 0.0:
             raise ValueError("tube-radius-scale-m must be finite and positive")
         adaptive_budget_mapping["tube_radius_scale_m"] = float(args.tube_radius_scale_m)
+    if args.adaptive_low_threshold is not None:
+        if not np.isfinite(float(args.adaptive_low_threshold)):
+            raise ValueError("adaptive-low-threshold must be finite")
+        adaptive_budget_mapping["low_threshold"] = float(args.adaptive_low_threshold)
+    if args.adaptive_high_threshold is not None:
+        if not np.isfinite(float(args.adaptive_high_threshold)):
+            raise ValueError("adaptive-high-threshold must be finite")
+        adaptive_budget_mapping["high_threshold"] = float(args.adaptive_high_threshold)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     phase17_execution_mapping = dict(phase17_mapping.get("execution", {}))

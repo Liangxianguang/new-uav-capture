@@ -250,6 +250,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE19_GATED_RNIC_PILOT_REPORT.md`。Phase 16 的 GRU `both` + distributed delayed DN-MPC + local CBF 仍是主参考模型。
 
+### P16：Phase 20 UAKR threshold-calibration pilot
+
+- [x] 增加 `--adaptive-low-threshold` 与 `--adaptive-high-threshold`，使 UAKR 阈值可以显式覆盖并写入 effective config。
+- [x] 在固定 20 场景 validation 前缀上测试 `low=0.30, high=0.55`；RNIC、QDR 关闭，采样协议和 checkpoint 固定。
+- [x] 结果为 safe capture `90.0%`、collision `10.0%`、boundary `0%`，mean K `3.19`，refresh ratio `42.0%`，total p50/p95/p99 `70.64/138.04/170.73 ms`；RNIC-off paired reference 为 `95.0%/5.0%/0%` 和 `36.58/51.43/59.87 ms`。
+- [x] 将“仅降低 UAKR 阈值”判为 No-Go；不继续进行无校准阈值扫描。
+- [ ] 下一轮仅在 fresh development calibration split 上构造独立 failure/risk label，先验证 uncertainty reliability，再设计 risk-calibrated budget policy。
+
+详见 `docs/PHASE20_UAKR_THRESHOLD_CALIBRATION_PILOT_REPORT.md`。该结果不能改写 Phase 17 的三种子结论，也未访问 locked-test。
+
 ## 7. 当前推荐执行顺序
 
 ```text
