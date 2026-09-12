@@ -154,3 +154,27 @@ def test_distributed_formation_slot_rnic_scores_the_full_team_rollout() -> None:
     assert plan.diagnostics.status in {"success", "not_converged", "partial_fallback"}
     assert np.isfinite(plan.diagnostics.scenario_costs).all()
     assert plan.diagnostics.scenario_costs[0] >= 0.0
+
+
+def test_distributed_escape_gap_term_is_team_scored_and_audited() -> None:
+    config = MinimaxMPCConfig(
+        horizon_steps=4,
+        control_horizon_steps=2,
+        max_role_variants=2,
+        perimeter_scales=(1.0,),
+        escape_gap_cost_enabled=True,
+        weight_escape_gap=0.3,
+    )
+    planner = DistributedMinimaxDNMPC(
+        config,
+        DistributedDNMPCConfig(
+            communication_mode="ideal",
+            max_iterations=1,
+            local_timeout_ms=1000.0,
+        ),
+    )
+    plan = planner.plan(_observation(), _scenarios(), step_index=0)
+    assert plan.diagnostics.status in {"success", "not_converged", "partial_fallback"}
+    assert np.isfinite(plan.diagnostics.scenario_costs).all()
+    assert np.isfinite(plan.diagnostics.escape_gap_cost)
+    assert np.isfinite(plan.diagnostics.escape_gap_coverage_ratio)

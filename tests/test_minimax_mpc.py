@@ -89,6 +89,43 @@ def test_projected_scenario_planner_returns_common_bounded_action() -> None:
     assert len(plan.diagnostics.scenario_costs) == candidates.candidate_count
 
 
+def test_escape_gap_planner_term_is_optional_and_audited() -> None:
+    observation = _observation()
+    candidates = make_belief_candidate_set(
+        observation,
+        horizon_steps=4,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        candidate_count=4,
+    )
+    common = {
+        "horizon_steps": 4,
+        "control_horizon_steps": 2,
+        "max_role_variants": 2,
+        "perimeter_scales": (1.0,),
+    }
+    disabled = ScenarioMinimaxMPC(MinimaxMPCConfig(**common)).plan(
+        observation,
+        candidates,
+        fallback_actions=np.zeros((4, 3)),
+    )
+    enabled = ScenarioMinimaxMPC(
+        MinimaxMPCConfig(
+            **common,
+            escape_gap_cost_enabled=True,
+            weight_escape_gap=0.3,
+        )
+    ).plan(observation, candidates, fallback_actions=np.zeros((4, 3)))
+    assert disabled.diagnostics.status == "success"
+    assert enabled.diagnostics.status == "success"
+    # The metric is audited for both arms; the disabled arm only omits it
+    # from the objective.
+    assert np.isfinite(disabled.diagnostics.escape_gap_cost)
+    assert np.isfinite(enabled.diagnostics.escape_gap_cost)
+    assert np.isfinite(enabled.diagnostics.escape_gap_max_rad)
+    assert np.isfinite(enabled.diagnostics.escape_gap_coverage_ratio)
+
+
 def test_planner_can_match_hard_action_change_contract() -> None:
     observation = _observation()
     candidates = make_belief_candidate_set(

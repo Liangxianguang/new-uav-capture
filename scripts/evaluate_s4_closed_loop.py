@@ -155,6 +155,25 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only cooperative formation-slot radius override in metres.",
     )
+    escape_gap_group = parser.add_mutually_exclusive_group()
+    escape_gap_group.add_argument(
+        "--escape-gap",
+        dest="escape_gap",
+        action="store_true",
+        help="Enable the deterministic escape-gap cooperative MPC term.",
+    )
+    escape_gap_group.add_argument(
+        "--no-escape-gap",
+        dest="escape_gap",
+        action="store_false",
+        help="Disable the escape-gap cooperative MPC term.",
+    )
+    parser.set_defaults(escape_gap=None)
+    parser.add_argument(
+        "--escape-gap-weight",
+        type=float,
+        help="Validation-only escape-gap cost weight override.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -265,6 +284,12 @@ def main() -> None:
         if not np.isfinite(float(args.rnic_slot_radius_m)) or float(args.rnic_slot_radius_m) <= 0.0:
             raise ValueError("rnic-slot-radius-m must be finite and positive")
         planner_mapping["reachability_slot_radius_m"] = float(args.rnic_slot_radius_m)
+    if args.escape_gap is not None:
+        planner_mapping["escape_gap_cost_enabled"] = bool(args.escape_gap)
+    if args.escape_gap_weight is not None:
+        if not np.isfinite(float(args.escape_gap_weight)) or float(args.escape_gap_weight) < 0.0:
+            raise ValueError("escape-gap-weight must be finite and non-negative")
+        planner_mapping["weight_escape_gap"] = float(args.escape_gap_weight)
     planner_config = MinimaxMPCConfig.from_mapping(planner_mapping)
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)
@@ -384,6 +409,7 @@ def main() -> None:
         "protocol": str(args.protocol.resolve()),
         "environment_config": str(args.environment_config.resolve()),
         "mpc_config": str(args.mpc_config.resolve()),
+        "planner": planner_config.__dict__,
         "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
         "official_s4_root": None if args.official_s4_root is None else str(args.official_s4_root.resolve()),
         "candidate_source": args.candidate_source,
@@ -554,6 +580,12 @@ def main() -> None:
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
                     "rnic_assignment_switch_rate",
+                    "escape_gap_enabled_rate",
+                    "mean_escape_gap_cost",
+                    "mean_escape_gap_max_rad",
+                    "mean_escape_gap_escape_rad",
+                    "mean_escape_gap_coverage_ratio",
+                    "mean_escape_gap_violation_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -625,6 +657,12 @@ def main() -> None:
                 json.dumps(overall.get("rnic_cost_mode_counts", {}), sort_keys=True),
                 0,
             )
+            writer.add_scalar("Summary/EGC/enabled_rate", overall["escape_gap_enabled_rate"], 0)
+            writer.add_scalar("Summary/EGC/mean_gap_cost", overall["mean_escape_gap_cost"], 0)
+            writer.add_scalar("Summary/EGC/mean_max_gap_rad", overall["mean_escape_gap_max_rad"], 0)
+            writer.add_scalar("Summary/EGC/mean_escape_gap_rad", overall["mean_escape_gap_escape_rad"], 0)
+            writer.add_scalar("Summary/EGC/mean_coverage_ratio", overall["mean_escape_gap_coverage_ratio"], 0)
+            writer.add_scalar("Summary/EGC/mean_violation_rate", overall["mean_escape_gap_violation_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/enabled_rate", overall["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", overall["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", overall["maximum_conformal_tube_radius_m"], 0)

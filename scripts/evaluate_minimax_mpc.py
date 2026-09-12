@@ -239,6 +239,25 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only cooperative formation-slot radius override in metres.",
     )
+    escape_gap_group = parser.add_mutually_exclusive_group()
+    escape_gap_group.add_argument(
+        "--escape-gap",
+        dest="escape_gap",
+        action="store_true",
+        help="Enable the deterministic escape-gap cooperative MPC term.",
+    )
+    escape_gap_group.add_argument(
+        "--no-escape-gap",
+        dest="escape_gap",
+        action="store_false",
+        help="Disable the escape-gap cooperative MPC term.",
+    )
+    parser.set_defaults(escape_gap=None)
+    parser.add_argument(
+        "--escape-gap-weight",
+        type=float,
+        help="Validation-only escape-gap cost weight override.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -276,6 +295,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "scripts" / "evaluate_minimax_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "minimax_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "distributed_dn_mpc.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "escape_gap.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
@@ -929,6 +949,15 @@ def run_episode(
         rnic_mean_arrival_time_s = float("nan")
         rnic_maximum_arrival_time_s = float("nan")
         rnic_assignment_switch_rate = float("nan")
+        escape_gap_enabled = bool(
+            getattr(planner_config, "escape_gap_cost_enabled", False)
+            and float(getattr(planner_config, "weight_escape_gap", 0.0)) > 0.0
+        )
+        escape_gap_cost = float("nan")
+        escape_gap_max_rad = float("nan")
+        escape_gap_escape_rad = float("nan")
+        escape_gap_coverage_ratio = float("nan")
+        escape_gap_violation_rate = float("nan")
         conformal_tube_enabled = False
         conformal_tube_mean_radius_m = float("nan")
         conformal_tube_max_radius_m = float("nan")
@@ -1071,6 +1100,15 @@ def run_episode(
             previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
+            escape_gap_cost = float(getattr(planner_diagnostics, "escape_gap_cost", float("nan")))
+            escape_gap_max_rad = float(getattr(planner_diagnostics, "escape_gap_max_rad", float("nan")))
+            escape_gap_escape_rad = float(getattr(planner_diagnostics, "escape_gap_escape_rad", float("nan")))
+            escape_gap_coverage_ratio = float(
+                getattr(planner_diagnostics, "escape_gap_coverage_ratio", float("nan"))
+            )
+            escape_gap_violation_rate = float(
+                getattr(planner_diagnostics, "escape_gap_violation_rate", float("nan"))
+            )
             if rnic_enabled:
                 planned_rnic_action_sequence = np.asarray(plan.action_sequence, dtype=np.float64)
             candidate_distance_metrics = evaluate_candidate_capture_distances(
@@ -1281,6 +1319,12 @@ def run_episode(
                 "rnic_mean_arrival_time_s": float(rnic_mean_arrival_time_s),
                 "rnic_maximum_arrival_time_s": float(rnic_maximum_arrival_time_s),
                 "rnic_assignment_switch_rate": float(rnic_assignment_switch_rate),
+                "escape_gap_enabled": 1.0 if escape_gap_enabled else 0.0,
+                "escape_gap_cost": float(escape_gap_cost),
+                "escape_gap_max_rad": float(escape_gap_max_rad),
+                "escape_gap_escape_rad": float(escape_gap_escape_rad),
+                "escape_gap_coverage_ratio": float(escape_gap_coverage_ratio),
+                "escape_gap_violation_rate": float(escape_gap_violation_rate),
                 "conformal_tube_enabled": 1.0 if conformal_tube_enabled else 0.0,
                 "conformal_tube_mean_radius_m": float(conformal_tube_mean_radius_m),
                 "conformal_tube_max_radius_m": float(conformal_tube_max_radius_m),
@@ -1573,6 +1617,12 @@ def run_episode(
         "rnic_mean_arrival_time_s": _diagnostic_mean(step_rows, "rnic_mean_arrival_time_s"),
         "rnic_maximum_arrival_time_s": _diagnostic_max(step_rows, "rnic_maximum_arrival_time_s"),
         "rnic_assignment_switch_rate": _diagnostic_mean(step_rows, "rnic_assignment_switch_rate"),
+        "escape_gap_enabled_rate": _diagnostic_mean(step_rows, "escape_gap_enabled"),
+        "mean_escape_gap_cost": _diagnostic_mean(step_rows, "escape_gap_cost"),
+        "mean_escape_gap_max_rad": _diagnostic_mean(step_rows, "escape_gap_max_rad"),
+        "mean_escape_gap_escape_rad": _diagnostic_mean(step_rows, "escape_gap_escape_rad"),
+        "mean_escape_gap_coverage_ratio": _diagnostic_mean(step_rows, "escape_gap_coverage_ratio"),
+        "mean_escape_gap_violation_rate": _diagnostic_mean(step_rows, "escape_gap_violation_rate"),
         "conformal_tube_enabled_rate": float(np.mean([row["conformal_tube_enabled"] for row in step_rows])),
         "mean_conformal_tube_radius_m": _diagnostic_mean(step_rows, "conformal_tube_mean_radius_m"),
         "maximum_conformal_tube_radius_m": _diagnostic_max(step_rows, "conformal_tube_max_radius_m"),
@@ -1985,6 +2035,18 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "rnic_assignment_switch_rate": finite_mean(
             [row["rnic_assignment_switch_rate"] for row in rows]
         ),
+        "escape_gap_enabled_rate": finite_mean([row["escape_gap_enabled_rate"] for row in rows]),
+        "mean_escape_gap_cost": finite_mean([row["mean_escape_gap_cost"] for row in rows]),
+        "mean_escape_gap_max_rad": finite_mean([row["mean_escape_gap_max_rad"] for row in rows]),
+        "mean_escape_gap_escape_rad": finite_mean(
+            [row["mean_escape_gap_escape_rad"] for row in rows]
+        ),
+        "mean_escape_gap_coverage_ratio": finite_mean(
+            [row["mean_escape_gap_coverage_ratio"] for row in rows]
+        ),
+        "mean_escape_gap_violation_rate": finite_mean(
+            [row["mean_escape_gap_violation_rate"] for row in rows]
+        ),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -2056,6 +2118,12 @@ def main() -> None:
         if not np.isfinite(float(args.rnic_slot_radius_m)) or float(args.rnic_slot_radius_m) <= 0.0:
             raise ValueError("rnic-slot-radius-m must be finite and positive")
         planner_mapping["reachability_slot_radius_m"] = float(args.rnic_slot_radius_m)
+    if args.escape_gap is not None:
+        planner_mapping["escape_gap_cost_enabled"] = bool(args.escape_gap)
+    if args.escape_gap_weight is not None:
+        if not np.isfinite(float(args.escape_gap_weight)) or float(args.escape_gap_weight) < 0.0:
+            raise ValueError("escape-gap-weight must be finite and non-negative")
+        planner_mapping["weight_escape_gap"] = float(args.escape_gap_weight)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -2437,6 +2505,12 @@ def main() -> None:
                     "rnic_mean_arrival_time_s",
                     "rnic_maximum_arrival_time_s",
                     "rnic_assignment_switch_rate",
+                    "escape_gap_enabled_rate",
+                    "mean_escape_gap_cost",
+                    "mean_escape_gap_max_rad",
+                    "mean_escape_gap_escape_rad",
+                    "mean_escape_gap_coverage_ratio",
+                    "mean_escape_gap_violation_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -2575,6 +2649,12 @@ def main() -> None:
                 json.dumps(summary.get("rnic_cost_mode_counts", {}), sort_keys=True),
                 0,
             )
+            writer.add_scalar("Summary/EGC/enabled_rate", summary["escape_gap_enabled_rate"], 0)
+            writer.add_scalar("Summary/EGC/mean_gap_cost", summary["mean_escape_gap_cost"], 0)
+            writer.add_scalar("Summary/EGC/mean_max_gap_rad", summary["mean_escape_gap_max_rad"], 0)
+            writer.add_scalar("Summary/EGC/mean_escape_gap_rad", summary["mean_escape_gap_escape_rad"], 0)
+            writer.add_scalar("Summary/EGC/mean_coverage_ratio", summary["mean_escape_gap_coverage_ratio"], 0)
+            writer.add_scalar("Summary/EGC/mean_violation_rate", summary["mean_escape_gap_violation_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/enabled_rate", summary["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", summary["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", summary["maximum_conformal_tube_radius_m"], 0)

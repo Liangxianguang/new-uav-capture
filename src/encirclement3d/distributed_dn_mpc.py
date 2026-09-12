@@ -17,6 +17,7 @@ from typing import Any, Literal
 import numpy as np
 
 from .minimax_mpc import MinimaxMPCConfig, ScenarioTrajectorySet, aggregate_scenario_costs
+from .escape_gap import escape_gap_metrics
 from .reachability_interception import (
     formation_slot_reachability_cost,
     reachability_normalized_interception_cost,
@@ -102,6 +103,11 @@ class DistributedDNMPCDiagnostics:
     latency_ms: float
     max_action_delta_mps: float
     fallback_reason: str | None = None
+    escape_gap_cost: float = float("nan")
+    escape_gap_max_rad: float = float("nan")
+    escape_gap_escape_rad: float = float("nan")
+    escape_gap_coverage_ratio: float = float("nan")
+    escape_gap_violation_rate: float = float("nan")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -126,6 +132,11 @@ class DistributedDNMPCDiagnostics:
             "latency_ms": self.latency_ms,
             "max_action_delta_mps": self.max_action_delta_mps,
             "fallback_reason": self.fallback_reason,
+            "escape_gap_cost": self.escape_gap_cost,
+            "escape_gap_max_rad": self.escape_gap_max_rad,
+            "escape_gap_escape_rad": self.escape_gap_escape_rad,
+            "escape_gap_coverage_ratio": self.escape_gap_coverage_ratio,
+            "escape_gap_violation_rate": self.escape_gap_violation_rate,
         }
 
 
@@ -337,6 +348,12 @@ class DistributedMinimaxDNMPC:
                 status = "success"
             else:
                 status = "not_converged"
+            escape_gap_summary = self._escape_gap_summary(
+                observation,
+                sequences,
+                np.asarray(candidates.trajectories, dtype=np.float64),
+                candidates.normalized_weights,
+            )
             diagnostics = self._diagnostics(
                 status=status,
                 iterations=iterations,
@@ -350,6 +367,7 @@ class DistributedMinimaxDNMPC:
                 latency_ms=(perf_counter() - started) * 1000.0,
                 max_delta=max_delta,
                 fallback_reason=(first_failure if local_failures else None),
+                **escape_gap_summary,
             )
             return DistributedDNMPCPlan(
                 actions=sequences[0].copy(),
@@ -580,6 +598,7 @@ class DistributedMinimaxDNMPC:
         peer_sequences: dict[int, np.ndarray],
         *,
         include_reachability: bool = True,
+        include_escape_gap: bool = True,
     ) -> np.ndarray:
         """Evaluate local action candidates against all target scenarios in one pass.
 
@@ -728,6 +747,46 @@ class DistributedMinimaxDNMPC:
                 )
                 result += self.config.weight_reachability * reachability_cost
 
+        if (
+            include_escape_gap
+            and self.config.escape_gap_cost_enabled
+            and self.config.weight_escape_gap > 0.0
+            and len(known) == positions.shape[0] - 1
+        ):
+            # A local best response uses only the latest message from every
+            # peer.  If any peer is missing or expired, the local objective
+            # omits the topology term rather than fabricating a global view.
+            team_position_paths = [current]
+            for peer in range(positions.shape[0]):
+                if peer == agent_id:
+                    continue
+                message = known[peer]
+                peer_actions = peer_sequences.get(peer)
+                if peer_actions is None:
+                    peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + (
+                        np.arange(self.config.horizon_steps, dtype=np.float64)[:, None] + 1.0
+                    ) * np.asarray(message.velocity, dtype=np.float64)[None, :] * self.config.dt_seconds
+                else:
+                    peer_actions = _clip_rows(
+                        np.asarray(peer_actions, dtype=np.float64),
+                        self.config.max_speed_mps,
+                    )
+                    peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
+                        peer_actions * self.config.dt_seconds,
+                        axis=0,
+                    )
+                team_position_paths.append(np.broadcast_to(peer_positions, current.shape))
+            gap_metrics = escape_gap_metrics(
+                np.stack(team_position_paths, axis=2),
+                paths,
+                gap_safe_rad=self.config.escape_gap_safe_rad,
+                escape_gap_safe_rad=self.config.escape_gap_escape_safe_rad,
+                max_gap_weight=self.config.escape_gap_max_weight,
+                escape_gap_weight=self.config.escape_gap_direction_weight,
+                horizon_discount=self.config.escape_gap_horizon_discount,
+            )
+            result += self.config.weight_escape_gap * gap_metrics["cost"]
+
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
             if peer_actions is None:
@@ -800,6 +859,7 @@ class DistributedMinimaxDNMPC:
         peer_sequences: dict[int, np.ndarray],
         *,
         include_reachability: bool = True,
+        include_escape_gap: bool = True,
     ) -> np.ndarray:
         return self._local_scenario_cost_matrix(
             observation,
@@ -809,6 +869,7 @@ class DistributedMinimaxDNMPC:
             known,
             peer_sequences,
             include_reachability=include_reachability,
+            include_escape_gap=include_escape_gap,
         )[0]
 
     def _local_obstacles(self, observation: dict[str, Any], own_position: np.ndarray) -> list[dict[str, Any]]:
@@ -844,6 +905,7 @@ class DistributedMinimaxDNMPC:
                 known,
                 peer_sequences,
                 include_reachability=(self.config.reachability_cost_mode != "formation_slot"),
+                include_escape_gap=False,
             )
         if (
             self.config.reachability_normalized_cost_enabled
@@ -872,7 +934,58 @@ class DistributedMinimaxDNMPC:
                 activation_slack_s=self.config.reachability_activation_slack_s,
             )
             total += self.config.weight_reachability * formation_cost[0]
+        if self.config.escape_gap_cost_enabled and self.config.weight_escape_gap > 0.0:
+            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+            position_paths = positions[None, :, :] + np.cumsum(
+                np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
+                axis=0,
+            )
+            gap_metrics = escape_gap_metrics(
+                position_paths[None, :, :, :],
+                np.asarray(scenarios.trajectories, dtype=np.float64),
+                gap_safe_rad=self.config.escape_gap_safe_rad,
+                escape_gap_safe_rad=self.config.escape_gap_escape_safe_rad,
+                max_gap_weight=self.config.escape_gap_max_weight,
+                escape_gap_weight=self.config.escape_gap_direction_weight,
+                horizon_discount=self.config.escape_gap_horizon_discount,
+            )
+            # The cooperative topology term is added exactly once to the team
+            # score; local best responses omit it to avoid D-fold counting.
+            total += self.config.weight_escape_gap * gap_metrics["cost"][0]
         return total
+
+    def _escape_gap_summary(
+        self,
+        observation: dict[str, Any],
+        sequences: np.ndarray,
+        target_paths: np.ndarray,
+        target_weights: np.ndarray,
+    ) -> dict[str, float]:
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        position_paths = positions[None, :, :] + np.cumsum(
+            np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
+            axis=0,
+        )
+        metrics = escape_gap_metrics(
+            position_paths[None, :, :, :],
+            target_paths,
+            gap_safe_rad=self.config.escape_gap_safe_rad,
+            escape_gap_safe_rad=self.config.escape_gap_escape_safe_rad,
+            max_gap_weight=self.config.escape_gap_max_weight,
+            escape_gap_weight=self.config.escape_gap_direction_weight,
+            horizon_discount=self.config.escape_gap_horizon_discount,
+        )
+        weights = np.asarray(target_weights, dtype=np.float64)
+        weights = weights / max(float(weights.sum()), 1.0e-12)
+        return {
+            "escape_gap_cost": float(np.dot(metrics["cost"][0], weights)),
+            "escape_gap_max_rad": float(np.dot(metrics["max_gap_rad"][0], weights)),
+            "escape_gap_escape_rad": float(np.dot(metrics["escape_gap_rad"][0], weights)),
+            "escape_gap_coverage_ratio": float(np.dot(metrics["coverage_ratio"][0], weights)),
+            "escape_gap_violation_rate": float(
+                np.dot(metrics["max_gap_violation_rate"][0], weights)
+            ),
+        }
 
     def _diagnostics(
         self,
@@ -889,6 +1002,11 @@ class DistributedMinimaxDNMPC:
         latency_ms: float,
         max_delta: float,
         fallback_reason: str | None,
+        escape_gap_cost: float = float("nan"),
+        escape_gap_max_rad: float = float("nan"),
+        escape_gap_escape_rad: float = float("nan"),
+        escape_gap_coverage_ratio: float = float("nan"),
+        escape_gap_violation_rate: float = float("nan"),
     ) -> DistributedDNMPCDiagnostics:
         ages = np.asarray(self._stats.get("age_samples", []), dtype=np.float64)
         return DistributedDNMPCDiagnostics(
@@ -913,6 +1031,11 @@ class DistributedMinimaxDNMPC:
             latency_ms=float(latency_ms),
             max_action_delta_mps=float(max_delta),
             fallback_reason=fallback_reason,
+            escape_gap_cost=float(escape_gap_cost),
+            escape_gap_max_rad=float(escape_gap_max_rad),
+            escape_gap_escape_rad=float(escape_gap_escape_rad),
+            escape_gap_coverage_ratio=float(escape_gap_coverage_ratio),
+            escape_gap_violation_rate=float(escape_gap_violation_rate),
         )
 
     def _fallback(

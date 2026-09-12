@@ -18,6 +18,8 @@
 
 > Phase 27 RNIC formation-slot 更新：新增了有界、确定性的目标相对 3-D 槽位分配代价，并接入 centralized planner、distributed team score、CLI override、单元测试和 TensorBoard。历史 20 场景 pilot 的 formation-slot safe capture 为 `100.0%`，但不作统计主张。随后在全新 `60` episode / `30` mirror-group / `3` checkpoint seed 的 centralized ID confirmation 上，RNIC-off / interceptor-RNIC / formation-slot-RNIC 的 safe capture 分别为 `87.22% [81.11%,92.78%]`、`88.89% [82.22%,95.00%]`、`89.44% [83.33%,94.44%]`；formation 相对 off 的 paired delta 为 `+2.22 pp [-0.56,+5.00]`，collision delta 为 `-2.22 pp [-5.00,+0.56]`，支持预注册 `-2 pp` 非劣方向但不能宣称 superiority。随后在同 manifest 的 distributed delayed confirmation 中三臂均为 `96.67%` safe capture / `3.33%` collision，formation 未改变 episode outcomes，但 pooled total p95 为 `220.87 ms`，高于 off 的 `82.40 ms`；因此当前 distributed promotion No-Go。新 manifest hash 为 `5aaaa79c6dbef2d346ff57d48d238a34fe911d3534ebb576dff0252ba0593022`。详见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
 
+> Phase 30 EGC-MPC 更新：实现了不改预测 backbone 的 geometry-only Escape-Gap-Aware Cooperative MPC，包括 centralized / delayed-distributed 接入、信息边界审计、单元测试、配置快照和 TensorBoard 指标。validation-selection 模式下的一种子/20 场景 development smoke 中，centralized `weight=0.30` 的 safe capture 为 `90%`，较 paired off 的 `85%` 仅作描述性 `+5 pp`，但 mean max gap 从 `5.4929` 增至 `5.4972 rad`，机制指标没有改善；`weight=1.0` 将 mean max gap 降至 `5.3971 rad`、coverage 提至 `0.1887`，但 safe capture 降到 `75%`、collision 升到 `25%`。distributed 分支 off/on 均为 `95%/5%` safe capture/collision，而 total p95 从 `82.07` 增至 `98.93 ms`、p99 为 `108.07 ms`。因此当前 EGC 判为 promotion No-Go，保留为可复现负结果；下一候选转向具有离散可行性门控的 FC-DBF，不开放 locked test。详见 `docs/PHASE30_EGC_PILOT_REPORT.md`。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -345,15 +347,29 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
 
+### P24：Phase 30 EGC-MPC 可复现创新候选
+
+- [x] 实现纯 NumPy 的 `escape_gap_metrics`，输入只包含预测候选、defender rollout 和可公开获得的几何信息；不改变预测 backbone，不引入目标真值泄漏。
+- [x] 将有限软 escape-gap cost 接入 centralized worst-case 与 delayed distributed DN-MPC；缺失 peer 信息时不伪造全局状态，team score 只计一次完整 EGC 项。
+- [x] 增加配置、CLI 开关、逐步/逐 episode 指标、source hash、TensorBoard 标量和 focused tests；相关 focused tests 共 `22 passed`，并完成 Python 编译和 `git diff --check`。
+- [x] 完成一组 paired development smoke：20 场景、checkpoint seed `727201`、centralized/distributed 两分支、EGC off/on `weight=0.30`，另做 centralized `weight=1.00` 方向性探针。
+- [x] 记录组件延迟 p50/p95/p99。centralized off/on(0.30) total 为 `65.23/71.69/83.13` 与 `65.18/71.98/78.14 ms`；distributed off/on(0.30) total 为 `75.50/82.07/85.81` 与 `88.94/98.93/108.07 ms`。
+- [x] 将结果判定为当前 EGC promotion No-Go：centralized `weight=0.30` 只有描述性 `+5 pp` safe capture，mean max gap 未改善；`weight=1.00` 虽略微改善几何指标但 safe capture 下降 `10 pp`、collision 上升 `10 pp`；distributed episode outcome 不变而 planner/total latency 增加。
+- [ ] 不再扫描更多 EGC 权重，也不在 locked-test 上调参；如保留 EGC，只作为 terminal tie-breaker 或诊断指标，等待可控的离散 topology action。
+- [ ] 下一候选转向 FC-DBF：有限 formation slot、局部可行性门控、保持旧 slot 的 fail-safe 规则；先做同场景/同 seed validation confirmation，再决定是否进入 OOD。
+
+详见 `docs/PHASE30_EGC_PILOT_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
-P23 RNIC formation-slot distributed result freeze / redesign decision
-  -> P7.2 完成独立证书工件
+P24 EGC-MPC No-Go freeze
+  -> P25 FC-DBF validation pilot
+  -> P26 FC-DBF paired confirmation / OOD decision
   -> P8 修复 reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化
-  -> P10 三种子端到端 locked-test
+  -> P10 三种子端到端 confirmation
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
 ```

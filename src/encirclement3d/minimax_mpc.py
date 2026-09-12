@@ -16,6 +16,7 @@ from typing import Any, Iterable, Literal
 import numpy as np
 
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
+from .escape_gap import escape_gap_metrics
 from .reachability_interception import (
     formation_slot_reachability_cost,
     reachability_normalized_interception_cost,
@@ -137,6 +138,13 @@ class MinimaxMPCConfig:
     weight_terminal_distance: float = 3.0
     weight_capture_hinge: float = 1.5
     weight_formation: float = 0.25
+    escape_gap_cost_enabled: bool = False
+    weight_escape_gap: float = 0.0
+    escape_gap_safe_rad: float = 1.80
+    escape_gap_escape_safe_rad: float = 1.80
+    escape_gap_max_weight: float = 1.0
+    escape_gap_direction_weight: float = 1.0
+    escape_gap_horizon_discount: float = 1.0
     weight_control: float = 0.015
     weight_control_change: float = 0.02
     weight_obstacle: float = 25.0
@@ -195,6 +203,7 @@ class MinimaxMPCConfig:
             self.weight_terminal_distance,
             self.weight_capture_hinge,
             self.weight_formation,
+            self.weight_escape_gap,
             self.weight_control,
             self.weight_control_change,
             self.weight_obstacle,
@@ -205,6 +214,21 @@ class MinimaxMPCConfig:
         )
         if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in weights):
             raise ValueError("Cost weights must be finite and non-negative.")
+        thresholds = {
+            "escape_gap_safe_rad": self.escape_gap_safe_rad,
+            "escape_gap_escape_safe_rad": self.escape_gap_escape_safe_rad,
+            "escape_gap_max_weight": self.escape_gap_max_weight,
+            "escape_gap_direction_weight": self.escape_gap_direction_weight,
+        }
+        for name, value in thresholds.items():
+            if not np.isfinite(float(value)) or float(value) < 0.0:
+                raise ValueError(f"{name} must be finite and non-negative.")
+        if self.escape_gap_safe_rad > 2.0 * np.pi or self.escape_gap_escape_safe_rad > 2.0 * np.pi:
+            raise ValueError("escape-gap angle thresholds cannot exceed 2*pi.")
+        if not np.isfinite(float(self.escape_gap_horizon_discount)) or not 0.0 < float(
+            self.escape_gap_horizon_discount
+        ) <= 1.0:
+            raise ValueError("escape_gap_horizon_discount must lie in (0, 1].")
         if not np.isfinite(float(self.reachability_time_margin_s)) or float(self.reachability_time_margin_s) < 0.0:
             raise ValueError("reachability_time_margin_s must be finite and non-negative")
         if not np.isfinite(float(self.reachability_time_scale_s)) or float(self.reachability_time_scale_s) <= 0.0:
@@ -243,6 +267,11 @@ class MinimaxMPCDiagnostics:
     latency_ms: float
     max_rollout_constraint_violation: float
     fallback_reason: str | None = None
+    escape_gap_cost: float = float("nan")
+    escape_gap_max_rad: float = float("nan")
+    escape_gap_escape_rad: float = float("nan")
+    escape_gap_coverage_ratio: float = float("nan")
+    escape_gap_violation_rate: float = float("nan")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -258,6 +287,11 @@ class MinimaxMPCDiagnostics:
             "latency_ms": self.latency_ms,
             "max_rollout_constraint_violation": self.max_rollout_constraint_violation,
             "fallback_reason": self.fallback_reason,
+            "escape_gap_cost": self.escape_gap_cost,
+            "escape_gap_max_rad": self.escape_gap_max_rad,
+            "escape_gap_escape_rad": self.escape_gap_escape_rad,
+            "escape_gap_coverage_ratio": self.escape_gap_coverage_ratio,
+            "escape_gap_violation_rate": self.escape_gap_violation_rate,
         }
 
 
@@ -555,6 +589,13 @@ class ScenarioMinimaxMPC:
                 self.config.cvar_alpha,
             )
             sequence = sequences[selected]
+            escape_gap_summary = _selected_escape_gap_summary(
+                observation,
+                sequence,
+                np.asarray(candidates.trajectories, dtype=np.float64),
+                candidates.normalized_weights,
+                self.config,
+            )
             diagnostics = MinimaxMPCDiagnostics(
                 status="success",
                 risk_mode=self.config.risk_mode,
@@ -567,6 +608,7 @@ class ScenarioMinimaxMPC:
                 cvar_cost=float(cvar),
                 latency_ms=(perf_counter() - started) * 1000.0,
                 max_rollout_constraint_violation=float(np.max(constraint_violations[selected])),
+                **escape_gap_summary,
             )
             return MinimaxMPCPlan(
                 actions=sequence[0].copy(),
@@ -848,7 +890,75 @@ class ScenarioMinimaxMPC:
                     activation_slack_s=self.config.reachability_activation_slack_s,
                 )
             scenario_costs += self.config.weight_reachability * reachability_cost
+        if self.config.escape_gap_cost_enabled and self.config.weight_escape_gap > 0.0:
+            gap_metrics = escape_gap_metrics(
+                np.stack(position_paths, axis=1),
+                paths,
+                gap_safe_rad=self.config.escape_gap_safe_rad,
+                escape_gap_safe_rad=self.config.escape_gap_escape_safe_rad,
+                max_gap_weight=self.config.escape_gap_max_weight,
+                escape_gap_weight=self.config.escape_gap_direction_weight,
+                horizon_discount=self.config.escape_gap_horizon_discount,
+            )
+            scenario_costs += self.config.weight_escape_gap * gap_metrics["cost"]
         return scenario_costs, constraint_violations
+
+
+def _rollout_action_positions(
+    observation: dict[str, Any],
+    action_sequence: np.ndarray,
+    config: MinimaxMPCConfig,
+) -> np.ndarray:
+    """Reconstruct the position path used by the finite-shooting cost."""
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64).copy()
+    previous = np.asarray(observation["defender_velocities"], dtype=np.float64).copy()
+    actions = np.asarray(action_sequence, dtype=np.float64)
+    if actions.ndim != 3 or actions.shape[1:] != positions.shape:
+        raise ValueError("action_sequence must have shape [horizon, defenders, 3].")
+    path: list[np.ndarray] = []
+    for raw_action in actions:
+        action = _project_actions(
+            raw_action[None, ...],
+            previous[None, ...],
+            max_speed_mps=config.max_speed_mps,
+            action_change_limit_mps=config.action_change_limit_mps,
+        )[0]
+        positions = positions + action * config.dt_seconds
+        path.append(positions.copy())
+        previous = action
+    return np.stack(path, axis=0)
+
+
+def _selected_escape_gap_summary(
+    observation: dict[str, Any],
+    action_sequence: np.ndarray,
+    target_paths: np.ndarray,
+    target_weights: np.ndarray,
+    config: MinimaxMPCConfig,
+) -> dict[str, float]:
+    """Summarize the selected sequence's public geometric gap diagnostics."""
+
+    result = escape_gap_metrics(
+        _rollout_action_positions(observation, action_sequence, config)[None, ...],
+        target_paths,
+        gap_safe_rad=config.escape_gap_safe_rad,
+        escape_gap_safe_rad=config.escape_gap_escape_safe_rad,
+        max_gap_weight=config.escape_gap_max_weight,
+        escape_gap_weight=config.escape_gap_direction_weight,
+        horizon_discount=config.escape_gap_horizon_discount,
+    )
+    weights = np.asarray(target_weights, dtype=np.float64)
+    weights = weights / max(float(weights.sum()), 1.0e-12)
+    return {
+        "escape_gap_cost": float(np.dot(result["cost"][0], weights)),
+        "escape_gap_max_rad": float(np.dot(result["max_gap_rad"][0], weights)),
+        "escape_gap_escape_rad": float(np.dot(result["escape_gap_rad"][0], weights)),
+        "escape_gap_coverage_ratio": float(np.dot(result["coverage_ratio"][0], weights)),
+        "escape_gap_violation_rate": float(
+            np.dot(result["max_gap_violation_rate"][0], weights)
+        ),
+    }
 
 
 __all__ = [
