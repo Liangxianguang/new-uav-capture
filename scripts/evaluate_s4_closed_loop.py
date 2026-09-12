@@ -88,6 +88,20 @@ def parse_args() -> argparse.Namespace:
     queue_group.add_argument("--queue-aware-rollout", dest="queue_aware_rollout", action="store_true")
     queue_group.add_argument("--no-queue-aware-rollout", dest="queue_aware_rollout", action="store_false")
     parser.set_defaults(queue_aware_rollout=None)
+    queue_safety_group = parser.add_mutually_exclusive_group()
+    queue_safety_group.add_argument(
+        "--queue-aware-safety-projection",
+        dest="queue_aware_safety_projection",
+        action="store_true",
+        help="Apply local CBF at the first controllable delayed state when QDR is enabled.",
+    )
+    queue_safety_group.add_argument(
+        "--no-queue-aware-safety-projection",
+        dest="queue_aware_safety_projection",
+        action="store_false",
+        help="Keep local CBF anchored at the current state.",
+    )
+    parser.set_defaults(queue_aware_safety_projection=None)
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
@@ -236,6 +250,15 @@ def main() -> None:
         if args.queue_aware_rollout is None
         else args.queue_aware_rollout
     )
+    queue_aware_safety_projection = bool(
+        phase17_mapping.get("queue_aware_safety_projection", False)
+        if args.queue_aware_safety_projection is None
+        else args.queue_aware_safety_projection
+    )
+    if queue_aware_safety_projection and not queue_aware_rollout:
+        raise ValueError("queue-aware-safety-projection requires queue-aware-rollout")
+    if queue_aware_safety_projection and args.safety_layer != "local_cbf":
+        raise ValueError("queue-aware-safety-projection is only supported with --safety-layer local_cbf")
     adaptive_k = bool(
         phase17_mapping.get("adaptive_k", False)
         if args.adaptive_k is None
@@ -344,6 +367,7 @@ def main() -> None:
         "projection_iterations": args.projection_iterations,
         "prediction_refresh_interval_steps": args.prediction_refresh_interval_steps,
         "queue_aware_rollout": queue_aware_rollout,
+        "queue_aware_safety_projection": queue_aware_safety_projection,
         "adaptive_k": adaptive_k,
         "adaptive_budget": adaptive_budget_mapping,
         "adaptive_risk_calibration": (
@@ -411,6 +435,7 @@ def main() -> None:
                     robust_safety_config=safety_config,
                     prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
+                    queue_aware_safety_projection=queue_aware_safety_projection,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
                     reachable_tube=reachable_tube,
                     distributed_config=distributed_config,

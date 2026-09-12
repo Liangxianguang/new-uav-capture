@@ -152,6 +152,20 @@ def parse_args() -> argparse.Namespace:
         help="Disable queue-aware rollout even when enabled by the experiment YAML.",
     )
     parser.set_defaults(queue_aware_rollout=None)
+    queue_safety_group = parser.add_mutually_exclusive_group()
+    queue_safety_group.add_argument(
+        "--queue-aware-safety-projection",
+        dest="queue_aware_safety_projection",
+        action="store_true",
+        help="Apply the local CBF at the first controllable delayed state when QDR is enabled.",
+    )
+    queue_safety_group.add_argument(
+        "--no-queue-aware-safety-projection",
+        dest="queue_aware_safety_projection",
+        action="store_false",
+        help="Keep the local CBF anchored at the current state.",
+    )
+    parser.set_defaults(queue_aware_safety_projection=None)
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument(
         "--adaptive-k",
@@ -656,6 +670,33 @@ def _planning_observation(env: CaptureRadiusPursuit3DEnv, observation: dict[str,
     return value
 
 
+def _select_safety_observation(
+    observation: dict[str, Any],
+    planning_observation: dict[str, Any] | None,
+    *,
+    queue_aware_rollout: bool,
+    queue_aware_safety_projection: bool,
+    local_cbf_enabled: bool,
+) -> dict[str, Any]:
+    """Select the state at which a local safety projection is evaluated.
+
+    A QDR action is appended behind the currently executing command queue.
+    When explicitly enabled, the local CBF therefore belongs at the first
+    controllable delayed state rather than at the pre-queue state. Robust
+    execution-aware filters keep their own queue contract and do not use this
+    shortcut.
+    """
+
+    if (
+        queue_aware_rollout
+        and queue_aware_safety_projection
+        and local_cbf_enabled
+        and planning_observation is not None
+    ):
+        return planning_observation
+    return observation
+
+
 def _shift_warm_start_sequence(sequence: np.ndarray) -> np.ndarray:
     """Advance a prior receding-horizon sequence by one executed control step."""
 
@@ -685,6 +726,7 @@ def run_episode(
     robust_safety_config: RobustCBFQPConfig | None = None,
     prediction_refresh_interval_steps: int = 1,
     queue_aware_rollout: bool = False,
+    queue_aware_safety_projection: bool = False,
     adaptive_prediction_config: dict[str, Any] | None = None,
     reachable_tube: DelayAwareConformalReachableTube | None = None,
     distributed_config: DistributedDNMPCConfig | None = None,
@@ -857,6 +899,7 @@ def run_episode(
         planned_rnic_observation: dict[str, Any] | None = None
         planned_rnic_scenarios: ScenarioTrajectorySet | None = None
         planned_rnic_action_sequence: np.ndarray | None = None
+        planning_observation: dict[str, Any] | None = None
         if method in {"dynamic_encirclement", "pure_pursuit"}:
             nominal_actions = (
                 fallback_actions
@@ -1024,6 +1067,13 @@ def run_episode(
             candidate_cvar_minimum = float("nan")
             candidate_expected_terminal = float("nan")
             candidate_worst_terminal = float("nan")
+        safety_observation = _select_safety_observation(
+            observation,
+            planning_observation,
+            queue_aware_rollout=queue_aware_rollout,
+            queue_aware_safety_projection=queue_aware_safety_projection,
+            local_cbf_enabled=safety_filter is not None,
+        )
         if safety_filter is None:
             if robust_safety_filter is None:
                 safe_actions = np.asarray(nominal_actions, dtype=np.float64)
@@ -1037,7 +1087,7 @@ def run_episode(
                 cbf_correction = float(safety_diagnostics.action_correction_norm)
         else:
             safety_started = time.perf_counter()
-            safe_actions, cbf_diagnostics = safety_filter.filter(nominal_actions, observation)
+            safe_actions, cbf_diagnostics = safety_filter.filter(nominal_actions, safety_observation)
             cbf_correction = float(cbf_diagnostics.action_correction_norm)
             safety_latency_ms = (time.perf_counter() - safety_started) * 1000.0
             safety_diagnostics = cbf_diagnostics
@@ -1870,6 +1920,15 @@ def main() -> None:
         if args.queue_aware_rollout is None
         else args.queue_aware_rollout
     )
+    queue_aware_safety_projection = bool(
+        phase17_mapping.get("queue_aware_safety_projection", False)
+        if args.queue_aware_safety_projection is None
+        else args.queue_aware_safety_projection
+    )
+    if queue_aware_safety_projection and not queue_aware_rollout:
+        raise ValueError("queue-aware-safety-projection requires queue-aware-rollout")
+    if queue_aware_safety_projection and args.safety_layer != "local_cbf":
+        raise ValueError("queue-aware-safety-projection is only supported with --safety-layer local_cbf")
     adaptive_k = bool(
         phase17_mapping.get("adaptive_k", False)
         if args.adaptive_k is None
@@ -2005,6 +2064,7 @@ def main() -> None:
             "safety_config": str(args.safety_config.resolve()) if args.safety_layer == "robust_cbf_qp" else None,
             "prediction_refresh_interval_steps": prediction_refresh_interval_steps,
             "queue_aware_rollout": queue_aware_rollout,
+            "queue_aware_safety_projection": queue_aware_safety_projection,
             "adaptive_k": adaptive_k,
             "adaptive_budget": adaptive_budget_mapping,
             "adaptive_risk_calibration": (
@@ -2072,6 +2132,7 @@ def main() -> None:
                     robust_safety_config=robust_safety_config,
                     prediction_refresh_interval_steps=prediction_refresh_interval_steps,
                     queue_aware_rollout=queue_aware_rollout,
+                    queue_aware_safety_projection=queue_aware_safety_projection,
                     adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
                     reachable_tube=reachable_tube,
                     distributed_config=distributed_config,

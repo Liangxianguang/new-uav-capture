@@ -5,6 +5,7 @@ environment_config: capture_radius_pursuit_central_v4_flee.yaml
 # set and cost scale are frozen; UAKR is enabled for an explicit pilot.
 phase17:
   queue_aware_rollout: true
+  queue_aware_safety_projection: false
   adaptive_k: true
   reachability_normalized_cost: true
   execution:
