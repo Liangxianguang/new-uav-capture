@@ -123,6 +123,73 @@ def test_prefix_geometry_diagnostics_uses_only_public_geometry() -> None:
 
     assert diagnostics["minimum_boundary_margin_m"] > 0.0
     np.testing.assert_allclose(diagnostics["minimum_inter_agent_distance_m"], 0.2)
+    assert diagnostics["prefix_admissible"] is False
+    assert diagnostics["first_violation_step"] == 1
+    assert diagnostics["first_violation_cause"] == "inter_agent"
+    assert diagnostics["violation_step_count"] == 1
+    assert diagnostics["violation_step_ratio"] == 1.0
+
+
+def test_prefix_geometry_diagnostics_classifies_obstacle_and_boundary() -> None:
+    obstacle_state = rollout_queue_prefix(
+        np.zeros((1, 3), dtype=np.float64),
+        np.zeros((1, 3), dtype=np.float64),
+        [np.array([[0.1, 0.0, 0.0]], dtype=np.float64)],
+        _parameters(),
+    )
+    obstacle_observation = {
+        "world_lower_bounds": np.array([-5.0, -5.0, -5.0]),
+        "world_upper_bounds": np.array([5.0, 5.0, 5.0]),
+        "obstacles": [{"shape": "cylinder", "center_xy": [0.0, 0.0], "radius": 0.4, "height": 2.0}],
+    }
+    obstacle_diagnostics = prefix_geometry_diagnostics(
+        obstacle_state,
+        obstacle_observation,
+        drone_radius_m=0.1,
+        safety_margin_m=0.1,
+    )
+    assert obstacle_diagnostics["first_violation_cause"] == "obstacle"
+    assert obstacle_diagnostics["first_violation_step"] == 1
+    assert obstacle_diagnostics["minimum_obstacle_barrier_m"] < 0.0
+
+    boundary_state = rollout_queue_prefix(
+        np.array([[4.8, 0.0, 0.0]], dtype=np.float64),
+        np.zeros((1, 3), dtype=np.float64),
+        [np.array([[1.0, 0.0, 0.0]], dtype=np.float64)],
+        _parameters(),
+    )
+    boundary_observation = {
+        "world_lower_bounds": np.array([-5.0, -5.0, -5.0]),
+        "world_upper_bounds": np.array([5.0, 5.0, 5.0]),
+        "obstacles": [],
+    }
+    boundary_diagnostics = prefix_geometry_diagnostics(
+        boundary_state,
+        boundary_observation,
+        drone_radius_m=0.1,
+        safety_margin_m=0.1,
+    )
+    assert boundary_diagnostics["first_violation_cause"] == "boundary"
+    assert boundary_diagnostics["first_violation_step"] == 1
+    assert boundary_diagnostics["minimum_boundary_barrier_m"] < 0.0
+
+
+def test_empty_prefix_is_admissible_without_a_failure_cause() -> None:
+    state = rollout_queue_prefix(
+        np.zeros((1, 3), dtype=np.float64),
+        np.zeros((1, 3), dtype=np.float64),
+        [],
+        _parameters(),
+    )
+    diagnostics = prefix_geometry_diagnostics(
+        state,
+        {"world_lower_bounds": [-5.0] * 3, "world_upper_bounds": [5.0] * 3, "obstacles": []},
+        drone_radius_m=0.1,
+        safety_margin_m=0.1,
+    )
+    assert diagnostics["prefix_admissible"] is True
+    assert diagnostics["first_violation_step"] == -1
+    assert diagnostics["first_violation_cause"] == "none"
 
 
 def test_endpoint_error_diagnostics_is_post_hoc_and_shape_checked() -> None:

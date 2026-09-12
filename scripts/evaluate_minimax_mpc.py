@@ -872,6 +872,15 @@ def run_episode(
         qdr_prefix_minimum_boundary_margin_m = float("inf")
         qdr_prefix_minimum_inter_agent_distance_m = float("inf")
         qdr_prefix_maximum_safety_margin_violation_m = 0.0
+        qdr_prefix_minimum_obstacle_barrier_m = float("inf")
+        qdr_prefix_minimum_boundary_barrier_m = float("inf")
+        qdr_prefix_minimum_inter_agent_barrier_m = float("inf")
+        qdr_prefix_minimum_barrier_m = float("inf")
+        qdr_prefix_admissible = float("nan")
+        qdr_prefix_first_violation_step = float("nan")
+        qdr_prefix_first_violation_cause = "none"
+        qdr_prefix_violation_step_count = float("nan")
+        qdr_prefix_violation_step_ratio = float("nan")
         qdr_authority_mode = "none"
         adaptive_enabled = False
         adaptive_uncertainty_score = 0.0
@@ -972,6 +981,21 @@ def run_episode(
                 qdr_prefix_maximum_safety_margin_violation_m = float(
                     qdr_prefix_diagnostics["maximum_safety_margin_violation_m"]
                 )
+                qdr_prefix_minimum_obstacle_barrier_m = float(
+                    qdr_prefix_diagnostics["minimum_obstacle_barrier_m"]
+                )
+                qdr_prefix_minimum_boundary_barrier_m = float(
+                    qdr_prefix_diagnostics["minimum_boundary_barrier_m"]
+                )
+                qdr_prefix_minimum_inter_agent_barrier_m = float(
+                    qdr_prefix_diagnostics["minimum_inter_agent_barrier_m"]
+                )
+                qdr_prefix_minimum_barrier_m = float(qdr_prefix_diagnostics["minimum_prefix_barrier_m"])
+                qdr_prefix_admissible = 1.0 if qdr_prefix_diagnostics["prefix_admissible"] else 0.0
+                qdr_prefix_first_violation_step = float(qdr_prefix_diagnostics["first_violation_step"])
+                qdr_prefix_first_violation_cause = str(qdr_prefix_diagnostics["first_violation_cause"])
+                qdr_prefix_violation_step_count = float(qdr_prefix_diagnostics["violation_step_count"])
+                qdr_prefix_violation_step_ratio = float(qdr_prefix_diagnostics["violation_step_ratio"])
                 if qdr_state.queue_length > 0:
                     pending_qdr_endpoint_checks.append(
                         (
@@ -1171,6 +1195,15 @@ def run_episode(
                 "qdr_prefix_maximum_safety_margin_violation_m": float(
                     qdr_prefix_maximum_safety_margin_violation_m
                 ),
+                "qdr_prefix_minimum_obstacle_barrier_m": float(qdr_prefix_minimum_obstacle_barrier_m),
+                "qdr_prefix_minimum_boundary_barrier_m": float(qdr_prefix_minimum_boundary_barrier_m),
+                "qdr_prefix_minimum_inter_agent_barrier_m": float(qdr_prefix_minimum_inter_agent_barrier_m),
+                "qdr_prefix_minimum_barrier_m": float(qdr_prefix_minimum_barrier_m),
+                "qdr_prefix_admissible": float(qdr_prefix_admissible),
+                "qdr_prefix_first_violation_step": float(qdr_prefix_first_violation_step),
+                "qdr_prefix_first_violation_cause": qdr_prefix_first_violation_cause,
+                "qdr_prefix_violation_step_count": float(qdr_prefix_violation_step_count),
+                "qdr_prefix_violation_step_ratio": float(qdr_prefix_violation_step_ratio),
                 "qdr_authority_mode": qdr_authority_mode,
                 "qdr_endpoint_position_error_mean_m": float(qdr_endpoint_position_error_mean_m),
                 "qdr_endpoint_position_error_max_m": float(qdr_endpoint_position_error_max_m),
@@ -1395,6 +1428,23 @@ def run_episode(
         "qdr_prefix_maximum_safety_margin_violation_m": _diagnostic_max(
             step_rows, "qdr_prefix_maximum_safety_margin_violation_m"
         ),
+        "qdr_prefix_minimum_obstacle_barrier_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_obstacle_barrier_m"
+        ),
+        "qdr_prefix_minimum_boundary_barrier_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_boundary_barrier_m"
+        ),
+        "qdr_prefix_minimum_inter_agent_barrier_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_inter_agent_barrier_m"
+        ),
+        "qdr_prefix_minimum_barrier_m": _diagnostic_min(step_rows, "qdr_prefix_minimum_barrier_m"),
+        "qdr_prefix_admissible_rate": _diagnostic_mean(step_rows, "qdr_prefix_admissible"),
+        "qdr_prefix_first_violation_step": _diagnostic_min(step_rows, "qdr_prefix_first_violation_step"),
+        "qdr_prefix_violation_step_count": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_count"),
+        "qdr_prefix_violation_step_ratio": _diagnostic_mean(step_rows, "qdr_prefix_violation_step_ratio"),
+        "qdr_prefix_violation_cause_counts": _diagnostic_category_counts(
+            step_rows, "qdr_prefix_first_violation_cause"
+        ),
         "qdr_prefix_violation_rate": float(
             np.mean(
                 [
@@ -1617,6 +1667,16 @@ def _diagnostic_category_counts(step_rows: list[dict[str, Any]], key: str) -> di
     return dict(sorted(counts.items()))
 
 
+def _merge_category_counts(category_maps: list[dict[str, int]]) -> dict[str, int]:
+    """Merge per-episode categorical diagnostics without losing labels."""
+
+    counts: dict[str, int] = {}
+    for category_map in category_maps:
+        for label, count in (category_map or {}).items():
+            counts[str(label)] = counts.get(str(label), 0) + int(count)
+    return dict(sorted(counts.items()))
+
+
 def _diagnostic_violation_counts(step_rows: list[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in step_rows:
@@ -1744,6 +1804,31 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_prefix_maximum_safety_margin_violation_m": finite_max(
             [row["qdr_prefix_maximum_safety_margin_violation_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_obstacle_barrier_m": finite_min(
+            [row["qdr_prefix_minimum_obstacle_barrier_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_boundary_barrier_m": finite_min(
+            [row["qdr_prefix_minimum_boundary_barrier_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_inter_agent_barrier_m": finite_min(
+            [row["qdr_prefix_minimum_inter_agent_barrier_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_barrier_m": finite_min(
+            [row["qdr_prefix_minimum_barrier_m"] for row in rows]
+        ),
+        "qdr_prefix_admissible_rate": finite_mean([row["qdr_prefix_admissible_rate"] for row in rows]),
+        "qdr_prefix_first_violation_step": finite_min(
+            [row["qdr_prefix_first_violation_step"] for row in rows]
+        ),
+        "qdr_prefix_violation_step_count": finite_mean(
+            [row["qdr_prefix_violation_step_count"] for row in rows]
+        ),
+        "qdr_prefix_violation_step_ratio": finite_mean(
+            [row["qdr_prefix_violation_step_ratio"] for row in rows]
+        ),
+        "qdr_prefix_violation_cause_counts": _merge_category_counts(
+            [row["qdr_prefix_violation_cause_counts"] for row in rows]
         ),
         "qdr_prefix_violation_rate": finite_mean([row["qdr_prefix_violation_rate"] for row in rows]),
         "qdr_endpoint_position_error_mean_m": finite_mean(
@@ -2212,6 +2297,14 @@ def main() -> None:
                     "qdr_prefix_minimum_boundary_margin_m",
                     "qdr_prefix_minimum_inter_agent_distance_m",
                     "qdr_prefix_maximum_safety_margin_violation_m",
+                    "qdr_prefix_minimum_obstacle_barrier_m",
+                    "qdr_prefix_minimum_boundary_barrier_m",
+                    "qdr_prefix_minimum_inter_agent_barrier_m",
+                    "qdr_prefix_minimum_barrier_m",
+                    "qdr_prefix_admissible_rate",
+                    "qdr_prefix_first_violation_step",
+                    "qdr_prefix_violation_step_count",
+                    "qdr_prefix_violation_step_ratio",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -2292,6 +2385,21 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/prefix_violation_rate",
                 summary["qdr_prefix_violation_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_admissible_rate",
+                summary["qdr_prefix_admissible_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_minimum_barrier_m",
+                summary["qdr_prefix_minimum_barrier_m"],
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/prefix_violation_cause_counts",
+                json.dumps(summary.get("qdr_prefix_violation_cause_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar(

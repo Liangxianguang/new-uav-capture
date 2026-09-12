@@ -485,6 +485,14 @@ def main() -> None:
                     "qdr_prefix_minimum_boundary_margin_m",
                     "qdr_prefix_minimum_inter_agent_distance_m",
                     "qdr_prefix_maximum_safety_margin_violation_m",
+                    "qdr_prefix_minimum_obstacle_barrier_m",
+                    "qdr_prefix_minimum_boundary_barrier_m",
+                    "qdr_prefix_minimum_inter_agent_barrier_m",
+                    "qdr_prefix_minimum_barrier_m",
+                    "qdr_prefix_admissible_rate",
+                    "qdr_prefix_first_violation_step",
+                    "qdr_prefix_violation_step_count",
+                    "qdr_prefix_violation_step_ratio",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -534,6 +542,13 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/prefix_minimum_clearance_m", overall["qdr_prefix_minimum_clearance_m"], 0)
             writer.add_scalar("Summary/QDR/prefix_minimum_boundary_margin_m", overall["qdr_prefix_minimum_boundary_margin_m"], 0)
             writer.add_scalar("Summary/QDR/prefix_violation_rate", overall["qdr_prefix_violation_rate"], 0)
+            writer.add_scalar("Summary/QDR/prefix_admissible_rate", overall["qdr_prefix_admissible_rate"], 0)
+            writer.add_scalar("Summary/QDR/prefix_minimum_barrier_m", overall["qdr_prefix_minimum_barrier_m"], 0)
+            writer.add_text(
+                "Summary/QDR/prefix_violation_cause_counts",
+                json.dumps(overall.get("qdr_prefix_violation_cause_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar(
                 "Summary/QDR/endpoint_position_error_mean_m",
                 overall["qdr_endpoint_position_error_mean_m"],

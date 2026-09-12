@@ -171,8 +171,15 @@ def prefix_geometry_diagnostics(
     *,
     drone_radius_m: float,
     safety_margin_m: float,
-) -> dict[str, float]:
-    """Measure public-geometry margins along the immutable nominal prefix."""
+) -> dict[str, Any]:
+    """Measure public-geometry margins along the immutable nominal prefix.
+
+    In addition to the legacy aggregate margins, return a transparent
+    precondition audit for the queued prefix.  The audit uses only geometry
+    exposed in ``observation`` and applies the same radius/margin convention
+    as the independent one-step safety certificate.  It is diagnostic: it
+    does not cancel or replace immutable commands and is not a safety proof.
+    """
 
     if not np.isfinite([drone_radius_m, safety_margin_m]).all() or drone_radius_m < 0.0 or safety_margin_m < 0.0:
         raise ValueError("drone radius and safety margin must be finite and non-negative")
@@ -182,6 +189,15 @@ def prefix_geometry_diagnostics(
             "minimum_boundary_margin_m": float("inf"),
             "minimum_inter_agent_distance_m": float("inf"),
             "maximum_safety_margin_violation_m": 0.0,
+            "minimum_obstacle_barrier_m": float("inf"),
+            "minimum_boundary_barrier_m": float("inf"),
+            "minimum_inter_agent_barrier_m": float("inf"),
+            "minimum_prefix_barrier_m": float("inf"),
+            "prefix_admissible": True,
+            "first_violation_step": -1,
+            "first_violation_cause": "none",
+            "violation_step_count": 0,
+            "violation_step_ratio": 0.0,
         }
     lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
     upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
@@ -189,9 +205,20 @@ def prefix_geometry_diagnostics(
     minimum_clearance = float("inf")
     minimum_boundary_margin = float("inf")
     minimum_inter_agent = float("inf")
-    for prefix_position in positions:
+    minimum_obstacle_barrier = float("inf")
+    minimum_boundary_barrier = float("inf")
+    minimum_inter_agent_barrier = float("inf")
+    minimum_prefix_barrier = float("inf")
+    first_violation_step = -1
+    first_violation_cause = "none"
+    violation_step_count = 0
+    for prefix_index, prefix_position in enumerate(positions):
         boundary_margin = np.minimum(prefix_position - lower, upper - prefix_position)
-        minimum_boundary_margin = min(minimum_boundary_margin, float(np.min(boundary_margin)))
+        boundary_margin_value = float(np.min(boundary_margin))
+        minimum_boundary_margin = min(minimum_boundary_margin, boundary_margin_value)
+        boundary_barrier = boundary_margin_value - float(drone_radius_m) - float(safety_margin_m)
+        minimum_boundary_barrier = min(minimum_boundary_barrier, boundary_barrier)
+        obstacle_barriers: list[float] = []
         for obstacle in observation.get("obstacles", []):
             shape = str(obstacle.get("shape", "cylinder"))
             center_xy = np.asarray(obstacle["center_xy"], dtype=np.float64)
@@ -216,7 +243,12 @@ def prefix_geometry_diagnostics(
                 outside = np.maximum(signed, 0.0)
                 outside_norm = np.linalg.norm(outside, axis=-1)
                 clearance = np.where(outside_norm > 0.0, outside_norm, -np.max(-signed, axis=-1))
-            minimum_clearance = min(minimum_clearance, float(np.min(clearance - drone_radius_m)))
+            clearance_value = float(np.min(clearance - drone_radius_m))
+            minimum_clearance = min(minimum_clearance, clearance_value)
+            obstacle_barriers.append(clearance_value - float(safety_margin_m))
+        obstacle_barrier = min(obstacle_barriers, default=float("inf"))
+        minimum_obstacle_barrier = min(minimum_obstacle_barrier, obstacle_barrier)
+        inter_agent_barrier = float("inf")
         if prefix_position.shape[0] >= 2:
             pairwise = np.linalg.norm(
                 prefix_position[:, None, :] - prefix_position[None, :, :],
@@ -224,12 +256,37 @@ def prefix_geometry_diagnostics(
             )
             pairwise[np.diag_indices_from(pairwise)] = np.inf
             minimum_inter_agent = min(minimum_inter_agent, float(np.min(pairwise)))
+            inter_agent_barrier = float(np.min(pairwise)) - 2.0 * float(drone_radius_m) - float(safety_margin_m)
+        barrier_values = {
+            "obstacle": obstacle_barrier,
+            "boundary": boundary_barrier,
+            "inter_agent": inter_agent_barrier,
+        }
+        step_barrier = float(min(barrier_values.values()))
+        minimum_prefix_barrier = min(minimum_prefix_barrier, step_barrier)
+        if step_barrier < 0.0:
+            violation_step_count += 1
+            if first_violation_step < 0:
+                first_violation_step = prefix_index + 1
+                first_violation_cause = min(
+                    barrier_values,
+                    key=lambda cause: (barrier_values[cause], ("obstacle", "boundary", "inter_agent").index(cause)),
+                )
     violation = max(float(safety_margin_m) - minimum_clearance, 0.0)
     return {
         "minimum_clearance_m": float(minimum_clearance),
         "minimum_boundary_margin_m": float(minimum_boundary_margin),
         "minimum_inter_agent_distance_m": float(minimum_inter_agent),
         "maximum_safety_margin_violation_m": float(violation),
+        "minimum_obstacle_barrier_m": float(minimum_obstacle_barrier),
+        "minimum_boundary_barrier_m": float(minimum_boundary_barrier),
+        "minimum_inter_agent_barrier_m": float(minimum_inter_agent_barrier),
+        "minimum_prefix_barrier_m": float(minimum_prefix_barrier),
+        "prefix_admissible": bool(minimum_prefix_barrier >= 0.0),
+        "first_violation_step": int(first_violation_step),
+        "first_violation_cause": str(first_violation_cause),
+        "violation_step_count": int(violation_step_count),
+        "violation_step_ratio": float(violation_step_count / positions.shape[0]),
     }
 
 
