@@ -124,6 +124,52 @@ def evaluate_tube_coverage(
     }
 
 
+def evaluate_context_adaptive_tube_coverage(
+    candidates: np.ndarray,
+    targets: np.ndarray,
+    radius_m_by_step: np.ndarray,
+    context_scores: np.ndarray,
+    *,
+    uncertainty_gain: float,
+) -> dict[str, float]:
+    """Evaluate a tube inflated by a policy-safe per-window context score.
+
+    The score is an observable uncertainty proxy, not a target-truth label.
+    This routine reports empirical coverage only; it does not turn the tube
+    into a distribution-free conditional guarantee.
+    """
+
+    errors = candidate_minimum_errors(candidates, targets)
+    radius = np.asarray(radius_m_by_step, dtype=np.float64)
+    scores = np.asarray(context_scores, dtype=np.float64)
+    gain = float(uncertainty_gain)
+    if (
+        radius.ndim != 1
+        or radius.shape[0] != errors.shape[1]
+        or not np.isfinite(radius).all()
+        or np.any(radius < 0.0)
+        or scores.ndim != 1
+        or scores.shape[0] != errors.shape[0]
+        or not np.isfinite(scores).all()
+        or not np.isfinite(gain)
+        or gain < 0.0
+    ):
+        raise ValueError("adaptive tube inputs have incompatible or non-finite values")
+    scores = np.clip(scores, 0.0, 1.0)
+    per_sample_radius = radius[None, :] * (1.0 + gain * scores[:, None])
+    within = errors <= per_sample_radius + 1.0e-12
+    return {
+        "full_trajectory_coverage": float(np.mean(np.all(within, axis=1))),
+        "horizon_mean_coverage": float(np.mean(within, axis=0).mean()),
+        "horizon_min_coverage": float(np.min(np.mean(within, axis=0))),
+        "horizon_max_coverage": float(np.max(np.mean(within, axis=0))),
+        "mean_min_error_m": float(np.mean(errors)),
+        "maximum_min_error_m": float(np.max(errors)),
+        "mean_effective_radius_m": float(np.mean(per_sample_radius)),
+        "maximum_effective_radius_m": float(np.max(per_sample_radius)),
+    }
+
+
 def _extend_schedule(schedule: np.ndarray, required: int, *, dt_seconds: float, target_speed_mps: float) -> np.ndarray:
     if required <= schedule.size:
         return schedule[:required].copy()
@@ -233,6 +279,7 @@ class DelayAwareConformalReachableTube:
 __all__ = [
     "DelayAwareConformalReachableTube",
     "candidate_minimum_errors",
+    "evaluate_context_adaptive_tube_coverage",
     "evaluate_tube_coverage",
     "fit_conformal_radius_schedule",
     "upper_conformal_quantile",

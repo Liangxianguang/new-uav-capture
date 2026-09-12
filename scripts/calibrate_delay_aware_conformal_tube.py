@@ -1,10 +1,11 @@
 """Calibrate a delay-aware conformal target-prediction tube on validation data.
 
-The first half of validation episodes is used for calibration and the second
-half is an untouched development confirmation split.  Locked-test data is not
-read.  The resulting JSON artifact is safe for runtime use because it contains
-only frozen radii and provenance, while the target labels are used exclusively
-inside this offline calibration script.
+The default split uses the first/second episode-seed halves.  An optional
+balanced split keeps complete mirror groups together and stratifies a cheap
+public-observation context score.  Locked-test data is not read.  The
+resulting JSON artifact is safe for runtime use because it contains only
+frozen radii and provenance, while target labels are used exclusively inside
+this offline calibration script.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import hashlib
 import json
 import os
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from encirclement3d.delay_aware_conformal_tube import (  # noqa: E402
     candidate_minimum_errors,
+    evaluate_context_adaptive_tube_coverage,
     evaluate_tube_coverage,
     fit_conformal_radius_schedule,
 )
@@ -61,6 +64,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--coverage", type=float, default=0.90)
     parser.add_argument("--target-speed-mps", type=float)
     parser.add_argument("--uncertainty-gain", type=float, default=0.25)
+    parser.add_argument(
+        "--split-strategy",
+        choices=("episode_seed_half", "balanced_mirror_context"),
+        default="episode_seed_half",
+        help="Validation-only split strategy. Balanced mode keeps mirror groups intact and stratifies public context.",
+    )
+    parser.add_argument(
+        "--scene-manifest",
+        type=Path,
+        help="Validation scenes.jsonl required by balanced_mirror_context.",
+    )
+    parser.add_argument("--split-seed", type=int, default=20260912)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     return parser.parse_args()
 
@@ -126,12 +141,131 @@ def dataset_metadata_constraints(dataset: Any) -> dict[str, float]:
     }
 
 
-def _records(errors: np.ndarray, *, split: str) -> str:
+def public_context_score(dataset: Any) -> np.ndarray:
+    """Compute a cheap context score from normalized public observations only."""
+
+    observations = np.asarray(dataset.history_observations, dtype=np.float64)
+    if observations.ndim != 4 or observations.shape[-1] <= 14:
+        raise ValueError("balanced context splitting requires the uncertainty observation block")
+    latest = observations[:, -1]
+    age = np.mean(np.clip(latest[..., 10], 0.0, 1.0), axis=1)
+    confidence_deficit = 1.0 - np.mean(np.clip(latest[..., 11], 0.0, 1.0), axis=1)
+    covariance = np.mean(np.clip(np.sum(latest[..., 12:15], axis=-1), 0.0, 1.0), axis=1)
+    speed_ratio = np.mean(
+        np.clip(np.linalg.norm(latest[..., 6:9], axis=-1) / 0.80, 0.0, 1.0),
+        axis=1,
+    )
+    visibility_deficit = 1.0 - np.mean(np.clip(latest[..., 9], 0.0, 1.0), axis=1)
+    score = (
+        0.20 * age
+        + 0.20 * confidence_deficit
+        + 0.25 * covariance
+        + 0.15 * speed_ratio
+        + 0.20 * visibility_deficit
+    )
+    if not np.isfinite(score).all():
+        raise ValueError("public context score is non-finite")
+    return score.astype(np.float64, copy=False)
+
+
+def load_scene_manifest(path: Path) -> dict[int, dict[str, Any]]:
+    """Load episode-to-mirror metadata without reading any target labels."""
+
+    records: dict[int, dict[str, Any]] = {}
+    for line in path.resolve().read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            record = json.loads(line)
+            records[int(record["episode_index"])] = record
+    if not records:
+        raise ValueError("scene manifest is empty")
+    return records
+
+
+def balanced_mirror_context_indices(
+    dataset: Any,
+    scene_records: dict[int, dict[str, Any]],
+    *,
+    split_seed: int,
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """Split complete mirror groups while balancing public context strata."""
+
+    score = public_context_score(dataset)
+    episode_to_group: dict[int, str] = {}
+    for episode in np.unique(dataset.episode_indices).tolist():
+        record = scene_records.get(int(episode))
+        if record is None:
+            raise ValueError(f"scene manifest is missing episode_index={episode}")
+        group = record.get("mirror_group_id")
+        episode_to_group[int(episode)] = str(group if group is not None else f"episode:{episode}")
+    group_to_indices: dict[str, list[int]] = defaultdict(list)
+    for index, episode in enumerate(np.asarray(dataset.episode_indices, dtype=np.int64).tolist()):
+        group_to_indices[episode_to_group[int(episode)]].append(index)
+    group_scores = {
+        group: float(np.mean(score[np.asarray(indices, dtype=np.int64)]))
+        for group, indices in group_to_indices.items()
+    }
+    groups = sorted(group_to_indices)
+    if len(groups) < 4:
+        raise ValueError("balanced mirror split requires at least four groups")
+    cut_points = np.quantile(np.asarray(list(group_scores.values()), dtype=np.float64), [0.25, 0.50, 0.75])
+    strata: dict[int, list[str]] = defaultdict(list)
+    for group in groups:
+        stratum = int(np.digitize(group_scores[group], cut_points, right=False))
+        strata[stratum].append(group)
+    rng = np.random.default_rng(int(split_seed))
+    calibration_groups: set[str] = set()
+    confirmation_groups: set[str] = set()
+    for stratum, values in sorted(strata.items()):
+        ordered = [values[index] for index in rng.permutation(len(values)).tolist()]
+        midpoint = max(1, len(ordered) // 2)
+        calibration_groups.update(ordered[:midpoint])
+        confirmation_groups.update(ordered[midpoint:])
+    if not confirmation_groups:
+        moved = sorted(calibration_groups)[-1]
+        calibration_groups.remove(moved)
+        confirmation_groups.add(moved)
+    calibration_indices = np.asarray(
+        sorted(index for group in calibration_groups for index in group_to_indices[group]),
+        dtype=np.int64,
+    )
+    confirmation_indices = np.asarray(
+        sorted(index for group in confirmation_groups for index in group_to_indices[group]),
+        dtype=np.int64,
+    )
+    if np.intersect1d(calibration_indices, confirmation_indices).size:
+        raise RuntimeError("balanced mirror split has overlapping samples")
+    metadata = {
+        "strategy": "balanced_mirror_context",
+        "split_seed": int(split_seed),
+        "group_count": len(groups),
+        "calibration_group_count": len(calibration_groups),
+        "confirmation_group_count": len(confirmation_groups),
+        "calibration_groups": sorted(calibration_groups),
+        "confirmation_groups": sorted(confirmation_groups),
+        "calibration_context_mean": float(np.mean(score[calibration_indices])),
+        "confirmation_context_mean": float(np.mean(score[confirmation_indices])),
+        "context_quantile_cut_points": cut_points.tolist(),
+    }
+    return calibration_indices, confirmation_indices, metadata
+
+
+def _records(
+    errors: np.ndarray,
+    *,
+    split: str,
+    dataset: Any,
+    indices: np.ndarray,
+    context_scores: np.ndarray,
+) -> str:
     return "".join(
         json.dumps(
             {
                 "split": split,
                 "sample_index": int(index),
+                "dataset_index": int(indices[index]),
+                "episode_index": int(dataset.episode_indices[indices[index]]),
+                "episode_seed": int(dataset.episode_seeds[indices[index]]),
+                "public_context_score": float(context_scores[indices[index]]),
                 "minimum_candidate_error_m_by_step": row.tolist(),
                 "maximum_candidate_error_m": float(np.max(row)),
             },
@@ -167,7 +301,22 @@ def main() -> None:
         raise ValueError(
             f"action condition width mismatch: dataset={action_conditions.shape[-1]} checkpoint={expected_action_dim}"
         )
-    calibration_indices, confirmation_indices = validation_calibration_indices(dataset)
+    if args.split_strategy == "balanced_mirror_context":
+        if args.scene_manifest is None:
+            raise ValueError("--scene-manifest is required for balanced_mirror_context")
+        calibration_indices, confirmation_indices, split_metadata = balanced_mirror_context_indices(
+            dataset,
+            load_scene_manifest(args.scene_manifest),
+            split_seed=int(args.split_seed),
+        )
+    else:
+        calibration_indices, confirmation_indices = validation_calibration_indices(dataset)
+        split_metadata = {
+            "strategy": "episode_seed_half",
+            "split_seed": None,
+            "calibration_group_count": None,
+            "confirmation_group_count": None,
+        }
     calibration_candidates = sample_candidates(
         model,
         model_kind,
@@ -231,6 +380,21 @@ def main() -> None:
     confirmation_coverage = evaluate_tube_coverage(
         confirmation_candidates.numpy(), confirmation_targets.numpy(), np.asarray(tube["radius_m_by_step"])
     )
+    context_scores = public_context_score(dataset)
+    calibration_adaptive_coverage = evaluate_context_adaptive_tube_coverage(
+        calibration_candidates.numpy(),
+        calibration_targets.numpy(),
+        np.asarray(tube["radius_m_by_step"]),
+        context_scores[calibration_indices],
+        uncertainty_gain=float(args.uncertainty_gain),
+    )
+    confirmation_adaptive_coverage = evaluate_context_adaptive_tube_coverage(
+        confirmation_candidates.numpy(),
+        confirmation_targets.numpy(),
+        np.asarray(tube["radius_m_by_step"]),
+        context_scores[confirmation_indices],
+        uncertainty_gain=float(args.uncertainty_gain),
+    )
     config = {
         "checkpoint": str(args.checkpoint.resolve()),
         "validation_dataset": str(args.validation_dataset.resolve()),
@@ -244,18 +408,50 @@ def main() -> None:
         "coverage": float(args.coverage),
         "uncertainty_gain": float(args.uncertainty_gain),
         "device": str(device),
-        "calibration_split": "first half of validation episode seeds",
-        "confirmation_split": "second half of validation episode seeds",
+        "calibration_split": (
+            "first half of validation episode seeds"
+            if args.split_strategy == "episode_seed_half"
+            else "balanced public-context strata of complete mirror groups"
+        ),
+        "confirmation_split": (
+            "second half of validation episode seeds"
+            if args.split_strategy == "episode_seed_half"
+            else "held-out balanced public-context strata of complete mirror groups"
+        ),
+        "split_strategy": str(args.split_strategy),
+        "split_seed": int(args.split_seed),
+        "scene_manifest": None if args.scene_manifest is None else str(args.scene_manifest.resolve()),
+        "split_metadata": split_metadata,
         "source_hashes": source_hashes(),
     }
     output.joinpath("config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
-    output.joinpath("calibration_scores.jsonl").write_text(_records(calibration_errors, split="calibration"), encoding="utf-8")
-    output.joinpath("confirmation_scores.jsonl").write_text(_records(confirmation_errors, split="confirmation"), encoding="utf-8")
+    output.joinpath("calibration_scores.jsonl").write_text(
+        _records(
+            calibration_errors,
+            split="calibration",
+            dataset=dataset,
+            indices=calibration_indices,
+            context_scores=context_scores,
+        ),
+        encoding="utf-8",
+    )
+    output.joinpath("confirmation_scores.jsonl").write_text(
+        _records(
+            confirmation_errors,
+            split="confirmation",
+            dataset=dataset,
+            indices=confirmation_indices,
+            context_scores=context_scores,
+        ),
+        encoding="utf-8",
+    )
     result = {
         "config": config,
         "tube": tube,
         "calibration": calibration_coverage,
         "confirmation": confirmation_coverage,
+        "context_adaptive_calibration": calibration_adaptive_coverage,
+        "context_adaptive_confirmation": confirmation_adaptive_coverage,
         "calibration_sample_count": int(calibration_indices.size),
         "confirmation_sample_count": int(confirmation_indices.size),
         "decision": "development_confirmation_only",
@@ -269,9 +465,21 @@ def main() -> None:
         for prefix, summary in (("Calibration", calibration_coverage), ("Confirmation", confirmation_coverage)):
             for key, value in summary.items():
                 writer.add_scalar(f"{prefix}/{key}", float(value), 0)
+        for prefix, summary in (
+            ("ContextAdaptive/Calibration", calibration_adaptive_coverage),
+            ("ContextAdaptive/Confirmation", confirmation_adaptive_coverage),
+        ):
+            for key, value in summary.items():
+                writer.add_scalar(f"{prefix}/{key}", float(value), 0)
         for step, value in enumerate(tube["radius_m_by_step"], start=1):
             writer.add_scalar("Tube/radius_m_by_step", float(value), step)
         writer.add_scalar("Tube/simultaneous_multiplier", float(tube["simultaneous_multiplier"]), 0)
+        writer.add_scalar("Split/calibration_sample_count", float(calibration_indices.size), 0)
+        writer.add_scalar("Split/confirmation_sample_count", float(confirmation_indices.size), 0)
+        if np.isfinite(float(split_metadata.get("calibration_context_mean", np.nan))):
+            writer.add_scalar("Split/calibration_context_mean", float(split_metadata["calibration_context_mean"]), 0)
+        if np.isfinite(float(split_metadata.get("confirmation_context_mean", np.nan))):
+            writer.add_scalar("Split/confirmation_context_mean", float(split_metadata["confirmation_context_mean"]), 0)
         writer.add_hparams(
             {
                 "coverage": float(args.coverage),

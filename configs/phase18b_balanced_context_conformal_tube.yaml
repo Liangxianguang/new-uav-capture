@@ -1,0 +1,51 @@
+experiment_name: phase18b_balanced_context_conformal_reachable_tube
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Development-only repair of the Phase 18 split/uncertainty protocol.
+# Confirmation was kept separate from calibration; locked-test is not read.
+candidate:
+  name: balanced_context_adaptive_conformal_reachable_tube
+  information_boundary: public_belief_observations_only
+  formal_forward_invariance: false
+  locked_test_used: false
+  target_truth_allowed_in_runtime: false
+
+calibration:
+  split_strategy: balanced_mirror_context
+  split_seed: 20260912
+  scene_manifest: phase15_s4_branching_train_v3_splits/validation/scenes.jsonl
+  coverage: 0.90
+  num_samples: 8
+  sampling_steps: 4
+  sampling_seed: 745102
+  batch_size: 256
+  projection_iterations: 4
+  uncertainty_gain: 0.25
+  target_speed_mps: 3.6
+  context_score: age_confidence_covariance_speed_visibility
+
+runtime:
+  horizon_alignment: queue_length_plus_prediction_age
+  tail_extension: target_speed_times_dt
+  rnic_integration: conservative_distance_plus_context_adaptive_tube_radius
+  tube_weight_in_uakr: 0.0
+  safety_layer: local_cbf
+  qdr: false
+  uakr: true
+  rnic: true
+
+evaluation:
+  split: validation_selection
+  smoke_episodes: 8
+  formal_confirmation_episodes: not_run
+  methods: [distributed_delayed]
+  device: cpu
+
+reporting:
+  tensorboard_required: true
+  preserve_calibration_scores: true
+  preserve_confirmation_scores: true
+  preserve_summary_json: true
+  preserve_source_hashes: true
+  report_latency_percentiles: [50, 95, 99]
+  report_fixed_and_context_adaptive_coverage: true
