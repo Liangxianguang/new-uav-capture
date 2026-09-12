@@ -199,11 +199,11 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 完成第一版 Queue-Aware Delayed-State Rollout 适配器、单元测试、配置快照和 TensorBoard smoke 记录；它修正规划状态和候选时间索引，不重新打开 robust CBF-QP。
 - [x] 完成 QDR 的 nominal immutable-prefix 几何诊断、post-hoc endpoint audit、TensorBoard 字段和 90 场景 validation paired comparison；QDR-on safe capture 为 `88.89%`，QDR-off 为 `94.44%`，collision 为 `11.11%/5.56%`，当前 gate No-Go。详见 `docs/PHASE17_QDR_VALIDATION_REPORT.md`。
 - [x] Phase 17 geometry-OOD Diagonal-SSM 20-episode pilot 已完成；结果显示 no-QDR 100%/0% collision、QDR fixed-K 85%/15% collision、UAKR+QDR 90%/10% collision，仍不足以作为正式统计结论。
-- [x] 完成 UAKR 的可解释策略、动态 K/refresh、缓存轨迹推进、残差触发与 TensorBoard 记录；当前 pilot 的 forced-refresh 偏高，尚未冻结阈值。
-- [x] 完成 RNIC 的受限到达时间代价、central/local DN-MPC 接入、单元测试与 TensorBoard 记录；当前 pilot 未带来行为收益且明显增加 planner latency，尚未通过 speed-OOD gate。
+- [x] 完成 UAKR 的可解释策略、动态 K/refresh、缓存轨迹推进、残差触发与 TensorBoard 记录；三种子 validation 显示平均 K 约 2.68、刷新率约 36.6%，但 safe-capture 非劣 CI 为 `[-2.59,+2.96] pp`，未通过 `-2 pp` gate。详见 `docs/PHASE17_UAKR_VALIDATION_REPORT.md`。
+- [x] 完成 RNIC 的受限到达时间代价、central/local DN-MPC 接入、单元测试与 TensorBoard 记录；三种子 ID validation 行为与固定距离代价完全相同，但 total p95 从 135.72 ms 增至 174.19 ms，暂为 No-Go。speed-OOD 所需 RNIC 诊断字段仍未补全。详见 `docs/PHASE17_RNIC_VALIDATION_REPORT.md`。
 - [x] 实现只使用 policy-safe uncertainty 的 K={1,4,8} 与 refresh={4,2,1} 自适应调度；主结果使用可移植 Diagonal SSM diffusion，GRU 保持 K=1 参考。当前仍需 validation 冻结阈值。
 - [x] 实现基于加速度/限速到达时间裕量的 Reachability-Normalized Interception Cost；当前为 heuristic 版本，interceptor-only 与 formation-slot 消融仍未完成。
-- [ ] 三个模块分别通过 pilot gate 后，运行 2×2×2 validation 全因子矩阵；按预注册规则保留最简单的通过组合。
+- [ ] QDR、UAKR、RNIC 尚未形成可推广的单模块通过证据；不直接运行完整 2×2×2 主结果矩阵，先补齐 UAKR 可靠性分析、RNIC speed-OOD 诊断和 QDR 失败轴修复/降级实验。
 - [ ] 方法冻结后才运行新建且未见的 ID/OOD confirmation；Phase 16 已公开 OOD 只作开发诊断。
 - [ ] 不设 100 ms 硬门槛，但必须逐组件报告 p50/p95/p99，并在同硬件单进程条件下进行公平比较。
 

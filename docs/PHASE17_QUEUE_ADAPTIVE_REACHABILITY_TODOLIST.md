@@ -1,6 +1,6 @@
 # Phase 17: Queue-Aware Adaptive Reachability DN-MPC TodoList
 
-> 状态：QDR、UAKR、RNIC 的第一版适配器与 pilot 已实现；QDR 的 nominal immutable-prefix 几何诊断、post-hoc endpoint audit 和 TensorBoard 字段已补齐；QDR validation paired gate 已完成但为 No-Go，UAKR/RNIC 正式 validation/confirmation 尚未开始。
+> 状态：QDR、UAKR、RNIC 的第一版适配器、TensorBoard 字段和单元测试已实现；QDR validation paired gate 为 No-Go，UAKR validation 已完成但未通过安全非劣门槛，RNIC ID validation 已完成但行为无变化且增加延迟。下一步是补齐 RNIC speed-OOD 诊断、UAKR 可靠性分析和 QDR 失败轴实验，暂不开放完整组合主结论。
 >
 > 核心目标：在不重新训练主预测器、不重新打开 learned CLBF/R-CLBF-QP 路线的前提下，将三个可复现机制接入现有 distributed delayed DN-MPC：
 > 1. Queue-Aware Delayed-State Rollout（QDR）；
@@ -39,6 +39,8 @@ Phase 16 已经给出三个直接动机：
 - UAKR 不能被表述为新的扩散模型；它只是推理与刷新策略。
 - RNIC 的一维加速度受限到达时间是 planner heuristic，除非后续给出完整三维最短时间证明，否则不能称为精确可达集。
 - robust CBF-QP 仍为独立 No-Go 诊断，不进入 Phase 17 主结果。
+
+当前验证状态：QDR=No-Go；UAKR=compute-savings-only/closed-loop No-Go；RNIC=ID behavior-neutral/latency No-Go，speed-OOD gate pending。
 
 ## 3. 冻结协议与防止测试泄漏
 
@@ -417,6 +419,10 @@ RNIC Go：
 - [ ] 运行固定预算与自适应预算公平单进程 benchmark。
 - [ ] 给出 UAKR Go/No-Go。
 
+**Current M2 decision:** No-Go for promotion. The three-seed validation
+achieves compute savings but the paired safe-capture CI does not establish
+non-inferiority. See `PHASE17_UAKR_VALIDATION_REPORT.md`.
+
 ### M3：RNIC
 
 - [ ] 完成 6.2 全部实现项。
@@ -424,6 +430,10 @@ RNIC Go：
 - [ ] 在速度 development stress 上冻结 margin、time scale 和 cost weight。
 - [ ] 分解 interceptor-only 与 formation-slot RNIC。
 - [ ] 给出 RNIC Go/No-Go。
+
+**Current M3 decision:** No-Go on ID validation; speed-OOD remains pending
+because RNIC-specific slack and realized-arrival diagnostics are not yet in
+the episode schema. See `PHASE17_RNIC_VALIDATION_REPORT.md`.
 
 ### M4：全因子 validation
 
