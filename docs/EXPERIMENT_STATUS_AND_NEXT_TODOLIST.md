@@ -301,6 +301,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE24_UAKR_RESIDUAL_TRIGGER_REPORT.md`。
 
+### P21：Phase 25 UAKR residual-only refresh pilot
+
+- [x] 增加 `residual_refresh_trigger_m`，在不改变 K bucket 的条件下，只强制 predictor refresh。
+- [x] 在固定 20 场景 validation 前缀、Diagonal-SSM seed `727201`、distributed delayed DN-MPC、local CBF 上测试 `0.40 m`。
+- [x] 结果 safe capture `85.0%`、collision `15.0%`、boundary/timeout `0%`、mean K `2.67`、refresh `36.96%`、total p50/p95/p99 `67.25/142.34/154.52 ms`；原始 UAKR 为 `90.0%/10.0%` 与 `60.15/133.44/139.84 ms`。
+- [x] 判定 residual-only refresh 与 residual-triggered high-K 均 No-Go；不再扫描 residual threshold。
+- [ ] 若继续 UAKR，只能研究 intervention-effect calibration，并在 fresh development split 上比较 refresh-only、K-only 和 joint intervention。
+
+详见 `docs/PHASE25_UAKR_RESIDUAL_REFRESH_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text

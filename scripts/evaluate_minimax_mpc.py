@@ -186,6 +186,11 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional public prediction-residual threshold that forces high-K replanning.",
     )
+    parser.add_argument(
+        "--adaptive-residual-refresh-trigger-m",
+        type=float,
+        help="Optional public prediction-residual threshold that forces refresh without changing K.",
+    )
     rnic_group = parser.add_mutually_exclusive_group()
     rnic_group.add_argument(
         "--rnic",
@@ -1893,6 +1898,10 @@ def main() -> None:
         if not np.isfinite(float(args.adaptive_residual_high_trigger_m)) or float(args.adaptive_residual_high_trigger_m) <= 0.0:
             raise ValueError("adaptive-residual-high-trigger-m must be finite and positive")
         adaptive_budget_mapping["residual_high_trigger_m"] = float(args.adaptive_residual_high_trigger_m)
+    if args.adaptive_residual_refresh_trigger_m is not None:
+        if not np.isfinite(float(args.adaptive_residual_refresh_trigger_m)) or float(args.adaptive_residual_refresh_trigger_m) <= 0.0:
+            raise ValueError("adaptive-residual-refresh-trigger-m must be finite and positive")
+        adaptive_budget_mapping["residual_refresh_trigger_m"] = float(args.adaptive_residual_refresh_trigger_m)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     if (

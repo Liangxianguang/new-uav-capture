@@ -40,6 +40,7 @@ class AdaptivePredictionConfig:
     tube_radius_scale_m: float = 2.0
     tube_weight: float = 0.0
     residual_high_trigger_m: float | None = None
+    residual_refresh_trigger_m: float | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= float(self.low_threshold) < float(self.high_threshold) <= 1.0:
@@ -76,6 +77,11 @@ class AdaptivePredictionConfig:
             or float(self.residual_high_trigger_m) <= 0.0
         ):
             raise ValueError("residual_high_trigger_m must be finite and positive when provided")
+        if self.residual_refresh_trigger_m is not None and (
+            not np.isfinite(float(self.residual_refresh_trigger_m))
+            or float(self.residual_refresh_trigger_m) <= 0.0
+        ):
+            raise ValueError("residual_refresh_trigger_m must be finite and positive when provided")
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "AdaptivePredictionConfig":
@@ -263,6 +269,12 @@ class AdaptivePredictionPolicy:
             and float(previous_residual_m) >= float(self.config.residual_high_trigger_m)
         ):
             forced_reason = "residual_risk_trigger"
+        elif (
+            self.config.residual_refresh_trigger_m is not None
+            and previous_residual_m is not None
+            and float(previous_residual_m) >= float(self.config.residual_refresh_trigger_m)
+        ):
+            forced_reason = "residual_refresh_trigger"
         elif int(cached_age_steps) >= self.config.max_cache_age_steps:
             forced_reason = "cache_age_limit"
         elif previous_residual_m is not None and float(previous_residual_m) > self.config.residual_scale_m:

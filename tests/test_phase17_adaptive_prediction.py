@@ -97,3 +97,24 @@ def test_residual_high_trigger_escalates_budget_and_forces_refresh() -> None:
     assert decision.num_samples == 8
     assert decision.refresh is True
     assert decision.forced_refresh_reason == "residual_risk_trigger"
+
+
+def test_residual_refresh_trigger_preserves_bucket_and_forces_refresh() -> None:
+    policy = AdaptivePredictionPolicy(
+        AdaptivePredictionConfig(
+            residual_refresh_trigger_m=0.3,
+            low_threshold=0.99,
+            high_threshold=1.0,
+        )
+    )
+    decision = policy.decide(
+        _observation(0.0, 1.0, 0.0, 0.0),
+        cached_age_steps=1,
+        has_cache=True,
+        previous_residual_m=0.3,
+    )
+
+    assert decision.bucket == "low"
+    assert decision.num_samples == 1
+    assert decision.refresh is True
+    assert decision.forced_refresh_reason == "residual_refresh_trigger"
