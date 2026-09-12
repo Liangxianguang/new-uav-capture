@@ -40,7 +40,7 @@
 2. 投影候选驱动的 worst-case / distributed DN-MPC 在 100 个 locked-test 场景上达到 97.33%--99.00% safe capture，优于 95.00% 的 DynamicEncirclement 基线。
 3. velocity-level robust CBF-QP 在预先筛选的 robust-safe reset 上通过了一步独立证书检查，但这不是执行扰动下的闭环安全证明。
 4. 将 robust CBF-QP 直接接入 P4 流程后，safe capture 只有 50.00%，collision 为 49.00%，boundary violation 为 16.00%；因此当前端到端组合路径为 **No-Go**。
-5. 当前 v4 独立证书审计目录只有配置和场景文件，没有完整 `summary.json`、episode/step 日志，不能作为新实验结果引用。
+5. P7.2 新复核目录 `results/phase7_p7_2_independent_certificate_reaudit_v5/` 已具备完整配置、summary、episode/step 日志和 TensorBoard；当前 source 下独立 current/next-state certificate 均为 `100%`，但与历史 P7 v2 仅有 `50/100` episode 结局一致，safe capture 从 `50%` 变为 `99%`，因此 exact behavior-parity gate 为 No-Go，不能替换历史 P7 结论。详见 `docs/PHASE28_P7_2_INDEPENDENT_CERTIFICATE_REAUDIT_REPORT.md`。
 
 6. 最新 Phase 14 八种子 authority matrix 已完成，但三种权限均未达到 hard `80%` safe-capture 工作门槛；下一步必须先做证书/队列失败分解，再扩大 unseen seed。
 7. 最新 continuous-QP progress/recovery audit 仍未通过：2-seed/250-step hard `flush_pending` 的 safe capture 为 `0%`，actual post robust safety 为 `71.4%`，continuous certificate 为 `12.4%`；重复 emergency brake 消除了该小样本中的物理碰撞/越界，但没有恢复 robust tube 不变性。详见 `docs/PHASE14_PROGRESS_RECOVERY_REPORT.md`。
@@ -125,7 +125,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 | 执行扰动下安全 | 多轮 audit 为 No-Go | 未完成 |
 | R-CLBF-QP 形式化证明 | 尚未成立 | 未完成 |
 | 三者端到端完整方法 | 50% safe capture / 49% collision | 未完成，No-Go |
-| P7.2 独立证书复核 | v4 运行缺少完整结果工件 | 未完成 |
+| P7.2 独立证书复核 | 工件完整；与历史 P7 行为 parity No-Go | 条件完成 |
 
 结论：**P4 模块化实验已经完善到可以写阶段性结果；P5/P7 还没有完善到可以宣称完整方法成功。**
 
@@ -133,14 +133,14 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 ### P7.2：完成独立证书审计
 
-- [ ] 先确认 v4 目录是否因中断而只有 `config.yaml`、`protocol.yaml`、`scenes.jsonl`；当前已确认缺少完整 summary 和 episode/step 日志。
-- [ ] 使用与 P7 原始 v2 完全相同的 100 个场景、checkpoint、MPC 配置和刷新周期，重新运行独立 `check_one_step_safety` 审计。
-- [ ] 验证 `summary.json`、`episodes.jsonl`、`steps.jsonl`、TensorBoard event、配置快照和 source hash 全部落盘。
-- [ ] 对比重跑前后的 safe capture、collision、boundary violation、planner success，确认新增 checker 不改变控制行为。
-- [ ] 汇总 independent certificate valid、current-state safety、next-state safety、barrier 和 violation counts。
-- [ ] 更新 `PHASE7_JOINT_SAFETY_AUDIT_REPORT.md` 与 `PHASE7_SAFETY_CONTRACT_DIAGNOSTIC_REPORT.md`；若重跑失败，明确记录失败原因，不把缺失结果当成通过。
+- [x] 复核历史 v4 目录的缺失工件，并另建完整的 P7.2 re-audit 输出目录。
+- [x] 使用原 P7 的 100 个场景、checkpoint、MPC 配置和 20-step refresh，重新运行独立 `check_one_step_safety` 审计。
+- [x] 验证 `summary.json`、`episodes.jsonl`、`steps.jsonl`、TensorBoard event、配置快照和 source hash 全部落盘。
+- [x] 汇总 independent certificate valid、current-state safety、next-state safety、barrier 和 violation counts；当前 source 下独立 current/next-state certificate 均为 `100%`。
+- [x] 对比历史 v2 与当前 re-audit：仅 `50/100` episode 结局一致，safe capture `50%→99%`，因此 exact behavior-parity gate 判定 No-Go。
+- [x] 新增 `PHASE28_P7_2_INDEPENDENT_CERTIFICATE_REAUDIT_REPORT.md`，明确工件完整但不能替换历史 P7 结论。
 
-**P7.2 gate：** 结果工件完整、控制结果与原始 v2 一致、独立证书指标可逐步追溯。该 gate 只完善审计，不会自动把 P7 的 No-Go 改成 Go。
+**P7.2 gate：** 工件完整和逐步证书追溯通过；控制结果与原始 v2 的 exact parity 失败，因此 P7.2 仅为条件完成，不能自动把 P7 的 No-Go 改成 Go。
 
 ### P8：修复安全契约，而不是继续堆叠模型
 
