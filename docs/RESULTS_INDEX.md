@@ -29,6 +29,7 @@ metric.
 | Phase 18 | Delay-aware split-conformal reachable-tube repair candidate | Implementation, calibration and online smoke are complete; confirmation full-trajectory coverage is 85.92% versus the 90% target and the tube is too wide, so the candidate is No-Go for promotion. | `PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md` |
 | Phase 18b | Balanced-mirror public-context adaptive conformal tube | Fixed-radius confirmation coverage remains 83.32%, but public-context inflation reaches 99.79% on the untouched development confirmation; the tube remains broad and the compactness gate was not pre-frozen, so this is a promising diagnostic rather than a promoted main result. | `PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md` |
 | Phase 18c | Tube width as an explicit UAKR feature | In an 8-scene paired smoke, mean K and refresh ratio increase without changing safe capture or collision; total p95 increases to 57.87 ms. Retain as a negative ablation, not a promoted UAKR gain. | `PHASE18C_TUBE_UAKR_SMOKE_REPORT.md` |
+| Phase 18d | Executable conformal-tube coverage--compactness gate | Coverage passes at 99.79%, but mean/max effective radius 8.416/10.404 m exceed the 8/10 m limits; the artifact is automatically classified No-Go. | `PHASE18D_COMPACTNESS_GATE_REPORT.md` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.
 Its predictor results used the former simulator-truth forecast origin and are

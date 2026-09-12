@@ -1,0 +1,29 @@
+experiment_name: phase18d_conformal_tube_compactness_gate
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# This is a replay of the frozen Phase 18b artifact.  The limits are checked
+# on the untouched development confirmation and are not tuned from locked-test.
+artifact:
+  calibration_summary: phase18b_conformal_tube_balanced_seed727201_retry2/summary.json
+  split_strategy: balanced_mirror_context
+  split_seed: 20260912
+  coverage_target: 0.90
+  uncertainty_gain: 0.25
+
+compactness_gate:
+  max_mean_effective_radius_m: 8.0
+  max_effective_radius_m: 10.0
+  check: confirmation_context_adaptive_tube
+  decision_on_failure: no_go
+
+evaluation:
+  split: validation_development_confirmation
+  locked_test_used: false
+  target_truth_allowed_in_runtime: false
+
+reporting:
+  tensorboard_required: true
+  report_coverage_pass: true
+  report_compactness_pass: true
+  report_overall_pass: true
+  report_latency_percentiles: [50, 95, 99]

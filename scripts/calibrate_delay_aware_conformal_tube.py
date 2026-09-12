@@ -76,6 +76,16 @@ def parse_args() -> argparse.Namespace:
         help="Validation scenes.jsonl required by balanced_mirror_context.",
     )
     parser.add_argument("--split-seed", type=int, default=20260912)
+    parser.add_argument(
+        "--max-mean-effective-radius-m",
+        type=float,
+        help="Optional pre-registered compactness limit on confirmation mean effective radius.",
+    )
+    parser.add_argument(
+        "--max-effective-radius-m",
+        type=float,
+        help="Optional pre-registered compactness limit on confirmation maximum effective radius.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     return parser.parse_args()
 
@@ -284,6 +294,12 @@ def main() -> None:
         raise ValueError("coverage must lie in (0, 1)")
     if not np.isfinite(float(args.uncertainty_gain)) or float(args.uncertainty_gain) < 0.0:
         raise ValueError("uncertainty-gain must be finite and non-negative")
+    compactness_limits = (
+        args.max_mean_effective_radius_m,
+        args.max_effective_radius_m,
+    )
+    if any(value is not None and (not np.isfinite(float(value)) or float(value) <= 0.0) for value in compactness_limits):
+        raise ValueError("compactness limits must be finite and positive when supplied")
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -395,6 +411,33 @@ def main() -> None:
         context_scores[confirmation_indices],
         uncertainty_gain=float(args.uncertainty_gain),
     )
+    coverage_pass = bool(
+        confirmation_adaptive_coverage["full_trajectory_coverage"] >= float(args.coverage)
+    )
+    compactness_evaluated = any(value is not None for value in compactness_limits)
+    mean_radius = float(confirmation_adaptive_coverage["mean_effective_radius_m"])
+    maximum_radius = float(confirmation_adaptive_coverage["maximum_effective_radius_m"])
+    mean_limit_pass = (
+        True
+        if args.max_mean_effective_radius_m is None
+        else mean_radius <= float(args.max_mean_effective_radius_m)
+    )
+    maximum_limit_pass = (
+        True
+        if args.max_effective_radius_m is None
+        else maximum_radius <= float(args.max_effective_radius_m)
+    )
+    compactness_gate = {
+        "evaluated": compactness_evaluated,
+        "coverage_pass": coverage_pass,
+        "compactness_pass": bool(mean_limit_pass and maximum_limit_pass),
+        "overall_pass": bool(coverage_pass and mean_limit_pass and maximum_limit_pass),
+        "confirmation_coverage": float(confirmation_adaptive_coverage["full_trajectory_coverage"]),
+        "mean_effective_radius_m": mean_radius,
+        "maximum_effective_radius_m": maximum_radius,
+        "max_mean_effective_radius_m": args.max_mean_effective_radius_m,
+        "max_effective_radius_m": args.max_effective_radius_m,
+    }
     config = {
         "checkpoint": str(args.checkpoint.resolve()),
         "validation_dataset": str(args.validation_dataset.resolve()),
@@ -422,6 +465,10 @@ def main() -> None:
         "split_seed": int(args.split_seed),
         "scene_manifest": None if args.scene_manifest is None else str(args.scene_manifest.resolve()),
         "split_metadata": split_metadata,
+        "compactness_limits_m": {
+            "max_mean_effective_radius_m": args.max_mean_effective_radius_m,
+            "max_effective_radius_m": args.max_effective_radius_m,
+        },
         "source_hashes": source_hashes(),
     }
     output.joinpath("config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
@@ -445,6 +492,9 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
+    decision = "development_confirmation_only"
+    if compactness_evaluated:
+        decision = "development_confirmation_gate_pass" if compactness_gate["overall_pass"] else "development_confirmation_no_go"
     result = {
         "config": config,
         "tube": tube,
@@ -452,9 +502,10 @@ def main() -> None:
         "confirmation": confirmation_coverage,
         "context_adaptive_calibration": calibration_adaptive_coverage,
         "context_adaptive_confirmation": confirmation_adaptive_coverage,
+        "compactness_gate": compactness_gate,
         "calibration_sample_count": int(calibration_indices.size),
         "confirmation_sample_count": int(confirmation_indices.size),
-        "decision": "development_confirmation_only",
+        "decision": decision,
         "formal_forward_invariance": False,
         "locked_test_used": False,
     }
@@ -480,6 +531,19 @@ def main() -> None:
             writer.add_scalar("Split/calibration_context_mean", float(split_metadata["calibration_context_mean"]), 0)
         if np.isfinite(float(split_metadata.get("confirmation_context_mean", np.nan))):
             writer.add_scalar("Split/confirmation_context_mean", float(split_metadata["confirmation_context_mean"]), 0)
+        if args.max_mean_effective_radius_m is not None:
+            writer.add_scalar("Gate/max_mean_effective_radius_m", float(args.max_mean_effective_radius_m), 0)
+        if args.max_effective_radius_m is not None:
+            writer.add_scalar("Gate/max_effective_radius_m", float(args.max_effective_radius_m), 0)
+        writer.add_scalar(
+            "Gate/context_adaptive_confirmation_coverage",
+            float(confirmation_adaptive_coverage["full_trajectory_coverage"]),
+            0,
+        )
+        if compactness_gate["evaluated"]:
+            writer.add_scalar("Gate/coverage_pass", float(compactness_gate["coverage_pass"]), 0)
+            writer.add_scalar("Gate/compactness_pass", float(compactness_gate["compactness_pass"]), 0)
+            writer.add_scalar("Gate/overall_pass", float(compactness_gate["overall_pass"]), 0)
         writer.add_hparams(
             {
                 "coverage": float(args.coverage),
