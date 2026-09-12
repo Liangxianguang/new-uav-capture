@@ -32,6 +32,7 @@ metric.
 | Phase 18d | Executable conformal-tube coverage--compactness gate | Coverage passes at 99.79%, but mean/max effective radius 8.416/10.404 m exceed the 8/10 m limits; the artifact is automatically classified No-Go. | `PHASE18D_COMPACTNESS_GATE_REPORT.md` |
 | Phase 19 | Severe-unreachability-gated RNIC pilot | On a paired 20-scene validation pilot, thresholds `-0.75/-0.50/-0.25 s` leave safe capture/collision unchanged at 95.0%/5.0% while increasing total p95 to 66.15--67.97 ms; retain as a negative ablation, not a promoted method. | `PHASE19_GATED_RNIC_PILOT_REPORT.md`, `phase19_gated_rnic_validation.yaml` |
 | Phase 20 | UAKR threshold-calibration pilot | Lowering thresholds to `0.30/0.55` raises mean K to 3.19 but reduces the paired 20-scene safe capture from 95.0% to 90.0% and raises total p95 to 138.04 ms; retain as a negative ablation. | `PHASE20_UAKR_THRESHOLD_CALIBRATION_PILOT_REPORT.md` |
+| Phase 21 | UAKR reliability audit | On 270 retained validation episodes, mean uncertainty ranks failure/collision with AUROC 0.740 and maximum uncertainty with AUROC 0.703; the signal is useful but quartile risk is not strictly monotonic, so calibration and confirmation remain open. | `PHASE21_UAKR_RELIABILITY_AUDIT_REPORT.md`, `scripts/analyze_uakr_reliability.py` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.
 Its predictor results used the former simulator-truth forecast origin and are

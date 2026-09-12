@@ -260,6 +260,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE20_UAKR_THRESHOLD_CALIBRATION_PILOT_REPORT.md`。该结果不能改写 Phase 17 的三种子结论，也未访问 locked-test。
 
+### P17：Phase 21 UAKR reliability audit
+
+- [x] 增加离线 `scripts/analyze_uakr_reliability.py`，从 episode/step 日志重建 episode-level mean/max uncertainty、AUROC 和分位箱，并写入 TensorBoard。
+- [x] 重跑 Phase 17 三种子 validation 日志，共 270 episodes；mean uncertainty 对 failure/collision 的 AUROC 为 `0.740`，maximum uncertainty 为 `0.703`。
+- [x] 记录最高 uncertainty 四分位 failure rate `16.42%`，最低四分位 `0%`；同时记录中间分位不严格单调，避免把该分数误写成 calibrated probability。
+- [ ] 在 fresh development calibration split 上针对 prediction miss、next-step safety margin violation、timeout 分别建立风险映射；不把 episode 终局标签直接泄漏给在线策略。
+- [ ] 冻结映射后再做 untouched confirmation，并同时检查 safe capture、collision、timeout、mean K、refresh ratio 以及 p50/p95/p99。
+
+详见 `docs/PHASE21_UAKR_RELIABILITY_AUDIT_REPORT.md`。当前 UAKR 是有希望但尚未晋级的方向。
+
 ## 7. 当前推荐执行顺序
 
 ```text
