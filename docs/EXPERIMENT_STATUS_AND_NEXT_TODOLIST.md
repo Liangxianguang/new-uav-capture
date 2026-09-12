@@ -16,7 +16,7 @@
 
 > Phase 16 目标行为 OOD 更新：新增并冻结 `short_lookahead`（0.20 s）与 `long_lookahead_margin`（1.20 s / 0.20 s）两种训练外的目标分支决策规则，各 50 个 episode，保持速度、几何和执行配置在 ID 支持内。三种子 distributed delayed + local CBF 的 safe capture 为 `94.33% [91.33%, 97.33%]`，collision / boundary 均为 `0%`，timeout 为 `5.67%`，说明该两种行为参数外推没有可见退化；这只是单轴描述性证据，不能外推到任意对抗策略。详见 `docs/PHASE16_OOD_TARGET_BEHAVIOR_REPORT.md`。
 
-> Phase 27 RNIC formation-slot pilot 更新：新增了有界、确定性的目标相对 3-D 槽位分配代价，并接入 centralized planner、distributed team score、CLI override、单元测试和 TensorBoard。固定 20 个 validation 场景、同一 GRU checkpoint 的 RNIC-off / interceptor-RNIC / formation-slot-RNIC 三臂结果分别为 safe capture `95.0% / 95.0% / 100.0%`，collision `5.0% / 5.0% / 0%`；formation 槽位的 mean clearance 为 `0.448 m`、worst clearance 为 `0.158 m`，但 total p50/p95/p99 为 `78.33/86.10/98.23 ms`，RNIC 自身为 `14.07/15.52/16.68 ms`，assignment switch rate 为 `17.16%`。该结果是单 seed、单 validation block 的可复现 pilot，不足以宣称统计显著或泛化提升；下一步只在 fresh validation 上冻结 slot radius/weight 后做三种子确认和 OOD transfer。详见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
+> Phase 27 RNIC formation-slot 更新：新增了有界、确定性的目标相对 3-D 槽位分配代价，并接入 centralized planner、distributed team score、CLI override、单元测试和 TensorBoard。历史 20 场景 pilot 的 formation-slot safe capture 为 `100.0%`，但不作统计主张。随后在全新 `60` episode / `30` mirror-group / `3` checkpoint seed 的 centralized ID confirmation 上，RNIC-off / interceptor-RNIC / formation-slot-RNIC 的 safe capture 分别为 `87.22% [81.11%,92.78%]`、`88.89% [82.22%,95.00%]`、`89.44% [83.33%,94.44%]`；formation 相对 off 的 paired delta 为 `+2.22 pp [-0.56,+5.00]`，collision delta 为 `-2.22 pp [-5.00,+0.56]`，支持预注册 `-2 pp` 非劣方向但不能宣称 superiority。随后在同 manifest 的 distributed delayed confirmation 中三臂均为 `96.67%` safe capture / `3.33%` collision，formation 未改变 episode outcomes，但 pooled total p95 为 `220.87 ms`，高于 off 的 `82.40 ms`；因此当前 distributed promotion No-Go。新 manifest hash 为 `5aaaa79c6dbef2d346ff57d48d238a34fe911d3534ebb576dff0252ba0593022`。详见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
 
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
@@ -335,17 +335,19 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 增加 `--rnic-cost-mode` 与 `--rnic-slot-radius-m` validation-only CLI override；记录 `rnic_cost_mode` 和 `assignment_switch_rate` 到 episode/summary/TensorBoard。
 - [x] 完成 20 场景三臂 centralized validation pilot：formation-slot 相对 RNIC-off 的描述性变化为 safe capture `+5.0 pp`、collision `-5.0 pp`、mean clearance `+0.037 m`，但 total p95 增加 `17.61 ms`；相对 interceptor-only 同样只观察到 1 个 paired collision 被消除。
 - [x] 增加 formation-slot 形状、assignment、边界条件、distributed team-score 测试；相关 focused tests 共 `24 passed`。
-- [ ] 不把单 seed pilot 晋级为主结果；在 fresh validation calibration 上冻结 `slot_radius_m`、`weight_reachability` 和 assignment policy。
-- [ ] 用至少 3 个 checkpoint seed、同一镜像组协议完成 off / interceptor / formation 三臂 confirmation，并报告 paired CI、planner/RNIC/total p50/p95/p99。
-- [ ] 在 geometry、target-speed、delay/execution OOD 逐轴复测；只有 RNIC slack 与 future reachability failure 具有可复现排序能力时，才讨论风险预测贡献。
-- [ ] 在 RNIC confirmation 前不重新开放 QDR×UAKR×RNIC full matrix；若 formation-slot 仍主要增加延迟而不稳定改善 collision/clearance，则保留为可复现负消融。
+- [x] 不把单 seed pilot 晋级为主结果；在 fresh validation confirmation 前冻结 `slot_radius_m`、`weight_reachability` 和 assignment policy。
+- [x] 用 3 个 checkpoint seed、同一 fresh 镜像组协议完成 off / interceptor / formation 三臂 confirmation，并报告 paired CI、planner/RNIC/total p50/p95/p99；ID safe-capture 非劣方向通过，但 superiority 未建立。
+- [x] 在 distributed delayed DN-MPC 下复现 off / interceptor / formation 三臂 confirmation；三臂均为 `96.67%` safe capture / `3.33%` collision，formation 未改变 episode outcomes，但 pooled total p95 增至 `220.87 ms`，因此当前 distributed promotion No-Go。
+- [ ] 不再为当前 formation-slot 版本开放 OOD promotion gate；若保留诊断，geometry、target-speed、delay/execution 只做逐轴 transfer profiling，不能调参或改写主结果。
+- [ ] 若重新研究 RNIC，先设计 communication-aware local assignment surrogate 或低秩 consensus，再在新的 development-calibration 上冻结计算预算、switch-rate 和 paired non-inferiority gate。
+- [x] 在 distributed confirmation 前不重新开放 QDR×UAKR×RNIC full matrix；当前 formation-slot 结果应作为 centralized ID 非劣、distributed 无行为增益且有显著延迟代价的可复现消融。
 
 详见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
 
 ## 7. 当前推荐执行顺序
 
 ```text
-P23 RNIC formation-slot fresh-validation confirmation
+P23 RNIC formation-slot distributed result freeze / redesign decision
   -> P7.2 完成独立证书工件
   -> P8 修复 reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate

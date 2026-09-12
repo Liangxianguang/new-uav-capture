@@ -1,7 +1,7 @@
 # 三个创新点完整 TodoList 目标计划书
 
-> 版本：v1.0
-> 更新时间：2026-09-12
+> 版本：v1.1
+> 更新时间：2026-09-13
 > 适用仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 研究对象：部分观测、通信/执行延迟和高机动目标下的多无人机围捕拦截
 
@@ -138,6 +138,32 @@ C_{\mathrm{RNIC}}(i,q)=
 | 安全层 | robust CBF-QP 一步证书可通过，但端到端组合曾出现 `50%` safe capture、`49%` collision | 诊断 No-Go | 不能把它作为三个创新点的成功前提，也不能用失败安全层掩盖规划结果 |
 
 因此，下面的计划是“可复现修复与重新验证计划”，不是把既有 No-Go 结果改写成成功。
+
+### 3.1 执行回写：当前三点的真实证据
+
+截至 2026-09-13，RNIC formation-slot 已完成 fresh ID 与 distributed-delayed
+确认，结果决定了后续计划的分支：
+
+- fresh centralized ID：RNIC-off / formation-slot 的 safe capture 为
+  `87.22% / 89.44%`；paired delta `+2.22 pp [-0.56,+5.00]`，支持预注册
+  `-2 pp` 非劣方向，但置信区间跨 0，不能宣称 superiority；
+- fresh distributed delayed：三臂均为 `96.67%` safe capture、`3.33%`
+  collision，formation 没有改变 episode outcomes；formation pooled total
+  p50/p95/p99 为 `205.76/220.87/235.10 ms`，RNIC-off 为
+  `75.10/82.40/89.86 ms`；
+- 因此 RNIC 当前结论是“centralized ID 非劣方向、distributed 无行为增益且
+  有显著计算代价”，保留为可复现机制/负消融，不晋级为主性能贡献；
+- QDR 和 UAKR 的既有 No-Go 结论仍有效。除非先完成新的契约修复或
+  intervention-effect calibration，否则不开放三模块 Full 组合；
+- 上述结果来自 fresh validation manifest
+  `5aaaa79c6dbef2d346ff57d48d238a34fe911d3534ebb576dff0252ba0593022`，不
+  读取 locked-test。完整数值见 `docs/PHASE27_RNIC_FORMATION_SLOT_PILOT_REPORT.md`。
+
+据此，计划的实际执行顺序调整为：先冻结 Phase 27 负结果并完成独立安全审计，
+再决定是否投入 RNIC communication-aware redesign；只有 QDR/UAKR/RNIC 三个模块
+分别在独立 confirmation 上通过对应 gate，才运行 Full factorial。若没有模块
+通过，也可以以“延迟感知分布式围捕的模块化框架与组合失效边界”为论文主线，不能
+把 Full 失败隐藏掉。
 
 ---
 
