@@ -73,6 +73,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
     PursuitCBFSafetyFilter,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from encirclement3d.reachability_interception import planned_rnic_diagnostics  # noqa: E402
 from encirclement3d.queue_aware_rollout import (  # noqa: E402
     endpoint_error_diagnostics,
     prepare_queue_aware_observation,
@@ -746,6 +747,19 @@ def run_episode(
         adaptive_cache_age_steps = 0
         adaptive_prediction_residual_m = 0.0
         adaptive_refresh_reason: str | None = None
+        rnic_enabled = False
+        rnic_latency_ms = 0.0
+        rnic_minimum_best_slack_s = float("nan")
+        rnic_mean_best_slack_s = float("nan")
+        rnic_maximum_best_slack_s = float("nan")
+        rnic_unreachable_slot_ratio = float("nan")
+        rnic_margin_violation_ratio = float("nan")
+        rnic_earliest_feasible_intercept_step = float("nan")
+        rnic_mean_arrival_time_s = float("nan")
+        rnic_maximum_arrival_time_s = float("nan")
+        planned_rnic_observation: dict[str, Any] | None = None
+        planned_rnic_scenarios: ScenarioTrajectorySet | None = None
+        planned_rnic_action_sequence: np.ndarray | None = None
         if method in {"dynamic_encirclement", "pure_pursuit"}:
             nominal_actions = (
                 fallback_actions
@@ -828,6 +842,10 @@ def run_episode(
                     )
                     qdr_endpoint_expected_checks += 1
                 qdr_latency_ms = (time.perf_counter() - qdr_started) * 1000.0
+            rnic_enabled = bool(planner_config_for_method.reachability_normalized_cost_enabled)
+            if rnic_enabled:
+                planned_rnic_observation = planning_observation
+                planned_rnic_scenarios = planning_scenarios.truncate(planner_config.horizon_steps)
             if distributed_planner is not None:
                 plan = distributed_planner.plan(
                     planning_observation,
@@ -847,6 +865,8 @@ def run_episode(
             previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
+            if rnic_enabled:
+                planned_rnic_action_sequence = np.asarray(plan.action_sequence, dtype=np.float64)
             candidate_distance_metrics = evaluate_candidate_capture_distances(
                 planning_observation,
                 plan.action_sequence,
@@ -942,6 +962,34 @@ def run_episode(
             safe_actions,
             record_history=record_history,
         )
+        if (
+            rnic_enabled
+            and planned_rnic_observation is not None
+            and planned_rnic_scenarios is not None
+            and planned_rnic_action_sequence is not None
+        ):
+            rnic_started = time.perf_counter()
+            rnic_diagnostics = planned_rnic_diagnostics(
+                np.asarray(planned_rnic_observation["defender_positions"], dtype=np.float64),
+                planned_rnic_action_sequence,
+                np.asarray(planned_rnic_scenarios.trajectories, dtype=np.float64),
+                dt_seconds=planner_config.dt_seconds,
+                max_speed_mps=planner_config.max_speed_mps,
+                max_acceleration_mps2=planner_config.reachability_max_acceleration_mps2,
+                time_margin_s=planner_config.reachability_time_margin_s,
+                time_scale_s=planner_config.reachability_time_scale_s,
+            )
+            rnic_latency_ms = (time.perf_counter() - rnic_started) * 1000.0
+            rnic_minimum_best_slack_s = float(rnic_diagnostics["minimum_best_slack_s"])
+            rnic_mean_best_slack_s = float(rnic_diagnostics["mean_best_slack_s"])
+            rnic_maximum_best_slack_s = float(rnic_diagnostics["maximum_best_slack_s"])
+            rnic_unreachable_slot_ratio = float(rnic_diagnostics["unreachable_slot_ratio"])
+            rnic_margin_violation_ratio = float(rnic_diagnostics["margin_violation_ratio"])
+            rnic_earliest_feasible_intercept_step = float(
+                rnic_diagnostics["earliest_feasible_intercept_step"]
+            )
+            rnic_mean_arrival_time_s = float(rnic_diagnostics["mean_arrival_time_s"])
+            rnic_maximum_arrival_time_s = float(rnic_diagnostics["maximum_arrival_time_s"])
         path_length += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
         previous_positions = env.defender_positions.copy()
         planner_status = str(planner_diagnostics.status)
@@ -976,6 +1024,16 @@ def run_episode(
                 "adaptive_cache_age_steps": float(adaptive_cache_age_steps),
                 "adaptive_prediction_residual_m": float(adaptive_prediction_residual_m),
                 "adaptive_refresh_reason": adaptive_refresh_reason,
+                "rnic_enabled": 1.0 if rnic_enabled else 0.0,
+                "rnic_latency_ms": float(rnic_latency_ms),
+                "rnic_minimum_best_slack_s": float(rnic_minimum_best_slack_s),
+                "rnic_mean_best_slack_s": float(rnic_mean_best_slack_s),
+                "rnic_maximum_best_slack_s": float(rnic_maximum_best_slack_s),
+                "rnic_unreachable_slot_ratio": float(rnic_unreachable_slot_ratio),
+                "rnic_margin_violation_ratio": float(rnic_margin_violation_ratio),
+                "rnic_earliest_feasible_intercept_step": float(rnic_earliest_feasible_intercept_step),
+                "rnic_mean_arrival_time_s": float(rnic_mean_arrival_time_s),
+                "rnic_maximum_arrival_time_s": float(rnic_maximum_arrival_time_s),
                 "future_action_condition_available": (
                     1.0
                     if method != "dynamic_encirclement"
@@ -1222,6 +1280,18 @@ def run_episode(
             bucket: int(sum(row["adaptive_bucket_index"] == index for row in step_rows))
             for bucket, index in (("low", 0), ("medium", 1), ("high", 2))
         },
+        "rnic_enabled_rate": float(np.mean([row["rnic_enabled"] for row in step_rows])),
+        "mean_rnic_latency_ms": float(np.nanmean([row["rnic_latency_ms"] for row in step_rows])),
+        "rnic_minimum_best_slack_s": _diagnostic_min(step_rows, "rnic_minimum_best_slack_s"),
+        "rnic_mean_best_slack_s": _diagnostic_mean(step_rows, "rnic_mean_best_slack_s"),
+        "rnic_maximum_best_slack_s": _diagnostic_max(step_rows, "rnic_maximum_best_slack_s"),
+        "rnic_unreachable_slot_ratio": _diagnostic_mean(step_rows, "rnic_unreachable_slot_ratio"),
+        "rnic_margin_violation_ratio": _diagnostic_mean(step_rows, "rnic_margin_violation_ratio"),
+        "rnic_earliest_feasible_intercept_step": _diagnostic_mean(
+            step_rows, "rnic_earliest_feasible_intercept_step"
+        ),
+        "rnic_mean_arrival_time_s": _diagnostic_mean(step_rows, "rnic_mean_arrival_time_s"),
+        "rnic_maximum_arrival_time_s": _diagnostic_max(step_rows, "rnic_maximum_arrival_time_s"),
         "mean_safety_latency_ms": float(np.nanmean([row["safety_latency_ms"] for row in step_rows])),
         "safety_solver_success_rate": _diagnostic_rate(step_rows, "safety_solver_success"),
         "safety_certificate_valid_rate": _diagnostic_rate(step_rows, "safety_certificate_valid"),
@@ -1548,6 +1618,33 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             bucket: int(sum(row.get("adaptive_bucket_counts", {}).get(bucket, 0) for row in rows))
             for bucket in ("low", "medium", "high")
         },
+        "rnic_enabled_rate": finite_mean([row["rnic_enabled_rate"] for row in rows]),
+        "mean_rnic_latency_ms": finite_mean([row["mean_rnic_latency_ms"] for row in rows]),
+        "rnic_latency_ms": {
+            "p50": percentile([float(step["rnic_latency_ms"]) for step in step_rows], 50),
+            "p95": percentile([float(step["rnic_latency_ms"]) for step in step_rows], 95),
+            "p99": percentile([float(step["rnic_latency_ms"]) for step in step_rows], 99),
+        },
+        "rnic_minimum_best_slack_s": finite_min(
+            [row["rnic_minimum_best_slack_s"] for row in rows]
+        ),
+        "rnic_mean_best_slack_s": finite_mean([row["rnic_mean_best_slack_s"] for row in rows]),
+        "rnic_maximum_best_slack_s": finite_max(
+            [row["rnic_maximum_best_slack_s"] for row in rows]
+        ),
+        "rnic_unreachable_slot_ratio": finite_mean(
+            [row["rnic_unreachable_slot_ratio"] for row in rows]
+        ),
+        "rnic_margin_violation_ratio": finite_mean(
+            [row["rnic_margin_violation_ratio"] for row in rows]
+        ),
+        "rnic_earliest_feasible_intercept_step": finite_mean(
+            [row["rnic_earliest_feasible_intercept_step"] for row in rows]
+        ),
+        "rnic_mean_arrival_time_s": finite_mean([row["rnic_mean_arrival_time_s"] for row in rows]),
+        "rnic_maximum_arrival_time_s": finite_max(
+            [row["rnic_maximum_arrival_time_s"] for row in rows]
+        ),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -1891,6 +1988,16 @@ def main() -> None:
                     "adaptive_forced_refresh",
                     "adaptive_cache_age_steps",
                     "adaptive_prediction_residual_m",
+                    "rnic_enabled",
+                    "rnic_latency_ms",
+                    "rnic_minimum_best_slack_s",
+                    "rnic_mean_best_slack_s",
+                    "rnic_maximum_best_slack_s",
+                    "rnic_unreachable_slot_ratio",
+                    "rnic_margin_violation_ratio",
+                    "rnic_earliest_feasible_intercept_step",
+                    "rnic_mean_arrival_time_s",
+                    "rnic_maximum_arrival_time_s",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -1985,6 +2092,15 @@ def main() -> None:
                 json.dumps(summary.get("adaptive_bucket_counts", {}), sort_keys=True),
                 0,
             )
+            writer.add_scalar("Summary/RNIC/enabled_rate", summary["rnic_enabled_rate"], 0)
+            writer.add_scalar("Summary/RNIC/mean_latency_ms", summary["mean_rnic_latency_ms"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p50_ms", summary["rnic_latency_ms"]["p50"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p95_ms", summary["rnic_latency_ms"]["p95"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p99_ms", summary["rnic_latency_ms"]["p99"], 0)
+            writer.add_scalar("Summary/RNIC/minimum_best_slack_s", summary["rnic_minimum_best_slack_s"], 0)
+            writer.add_scalar("Summary/RNIC/mean_best_slack_s", summary["rnic_mean_best_slack_s"], 0)
+            writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", summary["rnic_unreachable_slot_ratio"], 0)
+            writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", summary["rnic_earliest_feasible_intercept_step"], 0)
             writer.add_hparams(
                 {
                     "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",

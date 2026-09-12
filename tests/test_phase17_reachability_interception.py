@@ -4,6 +4,7 @@ import numpy as np
 
 from encirclement3d.reachability_interception import (
     minimum_arrival_time,
+    planned_rnic_diagnostics,
     reachability_normalized_interception_cost,
     rnic_summary,
 )
@@ -50,3 +51,25 @@ def test_rnic_returns_sequence_scenario_cost_and_auditable_slack() -> None:
     assert float(slack[0, 0, 0]) < 0.0
     summary = rnic_summary(slack)
     assert summary["minimum_best_slack_s"] < 0.0
+
+
+def test_planned_rnic_diagnostics_reconstructs_selected_team_rollout() -> None:
+    positions = np.zeros((2, 3), dtype=np.float64)
+    actions = np.zeros((3, 2, 3), dtype=np.float64)
+    actions[:, :, 0] = 1.0
+    targets = np.zeros((2, 3, 3), dtype=np.float64)
+    targets[:, :, 0] = 2.0
+
+    diagnostics = planned_rnic_diagnostics(
+        positions,
+        actions,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+    )
+
+    assert diagnostics["earliest_feasible_intercept_step"] >= 1.0
+    assert 0.0 <= diagnostics["unreachable_slot_ratio"] <= 1.0
+    assert 0.0 <= diagnostics["margin_violation_ratio"] <= 1.0
+    assert diagnostics["maximum_arrival_time_s"] >= diagnostics["mean_arrival_time_s"]

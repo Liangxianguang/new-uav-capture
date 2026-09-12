@@ -127,8 +127,69 @@ def rnic_summary(best_slack: np.ndarray) -> dict[str, float]:
     }
 
 
+def planned_rnic_diagnostics(
+    defender_positions: np.ndarray,
+    action_sequence: np.ndarray,
+    target_paths: np.ndarray,
+    *,
+    dt_seconds: float,
+    max_speed_mps: float,
+    max_acceleration_mps2: float,
+    time_margin_s: float = 0.15,
+    time_scale_s: float = 0.50,
+) -> dict[str, float]:
+    """Return auditable RNIC diagnostics for one selected team plan.
+
+    ``action_sequence`` follows the simulator contract and is interpreted as
+    the commanded velocity at each future step. This helper reconstructs the
+    same nominal position rollout used by the planner and deliberately accepts
+    no simulator truth. It is intended for step/episode logging, not for a
+    safety certificate or for changing the selected plan.
+    """
+
+    positions = np.asarray(defender_positions, dtype=np.float64)
+    actions = np.asarray(action_sequence, dtype=np.float64)
+    targets = np.asarray(target_paths, dtype=np.float64)
+    if positions.ndim != 2 or positions.shape[-1] != 3:
+        raise ValueError("defender_positions must have shape [defenders, 3]")
+    if actions.ndim != 3 or actions.shape[-1] != 3 or actions.shape[1] != positions.shape[0]:
+        raise ValueError("action_sequence must have shape [horizon, defenders, 3]")
+    if targets.ndim != 3 or targets.shape[1] != actions.shape[0] or targets.shape[-1] != 3:
+        raise ValueError("target_paths must have shape [scenarios, horizon, 3]")
+    if not np.isfinite(positions).all() or not np.isfinite(actions).all() or not np.isfinite(targets).all():
+        raise ValueError("planned RNIC diagnostic inputs must be finite")
+
+    position_paths = positions[None, :, :] + np.cumsum(actions * float(dt_seconds), axis=0)
+    _cost, best_slack, arrival_times = reachability_normalized_interception_cost(
+        position_paths[None, :, :, :],
+        actions[None, :, :, :],
+        targets,
+        dt_seconds=dt_seconds,
+        max_speed_mps=max_speed_mps,
+        max_acceleration_mps2=max_acceleration_mps2,
+        time_margin_s=time_margin_s,
+        time_scale_s=time_scale_s,
+    )
+    best = best_slack[0]
+    arrival = arrival_times[0]
+    summary = rnic_summary(best)
+    feasible_by_step = np.all(best >= float(time_margin_s), axis=0)
+    feasible_steps = np.flatnonzero(feasible_by_step)
+    return {
+        **summary,
+        "unreachable_slot_ratio": float(np.mean(best < 0.0)),
+        "margin_violation_ratio": float(np.mean(best < float(time_margin_s))),
+        "earliest_feasible_intercept_step": (
+            float(feasible_steps[0] + 1) if feasible_steps.size else float(best.shape[1] + 1)
+        ),
+        "mean_arrival_time_s": float(np.mean(arrival)),
+        "maximum_arrival_time_s": float(np.max(arrival)),
+    }
+
+
 __all__ = [
     "minimum_arrival_time",
     "reachability_normalized_interception_cost",
     "rnic_summary",
+    "planned_rnic_diagnostics",
 ]

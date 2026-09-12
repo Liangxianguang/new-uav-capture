@@ -345,6 +345,16 @@ def main() -> None:
                     "adaptive_forced_refresh_rate",
                     "mean_adaptive_cache_age_steps",
                     "mean_adaptive_prediction_residual_m",
+                    "rnic_enabled_rate",
+                    "mean_rnic_latency_ms",
+                    "rnic_minimum_best_slack_s",
+                    "rnic_mean_best_slack_s",
+                    "rnic_maximum_best_slack_s",
+                    "rnic_unreachable_slot_ratio",
+                    "rnic_margin_violation_ratio",
+                    "rnic_earliest_feasible_intercept_step",
+                    "rnic_mean_arrival_time_s",
+                    "rnic_maximum_arrival_time_s",
                 ):
                     value = row.get(key)
                     if value is not None and np.isfinite(float(value)):
@@ -389,6 +399,14 @@ def main() -> None:
                 0,
             )
             writer.add_text("Summary/UAKR/BucketCounts", json.dumps(overall.get("adaptive_bucket_counts", {})), 0)
+            writer.add_scalar("Summary/RNIC/enabled_rate", overall["rnic_enabled_rate"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p50_ms", overall["rnic_latency_ms"]["p50"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p95_ms", overall["rnic_latency_ms"]["p95"], 0)
+            writer.add_scalar("Summary/RNIC/latency_p99_ms", overall["rnic_latency_ms"]["p99"], 0)
+            writer.add_scalar("Summary/RNIC/minimum_best_slack_s", overall["rnic_minimum_best_slack_s"], 0)
+            writer.add_scalar("Summary/RNIC/mean_best_slack_s", overall["rnic_mean_best_slack_s"], 0)
+            writer.add_scalar("Summary/RNIC/unreachable_slot_ratio", overall["rnic_unreachable_slot_ratio"], 0)
+            writer.add_scalar("Summary/RNIC/earliest_feasible_intercept_step", overall["rnic_earliest_feasible_intercept_step"], 0)
             writer.add_hparams(
                 {
                     "method": method,
