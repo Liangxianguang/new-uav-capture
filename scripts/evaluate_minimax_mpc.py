@@ -258,6 +258,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only escape-gap cost weight override.",
     )
+    fc_dbf_group = parser.add_mutually_exclusive_group()
+    fc_dbf_group.add_argument(
+        "--fc-dbf",
+        dest="fc_dbf",
+        action="store_true",
+        help="Enable the finite feasible-consensus formation gate.",
+    )
+    fc_dbf_group.add_argument(
+        "--no-fc-dbf",
+        dest="fc_dbf",
+        action="store_false",
+        help="Disable the finite feasible-consensus formation gate.",
+    )
+    parser.set_defaults(fc_dbf=None)
+    parser.add_argument(
+        "--fc-dbf-cost-weight",
+        type=float,
+        help="Validation-only FC-DBF cost weight override.",
+    )
+    parser.add_argument(
+        "--fc-dbf-slot-tolerance-m",
+        type=float,
+        help="Validation-only FC-DBF slot tracking tolerance override in metres.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -296,6 +320,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "minimax_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "distributed_dn_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "escape_gap.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "feasible_consensus.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
@@ -808,7 +833,14 @@ def run_episode(
     )
     if resolved_safety_layer == "robust_cbf_qp" and robust_safety_config is None:
         raise ValueError("robust_safety_config is required for the robust_cbf_qp safety layer")
-    planner = ScenarioMinimaxMPC(planner_config)
+    planner = ScenarioMinimaxMPC(
+        MinimaxMPCConfig(
+            **{
+                **planner_config.__dict__,
+                "risk_mode": method if method in {"expected", "worst_case", "cvar"} else "worst_case",
+            }
+        )
+    )
     distributed_planner: DistributedMinimaxDNMPC | None = None
     previous_distributed_sequence: np.ndarray | None = None
     distributed_methods = {
@@ -958,6 +990,16 @@ def run_episode(
         escape_gap_escape_rad = float("nan")
         escape_gap_coverage_ratio = float("nan")
         escape_gap_violation_rate = float("nan")
+        fc_dbf_enabled = bool(getattr(planner_config, "fc_dbf_enabled", False))
+        fc_dbf_feasible = False
+        fc_dbf_min_slot_slack_s = float("nan")
+        fc_dbf_max_slot_error_m = float("nan")
+        fc_dbf_mean_slot_error_m = float("nan")
+        fc_dbf_mean_slot_progress_m = float("nan")
+        fc_dbf_assignment_switch_rate = float("nan")
+        fc_dbf_feasible_rate = float("nan")
+        fc_dbf_gate_exhausted = False
+        fc_dbf_cost = float("nan")
         conformal_tube_enabled = False
         conformal_tube_mean_radius_m = float("nan")
         conformal_tube_max_radius_m = float("nan")
@@ -1091,7 +1133,6 @@ def run_episode(
                 )
                 previous_distributed_sequence = _shift_warm_start_sequence(plan.action_sequence)
             else:
-                planner = ScenarioMinimaxMPC(planner_config_for_method)
                 plan = planner.plan(
                     planning_observation,
                     planning_scenarios,
@@ -1109,6 +1150,28 @@ def run_episode(
             escape_gap_violation_rate = float(
                 getattr(planner_diagnostics, "escape_gap_violation_rate", float("nan"))
             )
+            fc_dbf_enabled = bool(getattr(planner_diagnostics, "fc_dbf_enabled", fc_dbf_enabled))
+            fc_dbf_feasible = bool(getattr(planner_diagnostics, "fc_dbf_feasible", False))
+            fc_dbf_min_slot_slack_s = float(
+                getattr(planner_diagnostics, "fc_dbf_min_slot_slack_s", float("nan"))
+            )
+            fc_dbf_max_slot_error_m = float(
+                getattr(planner_diagnostics, "fc_dbf_max_slot_error_m", float("nan"))
+            )
+            fc_dbf_mean_slot_error_m = float(
+                getattr(planner_diagnostics, "fc_dbf_mean_slot_error_m", float("nan"))
+            )
+            fc_dbf_mean_slot_progress_m = float(
+                getattr(planner_diagnostics, "fc_dbf_mean_slot_progress_m", float("nan"))
+            )
+            fc_dbf_assignment_switch_rate = float(
+                getattr(planner_diagnostics, "fc_dbf_assignment_switch_rate", float("nan"))
+            )
+            fc_dbf_feasible_rate = float(
+                getattr(planner_diagnostics, "fc_dbf_feasible_rate", float("nan"))
+            )
+            fc_dbf_gate_exhausted = bool(getattr(planner_diagnostics, "fc_dbf_gate_exhausted", False))
+            fc_dbf_cost = float(getattr(planner_diagnostics, "fc_dbf_cost", float("nan")))
             if rnic_enabled:
                 planned_rnic_action_sequence = np.asarray(plan.action_sequence, dtype=np.float64)
             candidate_distance_metrics = evaluate_candidate_capture_distances(
@@ -1325,6 +1388,16 @@ def run_episode(
                 "escape_gap_escape_rad": float(escape_gap_escape_rad),
                 "escape_gap_coverage_ratio": float(escape_gap_coverage_ratio),
                 "escape_gap_violation_rate": float(escape_gap_violation_rate),
+                "fc_dbf_enabled": 1.0 if fc_dbf_enabled else 0.0,
+                "fc_dbf_feasible": 1.0 if fc_dbf_feasible else 0.0,
+                "fc_dbf_min_slot_slack_s": float(fc_dbf_min_slot_slack_s),
+                "fc_dbf_max_slot_error_m": float(fc_dbf_max_slot_error_m),
+                "fc_dbf_mean_slot_error_m": float(fc_dbf_mean_slot_error_m),
+                "fc_dbf_mean_slot_progress_m": float(fc_dbf_mean_slot_progress_m),
+                "fc_dbf_assignment_switch_rate": float(fc_dbf_assignment_switch_rate),
+                "fc_dbf_feasible_rate": float(fc_dbf_feasible_rate),
+                "fc_dbf_gate_exhausted": 1.0 if fc_dbf_gate_exhausted else 0.0,
+                "fc_dbf_cost": float(fc_dbf_cost),
                 "conformal_tube_enabled": 1.0 if conformal_tube_enabled else 0.0,
                 "conformal_tube_mean_radius_m": float(conformal_tube_mean_radius_m),
                 "conformal_tube_max_radius_m": float(conformal_tube_max_radius_m),
@@ -1623,6 +1696,17 @@ def run_episode(
         "mean_escape_gap_escape_rad": _diagnostic_mean(step_rows, "escape_gap_escape_rad"),
         "mean_escape_gap_coverage_ratio": _diagnostic_mean(step_rows, "escape_gap_coverage_ratio"),
         "mean_escape_gap_violation_rate": _diagnostic_mean(step_rows, "escape_gap_violation_rate"),
+        "fc_dbf_enabled_rate": _diagnostic_mean(step_rows, "fc_dbf_enabled"),
+        "fc_dbf_feasible_rate": _diagnostic_mean(step_rows, "fc_dbf_feasible"),
+        "mean_fc_dbf_min_slot_slack_s": _diagnostic_mean(step_rows, "fc_dbf_min_slot_slack_s"),
+        "mean_fc_dbf_max_slot_error_m": _diagnostic_mean(step_rows, "fc_dbf_max_slot_error_m"),
+        "mean_fc_dbf_slot_error_m": _diagnostic_mean(step_rows, "fc_dbf_mean_slot_error_m"),
+        "mean_fc_dbf_slot_progress_m": _diagnostic_mean(step_rows, "fc_dbf_mean_slot_progress_m"),
+        "mean_fc_dbf_assignment_switch_rate": _diagnostic_mean(
+            step_rows, "fc_dbf_assignment_switch_rate"
+        ),
+        "fc_dbf_gate_exhaustion_rate": _diagnostic_mean(step_rows, "fc_dbf_gate_exhausted"),
+        "mean_fc_dbf_cost": _diagnostic_mean(step_rows, "fc_dbf_cost"),
         "conformal_tube_enabled_rate": float(np.mean([row["conformal_tube_enabled"] for row in step_rows])),
         "mean_conformal_tube_radius_m": _diagnostic_mean(step_rows, "conformal_tube_mean_radius_m"),
         "maximum_conformal_tube_radius_m": _diagnostic_max(step_rows, "conformal_tube_max_radius_m"),
@@ -2047,6 +2131,27 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         "mean_escape_gap_violation_rate": finite_mean(
             [row["mean_escape_gap_violation_rate"] for row in rows]
         ),
+        "fc_dbf_enabled_rate": finite_mean([row["fc_dbf_enabled_rate"] for row in rows]),
+        "fc_dbf_feasible_rate": finite_mean([row["fc_dbf_feasible_rate"] for row in rows]),
+        "mean_fc_dbf_min_slot_slack_s": finite_mean(
+            [row["mean_fc_dbf_min_slot_slack_s"] for row in rows]
+        ),
+        "mean_fc_dbf_max_slot_error_m": finite_mean(
+            [row["mean_fc_dbf_max_slot_error_m"] for row in rows]
+        ),
+        "mean_fc_dbf_slot_error_m": finite_mean(
+            [row["mean_fc_dbf_slot_error_m"] for row in rows]
+        ),
+        "mean_fc_dbf_slot_progress_m": finite_mean(
+            [row["mean_fc_dbf_slot_progress_m"] for row in rows]
+        ),
+        "mean_fc_dbf_assignment_switch_rate": finite_mean(
+            [row["mean_fc_dbf_assignment_switch_rate"] for row in rows]
+        ),
+        "fc_dbf_gate_exhaustion_rate": finite_mean(
+            [row["fc_dbf_gate_exhaustion_rate"] for row in rows]
+        ),
+        "mean_fc_dbf_cost": finite_mean([row["mean_fc_dbf_cost"] for row in rows]),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -2124,6 +2229,16 @@ def main() -> None:
         if not np.isfinite(float(args.escape_gap_weight)) or float(args.escape_gap_weight) < 0.0:
             raise ValueError("escape-gap-weight must be finite and non-negative")
         planner_mapping["weight_escape_gap"] = float(args.escape_gap_weight)
+    if args.fc_dbf is not None:
+        planner_mapping["fc_dbf_enabled"] = bool(args.fc_dbf)
+    if args.fc_dbf_cost_weight is not None:
+        if not np.isfinite(float(args.fc_dbf_cost_weight)) or float(args.fc_dbf_cost_weight) < 0.0:
+            raise ValueError("fc-dbf-cost-weight must be finite and non-negative")
+        planner_mapping["fc_dbf_cost_weight"] = float(args.fc_dbf_cost_weight)
+    if args.fc_dbf_slot_tolerance_m is not None:
+        if not np.isfinite(float(args.fc_dbf_slot_tolerance_m)) or float(args.fc_dbf_slot_tolerance_m) <= 0.0:
+            raise ValueError("fc-dbf-slot-tolerance-m must be finite and positive")
+        planner_mapping["fc_dbf_slot_tolerance_m"] = float(args.fc_dbf_slot_tolerance_m)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -2511,6 +2626,15 @@ def main() -> None:
                     "mean_escape_gap_escape_rad",
                     "mean_escape_gap_coverage_ratio",
                     "mean_escape_gap_violation_rate",
+                    "fc_dbf_enabled_rate",
+                    "fc_dbf_feasible_rate",
+                    "mean_fc_dbf_min_slot_slack_s",
+                    "mean_fc_dbf_max_slot_error_m",
+                    "mean_fc_dbf_slot_error_m",
+                    "mean_fc_dbf_slot_progress_m",
+                    "mean_fc_dbf_assignment_switch_rate",
+                    "fc_dbf_gate_exhaustion_rate",
+                    "mean_fc_dbf_cost",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -2655,6 +2779,39 @@ def main() -> None:
             writer.add_scalar("Summary/EGC/mean_escape_gap_rad", summary["mean_escape_gap_escape_rad"], 0)
             writer.add_scalar("Summary/EGC/mean_coverage_ratio", summary["mean_escape_gap_coverage_ratio"], 0)
             writer.add_scalar("Summary/EGC/mean_violation_rate", summary["mean_escape_gap_violation_rate"], 0)
+            writer.add_scalar("Summary/FCDBF/enabled_rate", summary["fc_dbf_enabled_rate"], 0)
+            writer.add_scalar("Summary/FCDBF/feasible_rate", summary["fc_dbf_feasible_rate"], 0)
+            writer.add_scalar(
+                "Summary/FCDBF/mean_min_slot_slack_s",
+                summary["mean_fc_dbf_min_slot_slack_s"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_max_slot_error_m",
+                summary["mean_fc_dbf_max_slot_error_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_slot_error_m",
+                summary["mean_fc_dbf_slot_error_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_slot_progress_m",
+                summary["mean_fc_dbf_slot_progress_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/assignment_switch_rate",
+                summary["mean_fc_dbf_assignment_switch_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/gate_exhaustion_rate",
+                summary["fc_dbf_gate_exhaustion_rate"],
+                0,
+            )
+            writer.add_scalar("Summary/FCDBF/mean_cost", summary["mean_fc_dbf_cost"], 0)
             writer.add_scalar("Summary/ConformalTube/enabled_rate", summary["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", summary["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", summary["maximum_conformal_tube_radius_m"], 0)

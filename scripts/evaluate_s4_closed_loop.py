@@ -174,6 +174,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only escape-gap cost weight override.",
     )
+    fc_dbf_group = parser.add_mutually_exclusive_group()
+    fc_dbf_group.add_argument(
+        "--fc-dbf",
+        dest="fc_dbf",
+        action="store_true",
+        help="Enable the finite feasible-consensus formation gate.",
+    )
+    fc_dbf_group.add_argument(
+        "--no-fc-dbf",
+        dest="fc_dbf",
+        action="store_false",
+        help="Disable the finite feasible-consensus formation gate.",
+    )
+    parser.set_defaults(fc_dbf=None)
+    parser.add_argument(
+        "--fc-dbf-cost-weight",
+        type=float,
+        help="Validation-only FC-DBF cost weight override.",
+    )
+    parser.add_argument(
+        "--fc-dbf-slot-tolerance-m",
+        type=float,
+        help="Validation-only FC-DBF slot tracking tolerance override in metres.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -290,6 +314,16 @@ def main() -> None:
         if not np.isfinite(float(args.escape_gap_weight)) or float(args.escape_gap_weight) < 0.0:
             raise ValueError("escape-gap-weight must be finite and non-negative")
         planner_mapping["weight_escape_gap"] = float(args.escape_gap_weight)
+    if args.fc_dbf is not None:
+        planner_mapping["fc_dbf_enabled"] = bool(args.fc_dbf)
+    if args.fc_dbf_cost_weight is not None:
+        if not np.isfinite(float(args.fc_dbf_cost_weight)) or float(args.fc_dbf_cost_weight) < 0.0:
+            raise ValueError("fc-dbf-cost-weight must be finite and non-negative")
+        planner_mapping["fc_dbf_cost_weight"] = float(args.fc_dbf_cost_weight)
+    if args.fc_dbf_slot_tolerance_m is not None:
+        if not np.isfinite(float(args.fc_dbf_slot_tolerance_m)) or float(args.fc_dbf_slot_tolerance_m) <= 0.0:
+            raise ValueError("fc-dbf-slot-tolerance-m must be finite and positive")
+        planner_mapping["fc_dbf_slot_tolerance_m"] = float(args.fc_dbf_slot_tolerance_m)
     planner_config = MinimaxMPCConfig.from_mapping(planner_mapping)
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)
@@ -586,6 +620,15 @@ def main() -> None:
                     "mean_escape_gap_escape_rad",
                     "mean_escape_gap_coverage_ratio",
                     "mean_escape_gap_violation_rate",
+                    "fc_dbf_enabled_rate",
+                    "fc_dbf_feasible_rate",
+                    "mean_fc_dbf_min_slot_slack_s",
+                    "mean_fc_dbf_max_slot_error_m",
+                    "mean_fc_dbf_slot_error_m",
+                    "mean_fc_dbf_slot_progress_m",
+                    "mean_fc_dbf_assignment_switch_rate",
+                    "fc_dbf_gate_exhaustion_rate",
+                    "mean_fc_dbf_cost",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -663,6 +706,39 @@ def main() -> None:
             writer.add_scalar("Summary/EGC/mean_escape_gap_rad", overall["mean_escape_gap_escape_rad"], 0)
             writer.add_scalar("Summary/EGC/mean_coverage_ratio", overall["mean_escape_gap_coverage_ratio"], 0)
             writer.add_scalar("Summary/EGC/mean_violation_rate", overall["mean_escape_gap_violation_rate"], 0)
+            writer.add_scalar("Summary/FCDBF/enabled_rate", overall["fc_dbf_enabled_rate"], 0)
+            writer.add_scalar("Summary/FCDBF/feasible_rate", overall["fc_dbf_feasible_rate"], 0)
+            writer.add_scalar(
+                "Summary/FCDBF/mean_min_slot_slack_s",
+                overall["mean_fc_dbf_min_slot_slack_s"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_max_slot_error_m",
+                overall["mean_fc_dbf_max_slot_error_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_slot_error_m",
+                overall["mean_fc_dbf_slot_error_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/mean_slot_progress_m",
+                overall["mean_fc_dbf_slot_progress_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/assignment_switch_rate",
+                overall["mean_fc_dbf_assignment_switch_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/FCDBF/gate_exhaustion_rate",
+                overall["fc_dbf_gate_exhaustion_rate"],
+                0,
+            )
+            writer.add_scalar("Summary/FCDBF/mean_cost", overall["mean_fc_dbf_cost"], 0)
             writer.add_scalar("Summary/ConformalTube/enabled_rate", overall["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", overall["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", overall["maximum_conformal_tube_radius_m"], 0)

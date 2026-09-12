@@ -21,6 +21,7 @@ from .reachability_interception import (
     formation_slot_reachability_cost,
     reachability_normalized_interception_cost,
 )
+from .feasible_consensus import fc_dbf_summary, feasible_consensus_slot_gate
 
 
 RiskMode = Literal["expected", "worst_case", "cvar"]
@@ -145,6 +146,16 @@ class MinimaxMPCConfig:
     escape_gap_max_weight: float = 1.0
     escape_gap_direction_weight: float = 1.0
     escape_gap_horizon_discount: float = 1.0
+    fc_dbf_enabled: bool = False
+    fc_dbf_slot_radius_m: float | None = None
+    fc_dbf_slot_tolerance_m: float = 3.0
+    fc_dbf_min_slot_slack_s: float = -2.0
+    fc_dbf_min_progress_m: float = -0.10
+    fc_dbf_gate_horizon_steps: int = 3
+    fc_dbf_max_assignment_switch_rate: float = 0.5
+    fc_dbf_switch_penalty: float = 0.10
+    fc_dbf_cost_weight: float = 0.25
+    fc_dbf_hold_previous_slot: bool = True
     weight_control: float = 0.015
     weight_control_change: float = 0.02
     weight_obstacle: float = 25.0
@@ -239,6 +250,26 @@ class MinimaxMPCConfig:
             float(self.reachability_activation_slack_s)
         ):
             raise ValueError("reachability_activation_slack_s must be finite when provided")
+        if self.fc_dbf_slot_radius_m is not None and (
+            not np.isfinite(float(self.fc_dbf_slot_radius_m))
+            or float(self.fc_dbf_slot_radius_m) <= 0.0
+        ):
+            raise ValueError("fc_dbf_slot_radius_m must be finite and positive when provided")
+        if not np.isfinite(float(self.fc_dbf_slot_tolerance_m)) or float(self.fc_dbf_slot_tolerance_m) <= 0.0:
+            raise ValueError("fc_dbf_slot_tolerance_m must be finite and positive")
+        if not np.isfinite(float(self.fc_dbf_min_slot_slack_s)):
+            raise ValueError("fc_dbf_min_slot_slack_s must be finite")
+        if not np.isfinite(float(self.fc_dbf_min_progress_m)):
+            raise ValueError("fc_dbf_min_progress_m must be finite")
+        if int(self.fc_dbf_gate_horizon_steps) <= 0:
+            raise ValueError("fc_dbf_gate_horizon_steps must be positive")
+        if self.fc_dbf_enabled and int(self.fc_dbf_gate_horizon_steps) > int(self.horizon_steps):
+            raise ValueError("fc_dbf_gate_horizon_steps must lie in [1, horizon_steps] when FC-DBF is enabled")
+        if not 0.0 <= float(self.fc_dbf_max_assignment_switch_rate) <= 1.0:
+            raise ValueError("fc_dbf_max_assignment_switch_rate must lie in [0, 1]")
+        fc_dbf_weights = (self.fc_dbf_switch_penalty, self.fc_dbf_cost_weight)
+        if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in fc_dbf_weights):
+            raise ValueError("FC-DBF weights must be finite and non-negative")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "MinimaxMPCConfig":
@@ -272,6 +303,16 @@ class MinimaxMPCDiagnostics:
     escape_gap_escape_rad: float = float("nan")
     escape_gap_coverage_ratio: float = float("nan")
     escape_gap_violation_rate: float = float("nan")
+    fc_dbf_enabled: bool = False
+    fc_dbf_feasible: bool = False
+    fc_dbf_min_slot_slack_s: float = float("nan")
+    fc_dbf_max_slot_error_m: float = float("nan")
+    fc_dbf_mean_slot_error_m: float = float("nan")
+    fc_dbf_mean_slot_progress_m: float = float("nan")
+    fc_dbf_assignment_switch_rate: float = float("nan")
+    fc_dbf_feasible_rate: float = float("nan")
+    fc_dbf_gate_exhausted: bool = False
+    fc_dbf_cost: float = float("nan")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -292,6 +333,16 @@ class MinimaxMPCDiagnostics:
             "escape_gap_escape_rad": self.escape_gap_escape_rad,
             "escape_gap_coverage_ratio": self.escape_gap_coverage_ratio,
             "escape_gap_violation_rate": self.escape_gap_violation_rate,
+            "fc_dbf_enabled": self.fc_dbf_enabled,
+            "fc_dbf_feasible": self.fc_dbf_feasible,
+            "fc_dbf_min_slot_slack_s": self.fc_dbf_min_slot_slack_s,
+            "fc_dbf_max_slot_error_m": self.fc_dbf_max_slot_error_m,
+            "fc_dbf_mean_slot_error_m": self.fc_dbf_mean_slot_error_m,
+            "fc_dbf_mean_slot_progress_m": self.fc_dbf_mean_slot_progress_m,
+            "fc_dbf_assignment_switch_rate": self.fc_dbf_assignment_switch_rate,
+            "fc_dbf_feasible_rate": self.fc_dbf_feasible_rate,
+            "fc_dbf_gate_exhausted": self.fc_dbf_gate_exhausted,
+            "fc_dbf_cost": self.fc_dbf_cost,
         }
 
 
@@ -512,6 +563,12 @@ class ScenarioMinimaxMPC:
 
     def __init__(self, config: MinimaxMPCConfig) -> None:
         self.config = config
+        self._fc_dbf_previous_assignment: np.ndarray | None = None
+
+    def reset(self) -> None:
+        """Reset stateful FC-DBF topology memory between episodes."""
+
+        self._fc_dbf_previous_assignment = None
 
     def plan(
         self,
@@ -556,7 +613,8 @@ class ScenarioMinimaxMPC:
             )
             if not np.isfinite(scenario_cost_matrix).all():
                 raise FloatingPointError("scenario cost matrix contains non-finite values")
-            objectives = np.asarray(
+            base_scenario_cost_matrix = scenario_cost_matrix.copy()
+            base_objectives = np.asarray(
                 [
                     aggregate_scenario_costs(
                         row,
@@ -568,6 +626,69 @@ class ScenarioMinimaxMPC:
                 ],
                 dtype=np.float64,
             )
+            fc_metrics: dict[str, np.ndarray | float | bool] | None = None
+            fc_gate_exhausted = False
+            if self.config.fc_dbf_enabled:
+                action_array = np.stack(sequences, axis=0)
+                initial = np.asarray(observation["defender_positions"], dtype=np.float64)
+                position_paths = initial[None, None, :, :] + np.cumsum(
+                    action_array * self.config.dt_seconds,
+                    axis=1,
+                )
+                fc_metrics = feasible_consensus_slot_gate(
+                    position_paths,
+                    action_array,
+                    np.asarray(candidates.trajectories, dtype=np.float64),
+                    slot_radius_m=float(
+                        self.config.role_perimeter_m
+                        if self.config.fc_dbf_slot_radius_m is None
+                        else self.config.fc_dbf_slot_radius_m
+                    ),
+                    dt_seconds=self.config.dt_seconds,
+                    max_speed_mps=self.config.max_speed_mps,
+                    max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                    slot_tolerance_m=self.config.fc_dbf_slot_tolerance_m,
+                    min_slot_slack_s=self.config.fc_dbf_min_slot_slack_s,
+                    min_progress_m=self.config.fc_dbf_min_progress_m,
+                    gate_horizon_steps=self.config.fc_dbf_gate_horizon_steps,
+                    max_assignment_switch_rate=self.config.fc_dbf_max_assignment_switch_rate,
+                    switch_penalty=self.config.fc_dbf_switch_penalty,
+                    time_scale_s=self.config.reachability_time_scale_s,
+                    previous_assignment=(
+                        self._fc_dbf_previous_assignment
+                        if self.config.fc_dbf_hold_previous_slot
+                        else None
+                    ),
+                )
+                feasible_sequences = np.all(np.asarray(fc_metrics["feasible"], dtype=bool), axis=1)
+                if np.any(feasible_sequences):
+                    scenario_cost_matrix = base_scenario_cost_matrix + self.config.fc_dbf_cost_weight * np.asarray(
+                        fc_metrics["cost"],
+                        dtype=np.float64,
+                    )
+                    objectives = np.asarray(
+                        [
+                            aggregate_scenario_costs(
+                                row,
+                                candidates.normalized_weights,
+                                self.config.risk_mode,
+                                self.config.cvar_alpha,
+                            )
+                            for row in scenario_cost_matrix
+                        ],
+                        dtype=np.float64,
+                    )
+                    objectives[~feasible_sequences] = np.inf
+                else:
+                    # No candidate satisfies the declared local contract.  Do
+                    # not fabricate feasibility or make the entire planner
+                    # fail; hold the base MPC decision and expose the gate
+                    # exhaustion in the diagnostics.
+                    objectives = base_objectives
+                    scenario_cost_matrix = base_scenario_cost_matrix
+                    fc_gate_exhausted = True
+            else:
+                objectives = base_objectives
             selected = int(np.argmin(objectives))
             selected_costs = scenario_cost_matrix[selected]
             expected = aggregate_scenario_costs(
@@ -589,6 +710,15 @@ class ScenarioMinimaxMPC:
                 self.config.cvar_alpha,
             )
             sequence = sequences[selected]
+            fc_summary: dict[str, Any] = {}
+            if fc_metrics is not None:
+                critical_scenario = int(np.argmax(selected_costs)) if selected_costs.size else 0
+                fc_summary = fc_dbf_summary(fc_metrics, selected, critical_scenario)
+                fc_summary["fc_dbf_enabled"] = True
+                fc_summary["fc_dbf_gate_exhausted"] = bool(fc_gate_exhausted)
+                if not fc_gate_exhausted:
+                    assignments = np.asarray(fc_metrics["assignments"], dtype=np.int64)
+                    self._fc_dbf_previous_assignment = assignments[selected, critical_scenario].copy()
             escape_gap_summary = _selected_escape_gap_summary(
                 observation,
                 sequence,
@@ -609,6 +739,7 @@ class ScenarioMinimaxMPC:
                 latency_ms=(perf_counter() - started) * 1000.0,
                 max_rollout_constraint_violation=float(np.max(constraint_violations[selected])),
                 **escape_gap_summary,
+                **fc_summary,
             )
             return MinimaxMPCPlan(
                 actions=sequence[0].copy(),

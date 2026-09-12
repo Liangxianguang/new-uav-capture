@@ -20,6 +20,8 @@
 
 > Phase 30 EGC-MPC 更新：实现了不改预测 backbone 的 geometry-only Escape-Gap-Aware Cooperative MPC，包括 centralized / delayed-distributed 接入、信息边界审计、单元测试、配置快照和 TensorBoard 指标。validation-selection 模式下的一种子/20 场景 development smoke 中，centralized `weight=0.30` 的 safe capture 为 `90%`，较 paired off 的 `85%` 仅作描述性 `+5 pp`，但 mean max gap 从 `5.4929` 增至 `5.4972 rad`，机制指标没有改善；`weight=1.0` 将 mean max gap 降至 `5.3971 rad`、coverage 提至 `0.1887`，但 safe capture 降到 `75%`、collision 升到 `25%`。distributed 分支 off/on 均为 `95%/5%` safe capture/collision，而 total p95 从 `82.07` 增至 `98.93 ms`、p99 为 `108.07 ms`。因此当前 EGC 判为 promotion No-Go，保留为可复现负结果；下一候选转向具有离散可行性门控的 FC-DBF，不开放 locked test。详见 `docs/PHASE30_EGC_PILOT_REPORT.md`。
 
+> Phase 31 FC-DBF 更新：实现了 Feasible-Consensus Distributed Barrier Formation，包括有限 formation-slot 分配、延迟 peer 信息边界、progress/slack/switch 可行性门控、previous-slot hold、consensus-token 优化、配置/测试/源哈希/TensorBoard 记录。受控 validation-selection 一种子/20 场景 smoke 中，FC-DBF 相对 paired off 未改变 worst-case 的 `85%` 或 distributed delayed 的 `95%` safe capture；centralized total p95 为 `68.80→88.92 ms`，distributed total p95 为 `81.37→244.79 ms`。当前结论为工程实现通过但 promotion No-Go，gate exhaustion 为 centralized `0%`、distributed `0.806%`；该结果不开放 locked test，也不构成安全证明。详见 `docs/PHASE31_FC_DBF_PILOT_REPORT.md`。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -360,12 +362,28 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE30_EGC_PILOT_REPORT.md`。
 
+### P25：Phase 31 FC-DBF feasible-consensus formation gate
+
+- [x] 实现纯 NumPy 的有限 formation-slot gate，输入仅为 defender rollout、预测候选、公开几何和最新 delayed peer message；不读取目标真值，不改变 predictor backbone。
+- [x] 增加 slot tracking error、arrival slack、slot-error progress、assignment switch rate 四类诊断，并对 previous assignment 提供 hold/penalty 语义。
+- [x] 当 peer 信息不完整时显式跳过全局 formation gate；当所有候选均不可行时回退 base objective 并记录 `gate_exhausted`，不伪造 feasibility。
+- [x] 用 consensus token 将一次 nominal candidate 的精确有限排列分配复用于局部候选，增加固定 assignment evaluator、形状/有限性测试和 distributed integration。
+- [x] 增加 centralized/distributed CLI 选项、配置快照、source hash、step/episode 指标与 TensorBoard `Summary/FCDBF/*` 标量；focused tests 为 `22 passed`。
+- [x] 在同一 validation-selection 20 场景、checkpoint seed `727201`、采样 seed `745102`、CPU 和 local CBF 条件下完成 FC-DBF off/on 受控 paired smoke。
+- [x] 结果：worst-case off/on 均为 `85%` safe capture、`15%` collision；distributed delayed off/on 均为 `95%` safe capture、`5%` collision；centralized total p95 `68.80→88.92 ms`，distributed total p95 `81.37→244.79 ms`。
+- [x] 结果：centralized gate exhaustion `0%`、distributed `0.806%`；mean slot progress 分别为 `0.584/0.577 m`，但未观察到闭环捕获收益。
+- [x] 判定当前 FC-DBF 为“可复现工程实现但 promotion No-Go”；不在 locked-test 调参，不把负 slack development contract 写成安全裕量或 reachability proof。
+- [ ] 在新的 validation calibration block 上完成 3-seed paired confirmation；预注册 safe-capture 非劣下界 `-2 pp`、collision/boundary 不恶化、solver/fallback `<1%`、gate exhaustion `<1%`，并单独报告 latency trade-off。
+- [ ] 若 confirmation 通过，再只开启一个 OOD 轴；若仍无行为收益或 distributed latency 无法接受，则冻结为负结果，转回 QDR/UAKR/RNIC 契约修复和论文整理。
+
+详见 `docs/PHASE31_FC_DBF_PILOT_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
 P24 EGC-MPC No-Go freeze
-  -> P25 FC-DBF validation pilot
-  -> P26 FC-DBF paired confirmation / OOD decision
+  -> P25 FC-DBF pilot (completed; promotion No-Go)
+  -> P26 FC-DBF 3-seed confirmation / OOD decision
   -> P8 修复 reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化

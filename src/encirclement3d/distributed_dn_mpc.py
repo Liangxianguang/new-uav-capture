@@ -18,6 +18,11 @@ import numpy as np
 
 from .minimax_mpc import MinimaxMPCConfig, ScenarioTrajectorySet, aggregate_scenario_costs
 from .escape_gap import escape_gap_metrics
+from .feasible_consensus import (
+    evaluate_fixed_consensus_slots,
+    fc_dbf_summary,
+    feasible_consensus_slot_gate,
+)
 from .reachability_interception import (
     formation_slot_reachability_cost,
     reachability_normalized_interception_cost,
@@ -108,6 +113,16 @@ class DistributedDNMPCDiagnostics:
     escape_gap_escape_rad: float = float("nan")
     escape_gap_coverage_ratio: float = float("nan")
     escape_gap_violation_rate: float = float("nan")
+    fc_dbf_enabled: bool = False
+    fc_dbf_feasible: bool = False
+    fc_dbf_min_slot_slack_s: float = float("nan")
+    fc_dbf_max_slot_error_m: float = float("nan")
+    fc_dbf_mean_slot_error_m: float = float("nan")
+    fc_dbf_mean_slot_progress_m: float = float("nan")
+    fc_dbf_assignment_switch_rate: float = float("nan")
+    fc_dbf_feasible_rate: float = float("nan")
+    fc_dbf_gate_exhausted: bool = False
+    fc_dbf_cost: float = float("nan")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -137,6 +152,16 @@ class DistributedDNMPCDiagnostics:
             "escape_gap_escape_rad": self.escape_gap_escape_rad,
             "escape_gap_coverage_ratio": self.escape_gap_coverage_ratio,
             "escape_gap_violation_rate": self.escape_gap_violation_rate,
+            "fc_dbf_enabled": self.fc_dbf_enabled,
+            "fc_dbf_feasible": self.fc_dbf_feasible,
+            "fc_dbf_min_slot_slack_s": self.fc_dbf_min_slot_slack_s,
+            "fc_dbf_max_slot_error_m": self.fc_dbf_max_slot_error_m,
+            "fc_dbf_mean_slot_error_m": self.fc_dbf_mean_slot_error_m,
+            "fc_dbf_mean_slot_progress_m": self.fc_dbf_mean_slot_progress_m,
+            "fc_dbf_assignment_switch_rate": self.fc_dbf_assignment_switch_rate,
+            "fc_dbf_feasible_rate": self.fc_dbf_feasible_rate,
+            "fc_dbf_gate_exhausted": self.fc_dbf_gate_exhausted,
+            "fc_dbf_cost": self.fc_dbf_cost,
         }
 
 
@@ -210,6 +235,9 @@ class DistributedMinimaxDNMPC:
         self._pending: list[_PlannerMessage] = []
         self._last_step = -1
         self._stats: dict[str, Any] = {}
+        self._fc_dbf_previous_assignment: np.ndarray | None = None
+        self._fc_dbf_last_metrics: dict[str, np.ndarray | float | bool] | None = None
+        self._fc_dbf_last_gate_exhausted = False
 
     def plan(
         self,
@@ -236,7 +264,12 @@ class DistributedMinimaxDNMPC:
             "message_bytes_sent": 0,
             "message_bytes_received": 0,
             "age_samples": [],
+            "fc_dbf_local_checks": 0,
+            "fc_dbf_incomplete_consensus": 0,
+            "fc_dbf_gate_exhausted": 0,
         }
+        self._fc_dbf_last_metrics = None
+        self._fc_dbf_last_gate_exhausted = False
         if scenarios.dynamics_status != "projected":
             return self._fallback(
                 positions,
@@ -354,6 +387,18 @@ class DistributedMinimaxDNMPC:
                 np.asarray(candidates.trajectories, dtype=np.float64),
                 candidates.normalized_weights,
             )
+            fc_summary: dict[str, Any] = {}
+            if self._fc_dbf_last_metrics is not None:
+                critical_scenario = int(np.argmax(scenario_costs)) if scenario_costs.size else 0
+                fc_summary = fc_dbf_summary(
+                    self._fc_dbf_last_metrics,
+                    0,
+                    critical_scenario,
+                )
+                fc_summary["fc_dbf_gate_exhausted"] = bool(self._fc_dbf_last_gate_exhausted)
+                if not self._fc_dbf_last_gate_exhausted:
+                    assignments = np.asarray(self._fc_dbf_last_metrics["assignments"], dtype=np.int64)
+                    self._fc_dbf_previous_assignment = assignments[0, critical_scenario].copy()
             diagnostics = self._diagnostics(
                 status=status,
                 iterations=iterations,
@@ -368,6 +413,7 @@ class DistributedMinimaxDNMPC:
                 max_delta=max_delta,
                 fallback_reason=(first_failure if local_failures else None),
                 **escape_gap_summary,
+                **fc_summary,
             )
             return DistributedDNMPCPlan(
                 actions=sequences[0].copy(),
@@ -599,6 +645,7 @@ class DistributedMinimaxDNMPC:
         *,
         include_reachability: bool = True,
         include_escape_gap: bool = True,
+        include_fc_dbf: bool = True,
     ) -> np.ndarray:
         """Evaluate local action candidates against all target scenarios in one pass.
 
@@ -787,6 +834,17 @@ class DistributedMinimaxDNMPC:
             )
             result += self.config.weight_escape_gap * gap_metrics["cost"]
 
+        if include_fc_dbf and self.config.fc_dbf_enabled:
+            result = self._apply_fc_dbf_local_gate(
+                observation,
+                scenarios,
+                agent_id,
+                actions,
+                known,
+                peer_sequences,
+                result,
+            )
+
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
             if peer_actions is None:
@@ -849,6 +907,120 @@ class DistributedMinimaxDNMPC:
             raise FloatingPointError("local scenario cost contains non-finite values")
         return result
 
+    def _apply_fc_dbf_local_gate(
+        self,
+        observation: dict[str, Any],
+        scenarios: ScenarioTrajectorySet,
+        agent_id: int,
+        actions: np.ndarray,
+        known: dict[int, _PlannerMessage],
+        peer_sequences: dict[int, np.ndarray],
+        base_costs: np.ndarray,
+    ) -> np.ndarray:
+        """Apply FC-DBF only when the local agent has a complete peer view."""
+
+        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+        expected_peers = set(range(positions.shape[0])) - {int(agent_id)}
+        if set(known) < expected_peers:
+            self._stats["fc_dbf_incomplete_consensus"] += 1
+            return base_costs
+
+        own_path = positions[agent_id][None, None, :] + np.cumsum(
+            np.asarray(actions, dtype=np.float64) * self.config.dt_seconds,
+            axis=1,
+        )
+        path_count = actions.shape[0]
+        team_position_paths = [own_path]
+        team_velocity_paths = [np.asarray(actions, dtype=np.float64)]
+        for peer in range(positions.shape[0]):
+            if peer == agent_id:
+                continue
+            message = known[peer]
+            peer_actions = peer_sequences.get(peer)
+            if peer_actions is None:
+                peer_actions = np.broadcast_to(
+                    np.asarray(message.velocity, dtype=np.float64),
+                    (self.config.horizon_steps, 3),
+                )
+            else:
+                peer_actions = _clip_rows(
+                    np.asarray(peer_actions, dtype=np.float64),
+                    self.config.max_speed_mps,
+                )
+            peer_path = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
+                peer_actions * self.config.dt_seconds,
+                axis=0,
+            )
+            team_position_paths.append(np.broadcast_to(peer_path, own_path.shape))
+            team_velocity_paths.append(np.broadcast_to(peer_actions, actions.shape))
+
+        team_position_array = np.stack(team_position_paths, axis=2)
+        team_velocity_array = np.stack(team_velocity_paths, axis=2)
+        token_metrics = feasible_consensus_slot_gate(
+            team_position_array[:1],
+            team_velocity_array[:1],
+            np.asarray(scenarios.trajectories, dtype=np.float64),
+            slot_radius_m=float(
+                self.config.role_perimeter_m
+                if self.config.fc_dbf_slot_radius_m is None
+                else self.config.fc_dbf_slot_radius_m
+            ),
+            dt_seconds=self.config.dt_seconds,
+            max_speed_mps=self.config.max_speed_mps,
+            max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+            slot_tolerance_m=self.config.fc_dbf_slot_tolerance_m,
+            min_slot_slack_s=self.config.fc_dbf_min_slot_slack_s,
+            min_progress_m=self.config.fc_dbf_min_progress_m,
+            gate_horizon_steps=self.config.fc_dbf_gate_horizon_steps,
+            max_assignment_switch_rate=self.config.fc_dbf_max_assignment_switch_rate,
+            switch_penalty=self.config.fc_dbf_switch_penalty,
+            time_scale_s=self.config.reachability_time_scale_s,
+            previous_assignment=(
+                self._fc_dbf_previous_assignment
+                if self.config.fc_dbf_hold_previous_slot
+                else None
+            ),
+        )
+        slot_assignments = np.asarray(token_metrics["assignment_paths"], dtype=np.int64)[0]
+        metrics = evaluate_fixed_consensus_slots(
+            team_position_array,
+            team_velocity_array,
+            np.asarray(scenarios.trajectories, dtype=np.float64),
+            slot_assignments,
+            slot_radius_m=float(
+                self.config.role_perimeter_m
+                if self.config.fc_dbf_slot_radius_m is None
+                else self.config.fc_dbf_slot_radius_m
+            ),
+            dt_seconds=self.config.dt_seconds,
+            max_speed_mps=self.config.max_speed_mps,
+            max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+            slot_tolerance_m=self.config.fc_dbf_slot_tolerance_m,
+            min_slot_slack_s=self.config.fc_dbf_min_slot_slack_s,
+            min_progress_m=self.config.fc_dbf_min_progress_m,
+            gate_horizon_steps=self.config.fc_dbf_gate_horizon_steps,
+            max_assignment_switch_rate=self.config.fc_dbf_max_assignment_switch_rate,
+            switch_penalty=self.config.fc_dbf_switch_penalty,
+            time_scale_s=self.config.reachability_time_scale_s,
+            previous_assignment=(
+                self._fc_dbf_previous_assignment
+                if self.config.fc_dbf_hold_previous_slot
+                else None
+            ),
+        )
+        feasible = np.asarray(metrics["feasible"], dtype=bool)
+        row_feasible = np.all(feasible, axis=1)
+        self._stats["fc_dbf_local_checks"] += int(path_count)
+        if not np.any(row_feasible):
+            self._stats["fc_dbf_gate_exhausted"] += 1
+            return base_costs
+        adjusted = base_costs + self.config.fc_dbf_cost_weight * np.asarray(
+            metrics["cost"],
+            dtype=np.float64,
+        )
+        adjusted[~row_feasible, :] += 1.0e6
+        return adjusted
+
     def _local_scenario_costs(
         self,
         observation: dict[str, Any],
@@ -860,6 +1032,7 @@ class DistributedMinimaxDNMPC:
         *,
         include_reachability: bool = True,
         include_escape_gap: bool = True,
+        include_fc_dbf: bool = True,
     ) -> np.ndarray:
         return self._local_scenario_cost_matrix(
             observation,
@@ -870,6 +1043,7 @@ class DistributedMinimaxDNMPC:
             peer_sequences,
             include_reachability=include_reachability,
             include_escape_gap=include_escape_gap,
+            include_fc_dbf=include_fc_dbf,
         )[0]
 
     def _local_obstacles(self, observation: dict[str, Any], own_position: np.ndarray) -> list[dict[str, Any]]:
@@ -906,6 +1080,7 @@ class DistributedMinimaxDNMPC:
                 peer_sequences,
                 include_reachability=(self.config.reachability_cost_mode != "formation_slot"),
                 include_escape_gap=False,
+                include_fc_dbf=False,
             )
         if (
             self.config.reachability_normalized_cost_enabled
@@ -952,6 +1127,44 @@ class DistributedMinimaxDNMPC:
             # The cooperative topology term is added exactly once to the team
             # score; local best responses omit it to avoid D-fold counting.
             total += self.config.weight_escape_gap * gap_metrics["cost"][0]
+        if self.config.fc_dbf_enabled:
+            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+            position_paths = positions[None, None, :, :] + np.cumsum(
+                np.asarray(sequences, dtype=np.float64)[None, :, :, :] * self.config.dt_seconds,
+                axis=1,
+            )
+            action_paths = np.asarray(sequences, dtype=np.float64)[None, :, :, :]
+            fc_metrics = feasible_consensus_slot_gate(
+                position_paths,
+                action_paths,
+                np.asarray(scenarios.trajectories, dtype=np.float64),
+                slot_radius_m=float(
+                    self.config.role_perimeter_m
+                    if self.config.fc_dbf_slot_radius_m is None
+                    else self.config.fc_dbf_slot_radius_m
+                ),
+                dt_seconds=self.config.dt_seconds,
+                max_speed_mps=self.config.max_speed_mps,
+                max_acceleration_mps2=self.config.reachability_max_acceleration_mps2,
+                slot_tolerance_m=self.config.fc_dbf_slot_tolerance_m,
+                min_slot_slack_s=self.config.fc_dbf_min_slot_slack_s,
+                min_progress_m=self.config.fc_dbf_min_progress_m,
+                gate_horizon_steps=self.config.fc_dbf_gate_horizon_steps,
+                max_assignment_switch_rate=self.config.fc_dbf_max_assignment_switch_rate,
+                switch_penalty=self.config.fc_dbf_switch_penalty,
+                time_scale_s=self.config.reachability_time_scale_s,
+                previous_assignment=(
+                    self._fc_dbf_previous_assignment
+                    if self.config.fc_dbf_hold_previous_slot
+                    else None
+                ),
+            )
+            feasible = np.asarray(fc_metrics["feasible"], dtype=bool)
+            gate_exhausted = bool(not np.any(feasible))
+            self._fc_dbf_last_metrics = fc_metrics
+            self._fc_dbf_last_gate_exhausted = gate_exhausted
+            if not gate_exhausted:
+                total += self.config.fc_dbf_cost_weight * np.asarray(fc_metrics["cost"], dtype=np.float64)[0]
         return total
 
     def _escape_gap_summary(
@@ -1007,6 +1220,16 @@ class DistributedMinimaxDNMPC:
         escape_gap_escape_rad: float = float("nan"),
         escape_gap_coverage_ratio: float = float("nan"),
         escape_gap_violation_rate: float = float("nan"),
+        fc_dbf_enabled: bool = False,
+        fc_dbf_feasible: bool = False,
+        fc_dbf_min_slot_slack_s: float = float("nan"),
+        fc_dbf_max_slot_error_m: float = float("nan"),
+        fc_dbf_mean_slot_error_m: float = float("nan"),
+        fc_dbf_mean_slot_progress_m: float = float("nan"),
+        fc_dbf_assignment_switch_rate: float = float("nan"),
+        fc_dbf_feasible_rate: float = float("nan"),
+        fc_dbf_gate_exhausted: bool = False,
+        fc_dbf_cost: float = float("nan"),
     ) -> DistributedDNMPCDiagnostics:
         ages = np.asarray(self._stats.get("age_samples", []), dtype=np.float64)
         return DistributedDNMPCDiagnostics(
@@ -1036,6 +1259,16 @@ class DistributedMinimaxDNMPC:
             escape_gap_escape_rad=float(escape_gap_escape_rad),
             escape_gap_coverage_ratio=float(escape_gap_coverage_ratio),
             escape_gap_violation_rate=float(escape_gap_violation_rate),
+            fc_dbf_enabled=bool(self.config.fc_dbf_enabled),
+            fc_dbf_feasible=bool(fc_dbf_feasible),
+            fc_dbf_min_slot_slack_s=float(fc_dbf_min_slot_slack_s),
+            fc_dbf_max_slot_error_m=float(fc_dbf_max_slot_error_m),
+            fc_dbf_mean_slot_error_m=float(fc_dbf_mean_slot_error_m),
+            fc_dbf_mean_slot_progress_m=float(fc_dbf_mean_slot_progress_m),
+            fc_dbf_assignment_switch_rate=float(fc_dbf_assignment_switch_rate),
+            fc_dbf_feasible_rate=float(fc_dbf_feasible_rate),
+            fc_dbf_gate_exhausted=bool(fc_dbf_gate_exhausted),
+            fc_dbf_cost=float(fc_dbf_cost),
         )
 
     def _fallback(
