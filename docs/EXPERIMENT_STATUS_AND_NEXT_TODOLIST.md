@@ -280,6 +280,17 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE22_UAKR_MIRROR_GROUP_CONFIRMATION_REPORT.md`。只有映射在 confirmation 上稳定，才允许进入新的闭环 pilot。
 
+### P19：Phase 23 risk-calibrated UAKR confirmation
+
+- [x] 实现无第三方依赖的单调 PAVA risk map，并输出可冻结 JSON artifact、derived UAKR thresholds 和 TensorBoard 指标。
+- [x] 增加 `--adaptive-risk-calibration`，评估器自动读取 artifact、写入 effective config 并记录 artifact hash；同时拒绝与显式阈值覆盖混用。
+- [x] 在 canonical mirror-group confirmation 上完成 3 seed × 46 episodes；risk-calibrated UAKR safe capture `95.65% [92.03%, 98.55%]`、collision `4.35%`、boundary/timeout `0%`，mean K `4.05`，refresh `51.77%`，total p50/p95/p99 `79.97/141.98/153.67 ms`。
+- [x] 相对原始 UAKR 的 safe-capture delta 为 `+1.45 pp [0.00, +4.35]`，但相对 fixed K=8 为 `-2.17 pp [-5.07, 0.00]`，未通过固定预算非劣和效率 gate。
+- [x] 将 risk-calibrated UAKR 判为“有改善但不晋级”的可复现实验消融；Phase 16 继续作为主参考。
+- [ ] 若重新尝试，改用 prediction miss 或 next-step safety-margin violation 等局部标签，先证明 calibration 稳定且预算下降，再开放新的闭环 confirmation。
+
+详见 `docs/PHASE23_UAKR_RISK_CALIBRATED_CONFIRMATION_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text

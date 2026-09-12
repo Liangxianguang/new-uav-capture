@@ -1,0 +1,38 @@
+experiment_name: phase23_uakr_risk_calibrated_confirmation
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# This is a reproducibility record for the frozen calibration artifact. The
+# generated JSON artifact is created by calibrate_uakr_risk_map.py and is not
+# committed because it lives under Git-ignored results/.
+calibration:
+  artifact: results/phase23_uakr_failure_risk_calibration.json
+  score_key: first_uncertainty
+  label: failure
+  split_strategy: canonical_mirror_group_half
+  split_seed: 20260912
+  low_target_risk: 0.02
+  high_target_risk: 0.10
+  derived_low_threshold: 0.11757149952353937
+  derived_high_threshold: 0.6579849200349985
+
+evaluation:
+  split: validation_selection
+  confirmation_scenes: results/phase23_uakr_confirmation_scenes.jsonl
+  predictor: diagonal_ssm
+  predictor_seeds: [727201, 727202, 727203]
+  planner: distributed_delayed_dn_mpc
+  qdr: false
+  rnic: false
+  safety_layer: local_cbf
+  num_samples_max: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  prediction_refresh_interval_steps: 1
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  latency_percentiles: [50, 95, 99]

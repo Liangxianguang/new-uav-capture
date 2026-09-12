@@ -144,6 +144,56 @@ def _assign_mirror_group_split(
     return assigned, metadata
 
 
+def _assign_canonical_mirror_group_split(
+    rows: list[dict[str, Any]],
+    scene_manifest: Path,
+    *,
+    split_seed: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Assign one canonical scene mirror-group split shared by every run."""
+
+    episode_to_group = _scene_groups(scene_manifest)
+    group_to_rows: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        episode_index = int(row["episode_index"])
+        if episode_index not in episode_to_group:
+            raise ValueError(f"scene manifest is missing episode_index={episode_index}")
+        group_to_rows.setdefault(episode_to_group[episode_index], []).append(row)
+    if len(group_to_rows) < 4:
+        raise ValueError("canonical mirror-group split requires at least four groups")
+    groups = sorted(group_to_rows)
+    rng = np.random.default_rng(int(split_seed))
+    permutation = [groups[index] for index in rng.permutation(len(groups)).tolist()]
+    midpoint = max(1, len(permutation) // 2)
+    calibration_groups = set(permutation[:midpoint])
+    confirmation_groups = set(permutation[midpoint:])
+    if not confirmation_groups:
+        moved = sorted(calibration_groups)[-1]
+        calibration_groups.remove(moved)
+        confirmation_groups.add(moved)
+    assigned: list[dict[str, Any]] = []
+    for group in groups:
+        split = "calibration" if group in calibration_groups else "confirmation"
+        for row in group_to_rows[group]:
+            assigned.append({**row, "split": split, "mirror_group_key": group})
+    metadata = {
+        "strategy": "canonical_mirror_group_half",
+        "split_seed": int(split_seed),
+        "group_count": len(groups),
+        "calibration_group_count": len(calibration_groups),
+        "confirmation_group_count": len(confirmation_groups),
+        "calibration_episode_count": sum(
+            len(group_to_rows[group]) for group in calibration_groups
+        ),
+        "confirmation_episode_count": sum(
+            len(group_to_rows[group]) for group in confirmation_groups
+        ),
+        "calibration_groups": sorted(calibration_groups),
+        "confirmation_groups": sorted(confirmation_groups),
+    }
+    return assigned, metadata
+
+
 def _quartiles(rows: list[dict[str, Any]], score_key: str) -> list[dict[str, Any]]:
     order = np.argsort(np.asarray([float(row[score_key]) for row in rows]), kind="mergesort")
     groups = np.array_split(order, 4)
@@ -195,16 +245,21 @@ def analyze(
     rows = [row for run in runs for row in _episode_features(run)]
     if not rows:
         raise ValueError("at least one non-empty run is required")
-    if split_strategy not in {"all", "mirror_group_half"}:
-        raise ValueError("split_strategy must be all or mirror_group_half")
+    if split_strategy not in {"all", "mirror_group_half", "canonical_mirror_group_half"}:
+        raise ValueError("split_strategy must be all, mirror_group_half, or canonical_mirror_group_half")
     result: dict[str, Any] = {
         "runs": [str(run.resolve()) for run in runs],
         "split_strategy": split_strategy,
     }
-    if split_strategy == "mirror_group_half":
+    if split_strategy in {"mirror_group_half", "canonical_mirror_group_half"}:
         if scene_manifest is None:
-            raise ValueError("scene_manifest is required for mirror_group_half")
-        rows, split_metadata = _assign_mirror_group_split(rows, scene_manifest, split_seed=split_seed)
+            raise ValueError("scene_manifest is required for a mirror-group split")
+        split_function = (
+            _assign_mirror_group_split
+            if split_strategy == "mirror_group_half"
+            else _assign_canonical_mirror_group_split
+        )
+        rows, split_metadata = split_function(rows, scene_manifest, split_seed=split_seed)
         result["split_metadata"] = split_metadata
         result["splits"] = {
             split: _summarize([row for row in rows if row["split"] == split])
@@ -258,7 +313,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--split-strategy",
-        choices=("all", "mirror_group_half"),
+        choices=("all", "mirror_group_half", "canonical_mirror_group_half"),
         default="all",
     )
     parser.add_argument("--split-seed", type=int, default=20260912)

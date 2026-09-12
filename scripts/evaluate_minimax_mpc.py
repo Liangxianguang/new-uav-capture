@@ -176,6 +176,11 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional validation-only override for the UAKR medium/high threshold.",
     )
+    parser.add_argument(
+        "--adaptive-risk-calibration",
+        type=Path,
+        help="Frozen validation-only UAKR risk-calibration artifact supplying policy thresholds.",
+    )
     rnic_group = parser.add_mutually_exclusive_group()
     rnic_group.add_argument(
         "--rnic",
@@ -1861,6 +1866,16 @@ def main() -> None:
         else args.adaptive_k
     )
     adaptive_budget_mapping = dict(prediction_mapping.get("adaptive_budget", {}))
+    if args.adaptive_risk_calibration is not None:
+        if args.adaptive_low_threshold is not None or args.adaptive_high_threshold is not None:
+            raise ValueError("adaptive-risk-calibration cannot be combined with explicit threshold overrides")
+        calibration_path = args.adaptive_risk_calibration.resolve()
+        calibration_document = json.loads(calibration_path.read_text(encoding="utf-8"))
+        policy_thresholds = dict(calibration_document.get("policy_thresholds", {}))
+        if not bool(policy_thresholds.get("valid_order", False)):
+            raise ValueError("adaptive risk calibration artifact has invalid policy threshold order")
+        adaptive_budget_mapping["low_threshold"] = float(policy_thresholds["low_threshold"])
+        adaptive_budget_mapping["high_threshold"] = float(policy_thresholds["high_threshold"])
     if args.adaptive_low_threshold is not None:
         if not np.isfinite(float(args.adaptive_low_threshold)):
             raise ValueError("adaptive-low-threshold must be finite")
@@ -1942,6 +1957,11 @@ def main() -> None:
         hashes[str(tube_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
             tube_path.read_bytes()
         ).hexdigest()
+    if args.adaptive_risk_calibration is not None:
+        calibration_path = args.adaptive_risk_calibration.resolve()
+        hashes[str(calibration_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
+            calibration_path.read_bytes()
+        ).hexdigest()
     if args.safety_layer == "robust_cbf_qp":
         add_safety_source_hashes(hashes, args.safety_config)
     run_config = {
@@ -1969,6 +1989,11 @@ def main() -> None:
             "queue_aware_rollout": queue_aware_rollout,
             "adaptive_k": adaptive_k,
             "adaptive_budget": adaptive_budget_mapping,
+            "adaptive_risk_calibration": (
+                None
+                if args.adaptive_risk_calibration is None
+                else str(args.adaptive_risk_calibration.resolve())
+            ),
             "reachability_normalized_cost": rnic,
             "reachable_tube_calibration": (
                 None
