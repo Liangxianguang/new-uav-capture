@@ -107,6 +107,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Frozen validation-only UAKR risk-calibration artifact supplying policy thresholds.",
     )
+    parser.add_argument(
+        "--adaptive-residual-high-trigger-m",
+        type=float,
+        help="Optional public prediction-residual threshold that forces high-K replanning.",
+    )
     rnic_group = parser.add_mutually_exclusive_group()
     rnic_group.add_argument("--rnic", dest="rnic", action="store_true")
     rnic_group.add_argument("--no-rnic", dest="rnic", action="store_false")
@@ -258,6 +263,10 @@ def main() -> None:
         if not np.isfinite(float(args.adaptive_high_threshold)):
             raise ValueError("adaptive-high-threshold must be finite")
         adaptive_budget_mapping["high_threshold"] = float(args.adaptive_high_threshold)
+    if args.adaptive_residual_high_trigger_m is not None:
+        if not np.isfinite(float(args.adaptive_residual_high_trigger_m)) or float(args.adaptive_residual_high_trigger_m) <= 0.0:
+            raise ValueError("adaptive-residual-high-trigger-m must be finite and positive")
+        adaptive_budget_mapping["residual_high_trigger_m"] = float(args.adaptive_residual_high_trigger_m)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
     phase17_execution_mapping = dict(phase17_mapping.get("execution", {}))

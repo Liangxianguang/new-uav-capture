@@ -1,0 +1,34 @@
+experiment_name: phase24_uakr_residual_trigger_pilot
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+phase24:
+  residual_high_trigger_m: 0.40
+  validation_only: true
+  locked_test_allowed: false
+  queue_aware_rollout: false
+  rnic: false
+
+prediction:
+  adaptive_k: true
+  low_k: 1
+  medium_k: 4
+  high_k: 8
+  low_refresh_interval_steps: 4
+  medium_refresh_interval_steps: 2
+  high_refresh_interval_steps: 1
+  sampling_steps: 8
+  sampling_seed: 745102
+
+evaluation:
+  split: validation_selection
+  episodes: 20
+  predictor_seed: 727201
+  safety_layer: local_cbf
+  latency_percentiles: [50, 95, 99]
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true

@@ -39,6 +39,7 @@ class AdaptivePredictionConfig:
     residual_weight: float = 0.05
     tube_radius_scale_m: float = 2.0
     tube_weight: float = 0.0
+    residual_high_trigger_m: float | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= float(self.low_threshold) < float(self.high_threshold) <= 1.0:
@@ -70,6 +71,11 @@ class AdaptivePredictionConfig:
             raise ValueError("adaptive feature weights must be finite and non-negative")
         if float(sum(weights)) <= 0.0:
             raise ValueError("adaptive feature weights must have a positive sum")
+        if self.residual_high_trigger_m is not None and (
+            not np.isfinite(float(self.residual_high_trigger_m))
+            or float(self.residual_high_trigger_m) <= 0.0
+        ):
+            raise ValueError("residual_high_trigger_m must be finite and positive when provided")
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "AdaptivePredictionConfig":
@@ -232,6 +238,16 @@ class AdaptivePredictionPolicy:
         values = np.asarray(list(components.values()), dtype=np.float64)
         score = float(np.clip(np.dot(weights, values) / weights.sum(), 0.0, 1.0))
         bucket = self._bucket_for_score(score)
+        if (
+            self.config.residual_high_trigger_m is not None
+            and previous_residual_m is not None
+            and float(previous_residual_m) >= float(self.config.residual_high_trigger_m)
+        ):
+            # A public prediction-vs-belief discrepancy is a staleness signal.
+            # Escalate budget and refresh immediately without reading target
+            # truth or a future episode outcome.
+            bucket = "high"
+            self._previous_bucket = bucket
         settings = {
             "low": (self.config.low_k, self.config.low_refresh_interval_steps),
             "medium": (self.config.medium_k, self.config.medium_refresh_interval_steps),
@@ -241,6 +257,12 @@ class AdaptivePredictionPolicy:
         forced_reason: str | None = None
         if not has_cache:
             forced_reason = "no_cache"
+        elif (
+            self.config.residual_high_trigger_m is not None
+            and previous_residual_m is not None
+            and float(previous_residual_m) >= float(self.config.residual_high_trigger_m)
+        ):
+            forced_reason = "residual_risk_trigger"
         elif int(cached_age_steps) >= self.config.max_cache_age_steps:
             forced_reason = "cache_age_limit"
         elif previous_residual_m is not None and float(previous_residual_m) > self.config.residual_scale_m:

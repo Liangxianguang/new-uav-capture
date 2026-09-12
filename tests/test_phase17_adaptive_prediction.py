@@ -69,3 +69,31 @@ def test_adaptive_policy_refreshes_on_interval_and_residual_without_truth_fields
     assert third.forced_refresh_reason == "residual_limit"
     assert "target_position" not in third.as_dict()
     assert "target_velocity" not in third.as_dict()
+
+
+def test_residual_high_trigger_escalates_budget_and_forces_refresh() -> None:
+    policy = AdaptivePredictionPolicy(
+        AdaptivePredictionConfig(
+            residual_high_trigger_m=0.3,
+            low_threshold=0.99,
+            high_threshold=1.0,
+        )
+    )
+    observation = {
+        "target_observation_confidence": np.asarray([1.0]),
+        "target_observation_covariance": np.zeros((1, 3, 3)),
+        "target_belief_velocities": np.zeros((1, 3)),
+        "execution": {"max_speed_mps": 5.0},
+    }
+
+    decision = policy.decide(
+        observation,
+        cached_age_steps=1,
+        has_cache=True,
+        previous_residual_m=0.3,
+    )
+
+    assert decision.bucket == "high"
+    assert decision.num_samples == 8
+    assert decision.refresh is True
+    assert decision.forced_refresh_reason == "residual_risk_trigger"

@@ -291,6 +291,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE23_UAKR_RISK_CALIBRATED_CONFIRMATION_REPORT.md`。
 
+### P20：Phase 24 UAKR residual-triggered budget pilot
+
+- [x] 增加显式 `residual_high_trigger_m`：当 public prediction-to-belief residual 超过阈值时，升到 high-K 并强制刷新；默认 `None` 保持旧行为。
+- [x] 在固定 20 场景 validation 前缀、Diagonal-SSM seed `727201`、distributed delayed DN-MPC、local CBF 上测试 `0.40 m`。
+- [x] 结果 safe capture `85.0%`、collision `15.0%`、boundary/timeout `0%`、mean K `3.02`、refresh `37.27%`、total p50/p95/p99 `65.30/141.61/151.57 ms`；原始 UAKR 为 `90.0%/10.0%` 与 `60.15/133.44/139.84 ms`。
+- [x] 判定 No-Go；不继续扫描 residual threshold，也不把局部 AUROC 解读为干预保证。
+- [ ] 若重开该方向，先分别评估 refresh-only 与 K-escalation 的 intervention effect，再在独立 development split 上冻结策略。
+
+详见 `docs/PHASE24_UAKR_RESIDUAL_TRIGGER_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
