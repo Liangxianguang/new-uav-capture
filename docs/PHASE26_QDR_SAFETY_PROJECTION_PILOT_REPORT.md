@@ -86,4 +86,3 @@ results/phase26_qdr_pilot_aggregate.md
 Each run retains the effective configuration, source hashes, copied scene
 manifest, episode/step JSONL, summary and TensorBoard event files. Generated
 results remain Git-ignored.
-
