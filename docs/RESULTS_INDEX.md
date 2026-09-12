@@ -13,6 +13,11 @@ The current consolidated status and executable follow-up plan are in
 the phase reports below remain the authoritative source for each individual
 metric.
 
+The complete forward-looking research protocol for the three proposed
+contributions—Queue-Aware Delayed-State Rollout, Uncertainty-Triggered
+Adaptive K and Replanning, and Reachability-Normalized Interception Cost—is
+in `THREE_INNOVATIONS_MASTER_TODOLIST.md`.
+
 | Phase | Evidence | Status | Authoritative report |
 | --- | --- | --- | --- |
 | Phase 2 | Portable SSM + conditional diffusion prediction | Conditional Go | `PHASE2_FORMAL_ANALYSIS_REPORT.md`, `PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md` |
