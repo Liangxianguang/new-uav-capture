@@ -329,6 +329,10 @@ def main() -> None:
                     "queue_aware_rollout_rate",
                     "mean_qdr_queue_length",
                     "mean_qdr_first_controllable_step",
+                    "qdr_prefix_minimum_clearance_m",
+                    "qdr_prefix_minimum_boundary_margin_m",
+                    "qdr_prefix_minimum_inter_agent_distance_m",
+                    "qdr_prefix_maximum_safety_margin_violation_m",
                     "adaptive_enabled_rate",
                     "mean_adaptive_uncertainty_score",
                     "mean_adaptive_k",
@@ -356,6 +360,9 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/latency_p50_ms", overall["qdr_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/QDR/latency_p95_ms", overall["qdr_latency_ms"]["p95"], 0)
             writer.add_scalar("Summary/QDR/latency_p99_ms", overall["qdr_latency_ms"]["p99"], 0)
+            writer.add_scalar("Summary/QDR/prefix_minimum_clearance_m", overall["qdr_prefix_minimum_clearance_m"], 0)
+            writer.add_scalar("Summary/QDR/prefix_minimum_boundary_margin_m", overall["qdr_prefix_minimum_boundary_margin_m"], 0)
+            writer.add_scalar("Summary/QDR/prefix_violation_rate", overall["qdr_prefix_violation_rate"], 0)
             writer.add_text("Summary/UAKR/BucketCounts", json.dumps(overall.get("adaptive_bucket_counts", {})), 0)
             writer.add_hparams(
                 {

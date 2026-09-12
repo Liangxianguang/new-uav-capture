@@ -75,6 +75,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.queue_aware_rollout import (  # noqa: E402
     prepare_queue_aware_observation,
+    prefix_geometry_diagnostics,
     shift_scenario_trajectory_set,
 )
 from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
@@ -702,6 +703,11 @@ def run_episode(
         qdr_queue_length = 0
         qdr_first_controllable_step = 0
         qdr_latency_ms = 0.0
+        qdr_prefix_minimum_clearance_m = float("inf")
+        qdr_prefix_minimum_boundary_margin_m = float("inf")
+        qdr_prefix_minimum_inter_agent_distance_m = float("inf")
+        qdr_prefix_maximum_safety_margin_violation_m = 0.0
+        qdr_authority_mode = "none"
         adaptive_enabled = False
         adaptive_uncertainty_score = 0.0
         adaptive_bucket_index = 0
@@ -766,6 +772,23 @@ def run_episode(
                 qdr_enabled = True
                 qdr_queue_length = int(qdr_state.queue_length)
                 qdr_first_controllable_step = int(qdr_state.first_controllable_step)
+                qdr_authority_mode = str(qdr_state.authority_mode)
+                qdr_prefix_diagnostics = prefix_geometry_diagnostics(
+                    qdr_state,
+                    planning_observation,
+                    drone_radius_m=float(env.agents["drone_radius"]),
+                    safety_margin_m=float(env.pursuit["safety_margin"]),
+                )
+                qdr_prefix_minimum_clearance_m = float(qdr_prefix_diagnostics["minimum_clearance_m"])
+                qdr_prefix_minimum_boundary_margin_m = float(
+                    qdr_prefix_diagnostics["minimum_boundary_margin_m"]
+                )
+                qdr_prefix_minimum_inter_agent_distance_m = float(
+                    qdr_prefix_diagnostics["minimum_inter_agent_distance_m"]
+                )
+                qdr_prefix_maximum_safety_margin_violation_m = float(
+                    qdr_prefix_diagnostics["maximum_safety_margin_violation_m"]
+                )
                 qdr_latency_ms = (time.perf_counter() - qdr_started) * 1000.0
             if distributed_planner is not None:
                 plan = distributed_planner.plan(
@@ -894,6 +917,13 @@ def run_episode(
                 "qdr_queue_length": float(qdr_queue_length),
                 "qdr_first_controllable_step": float(qdr_first_controllable_step),
                 "qdr_latency_ms": float(qdr_latency_ms),
+                "qdr_prefix_minimum_clearance_m": float(qdr_prefix_minimum_clearance_m),
+                "qdr_prefix_minimum_boundary_margin_m": float(qdr_prefix_minimum_boundary_margin_m),
+                "qdr_prefix_minimum_inter_agent_distance_m": float(qdr_prefix_minimum_inter_agent_distance_m),
+                "qdr_prefix_maximum_safety_margin_violation_m": float(
+                    qdr_prefix_maximum_safety_margin_violation_m
+                ),
+                "qdr_authority_mode": qdr_authority_mode,
                 "adaptive_enabled": 1.0 if adaptive_enabled else 0.0,
                 "adaptive_uncertainty_score": float(adaptive_uncertainty_score),
                 "adaptive_bucket_index": float(adaptive_bucket_index),
@@ -1086,6 +1116,29 @@ def run_episode(
             "p95": percentile([row["qdr_latency_ms"] for row in step_rows], 95),
             "p99": percentile([row["qdr_latency_ms"] for row in step_rows], 99),
         },
+        "qdr_prefix_minimum_clearance_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_clearance_m"
+        ),
+        "qdr_prefix_minimum_boundary_margin_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_boundary_margin_m"
+        ),
+        "qdr_prefix_minimum_inter_agent_distance_m": _diagnostic_min(
+            step_rows, "qdr_prefix_minimum_inter_agent_distance_m"
+        ),
+        "qdr_prefix_maximum_safety_margin_violation_m": _diagnostic_max(
+            step_rows, "qdr_prefix_maximum_safety_margin_violation_m"
+        ),
+        "qdr_prefix_violation_rate": float(
+            np.mean(
+                [
+                    float(row["qdr_prefix_maximum_safety_margin_violation_m"]) > 0.0
+                    for row in step_rows
+                    if np.isfinite(float(row["qdr_prefix_minimum_clearance_m"]))
+                ]
+            )
+            if any(np.isfinite(float(row["qdr_prefix_minimum_clearance_m"])) for row in step_rows)
+            else 0.0
+        ),
         "adaptive_enabled_rate": float(np.mean([row["adaptive_enabled"] for row in step_rows])),
         "mean_adaptive_uncertainty_score": float(
             np.mean([row["adaptive_uncertainty_score"] for row in step_rows])
@@ -1281,6 +1334,11 @@ def finite_max(values: list[float]) -> float:
     return float(np.max(finite)) if finite.size else float("nan")
 
 
+def finite_min(values: list[float]) -> float:
+    finite = np.asarray([value for value in values if np.isfinite(value)], dtype=np.float64)
+    return float(np.min(finite)) if finite.size else float("nan")
+
+
 def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) -> dict[str, Any]:
     if not rows:
         raise ValueError("Cannot summarize empty planner evaluation.")
@@ -1373,6 +1431,19 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
                 99,
             ),
         },
+        "qdr_prefix_minimum_clearance_m": finite_min(
+            [row["qdr_prefix_minimum_clearance_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_boundary_margin_m": finite_min(
+            [row["qdr_prefix_minimum_boundary_margin_m"] for row in rows]
+        ),
+        "qdr_prefix_minimum_inter_agent_distance_m": finite_min(
+            [row["qdr_prefix_minimum_inter_agent_distance_m"] for row in rows]
+        ),
+        "qdr_prefix_maximum_safety_margin_violation_m": finite_max(
+            [row["qdr_prefix_maximum_safety_margin_violation_m"] for row in rows]
+        ),
+        "qdr_prefix_violation_rate": finite_mean([row["qdr_prefix_violation_rate"] for row in rows]),
         "adaptive_enabled_rate": finite_mean([row["adaptive_enabled_rate"] for row in rows]),
         "mean_adaptive_uncertainty_score": finite_mean(
             [row["mean_adaptive_uncertainty_score"] for row in rows]
@@ -1720,6 +1791,10 @@ def main() -> None:
                     "qdr_enabled",
                     "qdr_queue_length",
                     "qdr_first_controllable_step",
+                    "qdr_prefix_minimum_clearance_m",
+                    "qdr_prefix_minimum_boundary_margin_m",
+                    "qdr_prefix_minimum_inter_agent_distance_m",
+                    "qdr_prefix_maximum_safety_margin_violation_m",
                     "adaptive_enabled",
                     "adaptive_uncertainty_score",
                     "adaptive_bucket_index",
@@ -1768,6 +1843,21 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/latency_p50_ms", summary["qdr_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/QDR/latency_p95_ms", summary["qdr_latency_ms"]["p95"], 0)
             writer.add_scalar("Summary/QDR/latency_p99_ms", summary["qdr_latency_ms"]["p99"], 0)
+            writer.add_scalar(
+                "Summary/QDR/prefix_minimum_clearance_m",
+                summary["qdr_prefix_minimum_clearance_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_minimum_boundary_margin_m",
+                summary["qdr_prefix_minimum_boundary_margin_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_violation_rate",
+                summary["qdr_prefix_violation_rate"],
+                0,
+            )
             writer.add_scalar("Summary/UAKR/mean_uncertainty_score", summary["mean_adaptive_uncertainty_score"], 0)
             writer.add_scalar("Summary/UAKR/mean_K", summary["mean_adaptive_k"], 0)
             writer.add_scalar(

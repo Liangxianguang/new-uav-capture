@@ -41,6 +41,17 @@ delay `0/1/2/4`, tracking time constant, and bounded command noise.  It must
 also add prefix clearance/error diagnostics before QDR can be promoted to the
 main branch.  No threshold was tuned on locked-test data.
 
+### Follow-up instrumentation check
+
+The evaluator now records the nominal immutable-prefix geometry separately
+from the post-action episode metrics.  The logged fields are prefix minimum
+clearance, boundary margin, inter-agent distance, maximum safety-margin
+violation, and pending-command authority.  A one-episode schema smoke using
+the Phase 17 configuration produced prefix minimum clearance `5.3255 m`,
+boundary margin `0.6000 m`, inter-agent distance `1.4405 m`, and zero nominal
+prefix violation.  This run only verifies the audit path; it is not added to
+the performance table and does not establish QDR safety.
+
 ## Reproducibility artifacts
 
 The source configuration is
@@ -50,6 +61,7 @@ TensorBoard event files:
 
 - `results/phase17_m0_qdr_delayed_smoke/distributed_delayed/tensorboard/`
 - `results/phase17_m0_no_qdr_delayed_smoke/distributed_delayed/tensorboard/`
+- `results/phase17_qdr_prefix_smoke_check_v2/distributed_delayed/`
 
 The generated `results/` directory is intentionally ignored by Git; source
 code, tests, and the configuration/report are versioned.

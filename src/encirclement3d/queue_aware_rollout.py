@@ -34,6 +34,7 @@ class DelayedPlanningState:
     delayed_velocities: np.ndarray
     queue_length: int
     first_controllable_step: int
+    authority_mode: str = "immutable"
     latency_ms: float = 0.0
 
     def __post_init__(self) -> None:
@@ -56,6 +57,8 @@ class DelayedPlanningState:
             raise ValueError("queue lengths and controllable-step indices must be non-negative")
         if int(self.first_controllable_step) != int(self.queue_length):
             raise ValueError("first_controllable_step must equal queue_length")
+        if not str(self.authority_mode).strip():
+            raise ValueError("authority_mode must be non-empty")
         arrays = (prefix_positions, prefix_velocities, prefix_actions, positions, velocities)
         if not all(np.isfinite(value).all() for value in arrays):
             raise ValueError("delayed planning state must be finite")
@@ -64,6 +67,7 @@ class DelayedPlanningState:
         return {
             "queue_length": int(self.queue_length),
             "first_controllable_step": int(self.first_controllable_step),
+            "authority_mode": str(self.authority_mode),
             "prefix_positions": self.prefix_positions.tolist(),
             "prefix_velocities": self.prefix_velocities.tolist(),
             "prefix_actions": self.prefix_actions.tolist(),
@@ -133,6 +137,23 @@ def prepare_queue_aware_observation(
     queue = queue_from_observation(observation, positions.shape[0])
     parameters = parameters_from_observation(observation, float(dt_seconds))
     state = rollout_queue_prefix(positions, velocities, queue, parameters)
+    execution = observation.get("execution", {})
+    authority_mode = (
+        str(execution.get("pending_command_authority", "immutable"))
+        if isinstance(execution, Mapping)
+        else "immutable"
+    )
+    state = DelayedPlanningState(
+        prefix_positions=state.prefix_positions,
+        prefix_velocities=state.prefix_velocities,
+        prefix_actions=state.prefix_actions,
+        delayed_positions=state.delayed_positions,
+        delayed_velocities=state.delayed_velocities,
+        queue_length=state.queue_length,
+        first_controllable_step=state.first_controllable_step,
+        authority_mode=authority_mode,
+        latency_ms=state.latency_ms,
+    )
     value = dict(observation)
     value["defender_positions"] = state.delayed_positions.copy()
     value["defender_velocities"] = state.delayed_velocities.copy()
@@ -142,6 +163,74 @@ def prepare_queue_aware_observation(
     value["execution"] = execution
     value["qdr"] = state.as_dict()
     return value, state
+
+
+def prefix_geometry_diagnostics(
+    state: DelayedPlanningState,
+    observation: Mapping[str, Any],
+    *,
+    drone_radius_m: float,
+    safety_margin_m: float,
+) -> dict[str, float]:
+    """Measure public-geometry margins along the immutable nominal prefix."""
+
+    if not np.isfinite([drone_radius_m, safety_margin_m]).all() or drone_radius_m < 0.0 or safety_margin_m < 0.0:
+        raise ValueError("drone radius and safety margin must be finite and non-negative")
+    if state.prefix_positions.shape[0] == 0:
+        return {
+            "minimum_clearance_m": float("inf"),
+            "minimum_boundary_margin_m": float("inf"),
+            "minimum_inter_agent_distance_m": float("inf"),
+            "maximum_safety_margin_violation_m": 0.0,
+        }
+    lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
+    upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
+    positions = np.asarray(state.prefix_positions, dtype=np.float64)
+    minimum_clearance = float("inf")
+    minimum_boundary_margin = float("inf")
+    minimum_inter_agent = float("inf")
+    for prefix_position in positions:
+        boundary_margin = np.minimum(prefix_position - lower, upper - prefix_position)
+        minimum_boundary_margin = min(minimum_boundary_margin, float(np.min(boundary_margin)))
+        for obstacle in observation.get("obstacles", []):
+            shape = str(obstacle.get("shape", "cylinder"))
+            center_xy = np.asarray(obstacle["center_xy"], dtype=np.float64)
+            height = float(obstacle["height"])
+            if shape == "cylinder":
+                radial = np.linalg.norm(prefix_position[:, :2] - center_xy, axis=-1) - float(obstacle["radius"])
+                vertical = np.maximum.reduce(
+                    (-prefix_position[:, 2], prefix_position[:, 2] - height, np.zeros(prefix_position.shape[0]))
+                )
+                clearance = np.where(
+                    vertical == 0.0,
+                    radial,
+                    np.where(radial <= 0.0, vertical, np.hypot(radial, vertical)),
+                )
+            else:
+                half = obstacle.get("half_extents_xy")
+                if half is None:
+                    half = [float(obstacle["radius"]), float(obstacle["radius"])]
+                center = np.array([center_xy[0], center_xy[1], height * 0.5], dtype=np.float64)
+                half_extent = np.array([float(half[0]), float(half[1]), height * 0.5], dtype=np.float64)
+                signed = np.abs(prefix_position - center) - half_extent
+                outside = np.maximum(signed, 0.0)
+                outside_norm = np.linalg.norm(outside, axis=-1)
+                clearance = np.where(outside_norm > 0.0, outside_norm, -np.max(-signed, axis=-1))
+            minimum_clearance = min(minimum_clearance, float(np.min(clearance - drone_radius_m)))
+        if prefix_position.shape[0] >= 2:
+            pairwise = np.linalg.norm(
+                prefix_position[:, None, :] - prefix_position[None, :, :],
+                axis=-1,
+            )
+            pairwise[np.diag_indices_from(pairwise)] = np.inf
+            minimum_inter_agent = min(minimum_inter_agent, float(np.min(pairwise)))
+    violation = max(float(safety_margin_m) - minimum_clearance, 0.0)
+    return {
+        "minimum_clearance_m": float(minimum_clearance),
+        "minimum_boundary_margin_m": float(minimum_boundary_margin),
+        "minimum_inter_agent_distance_m": float(minimum_inter_agent),
+        "maximum_safety_margin_violation_m": float(violation),
+    }
 
 
 def _extend_trajectory_tail(
@@ -220,6 +309,7 @@ def shift_scenario_trajectory_set(
 __all__ = [
     "DelayedPlanningState",
     "prepare_queue_aware_observation",
+    "prefix_geometry_diagnostics",
     "rollout_queue_prefix",
     "shift_scenario_trajectory_set",
 ]

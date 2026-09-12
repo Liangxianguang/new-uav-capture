@@ -6,6 +6,7 @@ from encirclement3d.execution_dynamics import ExecutionParameters
 from encirclement3d.minimax_mpc import ScenarioTrajectorySet
 from encirclement3d.queue_aware_rollout import (
     prepare_queue_aware_observation,
+    prefix_geometry_diagnostics,
     rollout_queue_prefix,
     shift_scenario_trajectory_set,
 )
@@ -95,3 +96,29 @@ def test_shift_scenario_paths_preserves_metadata_and_bounds_extension_speed() ->
     assert shifted.score_kind == scenarios.score_kind
     assert shifted.source_model_hash == scenarios.source_model_hash
     assert shifted.timestamp_step == scenarios.timestamp_step
+
+
+def test_prefix_geometry_diagnostics_uses_only_public_geometry() -> None:
+    state = rollout_queue_prefix(
+        np.zeros((2, 3), dtype=np.float64),
+        np.zeros((2, 3), dtype=np.float64),
+        [
+            np.array([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], dtype=np.float64),
+        ],
+        _parameters(),
+    )
+    observation = {
+        "world_lower_bounds": np.array([-5.0, -5.0, -5.0]),
+        "world_upper_bounds": np.array([5.0, 5.0, 5.0]),
+        "obstacles": [],
+    }
+
+    diagnostics = prefix_geometry_diagnostics(
+        state,
+        observation,
+        drone_radius_m=0.25,
+        safety_margin_m=0.35,
+    )
+
+    assert diagnostics["minimum_boundary_margin_m"] > 0.0
+    np.testing.assert_allclose(diagnostics["minimum_inter_agent_distance_m"], 0.2)
