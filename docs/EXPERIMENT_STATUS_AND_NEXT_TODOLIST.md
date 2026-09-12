@@ -239,6 +239,17 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 **P14 gate：** confirmation full-trajectory coverage 不低于预注册目标（当前目标 90%），同时满足预注册 tube-radius/volume 上限；RNIC 或 UAKR 接入不得使 ID safe capture 低于固定参考的 `-2 pp` 非劣界，且不得增加 collision/boundary。任一条件失败则保留负结果并降级为诊断工具。
 
+### P15：Phase 19 gated-RNIC repair pilot
+
+- [x] 增加显式 `reachability_activation_slack_s`，只在严重负到达裕量时激活 RNIC 代价；默认 `None` 保留原始 RNIC 语义。
+- [x] 在 Diagonal-SSM、distributed delayed DN-MPC、local CBF 和固定 20 场景 validation 前缀上完成 RNIC-off 与 `-0.75/-0.50/-0.25 s` 配对 pilot。
+- [x] 三个阈值均为 safe capture `95.0%`、collision `5.0%`、timeout `0%`，与 RNIC-off 的 `20/20` episode outcomes 完全一致；total p95 为 `67.97/67.07/66.15 ms`，高于 RNIC-off 的 `51.43 ms`。
+- [x] 记录每个 pilot 的 config、source hash、episode/step JSONL、summary 和 TensorBoard；未读取 locked-test。
+- [x] 将 gated RNIC 判为 No-Go for promotion；不得把阈值化解释为风险预测器或安全证明。
+- [ ] 若重新研究 RNIC，先构造独立 reachable-set/risk label 并在 fresh validation block 检验 risk ranking；在信号层修复前不再扩大 planner 超参扫描。
+
+详见 `docs/PHASE19_GATED_RNIC_PILOT_REPORT.md`。Phase 16 的 GRU `both` + distributed delayed DN-MPC + local CBF 仍是主参考模型。
+
 ## 7. 当前推荐执行顺序
 
 ```text

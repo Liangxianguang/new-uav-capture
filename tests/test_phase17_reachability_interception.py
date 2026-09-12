@@ -101,3 +101,35 @@ def test_target_tube_radius_makes_rnic_cost_more_conservative() -> None:
         target_tube_radius_m=(0.2, 0.2),
     )
     assert float(tube[0, 0]) >= float(baseline[0, 0])
+
+
+def test_gated_rnic_ignores_mild_slack_deficit_but_keeps_diagnostics() -> None:
+    positions = np.zeros((1, 1, 1, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    targets = np.array([[[0.5, 0.0, 0.0]]], dtype=np.float64)
+
+    ungated, slack, _arrival = reachability_normalized_interception_cost(
+        positions,
+        velocities,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=2.0,
+        time_margin_s=0.15,
+        time_scale_s=0.5,
+    )
+    gated, gated_slack, _arrival = reachability_normalized_interception_cost(
+        positions,
+        velocities,
+        targets,
+        dt_seconds=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=2.0,
+        time_margin_s=0.15,
+        time_scale_s=0.5,
+        activation_slack_s=-0.75,
+    )
+
+    np.testing.assert_allclose(slack, gated_slack)
+    assert float(gated[0, 0]) == 0.0
+    assert float(ungated[0, 0]) > float(gated[0, 0])

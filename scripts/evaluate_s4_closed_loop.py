@@ -96,6 +96,11 @@ def parse_args() -> argparse.Namespace:
     rnic_group.add_argument("--rnic", dest="rnic", action="store_true")
     rnic_group.add_argument("--no-rnic", dest="rnic", action="store_false")
     parser.set_defaults(rnic=None)
+    parser.add_argument(
+        "--rnic-activation-slack-s",
+        type=float,
+        help="Optional severe-unreachability threshold for gated RNIC; default preserves the legacy RNIC penalty.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -196,6 +201,10 @@ def main() -> None:
     )
     planner_mapping = dict(mpc_document.get("planner", {}))
     planner_mapping["reachability_normalized_cost_enabled"] = rnic
+    if args.rnic_activation_slack_s is not None:
+        if not np.isfinite(float(args.rnic_activation_slack_s)):
+            raise ValueError("rnic-activation-slack-s must be finite")
+        planner_mapping["reachability_activation_slack_s"] = float(args.rnic_activation_slack_s)
     planner_config = MinimaxMPCConfig.from_mapping(planner_mapping)
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)

@@ -659,6 +659,7 @@ class DistributedMinimaxDNMPC:
                 time_margin_s=self.config.reachability_time_margin_s,
                 time_scale_s=self.config.reachability_time_scale_s,
                 target_tube_radius_m=scenarios.conformal_radius_by_step_m,
+                activation_slack_s=self.config.reachability_activation_slack_s,
             )
             result += self.config.weight_reachability * reachability_cost
 

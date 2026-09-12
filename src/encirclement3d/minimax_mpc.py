@@ -145,6 +145,7 @@ class MinimaxMPCConfig:
     reachability_time_margin_s: float = 0.15
     reachability_time_scale_s: float = 0.50
     reachability_max_acceleration_mps2: float = 6.0
+    reachability_activation_slack_s: float | None = None
     max_role_variants: int = 4
     perimeter_scales: tuple[float, ...] = (0.75, 1.0)
 
@@ -198,6 +199,10 @@ class MinimaxMPCConfig:
             raise ValueError("reachability_time_scale_s must be finite and positive")
         if not np.isfinite(float(self.reachability_max_acceleration_mps2)) or float(self.reachability_max_acceleration_mps2) <= 0.0:
             raise ValueError("reachability_max_acceleration_mps2 must be finite and positive")
+        if self.reachability_activation_slack_s is not None and not np.isfinite(
+            float(self.reachability_activation_slack_s)
+        ):
+            raise ValueError("reachability_activation_slack_s must be finite when provided")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "MinimaxMPCConfig":
@@ -806,6 +811,7 @@ class ScenarioMinimaxMPC:
                 time_margin_s=self.config.reachability_time_margin_s,
                 time_scale_s=self.config.reachability_time_scale_s,
                 target_tube_radius_m=candidates.conformal_radius_by_step_m,
+                activation_slack_s=self.config.reachability_activation_slack_s,
             )
             scenario_costs += self.config.weight_reachability * reachability_cost
         return scenario_costs, constraint_violations

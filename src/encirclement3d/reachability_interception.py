@@ -58,6 +58,7 @@ def reachability_normalized_interception_cost(
     time_margin_s: float = 0.15,
     time_scale_s: float = 0.50,
     target_tube_radius_m: np.ndarray | tuple[float, ...] | None = None,
+    activation_slack_s: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return RNIC cost, best slack and per-defender arrival times.
 
@@ -81,6 +82,8 @@ def reachability_normalized_interception_cost(
         raise ValueError("dt_seconds must be finite and positive")
     if time_margin_s < 0.0 or time_scale_s <= 0.0:
         raise ValueError("time margin must be non-negative and time scale positive")
+    if activation_slack_s is not None and not np.isfinite(float(activation_slack_s)):
+        raise ValueError("activation_slack_s must be finite when provided")
     if not np.isfinite(positions).all() or not np.isfinite(velocities).all() or not np.isfinite(targets).all():
         raise ValueError("reachability inputs must be finite")
 
@@ -122,7 +125,15 @@ def reachability_normalized_interception_cost(
         arrival_times[:, :, timestep, :] = arrival
         best = np.max(slack, axis=-1)
         best_slack[:, :, timestep] = best
-        normalized_shortfall = np.maximum(float(time_margin_s) - best, 0.0) / float(time_scale_s)
+        normalized_shortfall = np.maximum(float(time_margin_s) - best, 0.0)
+        if activation_slack_s is not None:
+            # Keep mild deficits visible in diagnostics, but do not let them
+            # distort the nominal distance/formation objective.  The gate is
+            # activated only for severe negative reachability slack.
+            normalized_shortfall = np.where(
+                best < float(activation_slack_s), normalized_shortfall, 0.0
+            )
+        normalized_shortfall /= float(time_scale_s)
         cost += normalized_shortfall * normalized_shortfall
     if not np.isfinite(cost).all() or not np.isfinite(best_slack).all() or not np.isfinite(arrival_times).all():
         raise FloatingPointError("RNIC emitted non-finite cost or diagnostics")
@@ -153,6 +164,7 @@ def planned_rnic_diagnostics(
     time_margin_s: float = 0.15,
     time_scale_s: float = 0.50,
     target_tube_radius_m: np.ndarray | tuple[float, ...] | None = None,
+    activation_slack_s: float | None = None,
 ) -> dict[str, float]:
     """Return auditable RNIC diagnostics for one selected team plan.
 
@@ -186,6 +198,7 @@ def planned_rnic_diagnostics(
         time_margin_s=time_margin_s,
         time_scale_s=time_scale_s,
         target_tube_radius_m=target_tube_radius_m,
+        activation_slack_s=activation_slack_s,
     )
     best = best_slack[0]
     arrival = arrival_times[0]

@@ -180,6 +180,11 @@ def parse_args() -> argparse.Namespace:
         help="Disable reachability-normalized interception cost.",
     )
     parser.set_defaults(rnic=None)
+    parser.add_argument(
+        "--rnic-activation-slack-s",
+        type=float,
+        help="Optional severe-unreachability threshold for gated RNIC; default preserves the legacy RNIC penalty.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -1059,6 +1064,7 @@ def run_episode(
                 time_margin_s=planner_config.reachability_time_margin_s,
                 time_scale_s=planner_config.reachability_time_scale_s,
                 target_tube_radius_m=planned_rnic_scenarios.conformal_radius_by_step_m,
+                activation_slack_s=planner_config.reachability_activation_slack_s,
             )
             rnic_latency_ms = (time.perf_counter() - rnic_started) * 1000.0
             rnic_minimum_best_slack_s = float(rnic_diagnostics["minimum_best_slack_s"])
@@ -1795,6 +1801,10 @@ def main() -> None:
         else args.rnic
     )
     planner_mapping["reachability_normalized_cost_enabled"] = rnic
+    if args.rnic_activation_slack_s is not None:
+        if not np.isfinite(float(args.rnic_activation_slack_s)):
+            raise ValueError("rnic-activation-slack-s must be finite")
+        planner_mapping["reachability_activation_slack_s"] = float(args.rnic_activation_slack_s)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")

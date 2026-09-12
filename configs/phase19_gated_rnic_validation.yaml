@@ -1,0 +1,26 @@
+experiment_name: phase19_gated_rnic_validation_pilot
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Development-only RNIC repair candidate.  The threshold is intentionally
+# explicit: mild negative reachability slack stays in diagnostics, while the
+# cost is activated only for severe predicted unreachability.
+phase19:
+  rnic_activation_slack_s: -0.75
+  validation_only: true
+  locked_test_allowed: false
+
+planner:
+  implementation: finite_shooting_scenario_mpc
+  reachability_normalized_cost_enabled: true
+  reachability_activation_slack_s: -0.75
+  reachability_time_margin_s: 0.15
+  reachability_time_scale_s: 0.50
+  reachability_max_acceleration_mps2: 6.0
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_latency_percentiles: [50, 95, 99]

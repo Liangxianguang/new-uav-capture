@@ -30,6 +30,7 @@ metric.
 | Phase 18b | Balanced-mirror public-context adaptive conformal tube | Fixed-radius confirmation coverage remains 83.32%, but public-context inflation reaches 99.79% on the untouched development confirmation; the tube remains broad and the compactness gate was not pre-frozen, so this is a promising diagnostic rather than a promoted main result. | `PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md` |
 | Phase 18c | Tube width as an explicit UAKR feature | In an 8-scene paired smoke, mean K and refresh ratio increase without changing safe capture or collision; total p95 increases to 57.87 ms. Retain as a negative ablation, not a promoted UAKR gain. | `PHASE18C_TUBE_UAKR_SMOKE_REPORT.md` |
 | Phase 18d | Executable conformal-tube coverage--compactness gate | Coverage passes at 99.79%, but mean/max effective radius 8.416/10.404 m exceed the 8/10 m limits; the artifact is automatically classified No-Go. | `PHASE18D_COMPACTNESS_GATE_REPORT.md` |
+| Phase 19 | Severe-unreachability-gated RNIC pilot | On a paired 20-scene validation pilot, thresholds `-0.75/-0.50/-0.25 s` leave safe capture/collision unchanged at 95.0%/5.0% while increasing total p95 to 66.15--67.97 ms; retain as a negative ablation, not a promoted method. | `PHASE19_GATED_RNIC_PILOT_REPORT.md`, `phase19_gated_rnic_validation.yaml` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.
 Its predictor results used the former simulator-truth forecast origin and are
