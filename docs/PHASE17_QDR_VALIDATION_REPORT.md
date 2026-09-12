@@ -61,16 +61,22 @@ planner state and candidate time index, but it does not cancel the queue or
 provide a separately verified recovery action.  These diagnostics use public
 geometry and nominal dynamics; they are not a reachable-set or CBF proof.
 
+The evaluator now also performs a post-hoc endpoint audit: when the delayed
+time `t+d` is reached, it compares the saved nominal endpoint with simulator
+truth.  In a one-episode zero-noise schema check, the mean and maximum
+position/velocity errors were all `0`, with `22/24` checks completed before
+termination.  This confirms the audit path only; it does not alter the
+90-scene result above or establish safety under noise.
+
 ## Decision and next experiment
 
-QDR remains **No-Go for a main-method claim**.  The next implementation must
-add a validation-only recovery/precondition branch and compare it against the
+QDR remains **No-Go for a main-method claim**.  The next experiment must add a
+validation-only recovery/precondition branch and compare it against the
 current QDR adapter under delay `0/1/2/4`, tracking time constant and bounded
-command noise, one factor at a time.  The branch must report endpoint
-position/velocity error against simulator state only after the control run,
-and must not silently upgrade immutable authority.  If the paired gate still
-fails, retain QDR as a transparent negative/diagnostic result and keep the
-Phase 16 controller as the main baseline.
+command noise, one factor at a time.  The endpoint audit is now available and
+must remain post hoc; it must not silently upgrade immutable authority.  If
+the paired gate still fails, retain QDR as a transparent negative/diagnostic
+result and keep the Phase 16 controller as the main baseline.
 
 ## Reproducibility artifacts
 

@@ -74,6 +74,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.queue_aware_rollout import (  # noqa: E402
+    endpoint_error_diagnostics,
     prepare_queue_aware_observation,
     prefix_geometry_diagnostics,
     shift_scenario_trajectory_set,
@@ -692,10 +693,38 @@ def run_episode(
 
     path_length = np.zeros(env.n_defenders, dtype=np.float64)
     previous_positions = env.defender_positions.copy()
+    pending_qdr_endpoint_checks: list[tuple[int, np.ndarray, np.ndarray]] = []
+    qdr_endpoint_expected_checks = 0
+    qdr_endpoint_completed_checks = 0
     step_rows: list[dict[str, Any]] = []
     final_info: dict[str, Any] = {}
     while True:
         control_started = time.perf_counter()
+        qdr_endpoint_position_error_mean_m = float("nan")
+        qdr_endpoint_position_error_max_m = float("nan")
+        qdr_endpoint_velocity_error_mean_mps = float("nan")
+        qdr_endpoint_velocity_error_max_mps = float("nan")
+        qdr_endpoint_check_completed = 0.0
+        remaining_qdr_endpoint_checks: list[tuple[int, np.ndarray, np.ndarray]] = []
+        for target_step, expected_positions, expected_velocities in pending_qdr_endpoint_checks:
+            if int(target_step) != int(env.step_count):
+                remaining_qdr_endpoint_checks.append(
+                    (target_step, expected_positions, expected_velocities)
+                )
+                continue
+            endpoint_diagnostics = endpoint_error_diagnostics(
+                expected_positions,
+                expected_velocities,
+                env.defender_positions,
+                env.defender_velocities,
+            )
+            qdr_endpoint_position_error_mean_m = float(endpoint_diagnostics["position_error_mean_m"])
+            qdr_endpoint_position_error_max_m = float(endpoint_diagnostics["position_error_max_m"])
+            qdr_endpoint_velocity_error_mean_mps = float(endpoint_diagnostics["velocity_error_mean_mps"])
+            qdr_endpoint_velocity_error_max_mps = float(endpoint_diagnostics["velocity_error_max_mps"])
+            qdr_endpoint_check_completed = 1.0
+            qdr_endpoint_completed_checks += 1
+        pending_qdr_endpoint_checks = remaining_qdr_endpoint_checks
         fallback_actions = fallback_controller.act(observation)
         prediction_refreshed = False
         prediction_age_steps = 0
@@ -789,6 +818,15 @@ def run_episode(
                 qdr_prefix_maximum_safety_margin_violation_m = float(
                     qdr_prefix_diagnostics["maximum_safety_margin_violation_m"]
                 )
+                if qdr_state.queue_length > 0:
+                    pending_qdr_endpoint_checks.append(
+                        (
+                            int(env.step_count + qdr_state.queue_length),
+                            qdr_state.delayed_positions.copy(),
+                            qdr_state.delayed_velocities.copy(),
+                        )
+                    )
+                    qdr_endpoint_expected_checks += 1
                 qdr_latency_ms = (time.perf_counter() - qdr_started) * 1000.0
             if distributed_planner is not None:
                 plan = distributed_planner.plan(
@@ -924,6 +962,11 @@ def run_episode(
                     qdr_prefix_maximum_safety_margin_violation_m
                 ),
                 "qdr_authority_mode": qdr_authority_mode,
+                "qdr_endpoint_position_error_mean_m": float(qdr_endpoint_position_error_mean_m),
+                "qdr_endpoint_position_error_max_m": float(qdr_endpoint_position_error_max_m),
+                "qdr_endpoint_velocity_error_mean_mps": float(qdr_endpoint_velocity_error_mean_mps),
+                "qdr_endpoint_velocity_error_max_mps": float(qdr_endpoint_velocity_error_max_mps),
+                "qdr_endpoint_check_completed": float(qdr_endpoint_check_completed),
                 "adaptive_enabled": 1.0 if adaptive_enabled else 0.0,
                 "adaptive_uncertainty_score": float(adaptive_uncertainty_score),
                 "adaptive_bucket_index": float(adaptive_bucket_index),
@@ -1137,6 +1180,25 @@ def run_episode(
                 ]
             )
             if any(np.isfinite(float(row["qdr_prefix_minimum_clearance_m"])) for row in step_rows)
+            else 0.0
+        ),
+        "qdr_endpoint_position_error_mean_m": _diagnostic_mean(
+            step_rows, "qdr_endpoint_position_error_mean_m"
+        ),
+        "qdr_endpoint_position_error_max_m": _diagnostic_max(
+            step_rows, "qdr_endpoint_position_error_max_m"
+        ),
+        "qdr_endpoint_velocity_error_mean_mps": _diagnostic_mean(
+            step_rows, "qdr_endpoint_velocity_error_mean_mps"
+        ),
+        "qdr_endpoint_velocity_error_max_mps": _diagnostic_max(
+            step_rows, "qdr_endpoint_velocity_error_max_mps"
+        ),
+        "qdr_endpoint_check_expected": float(qdr_endpoint_expected_checks),
+        "qdr_endpoint_check_completed": float(qdr_endpoint_completed_checks),
+        "qdr_endpoint_check_coverage": float(
+            qdr_endpoint_completed_checks / qdr_endpoint_expected_checks
+            if qdr_endpoint_expected_checks
             else 0.0
         ),
         "adaptive_enabled_rate": float(np.mean([row["adaptive_enabled"] for row in step_rows])),
@@ -1444,6 +1506,27 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             [row["qdr_prefix_maximum_safety_margin_violation_m"] for row in rows]
         ),
         "qdr_prefix_violation_rate": finite_mean([row["qdr_prefix_violation_rate"] for row in rows]),
+        "qdr_endpoint_position_error_mean_m": finite_mean(
+            [row["qdr_endpoint_position_error_mean_m"] for row in rows]
+        ),
+        "qdr_endpoint_position_error_max_m": finite_max(
+            [row["qdr_endpoint_position_error_max_m"] for row in rows]
+        ),
+        "qdr_endpoint_velocity_error_mean_mps": finite_mean(
+            [row["qdr_endpoint_velocity_error_mean_mps"] for row in rows]
+        ),
+        "qdr_endpoint_velocity_error_max_mps": finite_max(
+            [row["qdr_endpoint_velocity_error_max_mps"] for row in rows]
+        ),
+        "qdr_endpoint_check_expected": finite_mean(
+            [row["qdr_endpoint_check_expected"] for row in rows]
+        ),
+        "qdr_endpoint_check_completed": finite_mean(
+            [row["qdr_endpoint_check_completed"] for row in rows]
+        ),
+        "qdr_endpoint_check_coverage": finite_mean(
+            [row["qdr_endpoint_check_coverage"] for row in rows]
+        ),
         "adaptive_enabled_rate": finite_mean([row["adaptive_enabled_rate"] for row in rows]),
         "mean_adaptive_uncertainty_score": finite_mean(
             [row["mean_adaptive_uncertainty_score"] for row in rows]
@@ -1795,6 +1878,11 @@ def main() -> None:
                     "qdr_prefix_minimum_boundary_margin_m",
                     "qdr_prefix_minimum_inter_agent_distance_m",
                     "qdr_prefix_maximum_safety_margin_violation_m",
+                    "qdr_endpoint_position_error_mean_m",
+                    "qdr_endpoint_position_error_max_m",
+                    "qdr_endpoint_velocity_error_mean_mps",
+                    "qdr_endpoint_velocity_error_max_mps",
+                    "qdr_endpoint_check_completed",
                     "adaptive_enabled",
                     "adaptive_uncertainty_score",
                     "adaptive_bucket_index",
@@ -1856,6 +1944,26 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/prefix_violation_rate",
                 summary["qdr_prefix_violation_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/endpoint_position_error_mean_m",
+                summary["qdr_endpoint_position_error_mean_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/endpoint_position_error_max_m",
+                summary["qdr_endpoint_position_error_max_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/endpoint_velocity_error_mean_mps",
+                summary["qdr_endpoint_velocity_error_mean_mps"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/endpoint_check_coverage",
+                summary["qdr_endpoint_check_coverage"],
                 0,
             )
             writer.add_scalar("Summary/UAKR/mean_uncertainty_score", summary["mean_adaptive_uncertainty_score"], 0)

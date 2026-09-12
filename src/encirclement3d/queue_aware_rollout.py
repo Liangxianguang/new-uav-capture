@@ -233,6 +233,44 @@ def prefix_geometry_diagnostics(
     }
 
 
+def endpoint_error_diagnostics(
+    expected_positions: np.ndarray,
+    expected_velocities: np.ndarray,
+    actual_positions: np.ndarray,
+    actual_velocities: np.ndarray,
+) -> dict[str, float]:
+    """Compare a nominal delayed endpoint with simulator state post hoc."""
+
+    expected_position_array = np.asarray(expected_positions, dtype=np.float64)
+    expected_velocity_array = np.asarray(expected_velocities, dtype=np.float64)
+    actual_position_array = np.asarray(actual_positions, dtype=np.float64)
+    actual_velocity_array = np.asarray(actual_velocities, dtype=np.float64)
+    arrays = (
+        expected_position_array,
+        expected_velocity_array,
+        actual_position_array,
+        actual_velocity_array,
+    )
+    if expected_position_array.shape != expected_velocity_array.shape:
+        raise ValueError("expected endpoint positions and velocities must have matching shapes")
+    if actual_position_array.shape != actual_velocity_array.shape:
+        raise ValueError("actual endpoint positions and velocities must have matching shapes")
+    if expected_position_array.shape != actual_position_array.shape:
+        raise ValueError("expected and actual endpoint states must have matching shapes")
+    if expected_position_array.ndim != 2 or expected_position_array.shape[-1] != 3:
+        raise ValueError("endpoint states must have shape [defenders, 3]")
+    if not all(np.isfinite(value).all() for value in arrays):
+        raise ValueError("endpoint states must be finite")
+    position_errors = np.linalg.norm(actual_position_array - expected_position_array, axis=1)
+    velocity_errors = np.linalg.norm(actual_velocity_array - expected_velocity_array, axis=1)
+    return {
+        "position_error_mean_m": float(np.mean(position_errors)),
+        "position_error_max_m": float(np.max(position_errors)),
+        "velocity_error_mean_mps": float(np.mean(velocity_errors)),
+        "velocity_error_max_mps": float(np.max(velocity_errors)),
+    }
+
+
 def _extend_trajectory_tail(
     trajectory: np.ndarray,
     *,
@@ -308,6 +346,7 @@ def shift_scenario_trajectory_set(
 
 __all__ = [
     "DelayedPlanningState",
+    "endpoint_error_diagnostics",
     "prepare_queue_aware_observation",
     "prefix_geometry_diagnostics",
     "rollout_queue_prefix",

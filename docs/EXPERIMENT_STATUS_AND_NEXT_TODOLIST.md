@@ -197,7 +197,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 ### P13：Phase 17 可复现三创新点路线
 
 - [x] 按 `PHASE17_QUEUE_ADAPTIVE_REACHABILITY_TODOLIST.md` 完成第一版 Queue-Aware Delayed-State Rollout 适配器、单元测试、配置快照和 TensorBoard smoke 记录；它修正规划状态和候选时间索引，不重新打开 robust CBF-QP。
-- [x] 完成 QDR 的 nominal immutable-prefix 几何诊断、TensorBoard 字段和 90 场景 validation paired comparison；QDR-on safe capture 为 `88.89%`，QDR-off 为 `94.44%`，collision 为 `11.11%/5.56%`，当前 gate No-Go。详见 `docs/PHASE17_QDR_VALIDATION_REPORT.md`。
+- [x] 完成 QDR 的 nominal immutable-prefix 几何诊断、post-hoc endpoint audit、TensorBoard 字段和 90 场景 validation paired comparison；QDR-on safe capture 为 `88.89%`，QDR-off 为 `94.44%`，collision 为 `11.11%/5.56%`，当前 gate No-Go。详见 `docs/PHASE17_QDR_VALIDATION_REPORT.md`。
 - [x] Phase 17 geometry-OOD Diagonal-SSM 20-episode pilot 已完成；结果显示 no-QDR 100%/0% collision、QDR fixed-K 85%/15% collision、UAKR+QDR 90%/10% collision，仍不足以作为正式统计结论。
 - [x] 完成 UAKR 的可解释策略、动态 K/refresh、缓存轨迹推进、残差触发与 TensorBoard 记录；当前 pilot 的 forced-refresh 偏高，尚未冻结阈值。
 - [x] 完成 RNIC 的受限到达时间代价、central/local DN-MPC 接入、单元测试与 TensorBoard 记录；当前 pilot 未带来行为收益且明显增加 planner latency，尚未通过 speed-OOD gate。

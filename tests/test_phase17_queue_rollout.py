@@ -5,6 +5,7 @@ import numpy as np
 from encirclement3d.execution_dynamics import ExecutionParameters
 from encirclement3d.minimax_mpc import ScenarioTrajectorySet
 from encirclement3d.queue_aware_rollout import (
+    endpoint_error_diagnostics,
     prepare_queue_aware_observation,
     prefix_geometry_diagnostics,
     rollout_queue_prefix,
@@ -122,3 +123,17 @@ def test_prefix_geometry_diagnostics_uses_only_public_geometry() -> None:
 
     assert diagnostics["minimum_boundary_margin_m"] > 0.0
     np.testing.assert_allclose(diagnostics["minimum_inter_agent_distance_m"], 0.2)
+
+
+def test_endpoint_error_diagnostics_is_post_hoc_and_shape_checked() -> None:
+    diagnostics = endpoint_error_diagnostics(
+        np.zeros((2, 3), dtype=np.float64),
+        np.zeros((2, 3), dtype=np.float64),
+        np.array([[0.1, 0.0, 0.0], [0.0, -0.2, 0.0]], dtype=np.float64),
+        np.array([[0.0, 0.3, 0.0], [0.0, 0.0, -0.4]], dtype=np.float64),
+    )
+
+    np.testing.assert_allclose(diagnostics["position_error_mean_m"], 0.15)
+    np.testing.assert_allclose(diagnostics["position_error_max_m"], 0.2)
+    np.testing.assert_allclose(diagnostics["velocity_error_mean_mps"], 0.35)
+    np.testing.assert_allclose(diagnostics["velocity_error_max_mps"], 0.4)
