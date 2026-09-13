@@ -247,7 +247,7 @@ block 上，QDR-on safe capture 从未修复版本的 `87.5%` 恢复到 `100.0%`
 Phase 36 将本地候选执行 dynamics rollout 改为候选维度批量计算，并用逐候选参考
 实现做数值等价测试。相同 40-episode development block 上，safe capture 仍为
 `100.0%`，collision/boundary/timeout 仍为 `0%`，而 planner/total p95 从
-Phase35 的 `127.46/150.21 ms` 降到 `82.39/105.27 ms`。由于相对 QDR-off 的
+Phase35 的 `127.46/150.21 ms` 降到 `82.39/105.27 ms`。由于相对历史 QDR-off 的
 `46.53 ms` 仍远超 `15%` 增幅门槛，当前只认定为 runtime optimization pass，
 不认定为 QDR performance promotion。详细结果见
 `docs/PHASE36_QDR_BATCHED_ROLLOUT_REPORT.md`。
@@ -265,6 +265,16 @@ gate exhaustion `21.76%`。Phase40 的 planner/total p95 为 `40.43/63.77 ms`，
 runtime optimization pass，不是 QDR promotion；immutable prefix 仍可能不可恢复，
 也没有产生 safety proof。完整结果见
 `docs/PHASE38_40_QDR_RUNTIME_COMPRESSION_REPORT.md`。
+
+### 3.8 Phase 41 当前源码 QDR-off 配对基线
+
+Phase 41 显式关闭 `queue_aware_rollout` 和 `queue_aware_safety_projection`，在同一
+40-episode development block 上重新获得 QDR-off reference：safe capture `100%`，
+collision/boundary/timeout `0%`，total p50/p95/p99 为
+`24.44/43.36/47.23 ms`。与 Phase40 QDR-on 的 `43.61/63.77/72.40 ms` 配对后，
+total p95 增幅约 `47.1%`，因此 QDR 的相对效率 gate 仍为 No-Go。该阶段只确认当前
+源码 baseline 和 CLI 信息边界，不构成新的方法增益或安全证明。详见
+`docs/PHASE41_QDR_CURRENT_SOURCE_REFERENCE_REPORT.md`。
 
 ---
 
