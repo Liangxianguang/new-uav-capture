@@ -75,7 +75,7 @@ prediction:
     age_weight: 0.20
     confidence_weight: 0.20
     speed_weight: 0.15
-    cache_weight: 0.05
+    cache_weight: 0.10
     residual_weight: 0.05
     queue_prefix_risk_scale_m: 0.50
     queue_prefix_risk_buffer_m: 0.15
