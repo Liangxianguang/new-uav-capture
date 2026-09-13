@@ -124,4 +124,3 @@ QDR 仍把 safe capture 提升 `20.00 pp [14.17,25.83]`，collision 降低
 - [ ] 在 authority/noise 各轴完成后，再决定是否值得做 QDR×UAKR/RNIC interaction；
 - [ ] 在效率 gate 通过前继续关闭 locked-test Full 组合，不把当前 QDR 结果写成
   safety certificate。
-
