@@ -1,0 +1,57 @@
+experiment_name: phase51_qdr_single_process_runtime
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Runtime-only validation benchmark. The two arms use the same Phase 48
+# frozen prefix, one process at a time, and fixed Torch thread counts. This
+# isolates algorithmic overhead from the concurrent CPU-load artifact seen in
+# the multi-process Phase 49 comparison.
+scene_manifest: results/phase48_qdr_liveness_confirmation_scenes/scenes.jsonl
+episodes: 40
+seed: 727201
+thread_control:
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  execution: sequential_single_process
+
+phase17:
+  queue_aware_rollout: true
+  queue_aware_safety_projection: true
+  adaptive_k: false
+  reachability_normalized_cost: false
+  execution:
+    enabled: true
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+
+prediction:
+  candidate_source: checkpoint
+  num_samples: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+  refresh_interval_steps: 1
+  adaptive_k: false
+
+evaluation:
+  split: validation_development
+  methods: [distributed_delayed]
+  safety_layer: local_cbf
+  decision: validation_selection
+  paired_scene_prefix_episodes: 40
+  same_length_prefix_control_steps: 18
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_solver_status: true
+  report_fallback_reason: true
+  report_latency_percentiles: [50, 95, 99]

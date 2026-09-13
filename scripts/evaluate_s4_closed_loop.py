@@ -244,6 +244,16 @@ def parse_args() -> argparse.Namespace:
         help="Validation-only override for dynamics.execution.drag_coefficient.",
     )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
+    parser.add_argument(
+        "--torch-num-threads",
+        type=int,
+        help="Optional fixed Torch intra-op CPU thread count for reproducible runtime benchmarks.",
+    )
+    parser.add_argument(
+        "--torch-num-interop-threads",
+        type=int,
+        help="Optional fixed Torch inter-op CPU thread count for reproducible runtime benchmarks.",
+    )
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
     parser.add_argument(
@@ -358,8 +368,34 @@ def apply_execution_cli_overrides(
     return effective
 
 
+def configure_torch_threads(
+    num_threads: int | None,
+    num_interop_threads: int | None,
+) -> dict[str, int | None]:
+    """Apply optional fixed Torch thread counts and return the observed settings."""
+
+    for name, value in (
+        ("torch-num-threads", num_threads),
+        ("torch-num-interop-threads", num_interop_threads),
+    ):
+        if value is not None and int(value) <= 0:
+            raise ValueError(f"{name} must be a positive integer")
+    if num_interop_threads is not None:
+        torch.set_num_interop_threads(int(num_interop_threads))
+    if num_threads is not None:
+        torch.set_num_threads(int(num_threads))
+    return {
+        "torch_num_threads": int(torch.get_num_threads()),
+        "torch_num_interop_threads": int(torch.get_num_interop_threads()),
+    }
+
+
 def main() -> None:
     args = parse_args()
+    torch_thread_settings = configure_torch_threads(
+        args.torch_num_threads,
+        args.torch_num_interop_threads,
+    )
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -579,6 +615,7 @@ def main() -> None:
         "phase17": phase17_mapping,
         "effective_execution": phase17_execution_mapping,
         "device": str(device),
+        **torch_thread_settings,
         "safety_layer": args.safety_layer,
         "decision": args.decision,
         "source_hashes": hashes,
@@ -666,6 +703,8 @@ def main() -> None:
         with require_summary_writer()(log_dir=str(method_output / "tensorboard"), flush_secs=5) as writer:
             writer.add_text("Evaluation/config", yaml.safe_dump(run_config, sort_keys=False), 0)
             writer.add_text("Evaluation/source_hashes", json.dumps(run_config["source_hashes"], indent=2), 0)
+            writer.add_scalar("Evaluation/torch_num_threads", run_config["torch_num_threads"], 0)
+            writer.add_scalar("Evaluation/torch_num_interop_threads", run_config["torch_num_interop_threads"], 0)
             for episode_index, row in enumerate(rows):
                 for key in (
                     "safe_capture_success",

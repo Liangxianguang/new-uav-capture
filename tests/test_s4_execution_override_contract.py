@@ -3,10 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import torch
 import yaml
 
 from scripts.evaluate_s4_branching import config_for_spec
-from scripts.evaluate_s4_closed_loop import apply_execution_cli_overrides, apply_phase17_execution_mapping
+from scripts.evaluate_s4_closed_loop import (
+    apply_execution_cli_overrides,
+    apply_phase17_execution_mapping,
+    configure_torch_threads,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -95,3 +100,21 @@ def test_execution_cli_overrides_are_recordable_and_enable_execution() -> None:
 def test_execution_cli_overrides_reject_negative_values() -> None:
     with pytest.raises(ValueError, match="non-negative"):
         apply_execution_cli_overrides({}, noise_std_mps=-0.01)
+
+
+def test_torch_thread_configuration_validates_and_records_observed_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, int]] = []
+    monkeypatch.setattr(torch, "set_num_interop_threads", lambda value: calls.append(("interop", value)))
+    monkeypatch.setattr(torch, "set_num_threads", lambda value: calls.append(("intra", value)))
+    monkeypatch.setattr(torch, "get_num_threads", lambda: 1)
+    monkeypatch.setattr(torch, "get_num_interop_threads", lambda: 1)
+
+    observed = configure_torch_threads(1, 1)
+
+    assert calls == [("interop", 1), ("intra", 1)]
+    assert observed == {"torch_num_threads": 1, "torch_num_interop_threads": 1}
+
+
+def test_torch_thread_configuration_rejects_non_positive_values() -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        configure_torch_threads(0, None)
