@@ -310,6 +310,54 @@ def rollout_action_sequence(
     return np.stack(positions_out, axis=0), np.stack(velocities_out, axis=0), results
 
 
+def rollout_action_candidates(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    action_sequences: np.ndarray,
+    parameters: ExecutionParameters,
+    *,
+    noises: list[np.ndarray] | tuple[np.ndarray, ...] | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[ExecutionStep]]:
+    """Roll out a batch of newly controllable action suffixes.
+
+    ``action_sequences`` has shape ``[candidates, horizon, 3]``.  The
+    execution model is identical to :func:`rollout_action_sequence`; only the
+    candidate dimension is evaluated together so candidate scoring does not
+    repeatedly enter the Python-level dynamics loop.
+    """
+
+    initial_positions = np.asarray(positions, dtype=np.float64)
+    initial_velocities = np.asarray(velocities, dtype=np.float64)
+    actions = np.asarray(action_sequences, dtype=np.float64)
+    if (
+        initial_positions.ndim != 2
+        or initial_positions.shape[-1] != 3
+        or initial_velocities.shape != initial_positions.shape
+        or actions.ndim != 3
+        or actions.shape[0] <= 0
+        or actions.shape[2:] != (3,)
+        or actions.shape[0] != initial_positions.shape[0]
+    ):
+        raise ValueError("positions, velocities, and action_sequences have incompatible shapes")
+    if actions.shape[1] <= 0 or not np.isfinite(actions).all():
+        raise ValueError("action_sequences must be non-empty and finite")
+
+    position = initial_positions.copy()
+    velocity = initial_velocities.copy()
+    results: list[ExecutionStep] = []
+    positions_out: list[np.ndarray] = []
+    velocities_out: list[np.ndarray] = []
+    for index in range(actions.shape[1]):
+        noise = None if noises is None or index >= len(noises) else noises[index]
+        result = advance_execution(velocity, actions[:, index, :], parameters, noise=noise)
+        velocity = result.executed.copy()
+        position = position + float(parameters.dt_seconds) * velocity
+        results.append(result)
+        positions_out.append(position.copy())
+        velocities_out.append(velocity.copy())
+    return np.stack(positions_out, axis=1), np.stack(velocities_out, axis=1), results
+
+
 def _clip_row_with_jacobian(
     value: np.ndarray,
     max_norm: float,

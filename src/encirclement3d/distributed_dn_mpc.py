@@ -34,7 +34,11 @@ from .reachability_interception import (
     reachability_normalized_interception_cost,
 )
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
-from .execution_dynamics import parameters_from_observation, rollout_action_sequence
+from .execution_dynamics import (
+    parameters_from_observation,
+    rollout_action_candidates,
+    rollout_action_sequence,
+)
 
 
 CommunicationMode = Literal["none", "ideal", "delayed", "dropout"]
@@ -59,18 +63,20 @@ def _rollout_local_action_candidates(
     positions = np.asarray(observation["defender_positions"], dtype=np.float64)
     velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
     parameters = parameters_from_observation(observation, float(dt_seconds))
-    position_paths: list[np.ndarray] = []
-    velocity_paths: list[np.ndarray] = []
-    for candidate in np.asarray(actions, dtype=np.float64):
-        position_path, velocity_path, _steps = rollout_action_sequence(
-            positions[agent_id][None, :],
-            velocities[agent_id][None, :],
-            candidate[:, None, :],
-            parameters,
-        )
-        position_paths.append(position_path[:, 0, :])
-        velocity_paths.append(velocity_path[:, 0, :])
-    return np.stack(position_paths, axis=0), np.stack(velocity_paths, axis=0)
+    candidate_actions = np.asarray(actions, dtype=np.float64)
+    initial_position = np.broadcast_to(
+        positions[agent_id], (candidate_actions.shape[0], 3)
+    ).copy()
+    initial_velocity = np.broadcast_to(
+        velocities[agent_id], (candidate_actions.shape[0], 3)
+    ).copy()
+    position_paths, velocity_paths, _steps = rollout_action_candidates(
+        initial_position,
+        initial_velocity,
+        candidate_actions,
+        parameters,
+    )
+    return position_paths, velocity_paths
 
 
 def _rollout_peer_action_path(

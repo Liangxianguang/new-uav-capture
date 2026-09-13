@@ -15,6 +15,7 @@ from encirclement3d.execution_dynamics import (
     position_uncertainty_radii,
     reachable_tube_radii,
     resolve_reachable_tube_multiplier,
+    rollout_action_candidates,
     rollout_action_sequence,
     rollout_execution,
 )
@@ -611,6 +612,50 @@ def test_full_action_sequence_rollout_is_batched_and_execution_consistent() -> N
     np.testing.assert_allclose(velocity_path[0, :, 0], 0.5)
     np.testing.assert_allclose(velocity_path[1, :, 0], 1.1)
     np.testing.assert_allclose(position_path[:, :, 0], [[0.05, 0.05], [0.16, 0.16]])
+
+
+def test_action_candidate_batch_matches_independent_execution_rollouts() -> None:
+    parameters = ExecutionParameters(
+        enabled=True,
+        dt_seconds=0.1,
+        action_delay_steps=0,
+        command_noise_std_mps=0.0,
+        command_noise_bound_mps=0.0,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.4,
+        drag_coefficient=0.1,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=2.0,
+        mass_scale=1.0,
+    )
+    positions = np.array([[0.0, 0.0, 4.0], [1.0, -1.0, 4.5]], dtype=np.float64)
+    velocities = np.array([[0.2, 0.0, 0.0], [0.0, -0.3, 0.1]], dtype=np.float64)
+    actions = np.array(
+        [
+            [[1.0, 0.0, 0.0], [2.0, 0.5, 0.0], [0.0, 0.0, 0.0]],
+            [[-1.0, 0.0, 0.0], [0.0, -2.0, 0.5], [0.5, 0.0, -0.5]],
+        ],
+        dtype=np.float64,
+    )
+    batched_positions, batched_velocities, _steps = rollout_action_candidates(
+        positions,
+        velocities,
+        actions,
+        parameters,
+    )
+    for candidate in range(actions.shape[0]):
+        independent_positions, independent_velocities, _ = rollout_action_sequence(
+            positions[candidate][None, :],
+            velocities[candidate][None, :],
+            actions[candidate][:, None, :],
+            parameters,
+        )
+        np.testing.assert_allclose(
+            batched_positions[candidate], independent_positions[:, 0, :], atol=1.0e-12
+        )
+        np.testing.assert_allclose(
+            batched_velocities[candidate], independent_velocities[:, 0, :], atol=1.0e-12
+        )
 
 
 def test_execution_aware_qp_and_certificate_share_queue_contract() -> None:
