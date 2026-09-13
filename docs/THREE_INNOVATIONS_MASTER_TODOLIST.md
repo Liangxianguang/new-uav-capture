@@ -288,6 +288,17 @@ QDR-on 的 total p50/p95/p99 为 `45.88/78.65/95.10 ms`，off 为
 完成另外两种子和 bounded-noise confirmation，再决定是否 promotion。详见
 `docs/PHASE42_QDR_DELAY4_FRESH_VALIDATION_REPORT.md`。
 
+### 3.10 Phase 43 delay4 三种子 confirmation
+
+在同一独立 fresh manifest 上补齐 `727202/727203` 后，三种子、240 episodes/arm 的
+QDR-off/on safe capture 为 `77.08%/96.67%`，collision 为 `22.92%/1.25%`，paired
+bootstrap delta 分别为 `+19.58 pp [13.75,25.42]` 与 `-21.67 pp [-27.92,-15.83]`。
+QDR-on 的 timeout 为 `2.08%`，suffix gate exhaustion 均值 `19.02%`；三种子 summary
+total p95 均值为 `90.14 ms`，off 为 `64.65 ms`，相对增幅约 `39.4%`。因此 delay4
+安全效果得到条件性三种子支持，但效率和 liveness gate 仍未通过；下一步需固定
+delay4、单独加入 bounded execution noise，再单独测试 authority，禁止混杂调参。详见
+`docs/PHASE43_QDR_DELAY4_THREE_SEED_CONFIRMATION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
