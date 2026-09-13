@@ -114,6 +114,35 @@ def test_projected_scenario_planner_returns_common_bounded_action() -> None:
     assert len(plan.diagnostics.scenario_costs) == candidates.candidate_count
 
 
+def test_tube_aware_cost_consumes_declared_target_tube_radius() -> None:
+    observation = _observation()
+    scenarios = ScenarioTrajectorySet(
+        trajectories=np.repeat(np.array([[[4.0, 0.0, 4.0]]]), 1, axis=0),
+        weights=np.ones(1),
+    )
+    actions = np.zeros((1, 1, 4, 3), dtype=np.float64)
+    nominal = ScenarioMinimaxMPC(
+        MinimaxMPCConfig(horizon_steps=1, control_horizon_steps=1)
+    )
+    robust = ScenarioMinimaxMPC(
+        MinimaxMPCConfig(
+            horizon_steps=1,
+            control_horizon_steps=1,
+            target_tube_cost_enabled=True,
+        )
+    )
+    nominal_cost, _ = nominal._scenario_cost_matrix(
+        observation, actions, scenarios.trajectories
+    )
+    robust_cost, _ = robust._scenario_cost_matrix(
+        observation,
+        actions,
+        scenarios.trajectories,
+        target_tube_radius_m=(0.5,),
+    )
+    assert robust_cost[0, 0] > nominal_cost[0, 0]
+
+
 def test_escape_gap_planner_term_is_optional_and_audited() -> None:
     observation = _observation()
     candidates = make_belief_candidate_set(

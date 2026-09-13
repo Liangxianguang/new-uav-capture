@@ -470,6 +470,7 @@ def phase56_method_contract(
         "adaptive_k": bool(adaptive_k),
         "num_samples": int(num_samples),
         "fixed_tube_radius_m": fixed_tube_radius_m,
+        "target_tube_cost_enabled": False,
         "distributed_mode": None,
     }
     if method == "delayed_mpc":
@@ -480,6 +481,7 @@ def phase56_method_contract(
             queue_aware_rollout=False,
             queue_aware_safety_projection=False,
             fixed_tube_radius_m=(0.35 if fixed_tube_radius_m is None else fixed_tube_radius_m),
+            target_tube_cost_enabled=True,
         )
     elif method in {"queue_aware_tube_mpc", "qdr_mpc"}:
         contract.update(
@@ -487,6 +489,7 @@ def phase56_method_contract(
             queue_aware_rollout=True,
             queue_aware_safety_projection=bool(queue_aware_safety_projection),
             fixed_tube_radius_m=(0.35 if fixed_tube_radius_m is None else fixed_tube_radius_m),
+            target_tube_cost_enabled=True,
         )
     elif method == "synchronous_distributed_mpc":
         contract.update(canonical_method="distributed_delayed", distributed_mode="delayed", queue_aware_rollout=False)
@@ -864,11 +867,19 @@ def main() -> None:
                             "communication_mode": distributed_modes[canonical_method],
                         }
                     )
+                method_planner_config = MinimaxMPCConfig(
+                    **{
+                        **planner_config.__dict__,
+                        "target_tube_cost_enabled": bool(
+                            method_contract["target_tube_cost_enabled"]
+                        ),
+                    }
+                )
                 row, episode_steps = run_episode(
                     config,
                     seed=int(spec["episode_seed"]),
                     method=canonical_method,
-                    planner_config=planner_config,
+                    planner_config=method_planner_config,
                     candidate_source=args.candidate_source,
                     checkpoint_data=checkpoint_data,
                     device=device,

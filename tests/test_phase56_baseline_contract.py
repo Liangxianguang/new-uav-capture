@@ -33,4 +33,9 @@ def test_phase56_fixed_tube_has_validation_only_default() -> None:
     assert contract["canonical_method"] == "worst_case"
     assert contract["queue_aware_rollout"] is False
     assert contract["fixed_tube_radius_m"] == 0.35
+    assert contract["target_tube_cost_enabled"] is True
 
+
+def test_phase56_non_tube_baseline_does_not_enable_tube_cost() -> None:
+    contract = phase56_method_contract("B0_current_state_delayed_mpc", **_base())
+    assert contract["target_tube_cost_enabled"] is False

@@ -140,6 +140,7 @@ class MinimaxMPCConfig:
     weight_distance: float = 1.0
     weight_terminal_distance: float = 3.0
     weight_capture_hinge: float = 1.5
+    target_tube_cost_enabled: bool = False
     weight_formation: float = 0.25
     escape_gap_cost_enabled: bool = False
     weight_escape_gap: float = 0.0
@@ -245,6 +246,8 @@ class MinimaxMPCConfig:
         for name, value in thresholds.items():
             if not np.isfinite(float(value)) or float(value) < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative.")
+        if not isinstance(self.target_tube_cost_enabled, bool):
+            raise ValueError("target_tube_cost_enabled must be boolean")
         if self.escape_gap_safe_rad > 2.0 * np.pi or self.escape_gap_escape_safe_rad > 2.0 * np.pi:
             raise ValueError("escape-gap angle thresholds cannot exceed 2*pi.")
         if not np.isfinite(float(self.escape_gap_horizon_discount)) or not 0.0 < float(
@@ -1120,6 +1123,15 @@ class ScenarioMinimaxMPC:
             # callers may attach them from the environment for diagnostics.
             lower = np.full(3, -np.inf, dtype=np.float64)
             upper = np.full(3, np.inf, dtype=np.float64)
+        target_tube = np.zeros(horizon, dtype=np.float64)
+        if target_tube_radius_m is not None:
+            target_tube = np.asarray(target_tube_radius_m, dtype=np.float64)
+            if (
+                target_tube.shape != (horizon,)
+                or not np.isfinite(target_tube).all()
+                or np.any(target_tube < 0.0)
+            ):
+                raise ValueError("target_tube_radius_m must be a finite non-negative vector matching the horizon")
         for timestep in range(horizon):
             action = effective_sequences[:, timestep]
             if qdr_execution_aware:
@@ -1137,12 +1149,18 @@ class ScenarioMinimaxMPC:
             distances = np.linalg.norm(delta, axis=-1)
             minimum_distance = np.min(distances, axis=2)
             mean_distance = np.mean(distances, axis=2)
+            robust_minimum_distance = minimum_distance
+            if self.config.target_tube_cost_enabled:
+                # A fixed target tube is an explicit robust interception
+                # baseline: the worst-case radial distance is bounded by the
+                # nominal nearest-defender distance plus the tube radius.
+                robust_minimum_distance = minimum_distance + target_tube[timestep]
             scenario_costs += self.config.weight_distance * mean_distance
             scenario_costs += self.config.weight_capture_hinge * np.maximum(
-                minimum_distance - self.config.capture_radius_m, 0.0
+                robust_minimum_distance - self.config.capture_radius_m, 0.0
             ) ** 2
             if timestep == horizon - 1:
-                scenario_costs += self.config.weight_terminal_distance * minimum_distance
+                scenario_costs += self.config.weight_terminal_distance * robust_minimum_distance
             nearest = np.argmin(distances, axis=2)
             blocker_mask = np.ones((sequence_count, candidate_count, defender_count), dtype=bool)
             blocker_mask[

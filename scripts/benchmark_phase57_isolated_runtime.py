@@ -26,9 +26,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 METHODS = (
     "B0_current_state_delayed_mpc",
     "B1_qdr_mpc",
+    "B2_fixed_tube_mpc",
+    "B3_queue_aware_tube_mpc",
     "B4_synchronous_distributed_mpc",
     "B5_asynchronous_distributed_mpc",
     "B6_qdr_asynchronous_mpc",
+    "B7_fixed_k8_qdr",
 )
 LATENCY_KEYS = (
     "predictor_latency_ms",
