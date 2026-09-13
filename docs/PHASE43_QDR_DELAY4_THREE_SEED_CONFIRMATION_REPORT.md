@@ -135,4 +135,3 @@ liveness 代价为代价的可审计 QDR 模块”，不是“无条件提升”
   timeout 约束和相对 p95 gate，再开放 QDR×UAKR/RNIC 交互；
 - [ ] 在上述 gate 通过前不运行 locked-test Full 组合，也不把 QDR gate 写成形式化
   safety certificate。
-
