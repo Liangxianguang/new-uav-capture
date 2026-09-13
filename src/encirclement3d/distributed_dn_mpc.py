@@ -207,6 +207,9 @@ class DistributedDNMPCDiagnostics:
     latency_ms: float
     max_action_delta_mps: float
     fallback_reason: str | None = None
+    qdr_suffix_gate_active: bool = False
+    qdr_suffix_gate_exhausted: bool = False
+    qdr_suffix_gate_rejected_candidates: int = 0
     escape_gap_cost: float = float("nan")
     escape_gap_max_rad: float = float("nan")
     escape_gap_escape_rad: float = float("nan")
@@ -254,6 +257,9 @@ class DistributedDNMPCDiagnostics:
             "latency_ms": self.latency_ms,
             "max_action_delta_mps": self.max_action_delta_mps,
             "fallback_reason": self.fallback_reason,
+            "qdr_suffix_gate_active": self.qdr_suffix_gate_active,
+            "qdr_suffix_gate_exhausted": self.qdr_suffix_gate_exhausted,
+            "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
             "escape_gap_cost": self.escape_gap_cost,
             "escape_gap_max_rad": self.escape_gap_max_rad,
             "escape_gap_escape_rad": self.escape_gap_escape_rad,
@@ -382,6 +388,9 @@ class DistributedMinimaxDNMPC:
             "fc_dbf_local_checks": 0,
             "fc_dbf_incomplete_consensus": 0,
             "fc_dbf_gate_exhausted": 0,
+            "qdr_suffix_gate_checks": 0,
+            "qdr_suffix_gate_exhausted": 0,
+            "qdr_suffix_gate_rejected_candidates": 0,
         }
         self._fc_dbf_last_metrics = None
         self._fc_dbf_last_gate_exhausted = False
@@ -528,6 +537,11 @@ class DistributedMinimaxDNMPC:
                 latency_ms=(perf_counter() - started) * 1000.0,
                 max_delta=max_delta,
                 fallback_reason=(first_failure if local_failures else None),
+                qdr_suffix_gate_active=_qdr_execution_aware(observation),
+                qdr_suffix_gate_exhausted=bool(self._stats["qdr_suffix_gate_exhausted"]),
+                qdr_suffix_gate_rejected_candidates=int(
+                    self._stats["qdr_suffix_gate_rejected_candidates"]
+                ),
                 **escape_gap_summary,
                 **fc_summary,
                 **fusion_summary,
@@ -679,6 +693,19 @@ class DistributedMinimaxDNMPC:
             anchor_index=agent_id,
         )
         result: list[np.ndarray] = []
+        if _qdr_execution_aware(observation):
+            # Keep explicit low-motion recovery candidates in the finite set.
+            # They are important when every target-tracking candidate enters
+            # an obstacle or an inter-agent conflict during the delayed
+            # suffix.  This does not cancel the immutable queue prefix.
+            current_velocity = np.asarray(observation["defender_velocities"], dtype=np.float64)[agent_id]
+            result.append(np.zeros((self.config.horizon_steps, 3), dtype=np.float64))
+            result.append(
+                np.broadcast_to(
+                    current_velocity,
+                    (self.config.horizon_steps, 3),
+                ).copy()
+            )
         for target_path in selected_paths:
             for perimeter_scale in self.config.perimeter_scales:
                 current = np.asarray(own_position, dtype=np.float64).copy()
@@ -782,11 +809,20 @@ class DistributedMinimaxDNMPC:
 
         lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
         upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
-        obstacles = self._local_obstacles(observation, positions[agent_id])
+        qdr_execution_aware = _qdr_execution_aware(observation)
+        # QDR evaluates a command suffix over the full public horizon.  The
+        # suffix gate therefore uses every public obstacle, while ordinary
+        # distributed DN-MPC retains its local-obstacle information boundary.
+        obstacles = (
+            list(observation.get("obstacles", []))
+            if qdr_execution_aware
+            else self._local_obstacles(observation, positions[agent_id])
+        )
         paths = np.asarray(scenarios.trajectories, dtype=np.float64)
         weights = scenarios.normalized_weights
         candidate_count = paths.shape[0]
-        if _qdr_execution_aware(observation):
+        qdr_candidate_violation = np.zeros(actions.shape[0], dtype=np.float64)
+        if qdr_execution_aware:
             current, executed_velocity_paths = _rollout_local_action_candidates(
                 observation,
                 actions,
@@ -972,6 +1008,11 @@ class DistributedMinimaxDNMPC:
                 0.0,
             )
             result += self.config.weight_inter_agent * np.sum(inter_agent * inter_agent, axis=1)[:, None]
+            if qdr_execution_aware:
+                qdr_candidate_violation = np.maximum(
+                    qdr_candidate_violation,
+                    np.max(inter_agent, axis=1),
+                )
 
         for obstacle in obstacles:
             shape = str(obstacle.get("shape", "cylinder"))
@@ -1006,12 +1047,35 @@ class DistributedMinimaxDNMPC:
                 0.0,
             )
             result += self.config.weight_obstacle * np.sum(violation * violation, axis=1)[:, None]
+            if qdr_execution_aware:
+                qdr_candidate_violation = np.maximum(
+                    qdr_candidate_violation,
+                    np.max(violation, axis=1),
+                )
 
         boundary = np.maximum(
             np.max(np.maximum(lower[None, None, :] - current, 0.0), axis=2),
             np.max(np.maximum(current - upper[None, None, :], 0.0), axis=2),
         )
         result += self.config.weight_boundary * np.sum(boundary * boundary, axis=1)[:, None]
+        if qdr_execution_aware:
+            qdr_candidate_violation = np.maximum(
+                qdr_candidate_violation,
+                np.max(boundary, axis=1),
+            )
+            self._stats["qdr_suffix_gate_checks"] += 1
+            feasible = qdr_candidate_violation <= 1.0e-9
+            rejected = int(np.sum(~feasible))
+            self._stats["qdr_suffix_gate_rejected_candidates"] += rejected
+            if np.any(feasible):
+                result += np.where(
+                    feasible[:, None],
+                    0.0,
+                    1.0e6 + 1.0e5 * qdr_candidate_violation[:, None],
+                )
+            else:
+                self._stats["qdr_suffix_gate_exhausted"] += 1
+                result += 1.0e5 * qdr_candidate_violation[:, None]
         if result.shape != (actions.shape[0], candidate_count) or not np.isfinite(result).all():
             raise FloatingPointError("local scenario cost contains non-finite values")
         return result
@@ -1339,6 +1403,9 @@ class DistributedMinimaxDNMPC:
         latency_ms: float,
         max_delta: float,
         fallback_reason: str | None,
+        qdr_suffix_gate_active: bool = False,
+        qdr_suffix_gate_exhausted: bool = False,
+        qdr_suffix_gate_rejected_candidates: int = 0,
         escape_gap_cost: float = float("nan"),
         escape_gap_max_rad: float = float("nan"),
         escape_gap_escape_rad: float = float("nan"),
@@ -1386,6 +1453,9 @@ class DistributedMinimaxDNMPC:
             latency_ms=float(latency_ms),
             max_action_delta_mps=float(max_delta),
             fallback_reason=fallback_reason,
+            qdr_suffix_gate_active=bool(qdr_suffix_gate_active),
+            qdr_suffix_gate_exhausted=bool(qdr_suffix_gate_exhausted),
+            qdr_suffix_gate_rejected_candidates=int(qdr_suffix_gate_rejected_candidates),
             escape_gap_cost=float(escape_gap_cost),
             escape_gap_max_rad=float(escape_gap_max_rad),
             escape_gap_escape_rad=float(escape_gap_escape_rad),

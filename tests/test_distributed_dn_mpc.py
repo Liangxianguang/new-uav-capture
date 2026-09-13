@@ -93,6 +93,8 @@ def test_queue_aware_peer_rollout_keeps_single_agent_shape() -> None:
     assert plan.diagnostics.status in {"not_converged", "success", "partial_fallback"}
     assert plan.diagnostics.status != "fallback"
     assert np.isfinite(plan.action_sequence).all()
+    assert plan.diagnostics.qdr_suffix_gate_active is True
+    assert plan.diagnostics.qdr_suffix_gate_exhausted is False
 
 
 def test_queue_aware_local_obstacles_include_horizon_reachable_geometry() -> None:

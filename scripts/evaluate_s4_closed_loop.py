@@ -779,6 +779,21 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/suffix_minimum_barrier_m", overall["qdr_suffix_minimum_barrier_m"], 0)
             writer.add_scalar("Summary/QDR/suffix_admissible_rate", overall["qdr_suffix_admissible_rate"], 0)
             writer.add_scalar(
+                "Summary/QDR/suffix_gate_active_rate",
+                overall.get("qdr_suffix_gate_active_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_exhaustion_rate",
+                overall.get("qdr_suffix_gate_exhaustion_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_rejected_candidates",
+                overall.get("qdr_suffix_gate_rejected_candidates", float("nan")),
+                0,
+            )
+            writer.add_scalar(
                 "Summary/QDR/precondition_recovery_recommended_rate",
                 overall["qdr_precondition_recovery_recommended_rate"],
                 0,

@@ -323,6 +323,9 @@ class MinimaxMPCDiagnostics:
     latency_ms: float
     max_rollout_constraint_violation: float
     fallback_reason: str | None = None
+    qdr_suffix_gate_active: bool = False
+    qdr_suffix_gate_exhausted: bool = False
+    qdr_suffix_gate_rejected_candidates: int = 0
     escape_gap_cost: float = float("nan")
     escape_gap_max_rad: float = float("nan")
     escape_gap_escape_rad: float = float("nan")
@@ -361,6 +364,9 @@ class MinimaxMPCDiagnostics:
             "latency_ms": self.latency_ms,
             "max_rollout_constraint_violation": self.max_rollout_constraint_violation,
             "fallback_reason": self.fallback_reason,
+            "qdr_suffix_gate_active": self.qdr_suffix_gate_active,
+            "qdr_suffix_gate_exhausted": self.qdr_suffix_gate_exhausted,
+            "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
             "escape_gap_cost": self.escape_gap_cost,
             "escape_gap_max_rad": self.escape_gap_max_rad,
             "escape_gap_escape_rad": self.escape_gap_escape_rad,
@@ -754,6 +760,32 @@ class ScenarioMinimaxMPC:
                 ],
                 dtype=np.float64,
             )
+            qdr_suffix_gate_active = bool(
+                isinstance(observation.get("qdr", {}), dict)
+                and observation.get("qdr", {}).get("execution_aware_action_rollout", False)
+            )
+            qdr_suffix_gate_exhausted = False
+            qdr_suffix_gate_rejected_candidates = 0
+            if qdr_suffix_gate_active:
+                sequence_violations = np.max(constraint_violations, axis=1)
+                feasible_sequences = sequence_violations <= 1.0e-9
+                qdr_suffix_gate_rejected_candidates = int(np.sum(~feasible_sequences))
+                if np.any(feasible_sequences):
+                    # Keep all objectives finite so the planner can still
+                    # expose a deterministic selection.  A feasible suffix
+                    # always dominates an infeasible one; among infeasible
+                    # candidates, the geometric violation remains ordered.
+                    objectives = base_objectives + np.where(
+                        feasible_sequences,
+                        0.0,
+                        1.0e6 + 1.0e5 * sequence_violations,
+                    )
+                else:
+                    # Do not claim feasibility when the finite candidate set
+                    # is exhausted.  Select the least-violating candidate and
+                    # expose the exhaustion in the diagnostics.
+                    qdr_suffix_gate_exhausted = True
+                    objectives = base_objectives + 1.0e5 * sequence_violations
             fc_metrics: dict[str, np.ndarray | float | bool] | None = None
             fc_gate_exhausted = False
             if self.config.fc_dbf_enabled:
@@ -866,6 +898,9 @@ class ScenarioMinimaxMPC:
                 cvar_cost=float(cvar),
                 latency_ms=(perf_counter() - started) * 1000.0,
                 max_rollout_constraint_violation=float(np.max(constraint_violations[selected])),
+                qdr_suffix_gate_active=qdr_suffix_gate_active,
+                qdr_suffix_gate_exhausted=qdr_suffix_gate_exhausted,
+                qdr_suffix_gate_rejected_candidates=qdr_suffix_gate_rejected_candidates,
                 **escape_gap_summary,
                 **fc_summary,
                 **fusion_summary,
@@ -939,6 +974,20 @@ class ScenarioMinimaxMPC:
             role_ids = [int(np.argmin(np.linalg.norm(positions - first_target.mean(axis=0), axis=1)))]
 
         sequences: list[np.ndarray] = []
+        qdr_execution_aware = bool(
+            isinstance(observation.get("qdr", {}), dict)
+            and observation.get("qdr", {}).get("execution_aware_action_rollout", False)
+        )
+        if qdr_execution_aware:
+            # Include explicit hold/braking suffixes so the QDR feasibility
+            # gate can recover when every target-tracking suffix is unsafe.
+            sequences.append(np.zeros((self.config.horizon_steps, positions.shape[0], 3), dtype=np.float64))
+            sequences.append(
+                np.broadcast_to(
+                    np.asarray(initial_velocity, dtype=np.float64),
+                    (self.config.horizon_steps, positions.shape[0], 3),
+                ).copy()
+            )
         reference_path = np.average(scenarios.trajectories, axis=0, weights=scenarios.normalized_weights)
         for target_path in [reference_path, *list(scenarios.trajectories)]:
             for interceptor_id in role_ids:

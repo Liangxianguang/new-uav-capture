@@ -1529,6 +1529,15 @@ def run_episode(
                     if getattr(planner_diagnostics, "fallback_reason", None) is None
                     else str(getattr(planner_diagnostics, "fallback_reason"))
                 ),
+                "qdr_suffix_gate_active": bool(
+                    getattr(planner_diagnostics, "qdr_suffix_gate_active", False)
+                ),
+                "qdr_suffix_gate_exhausted": bool(
+                    getattr(planner_diagnostics, "qdr_suffix_gate_exhausted", False)
+                ),
+                "qdr_suffix_gate_rejected_candidates": int(
+                    getattr(planner_diagnostics, "qdr_suffix_gate_rejected_candidates", 0)
+                ),
                 "planner_status": 1.0 if planner_status == "success" else 0.0,
                 "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
                 "planner_valid": 1.0 if planner_status in {"success", "not_converged", "partial_fallback"} else 0.0,
@@ -1898,6 +1907,13 @@ def run_episode(
         "planner_fallback_reason_counts": _diagnostic_category_counts(
             step_rows, "planner_fallback_reason"
         ),
+        "qdr_suffix_gate_active_rate": _diagnostic_rate(step_rows, "qdr_suffix_gate_active"),
+        "qdr_suffix_gate_exhaustion_rate": _diagnostic_rate(
+            step_rows, "qdr_suffix_gate_exhausted"
+        ),
+        "qdr_suffix_gate_rejected_candidates": int(
+            sum(row["qdr_suffix_gate_rejected_candidates"] for row in step_rows)
+        ),
         "planner_success_count": int(sum(row["planner_status"] for row in step_rows)),
         "planner_valid_count": int(sum(row["planner_valid"] for row in step_rows)),
         "planner_converged_count": int(sum(row["planner_converged"] for row in step_rows)),
@@ -2110,6 +2126,15 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             [row["mean_distributed_action_delta_mps"] for row in rows]
         ),
         "fallback_rate": float(fallback_steps / max(planner_steps, 1.0)),
+        "qdr_suffix_gate_active_rate": finite_mean(
+            [row.get("qdr_suffix_gate_active_rate", float("nan")) for row in rows]
+        ),
+        "qdr_suffix_gate_exhaustion_rate": finite_mean(
+            [row.get("qdr_suffix_gate_exhaustion_rate", float("nan")) for row in rows]
+        ),
+        "qdr_suffix_gate_rejected_candidates": int(
+            sum(row.get("qdr_suffix_gate_rejected_candidates", 0) for row in rows)
+        ),
         "planner_latency_ms": {
             "p50": percentile(planner_latencies, 50),
             "p95": percentile(planner_latencies, 95),
