@@ -105,4 +105,3 @@ gate exhaustion 仍约五分之一，且没有改善 OOD。当前结果支持“
   是否达到 `15%` 以内；
 - [ ] 只有效率 gate 通过后，才执行 fresh three-seed delay/authority/noise
   confirmation；之后才开放 UAKR/RNIC 组合。
-
