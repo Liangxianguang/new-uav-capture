@@ -1,5 +1,7 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 51 single-process runtime 更新：在 Phase48 同一验证前缀的 40 个 episode 上，QDR-off/on 按顺序单进程运行并固定 Torch intra/inter-op 线程为 `1/1`。QDR-on safe capture 为 `100%`，off 为 `85%`；collision 为 `0%/15%`，paired safe-capture delta 为 `+15.00 pp [+5.00,+27.50]`。匹配前 18 个控制步的 total p50/p95/p99 为 `21.22/26.67/29.39 ms` 对 `12.77/15.15/16.90 ms`，planner p95 增加 `8.66 ms`，QDR 自身 p95 仅 `0.84 ms`。这消除了 Phase49 的并发 CPU 负载混杂，但仍是一种子 development runtime diagnostic；QDR safety-axis 保留，efficiency promotion 仍 No-Go。详见 `docs/PHASE51_QDR_SINGLE_PROCESS_RUNTIME_REPORT.md`。
+
 > Phase 50 QDR×UAKR development pilot 更新：在 Phase48 新鲜 manifest 前 40 个 episode 上，固定 QDR、delay4、bounded noise、immutable authority 和 local CBF，比较 fixed-K=8 与冻结 UAKR。fixed-K=8 safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为 `-2.50 pp [-7.50,0.00]`；UAKR mean K 为 `2.156`、refresh ratio 为 `30.54%`，total p95 从 `64.28` 降到 `57.15 ms`，但 timeout 从 `0%` 增至 `2.5%`。该结果支持预算节省但未通过 `-2 pp` safe-capture 非劣界，冻结为效率/负消融，不继续阈值扫描或开放 Full 矩阵。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
 
 > Phase 49 runtime benchmark 更新：对 Phase48 三种子 off/on 日志按相同 episode index 截取前 18 个控制步，双方各保留 300 个 episode、5,400 个 step。QDR-on total p50/p95/p99 为 `84.81/103.14/117.92 ms`，off 为 `30.59/59.51/68.32 ms`；planner p95 增加 `35.92 ms`，QDR 自身 p95 为 `2.90 ms`。该实验控制了终止长度混杂，但原始日志来自独立 evaluator 进程，因此只作为负 runtime ablation，不作为 process-isolated 部署结论。详见 `docs/PHASE49_QDR_RUNTIME_BENCHMARK_REPORT.md`。
@@ -445,7 +447,8 @@ P24 EGC-MPC No-Go freeze
   -> P8 liveness confirmation: timeout/exhaustion-streak gate on a new manifest (completed; Go)
   -> P9 controlled same-length runtime benchmark (completed; negative runtime ablation)
   -> Phase 50 QDR × UAKR development pilot (completed; efficiency/negative ablation)
-  -> P9 single-process fixed-thread benchmark and delayed execution contract repair
+   -> P9 single-process fixed-thread benchmark (completed; safety direction reproduced, efficiency No-Go)
+   -> P9 delayed execution contract repair
   -> P10 only then reopen QDR × UAKR, followed by three-seed Full confirmation only if UAKR is repaired
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料

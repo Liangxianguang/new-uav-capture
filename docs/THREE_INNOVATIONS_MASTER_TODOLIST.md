@@ -397,6 +397,21 @@ safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为
 safe-capture 非劣界，冻结为可复现 efficiency/negative ablation；不继续扫描
 阈值，也不开放 Full 组合。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
 
+### 3.18 Phase 51 single-process fixed-thread runtime benchmark
+
+为排除 Phase49 独立 evaluator 进程之间的并发 CPU 负载混杂，在 Phase48
+验证前缀的 40 个 episode 上按顺序运行 QDR-off/on，并将 Torch intra-op 和
+inter-op 线程固定为 `1/1`。两臂使用相同 GRU `both` seed `727201`、K=8、
+delay4、bounded noise、immutable authority、local CBF 和 采样条件。QDR-on
+safe capture 为 `100%`，QDR-off 为 `85%`；collision 为 `0%/15%`，paired
+safe-capture delta 为 `+15.00 pp [+5.00,+27.50]`。匹配前 18 个控制步的
+total p50/p95/p99 为 `21.22/26.67/29.39 ms` 对 `12.77/15.15/16.90 ms`，
+planner p95 增加 `8.66 ms`，QDR 自身 p95 为 `0.84 ms`。因此 QDR 的安全方向
+在无并发负载的固定线程设置下仍可复现，但当前实现仍有真实 planner 开销，
+efficiency promotion 继续 No-Go；该实验是一种子 development diagnostic，
+不改变 Phase48 三种子 confirmation，也不构成安全证明。详见
+`docs/PHASE51_QDR_SINGLE_PROCESS_RUNTIME_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
