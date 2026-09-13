@@ -22,6 +22,8 @@
 
 > Phase 31 FC-DBF 更新：实现了 Feasible-Consensus Distributed Barrier Formation，包括有限 formation-slot 分配、延迟 peer 信息边界、progress/slack/switch 可行性门控、previous-slot hold、consensus-token 优化、配置/测试/源哈希/TensorBoard 记录。受控 validation-selection 一种子/20 场景 smoke 中，FC-DBF 相对 paired off 未改变 worst-case 的 `85%` 或 distributed delayed 的 `95%` safe capture；centralized total p95 为 `68.80→88.92 ms`，distributed total p95 为 `81.37→244.79 ms`。当前结论为工程实现通过但 promotion No-Go，gate exhaustion 为 centralized `0%`、distributed `0.806%`；该结果不开放 locked test，也不构成安全证明。详见 `docs/PHASE31_FC_DBF_PILOT_REPORT.md`。
 
+> Phase 31 confirmation 更新：从 Phase 27 validation manifest 中按完整 mirror group 冻结后 20 组（40 episodes）作为 holdout，完成 checkpoint seeds `727201/727202/727203` 的 off/on 配对确认。worst-case safe capture 为 `87.50% [80.83%,93.33%]` vs `86.67% [80.00%,92.50%]`，paired delta `-0.83 pp [-3.33,0.00]`，collision delta `+0.83 pp [0.00,3.33]`；distributed delayed 两臂均为 `97.50%` safe capture、`2.50%` collision。FC-DBF total p95 为 worst-case `71.06→87.48 ms`、distributed `83.33→243.68 ms`。因此未通过预注册 non-inferiority/latency gate，FC-DBF 冻结为可复现负结果，不开放 OOD 或 locked test。详见 `docs/PHASE31_FC_DBF_CONFIRMATION_REPORT.md`。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -373,8 +375,12 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 结果：worst-case off/on 均为 `85%` safe capture、`15%` collision；distributed delayed off/on 均为 `95%` safe capture、`5%` collision；centralized total p95 `68.80→88.92 ms`，distributed total p95 `81.37→244.79 ms`。
 - [x] 结果：centralized gate exhaustion `0%`、distributed `0.806%`；mean slot progress 分别为 `0.584/0.577 m`，但未观察到闭环捕获收益。
 - [x] 判定当前 FC-DBF 为“可复现工程实现但 promotion No-Go”；不在 locked-test 调参，不把负 slack development contract 写成安全裕量或 reachability proof。
-- [ ] 在新的 validation calibration block 上完成 3-seed paired confirmation；预注册 safe-capture 非劣下界 `-2 pp`、collision/boundary 不恶化、solver/fallback `<1%`、gate exhaustion `<1%`，并单独报告 latency trade-off。
-- [ ] 若 confirmation 通过，再只开启一个 OOD 轴；若仍无行为收益或 distributed latency 无法接受，则冻结为负结果，转回 QDR/UAKR/RNIC 契约修复和论文整理。
+- [x] 用 `scripts/select_mirror_group_scenes.py` 按完整 mirror group 从 60 场景源 manifest 中去除前 10 个 smoke groups，冻结后 20 groups/40 episodes 为独立 confirmation holdout；selected scene hash 为 `67d2de08013a9dd61b160cdeffda489fc8a75d4c4625dc2d0c13f435f829ad52`。
+- [x] 在 checkpoint seeds `727201/727202/727203` 上完成 off/on 配对 confirmation，使用 10,000 次 hierarchical bootstrap，并记录 aggregate JSON/Markdown、源 hash、配置、step/episode JSONL 和 TensorBoard。
+- [x] confirmation 结果：worst-case safe capture `87.50%→86.67%`，paired delta `-0.83 pp [-3.33,0.00]`，collision `12.50%→13.33%`；distributed delayed 两臂均 `97.50%` safe capture / `2.50%` collision。
+- [x] 预注册 gate 判定：worst-case safe-capture CI 下界低于 `-2 pp` 且 collision CI 上界为正；distributed outcome 虽不变，但 total p95 `83.33→243.68 ms`，因此整体 confirmation No-Go。
+- [x] 冻结 FC-DBF 为可复现负/工程结果，不开放 FC-DBF OOD 或 locked-test，不继续扫描 weight、slot tolerance 或 gate threshold。
+- [ ] 转回 QDR/UAKR/RNIC 契约修复或论文材料整理；任何新的 formation 方案须先通过独立 planner-cost benchmark，再进入同一 paired non-inferiority gate。
 
 详见 `docs/PHASE31_FC_DBF_PILOT_REPORT.md`。
 
@@ -382,8 +388,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 ```text
 P24 EGC-MPC No-Go freeze
-  -> P25 FC-DBF pilot (completed; promotion No-Go)
-  -> P26 FC-DBF 3-seed confirmation / OOD decision
+  -> P25 FC-DBF pilot + P26 confirmation (completed; promotion No-Go)
   -> P8 修复 reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化

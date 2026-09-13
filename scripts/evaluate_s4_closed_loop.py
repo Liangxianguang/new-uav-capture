@@ -203,7 +203,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
     parser.add_argument(
         "--decision",
-        choices=("validation_selection", "locked_test_diagnostic", "ood_diagnostic"),
+        choices=("validation_selection", "validation_confirmation", "locked_test_diagnostic", "ood_diagnostic"),
         default="locked_test_diagnostic",
         help="Explicit result-split label stored in the run metadata and summary.",
     )

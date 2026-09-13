@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-seed", type=int, default=20260911)
     parser.add_argument(
         "--evaluation-split",
-        choices=("validation_selection", "locked_test", "ood_diagnostic"),
+        choices=("validation_selection", "validation_confirmation", "locked_test", "ood_diagnostic"),
         default="locked_test",
         help="Frozen scene split represented by the aggregate artifact.",
     )
@@ -331,6 +331,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
     split = str(payload["evaluation_split"])
     split_description = {
         "validation_selection": "validation scene manifest used for configuration selection",
+        "validation_confirmation": "fresh validation confirmation scene manifest",
         "locked_test": "locked-test scene manifest",
         "ood_diagnostic": "frozen OOD diagnostic scene manifest",
     }[split]
