@@ -859,6 +859,7 @@ def run_episode(
     qdr_prefix_recovery_authority: str | None = None,
     adaptive_prediction_config: dict[str, Any] | None = None,
     reachable_tube: DelayAwareConformalReachableTube | None = None,
+    fixed_tube_radius_m: float | None = None,
     distributed_config: DistributedDNMPCConfig | None = None,
     scenario: Any | None = None,
     validate_scenario: bool = True,
@@ -917,6 +918,7 @@ def run_episode(
         "distributed_delayed": "delayed",
         "distributed_dropout": "dropout",
         "distributed_none": "none",
+        "distributed_async": "asynchronous",
     }
     if method in distributed_methods:
         if distributed_config is None:
@@ -1141,6 +1143,21 @@ def run_episode(
                 future_action_sequence=previous_planned_sequence,
                 queue_prefix_risk_score_value=adaptive_queue_prefix_risk,
             )
+            if fixed_tube_radius_m is not None:
+                radius = float(fixed_tube_radius_m)
+                if not np.isfinite(radius) or radius < 0.0:
+                    raise ValueError("fixed_tube_radius_m must be finite and non-negative")
+                scenarios = ScenarioTrajectorySet(
+                    trajectories=np.asarray(scenarios.trajectories, dtype=np.float64),
+                    weights=np.asarray(scenarios.weights, dtype=np.float64),
+                    score_kind="calibrated_region",
+                    dynamics_status=scenarios.dynamics_status,
+                    conformal_radius_by_step_m=tuple(
+                        radius for _ in range(scenarios.horizon_steps)
+                    ),
+                    source_model_hash=scenarios.source_model_hash,
+                    timestamp_step=scenarios.timestamp_step,
+                )
             if runtime.last_adaptive_decision is not None:
                 decision = runtime.last_adaptive_decision
                 adaptive_enabled = True

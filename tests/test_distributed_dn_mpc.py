@@ -257,6 +257,22 @@ def test_delayed_messages_report_age_after_delivery() -> None:
     assert third.diagnostics.max_message_age_steps == 2
 
 
+def test_asynchronous_communication_uses_deterministic_sender_phases() -> None:
+    planner = _planner(
+        "asynchronous",
+        communication_interval_steps=2,
+        message_delay_steps=1,
+    )
+    first = planner.plan(_observation(), _scenarios(), step_index=0)
+    second = planner.plan(_observation(), _scenarios(), step_index=1)
+    assert first.diagnostics.communication_mode == "asynchronous"
+    assert first.diagnostics.messages_attempted < 24
+    assert second.diagnostics.communication_mode == "asynchronous"
+    assert second.diagnostics.messages_attempted == first.diagnostics.messages_attempted
+    assert first.diagnostics.messages_received == 0
+    assert second.diagnostics.messages_received > 0
+
+
 def test_dropout_is_deterministic_and_raw_candidates_fallback() -> None:
     first = _planner("dropout", message_dropout_probability=0.5).plan(
         _observation(), _scenarios(), step_index=0

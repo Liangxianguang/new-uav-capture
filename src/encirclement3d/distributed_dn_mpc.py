@@ -42,8 +42,8 @@ from .execution_dynamics import (
 )
 
 
-CommunicationMode = Literal["none", "ideal", "delayed", "dropout"]
-_COMMUNICATION_MODES = {"none", "ideal", "delayed", "dropout"}
+CommunicationMode = Literal["none", "ideal", "delayed", "dropout", "asynchronous"]
+_COMMUNICATION_MODES = {"none", "ideal", "delayed", "dropout", "asynchronous"}
 
 
 def _qdr_execution_aware(observation: dict[str, Any]) -> bool:
@@ -441,7 +441,13 @@ def _obstacle_clearance(position: np.ndarray, obstacle: dict[str, Any]) -> float
 
 
 class DistributedMinimaxDNMPC:
-    """Sequential best-response planner with explicit bounded communication."""
+    """Sequential best-response planner with explicit bounded communication.
+
+    ``asynchronous`` is a deterministic sender-phase schedule: each sender
+    publishes only on its own phase of ``communication_interval_steps``.
+    Local best responses still run sequentially, so the mode exposes stale or
+    missing peer plans without changing the objective or the simulator.
+    """
 
     def __init__(self, config: MinimaxMPCConfig, distributed: DistributedDNMPCConfig) -> None:
         self.config = config
@@ -793,7 +799,14 @@ class DistributedMinimaxDNMPC:
     ) -> None:
         if self.distributed.communication_mode == "none":
             return
-        if step_index % self.distributed.communication_interval_steps != 0:
+        interval = int(self.distributed.communication_interval_steps)
+        if self.distributed.communication_mode == "asynchronous":
+            # Offset each sender so that, for interval > 1, communication is
+            # genuinely asynchronous while remaining reproducible and free of
+            # additional random state.
+            if (step_index + int(sender)) % interval != 0:
+                return
+        elif step_index % interval != 0:
             return
         delay = 0 if self.distributed.communication_mode == "ideal" else self.distributed.message_delay_steps
         for receiver in range(positions.shape[0]):

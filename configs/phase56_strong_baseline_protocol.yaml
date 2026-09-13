@@ -60,6 +60,11 @@ methods:
     adaptive_k: false
     candidate_count: 8
 
+fixed_tube:
+  radius_m: 0.35
+  source: validation_only_constant_radius
+  claim: empirical_prediction_robustness_baseline_not_safety_certificate
+
 fairness:
   predictor_condition: both
   sampling_seed: 745102
@@ -85,4 +90,3 @@ reporting:
   components: [predictor, planner, qdr_or_tube, safety, total_control]
   local_cbf_claim: empirical_filter_only
   robust_clbf_qp_proof: not_claimed
-

@@ -48,6 +48,27 @@ METHODS = (
     "distributed_delayed",
     "distributed_dropout",
     "distributed_none",
+    "distributed_async",
+    # Phase 56 baseline aliases.  Their effective contracts are resolved in
+    # main() and recorded per method so the raw evaluator remains backwards
+    # compatible with earlier result directories.
+    "delayed_mpc",
+    "fixed_tube_mpc",
+    "tube_mpc",
+    "queue_aware_tube_mpc",
+    "qdr_mpc",
+    "synchronous_distributed_mpc",
+    "asynchronous_distributed_mpc",
+    "qdr_asynchronous_mpc",
+    "fixed_k8_qdr",
+    "B0_current_state_delayed_mpc",
+    "B1_qdr_mpc",
+    "B2_fixed_tube_mpc",
+    "B3_queue_aware_tube_mpc",
+    "B4_synchronous_distributed_mpc",
+    "B5_asynchronous_distributed_mpc",
+    "B6_qdr_asynchronous_mpc",
+    "B7_fixed_k8_qdr",
 )
 
 
@@ -72,6 +93,11 @@ def parse_args() -> argparse.Namespace:
         "--reachable-tube-calibration",
         type=Path,
         help="Optional frozen delay-aware conformal tube JSON artifact.",
+    )
+    parser.add_argument(
+        "--fixed-tube-radius-m",
+        type=float,
+        help="Use a constant target tube radius for Phase 56 fixed-tube baselines.",
     )
     parser.add_argument(
         "--tube-budget-weight",
@@ -410,6 +436,71 @@ def configure_torch_threads(
     }
 
 
+def phase56_method_contract(
+    method: str,
+    *,
+    queue_aware_rollout: bool,
+    queue_aware_safety_projection: bool,
+    adaptive_k: bool,
+    num_samples: int,
+    fixed_tube_radius_m: float | None,
+) -> dict[str, Any]:
+    """Resolve a named Phase 56 baseline into the shared evaluator contract.
+
+    The aliases keep baseline definitions visible in result directories while
+    reusing the same prediction, planner, safety, and latency accounting path.
+    No alias changes the locked-test data or uses target truth online.
+    """
+
+    alias = {
+        "B0_current_state_delayed_mpc": "delayed_mpc",
+        "B1_qdr_mpc": "qdr_mpc",
+        "B2_fixed_tube_mpc": "fixed_tube_mpc",
+        "B3_queue_aware_tube_mpc": "queue_aware_tube_mpc",
+        "B4_synchronous_distributed_mpc": "synchronous_distributed_mpc",
+        "B5_asynchronous_distributed_mpc": "asynchronous_distributed_mpc",
+        "B6_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
+        "B7_fixed_k8_qdr": "fixed_k8_qdr",
+    }
+    method = alias.get(method, method)
+    contract = {
+        "canonical_method": method,
+        "queue_aware_rollout": bool(queue_aware_rollout),
+        "queue_aware_safety_projection": bool(queue_aware_safety_projection),
+        "adaptive_k": bool(adaptive_k),
+        "num_samples": int(num_samples),
+        "fixed_tube_radius_m": fixed_tube_radius_m,
+        "distributed_mode": None,
+    }
+    if method == "delayed_mpc":
+        contract.update(canonical_method="worst_case", queue_aware_rollout=False, queue_aware_safety_projection=False)
+    elif method in {"fixed_tube_mpc", "tube_mpc"}:
+        contract.update(
+            canonical_method="worst_case",
+            queue_aware_rollout=False,
+            queue_aware_safety_projection=False,
+            fixed_tube_radius_m=(0.35 if fixed_tube_radius_m is None else fixed_tube_radius_m),
+        )
+    elif method in {"queue_aware_tube_mpc", "qdr_mpc"}:
+        contract.update(
+            canonical_method="worst_case",
+            queue_aware_rollout=True,
+            queue_aware_safety_projection=bool(queue_aware_safety_projection),
+            fixed_tube_radius_m=(0.35 if fixed_tube_radius_m is None else fixed_tube_radius_m),
+        )
+    elif method == "synchronous_distributed_mpc":
+        contract.update(canonical_method="distributed_delayed", distributed_mode="delayed", queue_aware_rollout=False)
+    elif method == "asynchronous_distributed_mpc":
+        contract.update(canonical_method="distributed_async", distributed_mode="asynchronous", queue_aware_rollout=False)
+    elif method == "qdr_asynchronous_mpc":
+        contract.update(canonical_method="distributed_async", distributed_mode="asynchronous", queue_aware_rollout=True)
+    elif method == "fixed_k8_qdr":
+        contract.update(canonical_method="worst_case", queue_aware_rollout=True, adaptive_k=False, num_samples=max(8, num_samples))
+    if contract["queue_aware_safety_projection"] and not contract["queue_aware_rollout"]:
+        contract["queue_aware_safety_projection"] = False
+    return contract
+
+
 def main() -> None:
     args = parse_args()
     torch_thread_settings = configure_torch_threads(
@@ -636,6 +727,9 @@ def main() -> None:
         if args.reachable_tube_calibration is None
         else DelayAwareConformalReachableTube.from_json(args.reachable_tube_calibration)
     )
+    if args.fixed_tube_radius_m is not None:
+        if not np.isfinite(float(args.fixed_tube_radius_m)) or float(args.fixed_tube_radius_m) < 0.0:
+            raise ValueError("fixed-tube-radius-m must be finite and non-negative")
 
     output.mkdir(parents=True, exist_ok=True)
     hashes = source_hashes_closed_loop(args.protocol, args.scenes, args.mpc_config)
@@ -695,6 +789,9 @@ def main() -> None:
             if args.reachable_tube_calibration is None
             else str(args.reachable_tube_calibration.resolve())
         ),
+        "fixed_tube_radius_m": (
+            None if args.fixed_tube_radius_m is None else float(args.fixed_tube_radius_m)
+        ),
         "phase17": phase17_mapping,
         "effective_execution": phase17_execution_mapping,
         "device": str(device),
@@ -714,10 +811,28 @@ def main() -> None:
         "distributed_delayed": "delayed",
         "distributed_dropout": "dropout",
         "distributed_none": "none",
+        "distributed_async": "asynchronous",
     }
     for method in args.methods:
+        method_contract = phase56_method_contract(
+            method,
+            queue_aware_rollout=queue_aware_rollout,
+            queue_aware_safety_projection=queue_aware_safety_projection,
+            adaptive_k=adaptive_k,
+            num_samples=args.num_samples,
+            fixed_tube_radius_m=(
+                None if args.fixed_tube_radius_m is None else float(args.fixed_tube_radius_m)
+            ),
+        )
         method_output = output / method
         method_output.mkdir(parents=True, exist_ok=True)
+        method_run_config = {
+            **run_config,
+            "method_contract": method_contract,
+        }
+        method_output.joinpath("config.yaml").write_text(
+            yaml.safe_dump(method_run_config, sort_keys=False), encoding="utf-8"
+        )
         rows: list[dict[str, Any]] = []
         steps: list[dict[str, Any]] = []
         with method_output.joinpath("episodes.jsonl").open("w", encoding="utf-8") as episode_file, method_output.joinpath("steps.jsonl").open("w", encoding="utf-8") as step_file:
@@ -734,19 +849,28 @@ def main() -> None:
                         "pending_command_authority"
                     ] = qdr_prefix_recovery_authority
                 distributed_config = None
-                if method in distributed_modes:
+                canonical_method = str(method_contract["canonical_method"])
+                if canonical_method in distributed_modes:
+                    effective_distributed_mapping = dict(distributed_mapping)
+                    if method_contract["distributed_mode"] == "asynchronous":
+                        effective_distributed_mapping["communication_interval_steps"] = max(
+                            2, int(effective_distributed_mapping.get("communication_interval_steps", 1))
+                        )
                     distributed_config = DistributedDNMPCConfig.from_mapping(
-                        {**distributed_mapping, "communication_mode": distributed_modes[method]}
+                        {
+                            **effective_distributed_mapping,
+                            "communication_mode": distributed_modes[canonical_method],
+                        }
                     )
                 row, episode_steps = run_episode(
                     config,
                     seed=int(spec["episode_seed"]),
-                    method=method,
+                    method=canonical_method,
                     planner_config=planner_config,
                     candidate_source=args.candidate_source,
                     checkpoint_data=checkpoint_data,
                     device=device,
-                    num_samples=args.num_samples,
+                    num_samples=int(method_contract["num_samples"]),
                     sampling_steps=args.sampling_steps,
                     sampling_seed=args.sampling_seed + int(spec["episode_index"]) * 1000,
                     projection_iterations=args.projection_iterations,
@@ -754,17 +878,23 @@ def main() -> None:
                     safety_layer=args.safety_layer,
                     robust_safety_config=safety_config,
                     prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
-                    queue_aware_rollout=queue_aware_rollout,
-                    queue_aware_safety_projection=queue_aware_safety_projection,
+                    queue_aware_rollout=bool(method_contract["queue_aware_rollout"]),
+                    queue_aware_safety_projection=bool(method_contract["queue_aware_safety_projection"]),
                     qdr_prefix_recovery_authority=qdr_prefix_recovery_authority,
-                    adaptive_prediction_config=(adaptive_budget_mapping if adaptive_k else None),
+                    adaptive_prediction_config=(
+                        adaptive_budget_mapping if bool(method_contract["adaptive_k"]) else None
+                    ),
                     reachable_tube=reachable_tube,
+                    fixed_tube_radius_m=method_contract["fixed_tube_radius_m"],
                     distributed_config=distributed_config,
                     scenario=scenario_from_metadata(spec["scenario"]),
                     validate_scenario=False,
                 )
                 row.update(
                     {
+                        "method": method,
+                        "phase56_baseline_id": method,
+                        "phase56_canonical_method": canonical_method,
                         "episode_index": int(spec["episode_index"]),
                         "target_speed_scale": float(spec["target_speed_scale"]),
                         "defender_bias": str(spec["defender_bias"]),
@@ -1113,10 +1243,16 @@ def main() -> None:
             writer.add_hparams(
                 {
                     "method": method,
-                    "queue_aware_rollout": int(queue_aware_rollout),
-                    "adaptive_k": int(adaptive_k),
+                    "canonical_method": str(method_contract["canonical_method"]),
+                    "queue_aware_rollout": int(bool(method_contract["queue_aware_rollout"])),
+                    "adaptive_k": int(bool(method_contract["adaptive_k"])),
                     "reachability_normalized_cost": int(rnic),
-                    "num_samples": args.num_samples,
+                    "num_samples": int(method_contract["num_samples"]),
+                    "fixed_tube_radius_m": float(
+                        method_contract["fixed_tube_radius_m"]
+                        if method_contract["fixed_tube_radius_m"] is not None
+                        else 0.0
+                    ),
                     "prediction_refresh_interval_steps": args.prediction_refresh_interval_steps,
                 },
                 {
