@@ -132,7 +132,7 @@ C_{\mathrm{RNIC}}(i,q)=
 | 模块 | 已有证据 | 当前判断 | 计划含义 |
 | --- | --- | --- | --- |
 | QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后 QDR-on 为 `85.0%` safe capture、`15.0%` collision；Phase35 加入 suffix gate 与有限 recovery candidates 后达到 `100.0%/0%`；Phase36 批量化 rollout 后 total p95 降至 `105.27 ms`，但 gate exhaustion `21.76%` 且相对 QDR-off `46.53 ms` 仍超门槛 | Safety outcome repaired, runtime improved, promotion No-Go | 继续做候选早停/缓存和增量 rollout，再做 fresh delay/authority/noise confirmation；不把当前 gate 写成安全证明 |
-| UAKR | 三种子验证平均 `K≈2.68`、刷新率约 `36.6%`，但 ID safe-capture 非劣 CI 未过；残差触发 high-K 和 refresh-only 也均为负消融 | No-Go for closed-loop promotion | 保留为效率/失败分析方向；若重开，必须做 intervention-effect calibration |
+| UAKR | Phase54 fresh development 三种子：fixed-K=8 / original-UAKR safe capture `98.33%/95.00%`，paired delta `-3.33 pp [-7.67,+1.00]`；平均 `K=2.145`、刷新率 `30.98%`，但 timeout 增加 `3.33 pp [+0.33,+7.00]`，uncertainty 对 next violation 的 confirmation AUROC 仅 `0.520` | No-Go for closed-loop promotion | 冻结为 efficiency/negative ablation；若重开，必须加入公开 queue/QDR feasibility 特征并重新做 intervention-effect calibration |
 | RNIC | ID 行为基本不变，target-speed/delay OOD 变差并增加延迟；slack 对 collision 的 pooled AUROC `0.504` | No-Go | 先修复 reachable-time label 和 slot-level 定义，再做 planner 消融 |
 | 主参考 | GRU + distributed delayed DN-MPC + local CBF 的 locked-test safe capture `94.81%`，collision/boundary `0/0` | 当前主参考 | 所有新模块都必须与它配对比较 |
 | 安全层 | robust CBF-QP 一步证书可通过，但端到端组合曾出现 `50%` safe capture、`49%` collision | 诊断 No-Go | 不能把它作为三个创新点的成功前提，也不能用失败安全层掩盖规划结果 |
@@ -453,6 +453,30 @@ windowed tube 保留为负消融；不得在该 confirmation 上继续调 active
 multiplier 或 planner 权重。详见
 `docs/PHASE53_QDR_RECOVERABILITY_CONFIRMATION_REPORT.md`。
 
+### 3.21 Phase 54 UAKR fresh development and reliability audit
+
+Phase 54 在新的 `validation_development` manifest（100 episodes、50 mirror groups）
+上，固定 QDR、immutable delay4、bounded command noise、GRU `both`、distributed
+delayed DN-MPC 和 local CBF，只比较 fixed-K=8 与冻结 original UAKR。三种子
+fixed-K=8 的 safe capture 为 `98.33% [95.67,100.00]`，original UAKR 为
+`95.00% [92.00,97.67]`；paired delta 为 `-3.33 pp [-7.67,+1.00]`，低于
+预注册 `-2 pp` 非劣界。collision/boundary 均为 `0.67%`，timeout 从 `1.00%`
+增至 `4.33%`，paired timeout delta 为 `+3.33 pp [+0.33,+7.00]`；mean
+capture time 增加 `3.439 s`，minimum clearance 减少 `0.052 m`。
+
+UAKR 的预算节省可复现：平均 selected `K=2.145`（约下降 `73.2%`），刷新率
+`30.98%`（约下降 `69.0%`），但 mean cache age 为 `1.264` steps，suffix
+admissible rate 低 `5.68 pp`。公开 uncertainty/residual 的 confirmation
+AUROC 对 next-state violation 仅 `0.520/0.513`，current-state violation 仅
+`0.510/0.509`，接近随机。因此当前触发器并非可用于安全预算分配的可靠
+intervention-effect signal。
+
+Phase 54 判定 original UAKR **No-Go**，冻结为 efficiency/negative ablation，
+不访问 locked-test、不继续阈值扫描、不开放 Full 组合。若重开，只能在新的
+development block 中加入 public queue/QDR prefix feasibility 或 recoverable-margin
+特征，先完成 intervention-effect calibration，再做 fresh confirmation。完整
+数值、TensorBoard 位置和复现路径见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
@@ -528,13 +552,16 @@ multiplier 或 planner 权重。详见
 
 ### 6.2 UAKR 实现清单
 
-- [ ] 固定 `K={1,4,8}` 和 refresh interval `{4,2,1}`，先实现规则表，不引入额外学习器；
-- [ ] 分别计算 dispersion、temporal inconsistency、belief age 和 prediction residual；
-- [ ] 记录每一步 uncertainty、bucket、K、是否 refresh、cache age、候选可行率和 planner latency；
-- [ ] 先离线验证 uncertainty 对 prediction miss、next-step margin violation、timeout 的排序能力；
+- [x] 固定 `K={1,4,8}` 和 refresh interval `{4,2,1}`，先实现规则表，不引入额外学习器；
+- [x] 分别计算 dispersion、temporal inconsistency、belief age 和 prediction residual；
+- [x] 记录每一步 uncertainty、bucket、K、是否 refresh、cache age、候选可行率和 planner latency；
+- [x] 在 fresh development block 上离线验证 uncertainty 对 prediction miss、next-step margin violation、timeout 的排序能力；当前 next-state violation confirmation AUROC 仅 `0.520`，未显示可用排序能力；
+- [x] 完成 fixed-K=8 对照、original UAKR 三种子配对、预算/缓存/延迟统计和 TensorBoard 记录；
+- [x] 将 original UAKR 在 Phase54 判定为 `No-Go`，冻结为 efficiency/negative ablation；
 - [ ] 只在 development-calibration 上拟合阈值/风险映射；
 - [ ] 设计 intervention-effect label：同一 state 下“刷新/增加 K”相对“不干预”的局部收益，而不是直接使用 episode 终局标签；
-- [ ] 若 intervention-effect 不能在 confirmation 上稳定，UAKR 只保留为 negative/efficiency ablation。
+- [ ] 若重开 UAKR，加入 public queue/QDR prefix feasibility 或 recoverable-margin 特征，在新 development block 上做 intervention-effect calibration；
+- [ ] 若 intervention-effect 不能在 confirmation 上稳定，UAKR 只保留为 negative/efficiency ablation，不访问 locked-test。
 
 ### 6.3 RNIC 实现清单
 

@@ -2,6 +2,8 @@
 
 > Phase 53 QDR confirmation 更新：在新的 `validation_confirmation` 100 episode / 50 mirror-group manifest 上，三种子 nominal/windowed 的 safe capture 均为 `99.33% [98.00,100.00]`，paired delta 为 `0.00 pp [-1.67,+1.67]`；windowed minimum clearance 增加 `0.044 m [0.030,0.056]`，但最大 exhaustion streak 为 `30`，超过预注册 `24` 步上限，liveness gate 判定 **No-Go**。windowed predictor/planner/QDR/safety/total p50/p95/p99 为 `5.39/7.40/10.71`、`12.51/17.24/22.03`、`0.63/0.96/1.28`、`0.62/0.85/1.72`、`21.54/28.24/36.03 ms`；100 ms 仍不是硬门槛。nominal QDR 保留为当前固定 delay4/noise008 合同下的参考，windowed tube 冻结为负消融；不访问 locked-test，不混入 UAKR/RNIC。详见 `docs/PHASE53_QDR_RECOVERABILITY_CONFIRMATION_REPORT.md`。
 
+> Phase 54 UAKR fresh-development 更新：在新的 `validation_development` 100 episode / 50 mirror-group manifest 上，固定-K=8 safe capture 为 `98.33% [95.67,100.00]`，original UAKR 为 `95.00% [92.00,97.67]`，paired delta `-3.33 pp [-7.67,+1.00]`，未通过预注册 `-2 pp` 非劣界；timeout 从 `1.00%` 增至 `4.33%`，paired delta `+3.33 pp [+0.33,+7.00]`。UAKR 的平均 K 为 `2.145`、刷新率 `30.98%`，预算节省可复现，但平均 cache age 为 `1.264` steps、suffix admissible rate 下降 `5.68 pp`。uncertainty/residual 对 next-state violation 的 confirmation AUROC 仅 `0.520/0.513`，接近随机。该阶段判定 UAKR **No-Go**，冻结为 efficiency/negative ablation；不扫描阈值、不访问 locked-test、不开放 Full 组合。详细结果见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
+
 > Phase 51 single-process runtime 更新：在 Phase48 同一验证前缀的 40 个 episode 上，QDR-off/on 按顺序单进程运行并固定 Torch intra/inter-op 线程为 `1/1`。QDR-on safe capture 为 `100%`，off 为 `85%`；collision 为 `0%/15%`，paired safe-capture delta 为 `+15.00 pp [+5.00,+27.50]`。匹配前 18 个控制步的 total p50/p95/p99 为 `21.22/26.67/29.39 ms` 对 `12.77/15.15/16.90 ms`，planner p95 增加 `8.66 ms`，QDR 自身 p95 仅 `0.84 ms`。这消除了 Phase49 的并发 CPU 负载混杂，但仍是一种子 development runtime diagnostic；QDR safety-axis 保留，efficiency promotion 仍 No-Go。详见 `docs/PHASE51_QDR_SINGLE_PROCESS_RUNTIME_REPORT.md`。
 
 > Phase 50 QDR×UAKR development pilot 更新：在 Phase48 新鲜 manifest 前 40 个 episode 上，固定 QDR、delay4、bounded noise、immutable authority 和 local CBF，比较 fixed-K=8 与冻结 UAKR。fixed-K=8 safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为 `-2.50 pp [-7.50,0.00]`；UAKR mean K 为 `2.156`、refresh ratio 为 `30.54%`，total p95 从 `64.28` 降到 `57.15 ms`，但 timeout 从 `0%` 增至 `2.5%`。该结果支持预算节省但未通过 `-2 pp` safe-capture 非劣界，冻结为效率/负消融，不继续阈值扫描或开放 Full 矩阵。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
@@ -456,6 +458,26 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE53_QDR_RECOVERABILITY_WINDOW_REPORT.md`。
 
+### P29：Phase 54 UAKR fresh development 与可靠性审计
+
+- [x] 新建并冻结 `validation_development` manifest：100 episodes、50 mirror groups，
+  hash 为 `10521ad12ee30071b7e946c7e83889bd348b0d1e9fbd357bc48e1c4bb9c5764b`；
+- [x] 在完全相同的 QDR、delay4、bounded noise、GRU checkpoint、planner 和 local
+  CBF 合同下，完成 fixed-K=8 与 original UAKR 的三种子配对；
+- [x] 完成 episode bootstrap、预算/缓存/suffix 指标、predictor/planner/QDR/
+  safety/total p50/p95/p99 和 TensorBoard 记录；
+- [x] 完成按 mirror group 划分的 intervention 前置可靠性审计；
+- [x] fixed-K=8 / UAKR safe capture `98.33%/95.00%`，paired delta
+  `-3.33 pp [-7.67,+1.00]`；UAKR timeout 增量 `+3.33 pp [+0.33,+7.00]`；
+- [x] 判定当前 original UAKR 未通过安全/活性 gate，冻结为 efficiency/negative
+  ablation，不访问 locked-test；
+- [ ] 不在当前开发结果上继续扫描阈值或选择性报告平均延迟；
+- [ ] 若重开 UAKR，加入 public queue/QDR prefix feasibility 或 recoverable-margin
+  特征，先做 intervention-effect calibration，再新建 confirmation；否则停止
+  UAKR 主线并转向 RNIC 或 QDR 模块化论文材料。
+
+详见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
@@ -474,8 +496,11 @@ P24 EGC-MPC No-Go freeze
   -> Phase 50 QDR × UAKR development pilot (completed; efficiency/negative ablation)
    -> P9 single-process fixed-thread benchmark (completed; safety direction reproduced, efficiency No-Go)
    -> Phase 52 empirical QDR tube calibration + closed-loop diagnostic (completed; safety--liveness No-Go)
-   -> P9 delayed execution contract repair / recoverability-aware tube redesign (Phase53 windowed confirmation No-Go; nominal QDR retained)
-  -> P10 only after a new QDR liveness repair passes, then reopen QDR × UAKR; Full confirmation remains closed
+  -> P9 delayed execution contract repair / recoverability-aware tube redesign (Phase53 windowed confirmation No-Go; nominal QDR retained)
+  -> P10 Phase54 UAKR fresh development + reliability audit (completed; original UAKR No-Go)
+  -> P10b optional public queue/QDR-feasibility intervention calibration (new development only; no threshold scan)
+  -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
+  -> Full confirmation remains closed until each promoted module passes its independent gate
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
 ```
