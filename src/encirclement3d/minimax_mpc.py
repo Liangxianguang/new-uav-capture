@@ -17,6 +17,7 @@ import numpy as np
 
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
 from .escape_gap import escape_gap_metrics
+from .belief_fusion import fuse_public_beliefs
 from .reachability_interception import (
     formation_slot_reachability_cost,
     reachability_normalized_interception_cost,
@@ -156,6 +157,13 @@ class MinimaxMPCConfig:
     fc_dbf_switch_penalty: float = 0.10
     fc_dbf_cost_weight: float = 0.25
     fc_dbf_hold_previous_slot: bool = True
+    belief_fusion_mode: Literal["legacy", "freshness_covariance"] = "legacy"
+    belief_fusion_age_decay: float = 0.15
+    belief_fusion_age_inflation_m2: float = 0.05
+    belief_fusion_dropout_inflation_m2: float = 0.25
+    belief_fusion_covariance_floor_m2: float = 0.01
+    belief_fusion_confidence_power: float = 1.0
+    belief_fusion_min_effective_samples: float = 1.0
     weight_control: float = 0.015
     weight_control_change: float = 0.02
     weight_obstacle: float = 25.0
@@ -200,6 +208,8 @@ class MinimaxMPCConfig:
             raise ValueError("risk_mode must be expected, worst_case, or cvar.")
         if self.reachability_cost_mode not in {"interceptor", "formation_slot"}:
             raise ValueError("reachability_cost_mode must be interceptor or formation_slot.")
+        if self.belief_fusion_mode not in {"legacy", "freshness_covariance"}:
+            raise ValueError("belief_fusion_mode must be legacy or freshness_covariance")
         if self.reachability_slot_radius_m is not None and (
             not np.isfinite(float(self.reachability_slot_radius_m))
             or float(self.reachability_slot_radius_m) <= 0.0
@@ -270,6 +280,20 @@ class MinimaxMPCConfig:
         fc_dbf_weights = (self.fc_dbf_switch_penalty, self.fc_dbf_cost_weight)
         if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in fc_dbf_weights):
             raise ValueError("FC-DBF weights must be finite and non-negative")
+        fusion_positive = {
+            "belief_fusion_age_decay": self.belief_fusion_age_decay,
+            "belief_fusion_covariance_floor_m2": self.belief_fusion_covariance_floor_m2,
+            "belief_fusion_confidence_power": self.belief_fusion_confidence_power,
+            "belief_fusion_min_effective_samples": self.belief_fusion_min_effective_samples,
+        }
+        if any(not np.isfinite(float(value)) or float(value) <= 0.0 for value in fusion_positive.values()):
+            raise ValueError("belief fusion positive parameters must be finite and positive")
+        fusion_non_negative = (
+            self.belief_fusion_age_inflation_m2,
+            self.belief_fusion_dropout_inflation_m2,
+        )
+        if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in fusion_non_negative):
+            raise ValueError("belief fusion inflation parameters must be finite and non-negative")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "MinimaxMPCConfig":
@@ -313,6 +337,14 @@ class MinimaxMPCDiagnostics:
     fc_dbf_feasible_rate: float = float("nan")
     fc_dbf_gate_exhausted: bool = False
     fc_dbf_cost: float = float("nan")
+    belief_fusion_enabled: float = 0.0
+    belief_fusion_effective_sample_size: float = float("nan")
+    belief_fusion_weight_entropy: float = float("nan")
+    belief_fusion_mean_age_steps: float = float("nan")
+    belief_fusion_max_age_steps: float = float("nan")
+    belief_fusion_mean_covariance_trace_m2: float = float("nan")
+    belief_fusion_fallback_used: float = 0.0
+    belief_fusion_fallback_reason: str = "disabled"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -343,6 +375,14 @@ class MinimaxMPCDiagnostics:
             "fc_dbf_feasible_rate": self.fc_dbf_feasible_rate,
             "fc_dbf_gate_exhausted": self.fc_dbf_gate_exhausted,
             "fc_dbf_cost": self.fc_dbf_cost,
+            "belief_fusion_enabled": self.belief_fusion_enabled,
+            "belief_fusion_effective_sample_size": self.belief_fusion_effective_sample_size,
+            "belief_fusion_weight_entropy": self.belief_fusion_weight_entropy,
+            "belief_fusion_mean_age_steps": self.belief_fusion_mean_age_steps,
+            "belief_fusion_max_age_steps": self.belief_fusion_max_age_steps,
+            "belief_fusion_mean_covariance_trace_m2": self.belief_fusion_mean_covariance_trace_m2,
+            "belief_fusion_fallback_used": self.belief_fusion_fallback_used,
+            "belief_fusion_fallback_reason": self.belief_fusion_fallback_reason,
         }
 
 
@@ -398,7 +438,7 @@ def _project_actions(
     return np.clip(projected, lower, upper)
 
 
-def _belief_reference(observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+def _legacy_belief_reference(observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
     beliefs = np.asarray(observation["target_belief_positions"], dtype=np.float64)
     velocities = np.asarray(observation["target_belief_velocities"], dtype=np.float64)
     confidences = np.asarray(observation.get("target_observation_confidence", np.ones(len(beliefs))), dtype=np.float64)
@@ -408,6 +448,71 @@ def _belief_reference(observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarr
     weights = np.maximum(confidences, 1e-3) / (1.0 + np.maximum(ages, 0.0))
     weights /= max(float(weights.sum()), 1e-12)
     return np.sum(beliefs * weights[:, None], axis=0), np.sum(velocities * weights[:, None], axis=0)
+
+
+def belief_reference(
+    observation: dict[str, Any],
+    fusion_config: MinimaxMPCConfig | None = None,
+    *,
+    anchor_index: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the planner target reference under the declared belief mode."""
+
+    if fusion_config is None or fusion_config.belief_fusion_mode == "legacy":
+        return _legacy_belief_reference(observation)
+    result = fuse_public_beliefs(
+        observation,
+        age_decay=fusion_config.belief_fusion_age_decay,
+        age_inflation_m2=fusion_config.belief_fusion_age_inflation_m2,
+        dropout_inflation_m2=fusion_config.belief_fusion_dropout_inflation_m2,
+        covariance_floor_m2=fusion_config.belief_fusion_covariance_floor_m2,
+        confidence_power=fusion_config.belief_fusion_confidence_power,
+        min_effective_samples=fusion_config.belief_fusion_min_effective_samples,
+        anchor_index=anchor_index,
+    )
+    return result.position, result.velocity
+
+
+def belief_fusion_diagnostics(
+    observation: dict[str, Any],
+    fusion_config: MinimaxMPCConfig | None,
+    *,
+    anchor_index: int | None = None,
+) -> dict[str, Any]:
+    """Return scalar fusion diagnostics without changing legacy behavior."""
+
+    if fusion_config is None or fusion_config.belief_fusion_mode == "legacy":
+        return {
+            "belief_fusion_enabled": 0.0,
+            "belief_fusion_effective_sample_size": float("nan"),
+            "belief_fusion_weight_entropy": float("nan"),
+            "belief_fusion_mean_age_steps": float("nan"),
+            "belief_fusion_max_age_steps": float("nan"),
+            "belief_fusion_mean_covariance_trace_m2": float("nan"),
+            "belief_fusion_fallback_used": 0.0,
+            "belief_fusion_fallback_reason": "disabled",
+        }
+    return fuse_public_beliefs(
+        observation,
+        age_decay=fusion_config.belief_fusion_age_decay,
+        age_inflation_m2=fusion_config.belief_fusion_age_inflation_m2,
+        dropout_inflation_m2=fusion_config.belief_fusion_dropout_inflation_m2,
+        covariance_floor_m2=fusion_config.belief_fusion_covariance_floor_m2,
+        confidence_power=fusion_config.belief_fusion_confidence_power,
+        min_effective_samples=fusion_config.belief_fusion_min_effective_samples,
+        anchor_index=anchor_index,
+    ).as_dict(enabled=True)
+
+
+def _belief_reference(
+    observation: dict[str, Any],
+    fusion_config: MinimaxMPCConfig | None = None,
+    *,
+    anchor_index: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Backward-compatible internal alias for the configured reference."""
+
+    return belief_reference(observation, fusion_config, anchor_index=anchor_index)
 
 
 def _obstacle_clearance(position: np.ndarray, obstacle: dict[str, Any]) -> float:
@@ -526,6 +631,7 @@ def make_belief_candidate_set(
     max_speed_mps: float,
     candidate_count: int = 8,
     lateral_spread_m: float = 0.6,
+    belief_fusion_config: MinimaxMPCConfig | None = None,
 ) -> ScenarioTrajectorySet:
     """Create a projected constant-velocity candidate set for smoke baselines.
 
@@ -536,7 +642,7 @@ def make_belief_candidate_set(
 
     if horizon_steps <= 0 or candidate_count <= 0 or dt_seconds <= 0.0:
         raise ValueError("horizon_steps, candidate_count and dt_seconds must be positive.")
-    position, velocity = _belief_reference(observation)
+    position, velocity = _belief_reference(observation, belief_fusion_config)
     velocity = _clip_rows(velocity[None, :], max_speed_mps)[0]
     direction = _unit(velocity, fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64))
     lateral = _unit(np.cross(direction, np.array([0.0, 0.0, 1.0])), fallback=np.array([0.0, 1.0, 0.0]))
@@ -602,6 +708,7 @@ class ScenarioMinimaxMPC:
             )
         try:
             candidates = scenarios.truncate(self.config.horizon_steps)
+            fusion_summary = belief_fusion_diagnostics(observation, self.config)
             sequences = self._candidate_action_sequences(observation, candidates, velocities)
             if not sequences:
                 raise RuntimeError("finite-shooting candidate set is empty")
@@ -740,6 +847,7 @@ class ScenarioMinimaxMPC:
                 max_rollout_constraint_violation=float(np.max(constraint_violations[selected])),
                 **escape_gap_summary,
                 **fc_summary,
+                **fusion_summary,
             )
             return MinimaxMPCPlan(
                 actions=sequence[0].copy(),
@@ -801,7 +909,7 @@ class ScenarioMinimaxMPC:
         initial_velocity: np.ndarray,
     ) -> list[np.ndarray]:
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-        _belief, belief_velocity = _belief_reference(observation)
+        _belief, belief_velocity = _belief_reference(observation, self.config)
         first_target = scenarios.trajectories[:, 0]
         distances = np.linalg.norm(positions[:, None, :] - first_target[None, :, :], axis=-1)
         ordered_interceptors = list(np.argsort(np.min(distances, axis=1)).astype(int))

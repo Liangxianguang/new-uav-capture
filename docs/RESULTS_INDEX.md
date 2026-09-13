@@ -20,9 +20,10 @@ in `THREE_INNOVATIONS_MASTER_TODOLIST.md`.
 
 For lower-complexity, reproducible innovation alternatives after the current
 QDR/UAKR/RNIC No-Go boundaries, see
-`REPRODUCIBLE_INNOVATION_OPTIONS.md`. The current recommendation is to pilot
-escape-gap-aware cooperative MPC first, followed by freshness-calibrated
-decentralized belief fusion and failure-conditioned replay curriculum.
+`REPRODUCIBLE_INNOVATION_OPTIONS.md`. Escape-gap and formation-gate pilots are
+now frozen as negative engineering results. The current lower-complexity
+candidate is freshness--covariance public-belief fusion, followed by a fresh
+confirmation before it can support the main QDR/UAKR/RNIC claim.
 
 | Phase | Evidence | Status | Authoritative report |
 | --- | --- | --- | --- |
@@ -55,6 +56,7 @@ decentralized belief fusion and failure-conditioned replay curriculum.
 | Phase 30 | Escape-gap-aware cooperative MPC pilot | A geometry-only soft escape-gap objective is implemented with centralized and delayed-distributed integration, tests, source/config snapshots, and TensorBoard scalars. On a one-seed/20-scene development smoke, centralized weight 0.30 gives a descriptive 5 pp safe-capture increase but does not improve the gap metric; weight 1.0 slightly improves the gap metric while worsening safe capture by 10 pp. Distributed behavior is unchanged while total p95 rises from 82.07 to 98.93 ms. Current EGC is No-Go for promotion and retained as an auditable negative result. | `PHASE30_EGC_PILOT_REPORT.md`, `configs/phase30_egc_distance_baseline.yaml`, `configs/phase30_egc_gap_mpc_pilot.yaml` |
 | Phase 31 | Feasible-consensus distributed barrier formation (FC-DBF) pilot | A finite formation-slot feasibility gate, delayed peer-information contract, previous-slot hold policy, progress/slack/switch diagnostics, consensus-token optimization, and TensorBoard audit are implemented. In a controlled one-seed/20-scene validation smoke, FC-DBF leaves worst-case and distributed-delayed safe capture unchanged at 85.0% and 95.0%, while total p95 increases from 68.80 to 88.92 ms (centralized) and from 81.37 to 244.79 ms (distributed). Current result is an engineering pass but promotion No-Go; locked test remains closed. | `PHASE31_FC_DBF_PILOT_REPORT.md`, `configs/phase31_fc_dbf_distance_baseline.yaml`, `configs/phase31_fc_dbf_pilot.yaml` |
 | Phase 31b | FC-DBF three-seed validation confirmation | On the frozen 40-episode/20-mirror-group confirmation holdout, FC-DBF safe capture is 86.67% [80.00%,92.50%] vs 87.50% [80.83%,93.33%] off in worst-case (paired delta -0.83 pp [-3.33,0.00]) and 97.50% vs 97.50% in distributed delayed. It fails the worst-case -2 pp non-inferiority/no-worsening collision gate and increases distributed total p95 from 83.33 to 243.68 ms. Freeze as a reproducible negative/engineering result; do not open OOD or locked test. | `PHASE31_FC_DBF_CONFIRMATION_REPORT.md`, `scripts/select_mirror_group_scenes.py` |
+| Phase 32 | Freshness--covariance public-belief fusion pilot | On a one-seed/20-episode development prefix, deterministic freshness/covariance fusion changes worst-case safe capture descriptively from 85.0% to 90.0% and collision from 15.0% to 10.0%; distributed delayed outcomes remain 95.0%/5.0%. Distributed total p95 increases from 89.61 to 100.28 ms. The implementation and TensorBoard audit pass, but the result is not statistically established; freeze parameters and run a fresh three-seed confirmation. | `PHASE32_FRESHNESS_COVARIANCE_PILOT_REPORT.md`, `configs/phase32_freshness_covariance_baseline.yaml`, `configs/phase32_freshness_covariance_pilot.yaml` |
 | Phase 16b | OOD geometry-shift transfer diagnostic | On a fresh 100-episode/50-mirror-group geometry-shift manifest and three GRU `both` seeds, centralized worst-case safe capture is 46.33% [39.67%,53.33%] with 52.00% timeout, while distributed delayed is 84.00% [79.33%,88.33%] with 0% collision and 16.00% timeout. Total p50/p95/p99 is 61.77/77.13/97.40 ms centralized and 72.93/93.60/111.26 ms distributed. This is a one-axis robustness diagnostic, not a promotion or arbitrary-OOD claim. | `PHASE16_OOD_GEOMETRY_REPORT.md`, `scripts/generate_phase16_ood_geometry_scenes.py` |
 
 Phase 15's raw data collection and mirror-disjoint split audit remain valid.

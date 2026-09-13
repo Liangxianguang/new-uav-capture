@@ -198,6 +198,26 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only FC-DBF slot tracking tolerance override in metres.",
     )
+    belief_fusion_group = parser.add_mutually_exclusive_group()
+    belief_fusion_group.add_argument(
+        "--belief-fusion",
+        dest="belief_fusion",
+        action="store_true",
+        help="Enable freshness-covariance public-belief fusion.",
+    )
+    belief_fusion_group.add_argument(
+        "--no-belief-fusion",
+        dest="belief_fusion",
+        action="store_false",
+        help="Use the legacy confidence/age weighted public-belief reference.",
+    )
+    parser.set_defaults(belief_fusion=None)
+    parser.add_argument("--belief-fusion-age-decay", type=float)
+    parser.add_argument("--belief-fusion-age-inflation-m2", type=float)
+    parser.add_argument("--belief-fusion-dropout-inflation-m2", type=float)
+    parser.add_argument("--belief-fusion-covariance-floor-m2", type=float)
+    parser.add_argument("--belief-fusion-confidence-power", type=float)
+    parser.add_argument("--belief-fusion-min-effective-samples", type=float)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -324,6 +344,23 @@ def main() -> None:
         if not np.isfinite(float(args.fc_dbf_slot_tolerance_m)) or float(args.fc_dbf_slot_tolerance_m) <= 0.0:
             raise ValueError("fc-dbf-slot-tolerance-m must be finite and positive")
         planner_mapping["fc_dbf_slot_tolerance_m"] = float(args.fc_dbf_slot_tolerance_m)
+    if args.belief_fusion is not None:
+        planner_mapping["belief_fusion_mode"] = (
+            "freshness_covariance" if args.belief_fusion else "legacy"
+        )
+    fusion_overrides = {
+        "belief_fusion_age_decay": args.belief_fusion_age_decay,
+        "belief_fusion_age_inflation_m2": args.belief_fusion_age_inflation_m2,
+        "belief_fusion_dropout_inflation_m2": args.belief_fusion_dropout_inflation_m2,
+        "belief_fusion_covariance_floor_m2": args.belief_fusion_covariance_floor_m2,
+        "belief_fusion_confidence_power": args.belief_fusion_confidence_power,
+        "belief_fusion_min_effective_samples": args.belief_fusion_min_effective_samples,
+    }
+    for key, value in fusion_overrides.items():
+        if value is not None:
+            if not np.isfinite(float(value)):
+                raise ValueError(f"{key} must be finite")
+            planner_mapping[key] = float(value)
     planner_config = MinimaxMPCConfig.from_mapping(planner_mapping)
     queue_aware_rollout = bool(
         phase17_mapping.get("queue_aware_rollout", False)
@@ -629,6 +666,13 @@ def main() -> None:
                     "mean_fc_dbf_assignment_switch_rate",
                     "fc_dbf_gate_exhaustion_rate",
                     "mean_fc_dbf_cost",
+                    "belief_fusion_enabled_rate",
+                    "belief_fusion_effective_sample_size",
+                    "belief_fusion_weight_entropy",
+                    "belief_fusion_mean_age_steps",
+                    "belief_fusion_max_age_steps",
+                    "belief_fusion_mean_covariance_trace_m2",
+                    "belief_fusion_fallback_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -739,6 +783,46 @@ def main() -> None:
                 0,
             )
             writer.add_scalar("Summary/FCDBF/mean_cost", overall["mean_fc_dbf_cost"], 0)
+            writer.add_scalar(
+                "Summary/BeliefFusion/enabled_rate",
+                overall["belief_fusion_enabled_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/effective_sample_size",
+                overall["belief_fusion_effective_sample_size"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/weight_entropy",
+                overall["belief_fusion_weight_entropy"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/mean_age_steps",
+                overall["belief_fusion_mean_age_steps"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/max_age_steps",
+                overall["belief_fusion_max_age_steps"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/mean_covariance_trace_m2",
+                overall["belief_fusion_mean_covariance_trace_m2"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/fallback_rate",
+                overall["belief_fusion_fallback_rate"],
+                0,
+            )
+            writer.add_text(
+                "Summary/BeliefFusion/fallback_reason_counts",
+                json.dumps(overall.get("belief_fusion_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar("Summary/ConformalTube/enabled_rate", overall["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", overall["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", overall["maximum_conformal_tube_radius_m"], 0)

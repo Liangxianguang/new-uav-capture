@@ -16,7 +16,13 @@ from typing import Any, Literal
 
 import numpy as np
 
-from .minimax_mpc import MinimaxMPCConfig, ScenarioTrajectorySet, aggregate_scenario_costs
+from .minimax_mpc import (
+    MinimaxMPCConfig,
+    ScenarioTrajectorySet,
+    aggregate_scenario_costs,
+    belief_fusion_diagnostics,
+    belief_reference,
+)
 from .escape_gap import escape_gap_metrics
 from .feasible_consensus import (
     evaluate_fixed_consensus_slots,
@@ -123,6 +129,14 @@ class DistributedDNMPCDiagnostics:
     fc_dbf_feasible_rate: float = float("nan")
     fc_dbf_gate_exhausted: bool = False
     fc_dbf_cost: float = float("nan")
+    belief_fusion_enabled: float = 0.0
+    belief_fusion_effective_sample_size: float = float("nan")
+    belief_fusion_weight_entropy: float = float("nan")
+    belief_fusion_mean_age_steps: float = float("nan")
+    belief_fusion_max_age_steps: float = float("nan")
+    belief_fusion_mean_covariance_trace_m2: float = float("nan")
+    belief_fusion_fallback_used: float = 0.0
+    belief_fusion_fallback_reason: str = "disabled"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -162,6 +176,14 @@ class DistributedDNMPCDiagnostics:
             "fc_dbf_feasible_rate": self.fc_dbf_feasible_rate,
             "fc_dbf_gate_exhausted": self.fc_dbf_gate_exhausted,
             "fc_dbf_cost": self.fc_dbf_cost,
+            "belief_fusion_enabled": self.belief_fusion_enabled,
+            "belief_fusion_effective_sample_size": self.belief_fusion_effective_sample_size,
+            "belief_fusion_weight_entropy": self.belief_fusion_weight_entropy,
+            "belief_fusion_mean_age_steps": self.belief_fusion_mean_age_steps,
+            "belief_fusion_max_age_steps": self.belief_fusion_max_age_steps,
+            "belief_fusion_mean_covariance_trace_m2": self.belief_fusion_mean_covariance_trace_m2,
+            "belief_fusion_fallback_used": self.belief_fusion_fallback_used,
+            "belief_fusion_fallback_reason": self.belief_fusion_fallback_reason,
         }
 
 
@@ -399,6 +421,7 @@ class DistributedMinimaxDNMPC:
                 if not self._fc_dbf_last_gate_exhausted:
                     assignments = np.asarray(self._fc_dbf_last_metrics["assignments"], dtype=np.int64)
                     self._fc_dbf_previous_assignment = assignments[0, critical_scenario].copy()
+            fusion_summary = belief_fusion_diagnostics(observation, self.config)
             diagnostics = self._diagnostics(
                 status=status,
                 iterations=iterations,
@@ -414,6 +437,7 @@ class DistributedMinimaxDNMPC:
                 fallback_reason=(first_failure if local_failures else None),
                 **escape_gap_summary,
                 **fc_summary,
+                **fusion_summary,
             )
             return DistributedDNMPCPlan(
                 actions=sequences[0].copy(),
@@ -556,14 +580,10 @@ class DistributedMinimaxDNMPC:
         team_positions.update({peer: message.position for peer, message in known.items()})
         first_target = reference[0]
         interceptor = min(team_positions, key=lambda peer: float(np.linalg.norm(team_positions[peer] - first_target)))
-        belief_velocities = np.asarray(
-            observation.get("target_belief_velocities", np.zeros((len(team_positions), 3))),
-            dtype=np.float64,
-        )
-        target_velocity = (
-            belief_velocities[agent_id]
-            if belief_velocities.ndim == 2 and agent_id < belief_velocities.shape[0]
-            else np.zeros(3, dtype=np.float64)
+        _belief_position, target_velocity = belief_reference(
+            observation,
+            self.config,
+            anchor_index=agent_id,
         )
         result: list[np.ndarray] = []
         for target_path in selected_paths:
@@ -1230,6 +1250,14 @@ class DistributedMinimaxDNMPC:
         fc_dbf_feasible_rate: float = float("nan"),
         fc_dbf_gate_exhausted: bool = False,
         fc_dbf_cost: float = float("nan"),
+        belief_fusion_enabled: float = 0.0,
+        belief_fusion_effective_sample_size: float = float("nan"),
+        belief_fusion_weight_entropy: float = float("nan"),
+        belief_fusion_mean_age_steps: float = float("nan"),
+        belief_fusion_max_age_steps: float = float("nan"),
+        belief_fusion_mean_covariance_trace_m2: float = float("nan"),
+        belief_fusion_fallback_used: float = 0.0,
+        belief_fusion_fallback_reason: str = "disabled",
     ) -> DistributedDNMPCDiagnostics:
         ages = np.asarray(self._stats.get("age_samples", []), dtype=np.float64)
         return DistributedDNMPCDiagnostics(
@@ -1269,6 +1297,14 @@ class DistributedMinimaxDNMPC:
             fc_dbf_feasible_rate=float(fc_dbf_feasible_rate),
             fc_dbf_gate_exhausted=bool(fc_dbf_gate_exhausted),
             fc_dbf_cost=float(fc_dbf_cost),
+            belief_fusion_enabled=float(belief_fusion_enabled),
+            belief_fusion_effective_sample_size=float(belief_fusion_effective_sample_size),
+            belief_fusion_weight_entropy=float(belief_fusion_weight_entropy),
+            belief_fusion_mean_age_steps=float(belief_fusion_mean_age_steps),
+            belief_fusion_max_age_steps=float(belief_fusion_max_age_steps),
+            belief_fusion_mean_covariance_trace_m2=float(belief_fusion_mean_covariance_trace_m2),
+            belief_fusion_fallback_used=float(belief_fusion_fallback_used),
+            belief_fusion_fallback_reason=str(belief_fusion_fallback_reason),
         )
 
     def _fallback(

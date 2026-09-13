@@ -47,6 +47,8 @@ from encirclement3d.minimax_mpc import (  # noqa: E402
     ScenarioMinimaxMPC,
     ScenarioTrajectorySet,
     aggregate_scenario_costs,
+    belief_fusion_diagnostics,
+    belief_reference,
     evaluate_candidate_capture_distances,
     make_belief_candidate_set,
 )
@@ -282,6 +284,26 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Validation-only FC-DBF slot tracking tolerance override in metres.",
     )
+    belief_fusion_group = parser.add_mutually_exclusive_group()
+    belief_fusion_group.add_argument(
+        "--belief-fusion",
+        dest="belief_fusion",
+        action="store_true",
+        help="Enable freshness-covariance public-belief fusion.",
+    )
+    belief_fusion_group.add_argument(
+        "--no-belief-fusion",
+        dest="belief_fusion",
+        action="store_false",
+        help="Use the legacy confidence/age weighted public-belief reference.",
+    )
+    parser.set_defaults(belief_fusion=None)
+    parser.add_argument("--belief-fusion-age-decay", type=float)
+    parser.add_argument("--belief-fusion-age-inflation-m2", type=float)
+    parser.add_argument("--belief-fusion-dropout-inflation-m2", type=float)
+    parser.add_argument("--belief-fusion-covariance-floor-m2", type=float)
+    parser.add_argument("--belief-fusion-confidence-power", type=float)
+    parser.add_argument("--belief-fusion-min-effective-samples", type=float)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument(
         "--safety-layer",
@@ -321,6 +343,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "distributed_dn_mpc.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "escape_gap.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "feasible_consensus.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "belief_fusion.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
@@ -349,13 +372,15 @@ def add_safety_source_hashes(hashes: dict[str, str], safety_config_path: Path) -
         hashes[str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def weighted_belief_velocity(observation: dict[str, Any]) -> np.ndarray:
-    velocities = np.asarray(observation["target_belief_velocities"], dtype=np.float64)
-    confidences = np.asarray(observation.get("target_observation_confidence", np.ones(len(velocities))), dtype=np.float64)
-    ages = np.asarray(observation.get("message_age_steps", np.zeros(len(velocities))), dtype=np.float64)
-    weights = np.maximum(confidences, 1e-3) / (1.0 + np.maximum(ages, 0.0))
-    weights /= max(float(weights.sum()), 1e-12)
-    return np.sum(velocities * weights[:, None], axis=0)
+def weighted_belief_velocity(
+    observation: dict[str, Any],
+    fusion_config: MinimaxMPCConfig | None = None,
+    *,
+    anchor_index: int | None = None,
+) -> np.ndarray:
+    """Return the configured public-belief velocity reference."""
+
+    return belief_reference(observation, fusion_config, anchor_index=anchor_index)[1]
 
 
 def model_from_checkpoint(
@@ -446,6 +471,7 @@ class PredictionRuntime:
     last_adaptive_decision: AdaptivePredictionDecision | None = None
     last_prediction_residual_m: float | None = None
     conformal_tube: DelayAwareConformalReachableTube | None = None
+    belief_fusion_config: MinimaxMPCConfig | None = None
 
     def reset(self) -> None:
         self.history = []
@@ -599,6 +625,7 @@ class PredictionRuntime:
                 dt_seconds=self.env.dt,
                 max_speed_mps=float(self.env.agents["target_max_speed"]),
                 candidate_count=sample_count,
+                belief_fusion_config=self.belief_fusion_config,
             )
             if tube_radius_schedule is not None:
                 result = ScenarioTrajectorySet(
@@ -664,7 +691,7 @@ class PredictionRuntime:
                 )
                 raw_displacements = self.normalizer.denormalize(candidate_set.trajectories)
         reference = self._belief_reference(observation)
-        reference_velocity = weighted_belief_velocity(observation)
+        reference_velocity = weighted_belief_velocity(observation, self.belief_fusion_config)
         projected_displacements = project_candidate_trajectories(
             raw_displacements,
             torch.as_tensor(reference[None], dtype=torch.float32, device=self.device),
@@ -695,14 +722,8 @@ class PredictionRuntime:
         self.step_index += 1
         return result, (time.perf_counter() - started) * 1000.0, True, 0
 
-    @staticmethod
-    def _belief_reference(observation: dict[str, Any]) -> np.ndarray:
-        beliefs = np.asarray(observation["target_belief_positions"], dtype=np.float64)
-        confidences = np.asarray(observation.get("target_observation_confidence", np.ones(len(beliefs))), dtype=np.float64)
-        ages = np.asarray(observation.get("message_age_steps", np.zeros(len(beliefs))), dtype=np.float64)
-        weights = np.maximum(confidences, 1e-3) / (1.0 + np.maximum(ages, 0.0))
-        weights /= max(float(weights.sum()), 1e-12)
-        return np.sum(beliefs * weights[:, None], axis=0)
+    def _belief_reference(self, observation: dict[str, Any]) -> np.ndarray:
+        return belief_reference(observation, self.belief_fusion_config)[0]
 
 
 def _default_diagnostics(status: str = "not_used") -> MinimaxMPCDiagnostics:
@@ -901,6 +922,7 @@ def run_episode(
                 else AdaptivePredictionPolicy.from_mapping(adaptive_prediction_config)
             ),
             conformal_tube=reachable_tube,
+            belief_fusion_config=planner_config,
         )
         runtime.reset()
 
@@ -1000,6 +1022,14 @@ def run_episode(
         fc_dbf_feasible_rate = float("nan")
         fc_dbf_gate_exhausted = False
         fc_dbf_cost = float("nan")
+        belief_fusion_enabled = 0.0
+        belief_fusion_effective_sample_size = float("nan")
+        belief_fusion_weight_entropy = float("nan")
+        belief_fusion_mean_age_steps = float("nan")
+        belief_fusion_max_age_steps = float("nan")
+        belief_fusion_mean_covariance_trace_m2 = float("nan")
+        belief_fusion_fallback_used = 0.0
+        belief_fusion_fallback_reason = "disabled"
         conformal_tube_enabled = False
         conformal_tube_mean_radius_m = float("nan")
         conformal_tube_max_radius_m = float("nan")
@@ -1172,6 +1202,28 @@ def run_episode(
             )
             fc_dbf_gate_exhausted = bool(getattr(planner_diagnostics, "fc_dbf_gate_exhausted", False))
             fc_dbf_cost = float(getattr(planner_diagnostics, "fc_dbf_cost", float("nan")))
+            belief_fusion_enabled = float(getattr(planner_diagnostics, "belief_fusion_enabled", 0.0))
+            belief_fusion_effective_sample_size = float(
+                getattr(planner_diagnostics, "belief_fusion_effective_sample_size", float("nan"))
+            )
+            belief_fusion_weight_entropy = float(
+                getattr(planner_diagnostics, "belief_fusion_weight_entropy", float("nan"))
+            )
+            belief_fusion_mean_age_steps = float(
+                getattr(planner_diagnostics, "belief_fusion_mean_age_steps", float("nan"))
+            )
+            belief_fusion_max_age_steps = float(
+                getattr(planner_diagnostics, "belief_fusion_max_age_steps", float("nan"))
+            )
+            belief_fusion_mean_covariance_trace_m2 = float(
+                getattr(planner_diagnostics, "belief_fusion_mean_covariance_trace_m2", float("nan"))
+            )
+            belief_fusion_fallback_used = float(
+                getattr(planner_diagnostics, "belief_fusion_fallback_used", 0.0)
+            )
+            belief_fusion_fallback_reason = str(
+                getattr(planner_diagnostics, "belief_fusion_fallback_reason", "disabled")
+            )
             if rnic_enabled:
                 planned_rnic_action_sequence = np.asarray(plan.action_sequence, dtype=np.float64)
             candidate_distance_metrics = evaluate_candidate_capture_distances(
@@ -1398,6 +1450,16 @@ def run_episode(
                 "fc_dbf_feasible_rate": float(fc_dbf_feasible_rate),
                 "fc_dbf_gate_exhausted": 1.0 if fc_dbf_gate_exhausted else 0.0,
                 "fc_dbf_cost": float(fc_dbf_cost),
+                "belief_fusion_enabled": float(belief_fusion_enabled),
+                "belief_fusion_effective_sample_size": float(belief_fusion_effective_sample_size),
+                "belief_fusion_weight_entropy": float(belief_fusion_weight_entropy),
+                "belief_fusion_mean_age_steps": float(belief_fusion_mean_age_steps),
+                "belief_fusion_max_age_steps": float(belief_fusion_max_age_steps),
+                "belief_fusion_mean_covariance_trace_m2": float(
+                    belief_fusion_mean_covariance_trace_m2
+                ),
+                "belief_fusion_fallback_used": float(belief_fusion_fallback_used),
+                "belief_fusion_fallback_reason": belief_fusion_fallback_reason,
                 "conformal_tube_enabled": 1.0 if conformal_tube_enabled else 0.0,
                 "conformal_tube_mean_radius_m": float(conformal_tube_mean_radius_m),
                 "conformal_tube_max_radius_m": float(conformal_tube_max_radius_m),
@@ -1707,6 +1769,20 @@ def run_episode(
         ),
         "fc_dbf_gate_exhaustion_rate": _diagnostic_mean(step_rows, "fc_dbf_gate_exhausted"),
         "mean_fc_dbf_cost": _diagnostic_mean(step_rows, "fc_dbf_cost"),
+        "belief_fusion_enabled_rate": _diagnostic_mean(step_rows, "belief_fusion_enabled"),
+        "belief_fusion_effective_sample_size": _diagnostic_mean(
+            step_rows, "belief_fusion_effective_sample_size"
+        ),
+        "belief_fusion_weight_entropy": _diagnostic_mean(step_rows, "belief_fusion_weight_entropy"),
+        "belief_fusion_mean_age_steps": _diagnostic_mean(step_rows, "belief_fusion_mean_age_steps"),
+        "belief_fusion_max_age_steps": _diagnostic_max(step_rows, "belief_fusion_max_age_steps"),
+        "belief_fusion_mean_covariance_trace_m2": _diagnostic_mean(
+            step_rows, "belief_fusion_mean_covariance_trace_m2"
+        ),
+        "belief_fusion_fallback_rate": _diagnostic_mean(step_rows, "belief_fusion_fallback_used"),
+        "belief_fusion_fallback_reason_counts": _diagnostic_category_counts(
+            step_rows, "belief_fusion_fallback_reason"
+        ),
         "conformal_tube_enabled_rate": float(np.mean([row["conformal_tube_enabled"] for row in step_rows])),
         "mean_conformal_tube_radius_m": _diagnostic_mean(step_rows, "conformal_tube_mean_radius_m"),
         "maximum_conformal_tube_radius_m": _diagnostic_max(step_rows, "conformal_tube_max_radius_m"),
@@ -2152,6 +2228,28 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             [row["fc_dbf_gate_exhaustion_rate"] for row in rows]
         ),
         "mean_fc_dbf_cost": finite_mean([row["mean_fc_dbf_cost"] for row in rows]),
+        "belief_fusion_enabled_rate": finite_mean([row["belief_fusion_enabled_rate"] for row in rows]),
+        "belief_fusion_effective_sample_size": finite_mean(
+            [row["belief_fusion_effective_sample_size"] for row in rows]
+        ),
+        "belief_fusion_weight_entropy": finite_mean(
+            [row["belief_fusion_weight_entropy"] for row in rows]
+        ),
+        "belief_fusion_mean_age_steps": finite_mean(
+            [row["belief_fusion_mean_age_steps"] for row in rows]
+        ),
+        "belief_fusion_max_age_steps": finite_max(
+            [row["belief_fusion_max_age_steps"] for row in rows]
+        ),
+        "belief_fusion_mean_covariance_trace_m2": finite_mean(
+            [row["belief_fusion_mean_covariance_trace_m2"] for row in rows]
+        ),
+        "belief_fusion_fallback_rate": finite_mean(
+            [row["belief_fusion_fallback_rate"] for row in rows]
+        ),
+        "belief_fusion_fallback_reason_counts": _merge_category_counts(
+            [row.get("belief_fusion_fallback_reason_counts", {}) for row in rows]
+        ),
         "safety_latency_ms": {
             "p50": percentile(safety_latencies, 50),
             "p95": percentile(safety_latencies, 95),
@@ -2239,6 +2337,23 @@ def main() -> None:
         if not np.isfinite(float(args.fc_dbf_slot_tolerance_m)) or float(args.fc_dbf_slot_tolerance_m) <= 0.0:
             raise ValueError("fc-dbf-slot-tolerance-m must be finite and positive")
         planner_mapping["fc_dbf_slot_tolerance_m"] = float(args.fc_dbf_slot_tolerance_m)
+    if args.belief_fusion is not None:
+        planner_mapping["belief_fusion_mode"] = (
+            "freshness_covariance" if args.belief_fusion else "legacy"
+        )
+    fusion_overrides = {
+        "belief_fusion_age_decay": args.belief_fusion_age_decay,
+        "belief_fusion_age_inflation_m2": args.belief_fusion_age_inflation_m2,
+        "belief_fusion_dropout_inflation_m2": args.belief_fusion_dropout_inflation_m2,
+        "belief_fusion_covariance_floor_m2": args.belief_fusion_covariance_floor_m2,
+        "belief_fusion_confidence_power": args.belief_fusion_confidence_power,
+        "belief_fusion_min_effective_samples": args.belief_fusion_min_effective_samples,
+    }
+    for key, value in fusion_overrides.items():
+        if value is not None:
+            if not np.isfinite(float(value)):
+                raise ValueError(f"{key} must be finite")
+            planner_mapping[key] = float(value)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
@@ -2635,6 +2750,13 @@ def main() -> None:
                     "mean_fc_dbf_assignment_switch_rate",
                     "fc_dbf_gate_exhaustion_rate",
                     "mean_fc_dbf_cost",
+                    "belief_fusion_enabled_rate",
+                    "belief_fusion_effective_sample_size",
+                    "belief_fusion_weight_entropy",
+                    "belief_fusion_mean_age_steps",
+                    "belief_fusion_max_age_steps",
+                    "belief_fusion_mean_covariance_trace_m2",
+                    "belief_fusion_fallback_rate",
                     "conformal_tube_enabled_rate",
                     "mean_conformal_tube_radius_m",
                     "maximum_conformal_tube_radius_m",
@@ -2812,6 +2934,46 @@ def main() -> None:
                 0,
             )
             writer.add_scalar("Summary/FCDBF/mean_cost", summary["mean_fc_dbf_cost"], 0)
+            writer.add_scalar(
+                "Summary/BeliefFusion/enabled_rate",
+                summary["belief_fusion_enabled_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/effective_sample_size",
+                summary["belief_fusion_effective_sample_size"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/weight_entropy",
+                summary["belief_fusion_weight_entropy"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/mean_age_steps",
+                summary["belief_fusion_mean_age_steps"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/max_age_steps",
+                summary["belief_fusion_max_age_steps"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/mean_covariance_trace_m2",
+                summary["belief_fusion_mean_covariance_trace_m2"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/BeliefFusion/fallback_rate",
+                summary["belief_fusion_fallback_rate"],
+                0,
+            )
+            writer.add_text(
+                "Summary/BeliefFusion/fallback_reason_counts",
+                json.dumps(summary.get("belief_fusion_fallback_reason_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar("Summary/ConformalTube/enabled_rate", summary["conformal_tube_enabled_rate"], 0)
             writer.add_scalar("Summary/ConformalTube/mean_radius_m", summary["mean_conformal_tube_radius_m"], 0)
             writer.add_scalar("Summary/ConformalTube/maximum_radius_m", summary["maximum_conformal_tube_radius_m"], 0)

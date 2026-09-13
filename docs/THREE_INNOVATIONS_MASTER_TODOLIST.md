@@ -165,6 +165,34 @@ C_{\mathrm{RNIC}}(i,q)=
 通过，也可以以“延迟感知分布式围捕的模块化框架与组合失效边界”为论文主线，不能
 把 Full 失败隐藏掉。
 
+### 3.2 支撑性候选：freshness--covariance public-belief fusion
+
+该模块不是第四个主创新点，而是一个可复现的支撑机制：QDR 和 RNIC 的输入若仍把
+所有 public belief 当作同等可靠，队列延迟、丢包和协方差差异就会被规划器错误地
+忽略。第一版采用确定性、无学习参数的融合规则：
+
+```text
+reliability_i ∝ confidence_i^p
+                  × exp(-age_decay × message_age_i)
+                  / trace(inflated_covariance_i)
+```
+
+并用 effective sample size 触发确定性的 self-anchor fallback。它只使用 public
+belief、message age、dropout、confidence 和 covariance，不读取 target truth；不能
+把该规则写成贝叶斯最优融合或安全证明。
+
+Phase 32 的 one-seed/20-episode development pilot 给出一个值得验证但尚未成立的
+信号：worst-case safe capture `85%→90%`、collision `15%→10%`，distributed
+delayed episode outcome 保持 `95%/5%`；distributed total p95
+`89.61→100.28 ms`。因此下一步是冻结参数后在 fresh holdout 上做三种子
+confirmation，而不是在这 20 个 episode 上继续调权重。confirmation 的最低 gate
+为 ID paired safe-capture CI 下界不低于 `-2 pp`、collision/boundary 不增加、至少
+一个 delay/OOD 分层获得预注册改善，并完整报告 predictor/planner/safety/total
+p50/p95/p99。若不通过，该模块降级为可复现 belief-fusion ablation；若通过，才
+作为 QDR 或 RNIC 的支撑臂进入新的 factorial，不修改主参考模型。
+
+完整 pilot 记录见 `docs/PHASE32_FRESHNESS_COVARIANCE_PILOT_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
