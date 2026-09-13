@@ -359,6 +359,21 @@ runtime benchmark。详见 `docs/PHASE47_OOD_DELAY_EXECUTION_QDR_REPORT.md`。
 
 ---
 
+### 3.15 Phase 48 QDR liveness confirmation
+
+在新的 validation-confirmation manifest 上固定 nominal sensing、delay4、
+bounded command noise `0.08`、immutable authority 和 local CBF，完成 QDR-off/on
+三种子配对。QDR-on safe capture 为 `98.33% [95.67,100.00]`，off 为
+`83.33% [79.00,87.33]`；paired safe-capture delta 为
+`+15.00 pp [10.33,19.67]`，collision delta 为
+`-15.33 pp [-20.00,-11.00]`。timeout 为 `0.33%`，最大 exhaustion streak 为
+`23` 步；预注册的 timeout `≤5%`、timeout delta `≤5 pp`、streak `≤24` 三项
+liveness gate 全部通过。prefix/suffix admissible 为 `95.36%/84.44%`，total
+p50/p95/p99 为 `84.60/103.99/120.67 ms`。因此 QDR 获得该固定执行契约下的
+条件性 safety--liveness confirmation，但效率和形式化安全证明仍未通过；下一步
+先做同 episode-length runtime benchmark，再在全新 development block 测试
+QDR×UAKR。详见 `docs/PHASE48_QDR_LIVENESS_CONFIRMATION_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
