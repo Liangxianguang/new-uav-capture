@@ -1,5 +1,7 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 53 QDR 可恢复窗口更新：在 Phase 52 同一 calibration、delay4/noise008、immutable authority 和 40-episode validation development prefix 上，只让经验管作用于前 2 个 immediate suffix steps。windowed tube 与 nominal QDR 均为 `100.00%` safe capture、`0%` collision/boundary/timeout；paired safe-capture delta `0 pp [0,0]`，minimum clearance 增加 `0.0372 m [0.0091,0.0643]`，maximum exhaustion streak `23→18`。windowed total p50/p95/p99 为 `21.43/25.88/28.04 ms`。这是单 seed development pass，不是 superiority 或安全证明；下一步为新的 three-seed confirmation，confirmation 前不访问 locked-test，不混入 UAKR/RNIC。详见 `docs/PHASE53_QDR_RECOVERABILITY_WINDOW_REPORT.md`。
+
 > Phase 51 single-process runtime 更新：在 Phase48 同一验证前缀的 40 个 episode 上，QDR-off/on 按顺序单进程运行并固定 Torch intra/inter-op 线程为 `1/1`。QDR-on safe capture 为 `100%`，off 为 `85%`；collision 为 `0%/15%`，paired safe-capture delta 为 `+15.00 pp [+5.00,+27.50]`。匹配前 18 个控制步的 total p50/p95/p99 为 `21.22/26.67/29.39 ms` 对 `12.77/15.15/16.90 ms`，planner p95 增加 `8.66 ms`，QDR 自身 p95 仅 `0.84 ms`。这消除了 Phase49 的并发 CPU 负载混杂，但仍是一种子 development runtime diagnostic；QDR safety-axis 保留，efficiency promotion 仍 No-Go。详见 `docs/PHASE51_QDR_SINGLE_PROCESS_RUNTIME_REPORT.md`。
 
 > Phase 50 QDR×UAKR development pilot 更新：在 Phase48 新鲜 manifest 前 40 个 episode 上，固定 QDR、delay4、bounded noise、immutable authority 和 local CBF，比较 fixed-K=8 与冻结 UAKR。fixed-K=8 safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为 `-2.50 pp [-7.50,0.00]`；UAKR mean K 为 `2.156`、refresh ratio 为 `30.54%`，total p95 从 `64.28` 降到 `57.15 ms`，但 timeout 从 `0%` 增至 `2.5%`。该结果支持预算节省但未通过 `-2 pp` safe-capture 非劣界，冻结为效率/负消融，不继续阈值扫描或开放 Full 矩阵。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
@@ -440,6 +442,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [ ] 不继续在当前 prefix 扫描 multiplier；若重开，只研究与剩余可恢复时间、局部障碍距离耦合的 gated tube，并新建 development split 与 liveness gate。
 
 详见 `docs/PHASE52_QDR_EMPIRICAL_EXECUTION_TUBE_REPORT.md`。
+
+### P28：Phase 53 QDR recoverability-window repair
+
+- [x] 将经验管从全 horizon 改为显式 `qdr_execution_tube_active_steps=2` 的 immediate replanning window；配置、source hash、step/episode 诊断和 TensorBoard 已接入。
+- [x] 在 40-episode development prefix 上完成 nominal/windowed 配对；两臂 safe capture `100%`，timeout/collision/boundary `0%`，paired safe-capture delta `0 pp [0,0]`。
+- [x] 记录 windowed predictor/planner/QDR/safety/total p50/p95/p99：`5.47/6.93/7.77`、`12.44/15.93/17.50`、`0.63/0.84/1.05`、`0.62/0.81/0.97`、`21.43/25.88/28.04 ms`。
+- [ ] 新建 confirmation manifest，使用 `727201/727202/727203` 三种子复现；通过前不访问 locked-test。
+- [ ] 若 confirmation 通过，再按预注册规则比较 active window；若失败，保留 nominal QDR 并冻结 tube 为负消融。
+
+详见 `docs/PHASE53_QDR_RECOVERABILITY_WINDOW_REPORT.md`。
 
 ## 7. 当前推荐执行顺序
 

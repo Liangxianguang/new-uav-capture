@@ -429,6 +429,23 @@ QDR 的 safe capture 为 `100.00%/15.00%`，timeout 为 `0.00%/85.00%`，collisi
 negative ablation，不晋级、不访问 locked-test，也不写成安全证明。详见
 `docs/PHASE52_QDR_EMPIRICAL_EXECUTION_TUBE_REPORT.md`。
 
+### 3.20 Phase 53 QDR recoverability-window repair
+
+Phase 52 的全 horizon 经验执行管在 40 个 validation development episode 上造成
+`15%` safe capture 和 `85%` timeout。Phase 53 保持同一 calibration、执行合同、
+scene prefix 和 checkpoint，只把经验管限制在 immediate controllable window 的
+前 2 个 suffix steps，后续 suffix 交给下一次 replanning。
+
+windowed tube 的 safe capture 为 `100%`，timeout、collision、boundary 均为 `0%`；
+相对 nominal QDR 的 paired safe-capture delta 为 `0 pp [0,0]`，minimum clearance
+增加 `0.0372 m [0.0091,0.0643]`，maximum exhaustion streak 从 `23` 降至 `18`。
+total p50/p95/p99 为 `21.43/25.88/28.04 ms`，没有把 `100 ms` 当作硬门槛。
+
+该结果是单 seed、40 episode 的 development pass，不是 superiority 或安全证明。
+下一步必须在新的 confirmation manifest 上完成三种子复现；在此之前不访问
+locked-test，也不与 UAKR/RNIC 混合。详见
+`docs/PHASE53_QDR_RECOVERABILITY_WINDOW_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
