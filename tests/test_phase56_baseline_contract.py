@@ -57,3 +57,18 @@ def test_phase58_qdr_synchronous_composite_is_distributed_and_queue_aware() -> N
     assert contract["distributed_mode"] == "delayed"
     assert contract["queue_aware_rollout"] is True
     assert contract["known_delay_compensation"] is False
+
+
+def test_phase59_candidate_budget_is_synchronized_after_alias_override() -> None:
+    contract = phase56_method_contract("R2_phase59_queue_cbf_k4", **_base())
+
+    assert contract["requested_method"] == "R2_phase59_queue_cbf_k4"
+    assert contract["num_samples"] == 4
+    assert contract["candidate_budget_requested"] == 4
+
+
+def test_phase59_k8_candidate_budget_is_explicit() -> None:
+    contract = phase56_method_contract("R3_phase59_queue_cbf_k8", **_base())
+
+    assert contract["num_samples"] == 8
+    assert contract["candidate_budget_requested"] == 8

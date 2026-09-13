@@ -80,6 +80,12 @@ METHODS = (
     "M6_qdr_synchronous_mpc",
     "M7_qdr_asynchronous_mpc",
     "M8_fixed_k8_qdr",
+    # Phase 59 repair-calibration variants.  They all retain immutable queue
+    # authority; the suffix indicates only the pre-registered intervention.
+    "R0_phase59_qdr_baseline",
+    "R1_phase59_queue_cbf_k1",
+    "R2_phase59_queue_cbf_k4",
+    "R3_phase59_queue_cbf_k8",
 )
 
 
@@ -482,13 +488,16 @@ def phase56_method_contract(
         "M7_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
         "M8_fixed_k8_qdr": "fixed_k8_qdr",
     }
+    requested_method = method
     method = alias.get(method, method)
     contract = {
+        "requested_method": requested_method,
         "canonical_method": method,
         "queue_aware_rollout": bool(queue_aware_rollout),
         "queue_aware_safety_projection": bool(queue_aware_safety_projection),
         "adaptive_k": bool(adaptive_k),
         "num_samples": int(num_samples),
+        "candidate_budget_requested": int(num_samples),
         "fixed_tube_radius_m": fixed_tube_radius_m,
         "target_tube_cost_enabled": False,
         "known_delay_compensation": False,
@@ -535,8 +544,45 @@ def phase56_method_contract(
         contract.update(distributed_mode="asynchronous", queue_aware_rollout=False)
     elif method == "fixed_k8_qdr":
         contract.update(canonical_method="worst_case", queue_aware_rollout=True, adaptive_k=False, num_samples=max(8, num_samples))
+    if requested_method == "R0_phase59_qdr_baseline":
+        contract.update(
+            canonical_method="distributed_delayed",
+            distributed_mode="delayed",
+            queue_aware_rollout=True,
+            queue_aware_safety_projection=False,
+            num_samples=int(num_samples),
+        )
+    elif requested_method == "R1_phase59_queue_cbf_k1":
+        contract.update(
+            canonical_method="distributed_delayed",
+            distributed_mode="delayed",
+            queue_aware_rollout=True,
+            queue_aware_safety_projection=True,
+            num_samples=1,
+        )
+    elif requested_method == "R2_phase59_queue_cbf_k4":
+        contract.update(
+            canonical_method="distributed_delayed",
+            distributed_mode="delayed",
+            queue_aware_rollout=True,
+            queue_aware_safety_projection=True,
+            num_samples=max(4, int(num_samples)),
+        )
+    elif requested_method == "R3_phase59_queue_cbf_k8":
+        contract.update(
+            canonical_method="distributed_delayed",
+            distributed_mode="delayed",
+            queue_aware_rollout=True,
+            queue_aware_safety_projection=True,
+            num_samples=max(8, int(num_samples)),
+        )
     if contract["queue_aware_safety_projection"] and not contract["queue_aware_rollout"]:
         contract["queue_aware_safety_projection"] = False
+    # Keep the requested budget synchronized with alias-specific overrides.
+    # The actual realized budget is measured from step logs after prediction;
+    # this distinction is essential because a GRU checkpoint returns one mean
+    # trajectory even when the CLI requests K>1.
+    contract["candidate_budget_requested"] = int(contract["num_samples"])
     return contract
 
 
@@ -744,6 +790,7 @@ def main() -> None:
         checkpoint_config = checkpoint_data[3].get("model_config", {})
         if int(checkpoint_config.get("horizon_count", 0)) < planner_config.horizon_steps:
             raise ValueError("Prediction checkpoint horizon is shorter than planner horizon.")
+    checkpoint_model_kind = None if checkpoint_data is None else str(checkpoint_data[1])
 
     safety_config = None
     if args.safety_layer == "robust_cbf_qp":
@@ -863,6 +910,14 @@ def main() -> None:
                 None if args.fixed_tube_radius_m is None else float(args.fixed_tube_radius_m)
             ),
         )
+        method_contract["checkpoint_model_kind"] = checkpoint_model_kind
+        method_contract["candidate_budget_realization_model"] = (
+            "single_mean_trajectory"
+            if checkpoint_model_kind == "gru"
+            else "sample_set"
+            if checkpoint_model_kind is not None or args.candidate_source == "belief"
+            else "not_applicable"
+        )
         method_output = output / method
         method_output.mkdir(parents=True, exist_ok=True)
         method_run_config = {
@@ -945,6 +1000,21 @@ def main() -> None:
                         "phase56_canonical_method": canonical_method,
                         "phase58_known_delay_compensation": bool(
                             method_contract["known_delay_compensation"]
+                        ),
+                        "candidate_budget_requested": int(
+                            method_contract["candidate_budget_requested"]
+                        ),
+                        "candidate_budget_realized_min": int(
+                            row.get("candidate_budget_realized_min", 0)
+                        ),
+                        "candidate_budget_realized_max": int(
+                            row.get("candidate_budget_realized_max", 0)
+                        ),
+                        "candidate_budget_realized_rate": float(
+                            row.get("candidate_budget_realized_rate", float("nan"))
+                        ),
+                        "candidate_budget_mismatch_steps": int(
+                            row.get("candidate_budget_mismatch_steps", 0)
                         ),
                         "episode_index": int(spec["episode_index"]),
                         "target_speed_scale": float(spec["target_speed_scale"]),

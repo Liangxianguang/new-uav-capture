@@ -1788,7 +1788,13 @@ def run_episode(
                 ),
                 "total_control_latency_ms": float(total_control_latency_ms),
                 "nearest_target_distance": float(final_info["nearest_target_distance"]),
+                "candidate_budget_requested": float(num_samples),
                 "candidate_count": float(candidate_minimum_distances.size),
+                "candidate_budget_realized": bool(
+                    candidate_minimum_distances.size >= int(num_samples)
+                    if int(num_samples) > 0
+                    else True
+                ),
                 "candidate_expected_minimum_distance_m": float(candidate_expected_minimum),
                 "candidate_worst_minimum_distance_m": float(candidate_worst_minimum),
                 "candidate_cvar_minimum_distance_m": float(candidate_cvar_minimum),
@@ -1802,6 +1808,33 @@ def run_episode(
         if terminated or truncated:
             break
     qdr_exhaustion_summary = _annotate_qdr_gate_exhaustion(step_rows)
+    requested_candidate_budget = int(num_samples)
+    realized_candidate_counts = [
+        int(float(row.get("candidate_count", 0.0)))
+        for row in step_rows
+        if float(row.get("candidate_count", 0.0)) > 0.0
+    ]
+    if realized_candidate_counts:
+        candidate_budget_realized_min = int(min(realized_candidate_counts))
+        candidate_budget_realized_max = int(max(realized_candidate_counts))
+        candidate_budget_realized_rate = float(
+            np.mean(
+                [
+                    count >= requested_candidate_budget
+                    for count in realized_candidate_counts
+                ]
+            )
+            if requested_candidate_budget > 0
+            else 1.0
+        )
+        candidate_budget_mismatch_steps = int(
+            sum(count < requested_candidate_budget for count in realized_candidate_counts)
+        )
+    else:
+        candidate_budget_realized_min = 0
+        candidate_budget_realized_max = 0
+        candidate_budget_realized_rate = float("nan")
+        candidate_budget_mismatch_steps = 0
     summary = {
         "method": method,
         "seed": int(seed),
@@ -2092,6 +2125,11 @@ def run_episode(
         "candidate_distance_step_count": int(
             sum(float(row["candidate_count"]) > 0.0 for row in step_rows)
         ),
+        "candidate_budget_requested": requested_candidate_budget,
+        "candidate_budget_realized_min": candidate_budget_realized_min,
+        "candidate_budget_realized_max": candidate_budget_realized_max,
+        "candidate_budget_realized_rate": candidate_budget_realized_rate,
+        "candidate_budget_mismatch_steps": candidate_budget_mismatch_steps,
     }
     if trajectory_path is not None:
         save_episode_trajectory(env, trajectory_path)

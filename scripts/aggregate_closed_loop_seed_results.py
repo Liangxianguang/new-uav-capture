@@ -50,6 +50,11 @@ EPISODE_AGGREGATE_FIELDS = (
     "mean_message_age_steps",
     "messages_dropped",
     "planner_fallback_count",
+    "candidate_budget_requested",
+    "candidate_budget_realized_min",
+    "candidate_budget_realized_max",
+    "candidate_budget_realized_rate",
+    "candidate_budget_mismatch_steps",
 )
 STEP_AGGREGATE_FIELDS = (
     "episode_index",

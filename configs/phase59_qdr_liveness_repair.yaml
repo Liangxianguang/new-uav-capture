@@ -1,0 +1,68 @@
+experiment_name: phase59_qdr_liveness_repair_calibration
+stage: independent_repair_calibration
+parent_result: phase58_calibration_no_go
+seed_blocks:
+  pilot: 982101
+episodes_per_split:
+  pilot: 80
+
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.50, 0.65, 0.80]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: phase59_nominal_public_belief
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 250
+
+repair_hypotheses:
+  R0_phase59_qdr_baseline:
+    description: frozen Phase 58 M6 contract; immutable queue and current-state local CBF
+    queue_aware_safety_projection: false
+    candidate_count: 1
+  R1_phase59_queue_cbf_k1:
+    description: queue-aware local CBF anchor only; candidate budget unchanged
+    queue_aware_safety_projection: true
+    candidate_count: 1
+  R2_phase59_queue_cbf_k4:
+    description: queue-aware local CBF plus four public candidates
+    queue_aware_safety_projection: true
+    candidate_count: 4
+  R3_phase59_queue_cbf_k8:
+    description: queue-aware local CBF plus eight public candidates
+    queue_aware_safety_projection: true
+    candidate_count: 8
+
+frozen_execution:
+  pending_command_authority: immutable
+  no_queue_cancellation: true
+
+gates:
+  repair_is_diagnostic_only: true
+  no_locked_test_tuning: true
+  primary_selection:
+    id_safe_capture_noninferiority_lower_bound: -0.02
+    joint_timeout_upper_bound: 0.05
+    maximum_exhaustion_streak_steps: 24
+  claim_boundary: local_cbf_empirical_filter_only
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  latency_percentiles: [50, 95, 99]
+  components: [predictor, planner, qdr_or_tube, safety, total_control]
+  robust_clbf_qp_proof: not_claimed
