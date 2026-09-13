@@ -322,6 +322,22 @@ safe-capture delta 为 `-16.67 pp [-22.50,-10.83]` 与 `-12.50 pp [-19.17,-5.83]
 不能取代 immutable 主分支，也不构成安全证明。详见
 `docs/PHASE45_QDR_AUTHORITY_ABLATION_REPORT.md`。
 
+### 3.13 Phase 46 QDR prefix-failure path audit
+
+对 Phase44 immutable 与 Phase45 两种 authority 的 9 个 distributed-delayed
+`steps.jsonl` 做公开几何后验审计，所有输入行均具备九个 prefix classifier 字段。
+immutable 的 pooled prefix admissible 为 `93.48%`，首次 violation 主要来自
+boundary `741`、obstacle `202` 和 inter-agent `5`；replace/flush 的 prefix
+admissible 降至 `60.33%/67.73%`，而 suffix gate exhaustion 仍为
+`18.23%/21.28%`。在 240 个 immutable episode 中，238 个曾出现过至少一次
+exhaustion，但大多数仍最终 safe capture，说明单一的“是否耗尽”指标不能代表失败。
+后续将保持 immutable authority，增加连续耗尽长度、首次耗尽位置和恢复结果日志，
+并只研究与当前候选选择语义等价的 feasibility-first/incremental rollout。已完成的
+40-episode development smoke 保持 episode outcome、step-level gate 字段及测试
+中的 selected action/cost 一致，但 planner/total 延迟没有下降，因此该优化暂不
+晋级。该阶段是机制诊断，不改变 QDR promotion No-Go，也不构成安全证明。详见
+`docs/PHASE46_QDR_PREFIX_FAILURE_AUDIT_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结

@@ -125,6 +125,42 @@ def test_local_candidates_remove_duplicate_weighted_reference() -> None:
     assert len(candidates) == 3
 
 
+def test_qdr_feasibility_first_preserves_selected_action_and_cost() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 0,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.0,
+        "velocity_time_constant_seconds": 0.0,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    observation["obstacles"] = [
+        {
+            "center_xy": np.array([-2.8, -2.0]),
+            "radius": 0.5,
+            "height": 4.0,
+            "shape": "cylinder",
+        }
+    ]
+
+    full = _planner("ideal")
+    fast = _planner("ideal", qdr_feasibility_first=True)
+    full_plan = full.plan(observation, _scenarios(), step_index=0)
+    fast_plan = fast.plan(observation, _scenarios(), step_index=0)
+
+    np.testing.assert_array_equal(full_plan.action_sequence, fast_plan.action_sequence)
+    np.testing.assert_allclose(
+        full_plan.diagnostics.scenario_costs,
+        fast_plan.diagnostics.scenario_costs,
+        rtol=0.0,
+        atol=0.0,
+    )
+    assert fast_plan.diagnostics.qdr_suffix_gate_rejected_candidates > 0
+
+
 def test_queue_aware_local_obstacles_include_horizon_reachable_geometry() -> None:
     observation = _observation()
     observation["obstacles"] = [

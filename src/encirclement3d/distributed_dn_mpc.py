@@ -52,6 +52,26 @@ def _qdr_execution_aware(observation: dict[str, Any]) -> bool:
     )
 
 
+def _aggregate_local_objectives(
+    costs: np.ndarray,
+    weights: np.ndarray,
+    config: MinimaxMPCConfig,
+) -> np.ndarray:
+    """Aggregate a local candidate-by-scenario cost matrix consistently."""
+
+    if config.risk_mode == "expected":
+        return costs @ weights
+    if config.risk_mode == "worst_case":
+        return np.max(costs, axis=1)
+    return np.asarray(
+        [
+            aggregate_scenario_costs(row, weights, config.risk_mode, config.cvar_alpha)
+            for row in costs
+        ],
+        dtype=np.float64,
+    )
+
+
 def _rollout_local_action_candidates(
     observation: dict[str, Any],
     actions: np.ndarray,
@@ -193,6 +213,9 @@ class DistributedDNMPCConfig:
     local_obstacle_range_m: float = 8.0
     bytes_per_float: int = 8
     fallback_policy: str = "fallback_actions_then_previous_sequence"
+    # Optional QDR optimization.  It is deliberately off by default until
+    # action-selection equivalence has been checked against the full scorer.
+    qdr_feasibility_first: bool = False
 
     def __post_init__(self) -> None:
         if self.communication_mode not in _COMMUNICATION_MODES:
@@ -790,6 +813,94 @@ class DistributedMinimaxDNMPC:
                 result.append(np.stack(actions, axis=0))
         return result
 
+    def _qdr_candidate_violation(
+        self,
+        observation: dict[str, Any],
+        current: np.ndarray,
+        obstacles: list[dict[str, Any]],
+        lower: np.ndarray,
+        upper: np.ndarray,
+        known: dict[int, _PlannerMessage],
+        peer_sequences: dict[int, np.ndarray],
+    ) -> np.ndarray:
+        """Return the cheap public-geometry QDR violation for each candidate.
+
+        This helper intentionally mirrors the feasibility terms in the full
+        scenario scorer.  It is used only by the optional feasibility-first
+        path; the default path remains the original full scorer.  The returned
+        value is a candidate-wise violation magnitude, so a zero value is
+        equivalent to the current suffix-gate feasibility test.
+        """
+
+        qdr_candidate_violation = np.zeros(current.shape[0], dtype=np.float64)
+        for peer, message in known.items():
+            peer_actions = peer_sequences.get(peer)
+            peer_positions, _peer_velocity = _rollout_peer_action_path(
+                observation,
+                message,
+                peer_actions,
+                self.config.dt_seconds,
+                self.config.horizon_steps,
+                self.config.max_speed_mps,
+                cache=self._qdr_rollout_cache,
+            )
+            inter_agent = np.maximum(
+                self.config.minimum_inter_agent_distance_m
+                - np.linalg.norm(current - peer_positions[None, :, :], axis=-1),
+                0.0,
+            )
+            qdr_candidate_violation = np.maximum(
+                qdr_candidate_violation,
+                np.max(inter_agent, axis=1),
+            )
+
+        for obstacle in obstacles:
+            shape = str(obstacle.get("shape", "cylinder"))
+            center_xy = np.asarray(obstacle["center_xy"], dtype=np.float64)
+            height = float(obstacle["height"])
+            if shape == "cylinder":
+                radial = np.linalg.norm(current[..., :2] - center_xy, axis=-1) - float(
+                    obstacle["radius"]
+                )
+                vertical = np.maximum.reduce(
+                    (-current[..., 2], current[..., 2] - height, np.zeros(current.shape[:2]))
+                )
+                clearance = np.where(
+                    vertical == 0.0,
+                    radial,
+                    np.where(radial <= 0.0, vertical, np.hypot(radial, vertical)),
+                )
+            else:
+                half = obstacle.get("half_extents_xy")
+                if half is None:
+                    half = [float(obstacle["radius"]), float(obstacle["radius"])]
+                center = np.array([center_xy[0], center_xy[1], height * 0.5], dtype=np.float64)
+                half_extent = np.array(
+                    [float(half[0]), float(half[1]), height * 0.5], dtype=np.float64
+                )
+                signed = np.abs(current - center) - half_extent
+                outside = np.maximum(signed, 0.0)
+                outside_norm = np.linalg.norm(outside, axis=-1)
+                clearance = np.where(
+                    outside_norm > 0.0,
+                    outside_norm,
+                    -np.max(-signed, axis=-1),
+                )
+            violation = np.maximum(
+                self.config.safety_margin_m - (clearance - self.config.drone_radius_m),
+                0.0,
+            )
+            qdr_candidate_violation = np.maximum(
+                qdr_candidate_violation,
+                np.max(violation, axis=1),
+            )
+
+        boundary = np.maximum(
+            np.max(np.maximum(lower[None, None, :] - current, 0.0), axis=2),
+            np.max(np.maximum(current - upper[None, None, :], 0.0), axis=2),
+        )
+        return np.maximum(qdr_candidate_violation, np.max(boundary, axis=1))
+
     def _select_local_sequence(
         self,
         observation: dict[str, Any],
@@ -841,6 +952,8 @@ class DistributedMinimaxDNMPC:
         include_reachability: bool = True,
         include_escape_gap: bool = True,
         include_fc_dbf: bool = True,
+        feasibility_first: bool | None = None,
+        record_qdr_stats: bool = True,
     ) -> np.ndarray:
         """Evaluate local action candidates against all target scenarios in one pass.
 
@@ -891,6 +1004,85 @@ class DistributedMinimaxDNMPC:
                 axis=1,
             )
             executed_velocity_paths = actions
+
+        use_feasibility_first = bool(
+            qdr_execution_aware
+            and self.distributed.qdr_feasibility_first
+            if feasibility_first is None
+            else qdr_execution_aware and feasibility_first
+        )
+        if use_feasibility_first:
+            qdr_candidate_violation = self._qdr_candidate_violation(
+                observation,
+                current,
+                obstacles,
+                lower,
+                upper,
+                known,
+                peer_sequences,
+            )
+            feasible = qdr_candidate_violation <= 1.0e-9
+            if np.any(feasible) and np.any(~feasible):
+                feasible_indices = np.flatnonzero(feasible)
+                feasible_costs = self._local_scenario_cost_matrix(
+                    observation,
+                    scenarios,
+                    agent_id,
+                    actions[feasible_indices],
+                    known,
+                    peer_sequences,
+                    include_reachability=include_reachability,
+                    include_escape_gap=include_escape_gap,
+                    include_fc_dbf=include_fc_dbf,
+                    feasibility_first=False,
+                    record_qdr_stats=False,
+                )
+                feasible_objectives = _aggregate_local_objectives(
+                    feasible_costs,
+                    weights,
+                    self.config,
+                )
+                best_feasible_objective = float(np.min(feasible_objectives))
+                infeasible_indices = np.flatnonzero(~feasible)
+                penalty = 1.0e6 + 1.0e5 * qdr_candidate_violation[infeasible_indices]
+                uncertain = penalty <= best_feasible_objective
+                if np.any(uncertain):
+                    uncertain_indices = infeasible_indices[uncertain]
+                    uncertain_costs = self._local_scenario_cost_matrix(
+                        observation,
+                        scenarios,
+                        agent_id,
+                        actions[uncertain_indices],
+                        known,
+                        peer_sequences,
+                        include_reachability=include_reachability,
+                        include_escape_gap=include_escape_gap,
+                        include_fc_dbf=include_fc_dbf,
+                        feasibility_first=False,
+                        record_qdr_stats=False,
+                    )
+                else:
+                    uncertain_indices = np.empty(0, dtype=np.int64)
+                    uncertain_costs = np.empty((0, candidate_count), dtype=np.float64)
+
+                result = np.empty((actions.shape[0], candidate_count), dtype=np.float64)
+                result[feasible_indices] = feasible_costs
+                if uncertain_indices.size:
+                    result[uncertain_indices] = uncertain_costs
+                pruned_indices = np.setdiff1d(infeasible_indices, uncertain_indices, assume_unique=True)
+                if pruned_indices.size:
+                    result[pruned_indices] = (
+                        1.0e6
+                        + 1.0e5 * qdr_candidate_violation[pruned_indices, None]
+                    )
+                if record_qdr_stats:
+                    self._stats["qdr_suffix_gate_checks"] += 1
+                    self._stats["qdr_suffix_gate_rejected_candidates"] += int(infeasible_indices.size)
+                    if not np.any(feasible):
+                        self._stats["qdr_suffix_gate_exhausted"] += 1
+                if result.shape != (actions.shape[0], candidate_count) or not np.isfinite(result).all():
+                    raise FloatingPointError("local scenario cost contains non-finite values")
+                return result
         distances = np.linalg.norm(
             current[:, None, :, :] - paths[None, :, :, :],
             axis=-1,
@@ -1122,10 +1314,12 @@ class DistributedMinimaxDNMPC:
                 qdr_candidate_violation,
                 np.max(boundary, axis=1),
             )
-            self._stats["qdr_suffix_gate_checks"] += 1
+            if record_qdr_stats:
+                self._stats["qdr_suffix_gate_checks"] += 1
             feasible = qdr_candidate_violation <= 1.0e-9
             rejected = int(np.sum(~feasible))
-            self._stats["qdr_suffix_gate_rejected_candidates"] += rejected
+            if record_qdr_stats:
+                self._stats["qdr_suffix_gate_rejected_candidates"] += rejected
             if np.any(feasible):
                 result += np.where(
                     feasible[:, None],
@@ -1133,7 +1327,8 @@ class DistributedMinimaxDNMPC:
                     1.0e6 + 1.0e5 * qdr_candidate_violation[:, None],
                 )
             else:
-                self._stats["qdr_suffix_gate_exhausted"] += 1
+                if record_qdr_stats:
+                    self._stats["qdr_suffix_gate_exhausted"] += 1
                 result += 1.0e5 * qdr_candidate_violation[:, None]
         if result.shape != (actions.shape[0], candidate_count) or not np.isfinite(result).all():
             raise FloatingPointError("local scenario cost contains non-finite values")
