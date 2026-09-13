@@ -60,6 +60,62 @@ defensible benchmark claim. Full evidence and reporting boundaries are in
 A Chinese paper-style method, protocol, result, and limitation summary is in
 [docs/EXPERIMENTAL_STUDY_REPORT.md](docs/EXPERIMENTAL_STUDY_REPORT.md).
 
+## Research Extension: Three Auditable Innovations
+
+The current research extension evaluates three reproducible mechanisms for
+delayed multi-UAV encirclement:
+
+- **Queue-Aware Delayed-State Rollout (QDR):** rolls candidate actions from
+  the first controllable delayed state and audits immutable queue-prefix and
+  suffix feasibility.
+- **Uncertainty-Triggered Adaptive K and Replanning (UAKR):** allocates the
+  diffusion candidate budget and refresh interval from public belief signals.
+- **Reachability-Normalized Interception Cost (RNIC):** adds a bounded,
+  acceleration-limited arrival-time slack cost to formation planning.
+
+These mechanisms are intentionally reported with independent Go/No-Go gates.
+The latest Phase 55 queue-prefix-risk UAKR repair remains a reproducible
+negative ablation: it does not match fixed-K=8 safe capture on a fresh
+three-seed development block. It must not be described as a safety proof or as
+a successful full QDR × UAKR × RNIC composition. The complete decision history,
+configs, and next-step plan are indexed in
+[docs/RESULTS_INDEX.md](docs/RESULTS_INDEX.md) and
+[docs/THREE_INNOVATIONS_MASTER_TODOLIST.md](docs/THREE_INNOVATIONS_MASTER_TODOLIST.md).
+
+The Phase 55 development protocol can be reproduced after the local GRU
+checkpoints are available:
+
+```powershell
+python scripts/generate_phase48_qdr_liveness_scenes.py `
+  --output results/phase55_uakr_queue_risk_scenes `
+  --episodes 100 --seed-start 861101 `
+  --manifest-name phase55_uakr_queue_risk `
+  --evaluation-split validation_development `
+  --rollout-policy uakr_queue_risk_intervention_calibration `
+  --scene-block phase55_uakr_queue_risk `
+  --observation-condition nominal_uakr_queue_risk
+
+python scripts/evaluate_s4_closed_loop.py `
+  --scenes results/phase55_uakr_queue_risk_scenes/scenes.jsonl `
+  --protocol configs/phase15_s4_branching_pilot.yaml `
+  --environment-config configs/capture_radius_pursuit_central_v4_flee.yaml `
+  --mpc-config configs/phase55_uakr_queue_risk_development.yaml `
+  --checkpoint results/phase16_gru_both_seed727201/checkpoint.pt `
+  --output-dir results/phase55_queue_risk_uakr_seed727201_threads1_fix1 `
+  --candidate-source checkpoint --methods distributed_delayed `
+  --episodes 100 --num-samples 1 --sampling-steps 8 `
+  --sampling-seed 745102 --projection-iterations 4 `
+  --prediction-refresh-interval-steps 1 --device cpu `
+  --safety-layer local_cbf --decision validation_selection `
+  --torch-num-threads 1 --torch-num-interop-threads 1
+```
+
+Use a separate output directory and checkpoint seed for each matched run. The
+three-seed aggregate and the offline reliability audit are described in
+[docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md](docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md).
+Run TensorBoard over the local `results/` tree with
+`.\scripts\start_tensorboard.ps1 -LogDir results -Port 6006`.
+
 ## Repository Map
 
 ```text
