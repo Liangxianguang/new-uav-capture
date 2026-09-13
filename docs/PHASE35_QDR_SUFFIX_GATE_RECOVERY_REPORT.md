@@ -144,4 +144,3 @@ TensorBoard event file 共审计到 `219` 个 scalar tags，包含：
   execution-noise 做 fresh three-seed confirmation；
 - [ ] QDR 通过前不开放 QDR×UAKR×RNIC full factorial，不重新接入 robust CBF-QP；
   robust CBF-QP 仍是独立诊断 No-Go。
-
