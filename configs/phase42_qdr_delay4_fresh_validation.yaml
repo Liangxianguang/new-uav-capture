@@ -6,6 +6,7 @@ environment_config: capture_radius_pursuit_central_v4_flee.yaml
 phase17:
   queue_aware_rollout: true
   queue_aware_safety_projection: true
+  prefix_recovery_authority: immutable
   adaptive_k: false
   reachability_normalized_cost: false
   execution:
