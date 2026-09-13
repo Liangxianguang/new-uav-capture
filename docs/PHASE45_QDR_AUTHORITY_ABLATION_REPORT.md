@@ -110,4 +110,3 @@ p50/p95/p99 标签均存在。聚合 JSON 记录了三种子列表、manifest ha
 - [ ] 若继续推进 QDR，只能做候选早停或执行 rollout 增量化等不改变 authority 的
   runtime 优化；
 - [ ] 暂不开放 QDR×UAKR/RNIC Full 组合，先完成失败轴汇总和论文限制说明。
-
