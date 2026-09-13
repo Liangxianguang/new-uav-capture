@@ -6,6 +6,10 @@ mirror_groups_minimum: 180
 mirror_groups_target: 240
 groups_per_block: 60
 seeds: [727201, 727202, 727203]
+seed_blocks:
+  pilot: 981101
+episodes_per_split:
+  pilot: 160
 
 s4:
   target_motion_mode: adaptive_branching
