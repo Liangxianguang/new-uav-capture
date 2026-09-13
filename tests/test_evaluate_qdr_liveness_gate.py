@@ -8,17 +8,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from evaluate_qdr_liveness_gate import evaluate  # noqa: E402
 
 
-def _aggregate(timeout: float, timeout_delta: float) -> dict[str, object]:
+def _aggregate(
+    timeout: float,
+    timeout_delta: float,
+    group: str = "on",
+) -> dict[str, object]:
     return {
         "groups": {
-            "on": {
+            group: {
                 "distributed_delayed": {
                     "episode_metrics": {"timeout": {"mean": timeout}}
                 }
             }
         },
         "paired_vs_reference": {
-            "on": {
+            group: {
                 "distributed_delayed": {
                     "episode_metrics": {
                         "timeout": {
@@ -57,3 +61,18 @@ def test_liveness_gate_rejects_excessive_streak() -> None:
     )
     assert result["status"] == "no_go"
     assert result["checks"]["max_exhaustion_streak_steps"]["pass"] is False
+
+
+def test_liveness_gate_accepts_explicit_candidate_group() -> None:
+    result = evaluate(
+        _aggregate(0.01, 0.02, group="windowed"),
+        [_summary(18.0)],
+        0.05,
+        0.05,
+        24.0,
+        candidate_group="windowed",
+        candidate_label="two-step windowed tube",
+    )
+    assert result["status"] == "pass"
+    assert result["candidate_group"] == "windowed"
+    assert result["candidate_label"] == "two-step windowed tube"
