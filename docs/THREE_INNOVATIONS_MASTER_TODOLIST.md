@@ -385,6 +385,18 @@ QDR×UAKR。详见 `docs/PHASE48_QDR_LIVENESS_CONFIRMATION_REPORT.md`。
 suffix gate 的语义等价优化，并保留单进程固定线程 benchmark。详见
 `docs/PHASE49_QDR_RUNTIME_BENCHMARK_REPORT.md`。
 
+### 3.17 Phase 50 QDR × UAKR development pilot
+
+在 Phase48 新鲜 validation manifest 的前 40 个 episode 上，固定 QDR、delay4、
+bounded noise、immutable authority、local CBF 和 GRU `both` seed `727201`，
+比较 fixed-K=8 与既有冻结 UAKR `K={1,4,8}`、refresh `{4,2,1}`。fixed-K=8
+safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为
+`-2.50 pp [-7.50,0.00]`；UAKR 的 mean K 为 `2.156`、refresh ratio 为
+`30.54%`，total p95 从 `64.28` 降到 `57.15 ms`，但 timeout 从 `0%` 增至
+`2.5%`。因此该 pilot 通过了预算节省方向，但未通过预注册的 `-2 pp`
+safe-capture 非劣界，冻结为可复现 efficiency/negative ablation；不继续扫描
+阈值，也不开放 Full 组合。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结

@@ -1,5 +1,7 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 50 QDR×UAKR development pilot 更新：在 Phase48 新鲜 manifest 前 40 个 episode 上，固定 QDR、delay4、bounded noise、immutable authority 和 local CBF，比较 fixed-K=8 与冻结 UAKR。fixed-K=8 safe capture 为 `100%`，QDR+UAKR 为 `97.5%`，paired delta 为 `-2.50 pp [-7.50,0.00]`；UAKR mean K 为 `2.156`、refresh ratio 为 `30.54%`，total p95 从 `64.28` 降到 `57.15 ms`，但 timeout 从 `0%` 增至 `2.5%`。该结果支持预算节省但未通过 `-2 pp` safe-capture 非劣界，冻结为效率/负消融，不继续阈值扫描或开放 Full 矩阵。详见 `docs/PHASE50_QDR_UAKR_DEVELOPMENT_REPORT.md`。
+
 > Phase 49 runtime benchmark 更新：对 Phase48 三种子 off/on 日志按相同 episode index 截取前 18 个控制步，双方各保留 300 个 episode、5,400 个 step。QDR-on total p50/p95/p99 为 `84.81/103.14/117.92 ms`，off 为 `30.59/59.51/68.32 ms`；planner p95 增加 `35.92 ms`，QDR 自身 p95 为 `2.90 ms`。该实验控制了终止长度混杂，但原始日志来自独立 evaluator 进程，因此只作为负 runtime ablation，不作为 process-isolated 部署结论。详见 `docs/PHASE49_QDR_RUNTIME_BENCHMARK_REPORT.md`。
 
 > Phase 48 QDR liveness confirmation 更新：在新的 `validation_confirmation` 100 episode / 50 mirror-group manifest 上，固定 nominal sensing、delay4、bounded command noise `0.08`、immutable authority 和 local CBF，完成 QDR-off/on 三种子配对。QDR-on safe capture 为 `98.33% [95.67,100.00]`，off 为 `83.33% [79.00,87.33]`；paired safe-capture delta 为 `+15.00 pp [10.33,19.67]`，collision delta 为 `-15.33 pp [-20.00,-11.00]`，timeout delta 为 `+0.33 pp [0,1.33]`。QDR-on timeout `0.33%`、最大 exhaustion streak `23` 步，均通过预注册 `5%/5 pp/24 步` gate；prefix/suffix admissible 为 `95.36%/84.44%`，QDR queue mean/max 为 `4/4`。total p50/p95/p99 为 `84.60/103.99/120.67 ms`，因此 liveness confirmation 通过但效率不作正面结论，且不构成安全证明。gate 结果及 evaluator 指标已写入 TensorBoard；下一步为同 episode-length runtime benchmark，再考虑 QDR×UAKR development block。详见 `docs/PHASE48_QDR_LIVENESS_CONFIRMATION_REPORT.md`。
@@ -440,10 +442,11 @@ P24 EGC-MPC No-Go freeze
   -> P8 runtime optimization and fresh delay/authority/noise confirmation (completed; efficiency/liveness No-Go)
   -> Phase 46 prefix-failure audit + persistence logging (completed; diagnostic only)
   -> Phase 47 delay/execution OOD QDR confirmation (completed; conditional safety-axis Go)
-  -> P8 liveness confirmation: timeout/exhaustion-streak gate on a new manifest
+  -> P8 liveness confirmation: timeout/exhaustion-streak gate on a new manifest (completed; Go)
   -> P9 controlled same-length runtime benchmark (completed; negative runtime ablation)
+  -> Phase 50 QDR × UAKR development pilot (completed; efficiency/negative ablation)
   -> P9 single-process fixed-thread benchmark and delayed execution contract repair
-  -> P10 only then reopen QDR × UAKR, followed by three-seed Full confirmation
+  -> P10 only then reopen QDR × UAKR, followed by three-seed Full confirmation only if UAKR is repaired
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
 ```
