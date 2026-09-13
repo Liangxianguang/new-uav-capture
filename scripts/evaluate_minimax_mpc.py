@@ -856,6 +856,7 @@ def run_episode(
     prediction_refresh_interval_steps: int = 1,
     queue_aware_rollout: bool = False,
     queue_aware_safety_projection: bool = False,
+    known_delay_compensation: bool = False,
     qdr_prefix_recovery_authority: str | None = None,
     adaptive_prediction_config: dict[str, Any] | None = None,
     reachable_tube: DelayAwareConformalReachableTube | None = None,
@@ -1253,6 +1254,20 @@ def run_episode(
                         1.0,
                     )
                 )
+            if known_delay_compensation:
+                # Strong delayed-MPC baseline: compensate only the known
+                # configured action-delay on the public target time axis. It
+                # deliberately does not inspect or roll out the actual
+                # pending command queue, so it remains distinct from QDR.
+                known_delay_steps = int(env.execution.get("action_delay_steps", 0))
+                if known_delay_steps > 0:
+                    planning_scenarios = shift_scenario_trajectory_set(
+                        planning_scenarios,
+                        offset_steps=known_delay_steps,
+                        horizon_steps=planner_config.horizon_steps,
+                        dt_seconds=planner_config.dt_seconds,
+                        max_speed_mps=planner_config.max_speed_mps,
+                    )
             rnic_enabled = bool(planner_config_for_method.reachability_normalized_cost_enabled)
             if rnic_enabled:
                 rnic_cost_mode = str(planner_config_for_method.reachability_cost_mode)
@@ -1520,6 +1535,10 @@ def run_episode(
                 "qdr_queue_length": float(qdr_queue_length),
                 "qdr_first_controllable_step": float(qdr_first_controllable_step),
                 "qdr_latency_ms": float(qdr_latency_ms),
+                "known_delay_compensation": 1.0 if known_delay_compensation else 0.0,
+                "known_delay_steps": float(
+                    env.execution.get("action_delay_steps", 0) if known_delay_compensation else 0
+                ),
                 "qdr_prefix_minimum_clearance_m": float(qdr_prefix_minimum_clearance_m),
                 "qdr_prefix_minimum_boundary_margin_m": float(qdr_prefix_minimum_boundary_margin_m),
                 "qdr_prefix_minimum_inter_agent_distance_m": float(qdr_prefix_minimum_inter_agent_distance_m),

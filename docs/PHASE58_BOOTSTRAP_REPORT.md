@@ -5,8 +5,8 @@
 Phase 58-0/1 已完成，尚未运行闭环性能矩阵。该报告只证明协议、场景和 QDR
 时间索引审计通过，不代表任何方法的捕获率或安全性提升。
 
-执行日期：2026-09-14  
-源代码提交：`831ec56`（协议接口修复；后续审计代码待提交）  
+执行日期：2026-09-14
+源代码提交：`831ec56`（协议接口修复；后续审计代码待提交）
 主计划：`docs/PHASE58_REDESIGNED_DELAYED_PLANNING_TODOLIST.md`
 
 ## 2. 冻结的场景矩阵
@@ -86,4 +86,3 @@ forward invariance、概率覆盖率或真实飞行安全证明。`local_cbf` �
    的 p50、p95、p99；
 4. 只有 calibration gate 通过，才使用 80 个 confirmation mirror groups；
 5. locked-diagnostic 在 confirmation 之前保持关闭。
-

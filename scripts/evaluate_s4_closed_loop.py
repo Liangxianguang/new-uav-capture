@@ -69,6 +69,17 @@ METHODS = (
     "B5_asynchronous_distributed_mpc",
     "B6_qdr_asynchronous_mpc",
     "B7_fixed_k8_qdr",
+    # Phase 58 explicit baseline names.  The aliases keep result directories
+    # aligned with the pre-registered method contract.
+    "M0_current_state_delayed_mpc",
+    "M1_known_delay_delayed_mpc",
+    "M2_fixed_tube_mpc",
+    "M3_queue_aware_tube_mpc",
+    "M4_synchronous_distributed_mpc",
+    "M5_asynchronous_distributed_mpc",
+    "M6_qdr_synchronous_mpc",
+    "M7_qdr_asynchronous_mpc",
+    "M8_fixed_k8_qdr",
 )
 
 
@@ -461,6 +472,15 @@ def phase56_method_contract(
         "B5_asynchronous_distributed_mpc": "asynchronous_distributed_mpc",
         "B6_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
         "B7_fixed_k8_qdr": "fixed_k8_qdr",
+        "M0_current_state_delayed_mpc": "delayed_mpc",
+        "M1_known_delay_delayed_mpc": "known_delay_mpc",
+        "M2_fixed_tube_mpc": "fixed_tube_mpc",
+        "M3_queue_aware_tube_mpc": "queue_aware_tube_mpc",
+        "M4_synchronous_distributed_mpc": "synchronous_distributed_mpc",
+        "M5_asynchronous_distributed_mpc": "asynchronous_distributed_mpc",
+        "M6_qdr_synchronous_mpc": "qdr_synchronous_mpc",
+        "M7_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
+        "M8_fixed_k8_qdr": "fixed_k8_qdr",
     }
     method = alias.get(method, method)
     contract = {
@@ -471,10 +491,18 @@ def phase56_method_contract(
         "num_samples": int(num_samples),
         "fixed_tube_radius_m": fixed_tube_radius_m,
         "target_tube_cost_enabled": False,
+        "known_delay_compensation": False,
         "distributed_mode": None,
     }
     if method == "delayed_mpc":
         contract.update(canonical_method="worst_case", queue_aware_rollout=False, queue_aware_safety_projection=False)
+    elif method == "known_delay_mpc":
+        contract.update(
+            canonical_method="worst_case",
+            queue_aware_rollout=False,
+            queue_aware_safety_projection=False,
+            known_delay_compensation=True,
+        )
     elif method in {"fixed_tube_mpc", "tube_mpc"}:
         contract.update(
             canonical_method="worst_case",
@@ -493,6 +521,12 @@ def phase56_method_contract(
         )
     elif method == "synchronous_distributed_mpc":
         contract.update(canonical_method="distributed_delayed", distributed_mode="delayed", queue_aware_rollout=False)
+    elif method == "qdr_synchronous_mpc":
+        contract.update(
+            canonical_method="distributed_delayed",
+            distributed_mode="delayed",
+            queue_aware_rollout=True,
+        )
     elif method == "asynchronous_distributed_mpc":
         contract.update(canonical_method="distributed_async", distributed_mode="asynchronous", queue_aware_rollout=False)
     elif method == "qdr_asynchronous_mpc":
@@ -893,6 +927,7 @@ def main() -> None:
                     prediction_refresh_interval_steps=args.prediction_refresh_interval_steps,
                     queue_aware_rollout=bool(method_contract["queue_aware_rollout"]),
                     queue_aware_safety_projection=bool(method_contract["queue_aware_safety_projection"]),
+                    known_delay_compensation=bool(method_contract["known_delay_compensation"]),
                     qdr_prefix_recovery_authority=qdr_prefix_recovery_authority,
                     adaptive_prediction_config=(
                         adaptive_budget_mapping if bool(method_contract["adaptive_k"]) else None
@@ -908,6 +943,9 @@ def main() -> None:
                         "method": method,
                         "phase56_baseline_id": method,
                         "phase56_canonical_method": canonical_method,
+                        "phase58_known_delay_compensation": bool(
+                            method_contract["known_delay_compensation"]
+                        ),
                         "episode_index": int(spec["episode_index"]),
                         "target_speed_scale": float(spec["target_speed_scale"]),
                         "defender_bias": str(spec["defender_bias"]),

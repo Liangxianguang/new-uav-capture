@@ -39,3 +39,21 @@ def test_phase56_fixed_tube_has_validation_only_default() -> None:
 def test_phase56_non_tube_baseline_does_not_enable_tube_cost() -> None:
     contract = phase56_method_contract("B0_current_state_delayed_mpc", **_base())
     assert contract["target_tube_cost_enabled"] is False
+
+
+def test_phase58_known_delay_baseline_does_not_read_queue() -> None:
+    contract = phase56_method_contract("M1_known_delay_delayed_mpc", **_base())
+
+    assert contract["canonical_method"] == "worst_case"
+    assert contract["known_delay_compensation"] is True
+    assert contract["queue_aware_rollout"] is False
+    assert contract["target_tube_cost_enabled"] is False
+
+
+def test_phase58_qdr_synchronous_composite_is_distributed_and_queue_aware() -> None:
+    contract = phase56_method_contract("M6_qdr_synchronous_mpc", **_base())
+
+    assert contract["canonical_method"] == "distributed_delayed"
+    assert contract["distributed_mode"] == "delayed"
+    assert contract["queue_aware_rollout"] is True
+    assert contract["known_delay_compensation"] is False
