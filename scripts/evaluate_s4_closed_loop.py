@@ -218,6 +218,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--belief-fusion-covariance-floor-m2", type=float)
     parser.add_argument("--belief-fusion-confidence-power", type=float)
     parser.add_argument("--belief-fusion-min-effective-samples", type=float)
+    parser.add_argument(
+        "--execution-delay-steps",
+        type=int,
+        help="Validation-only override for dynamics.execution.action_delay_steps.",
+    )
+    parser.add_argument(
+        "--execution-noise-std-mps",
+        type=float,
+        help="Validation-only override for dynamics.execution.command_noise_std.",
+    )
+    parser.add_argument(
+        "--execution-noise-bound-sigma",
+        type=float,
+        help="Validation-only override for dynamics.execution.command_noise_bound_sigma.",
+    )
+    parser.add_argument(
+        "--execution-tracking-time-constant-s",
+        type=float,
+        help="Validation-only override for dynamics.execution.velocity_time_constant_seconds.",
+    )
+    parser.add_argument(
+        "--execution-drag-coefficient",
+        type=float,
+        help="Validation-only override for dynamics.execution.drag_coefficient.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--safety-layer", choices=("none", "local_cbf", "robust_cbf_qp"), default="local_cbf")
     parser.add_argument("--safety-config", type=Path, default=PROJECT_ROOT / "configs" / "innovation_safety.yaml")
@@ -295,6 +320,42 @@ def apply_phase17_execution_mapping(
     config.setdefault("dynamics", {}).setdefault("execution", {}).update(
         copy.deepcopy(phase17_execution_mapping)
     )
+
+
+def apply_execution_cli_overrides(
+    execution_mapping: dict[str, Any],
+    *,
+    delay_steps: int | None = None,
+    noise_std_mps: float | None = None,
+    noise_bound_sigma: float | None = None,
+    tracking_time_constant_s: float | None = None,
+    drag_coefficient: float | None = None,
+) -> dict[str, Any]:
+    """Apply validated command-line execution overrides to an effective mapping."""
+
+    overrides: dict[str, Any] = {
+        "action_delay_steps": delay_steps,
+        "command_noise_std": noise_std_mps,
+        "command_noise_bound_sigma": noise_bound_sigma,
+        "velocity_time_constant_seconds": tracking_time_constant_s,
+        "drag_coefficient": drag_coefficient,
+    }
+    effective = dict(execution_mapping)
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        numeric_value = float(value)
+        if not np.isfinite(numeric_value) or numeric_value < 0.0:
+            raise ValueError(f"execution override {key} must be finite and non-negative")
+        if key == "action_delay_steps":
+            if int(value) != numeric_value:
+                raise ValueError("execution delay override must be an integer")
+            effective[key] = int(value)
+        else:
+            effective[key] = numeric_value
+    if any(value is not None for value in overrides.values()):
+        effective["enabled"] = True
+    return effective
 
 
 def main() -> None:
@@ -426,7 +487,14 @@ def main() -> None:
         adaptive_budget_mapping["residual_refresh_trigger_m"] = float(args.adaptive_residual_refresh_trigger_m)
     if adaptive_k and not adaptive_budget_mapping:
         raise ValueError("adaptive_k requires prediction.adaptive_budget configuration")
-    phase17_execution_mapping = dict(phase17_mapping.get("execution", {}))
+    phase17_execution_mapping = apply_execution_cli_overrides(
+        dict(phase17_mapping.get("execution", {})),
+        delay_steps=args.execution_delay_steps,
+        noise_std_mps=args.execution_noise_std_mps,
+        noise_bound_sigma=args.execution_noise_bound_sigma,
+        tracking_time_constant_s=args.execution_tracking_time_constant_s,
+        drag_coefficient=args.execution_drag_coefficient,
+    )
     distributed_mapping = dict(mpc_document.get("distributed", {}))
     device = select_device(args.device)
     checkpoint_data = (
@@ -509,6 +577,7 @@ def main() -> None:
             else str(args.reachable_tube_calibration.resolve())
         ),
         "phase17": phase17_mapping,
+        "effective_execution": phase17_execution_mapping,
         "device": str(device),
         "safety_layer": args.safety_layer,
         "decision": args.decision,

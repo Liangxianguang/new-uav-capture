@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from scripts.evaluate_s4_branching import config_for_spec
-from scripts.evaluate_s4_closed_loop import apply_phase17_execution_mapping
+from scripts.evaluate_s4_closed_loop import apply_execution_cli_overrides, apply_phase17_execution_mapping
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -70,3 +71,27 @@ def test_phase17_defaults_do_not_overwrite_frozen_execution_override() -> None:
         frozen_scene_record=spec,
     )
     assert config["dynamics"]["execution"]["command_noise_std"] == 0.08
+
+
+def test_execution_cli_overrides_are_recordable_and_enable_execution() -> None:
+    effective = apply_execution_cli_overrides(
+        {"enabled": False, "action_delay_steps": 2, "command_noise_std": 0.0},
+        delay_steps=4,
+        noise_std_mps=0.12,
+        noise_bound_sigma=2.5,
+        tracking_time_constant_s=0.4,
+        drag_coefficient=0.1,
+    )
+    assert effective == {
+        "enabled": True,
+        "action_delay_steps": 4,
+        "command_noise_std": 0.12,
+        "command_noise_bound_sigma": 2.5,
+        "velocity_time_constant_seconds": 0.4,
+        "drag_coefficient": 0.1,
+    }
+
+
+def test_execution_cli_overrides_reject_negative_values() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        apply_execution_cli_overrides({}, noise_std_mps=-0.01)
