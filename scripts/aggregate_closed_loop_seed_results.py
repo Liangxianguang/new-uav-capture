@@ -1,9 +1,8 @@
 """Aggregate frozen-scene closed-loop results across predictor training seeds.
 
-Each training seed is paired at the episode level before resampling. The
-hierarchical bootstrap therefore reflects both predictor-seed variation and
-the fixed locked-test scene block, while retaining the exact scene pairing
-between models.
+The default bootstrap unit is an episode for backwards compatibility. Phase
+56 uses ``--bootstrap-unit mirror_group`` so the two members of each mirrored
+scene are resampled together rather than being treated as independent draws.
 """
 
 from __future__ import annotations
@@ -34,6 +33,29 @@ OUTCOME_METRICS = (
 LATENCY_FIELDS = (
     "predictor_latency_ms",
     "planner_latency_ms",
+    "qdr_or_tube_latency_ms",
+    "safety_latency_ms",
+    "total_control_latency_ms",
+)
+EPISODE_AGGREGATE_FIELDS = (
+    "episode_index",
+    *OUTCOME_METRICS,
+    "qdr_prefix_admissible_rate",
+    "qdr_suffix_admissible_rate",
+    "qdr_suffix_gate_exhaustion_rate",
+    "qdr_suffix_gate_max_exhaustion_streak_steps",
+    "mean_qdr_queue_length",
+    "mean_qdr_first_controllable_step",
+    "max_message_age_steps",
+    "mean_message_age_steps",
+    "messages_dropped",
+    "planner_fallback_count",
+)
+STEP_AGGREGATE_FIELDS = (
+    "episode_index",
+    "predictor_latency_ms",
+    "planner_latency_ms",
+    "qdr_latency_ms",
     "safety_latency_ms",
     "total_control_latency_ms",
 )
@@ -64,6 +86,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
     parser.add_argument("--bootstrap-seed", type=int, default=20260911)
     parser.add_argument(
+        "--bootstrap-unit",
+        choices=("episode", "mirror_group"),
+        default="episode",
+        help="Resampling unit. Phase 56 uses mirror_group to retain upper/lower pairing.",
+    )
+    parser.add_argument(
         "--evaluation-split",
         choices=("validation_selection", "validation_confirmation", "locked_test", "ood_diagnostic"),
         default="locked_test",
@@ -77,12 +105,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
+def read_jsonl(path: Path, fields: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
     if not path.is_file():
         raise FileNotFoundError(f"Missing required artifact: {path}")
     records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not records:
         raise ValueError(f"Artifact has no records: {path}")
+    if fields is not None:
+        records = [{field: record.get(field) for field in fields if field in record} for record in records]
     return records
 
 
@@ -109,13 +139,13 @@ def load_artifact(label: str, path: Path) -> RunArtifact:
         step_path = method_directory / "steps.jsonl"
         if not episode_path.is_file() and not step_path.is_file():
             continue
-        episodes = read_jsonl(episode_path)
+        episodes = read_jsonl(episode_path, EPISODE_AGGREGATE_FIELDS)
         method = method_directory.name
         episode_ids = [int(row["episode_index"]) for row in episodes]
         if len(set(episode_ids)) != len(episode_ids):
             raise ValueError(f"Duplicate episode indices in {episode_path}")
         methods[method] = sorted(episodes, key=lambda row: int(row["episode_index"]))
-        steps[method] = read_jsonl(step_path)
+        steps[method] = read_jsonl(step_path, STEP_AGGREGATE_FIELDS)
     if not methods:
         raise ValueError(f"No method logs found under {path}")
     return RunArtifact(
@@ -175,6 +205,16 @@ def metric_value(row: dict[str, Any], metric: str) -> float:
     return result if np.isfinite(result) else float("nan")
 
 
+def latency_value(row: dict[str, Any], field: str) -> float:
+    """Read a step latency, including the QDR/tube component alias."""
+
+    if field == "qdr_or_tube_latency_ms":
+        if row.get("qdr_latency_ms") is None:
+            return 0.0
+        return metric_value(row, "qdr_latency_ms")
+    return metric_value(row, field)
+
+
 def aligned_metric_matrix(artifacts: list[RunArtifact], method: str, metric: str) -> tuple[list[int], np.ndarray]:
     records_by_seed: list[list[dict[str, Any]]] = []
     episode_ids: list[int] | None = None
@@ -194,6 +234,58 @@ def aligned_metric_matrix(artifacts: list[RunArtifact], method: str, metric: str
         dtype=np.float64,
     )
     return episode_ids, matrix
+
+
+def mirror_group_ids(artifact: RunArtifact, episode_ids: list[int]) -> list[int]:
+    """Return the manifest mirror-group id for each aligned episode."""
+
+    scenes = read_jsonl(artifact.path / "scenes.jsonl")
+    by_episode = {int(scene["episode_index"]): int(scene["mirror_group_id"]) for scene in scenes}
+    if len(by_episode) != len(scenes):
+        raise ValueError(f"Duplicate episode indices in {artifact.path / 'scenes.jsonl'}")
+    try:
+        return [by_episode[episode_id] for episode_id in episode_ids]
+    except KeyError as exc:
+        raise ValueError(f"Episode {exc.args[0]} is absent from {artifact.path / 'scenes.jsonl'}") from exc
+
+
+def grouped_metric_matrix(
+    artifacts: list[RunArtifact], method: str, metric: str
+) -> tuple[list[int], np.ndarray]:
+    """Average episode metrics within mirror groups before bootstrapping."""
+
+    episode_ids, matrix = aligned_metric_matrix(artifacts, method, metric)
+    first_groups = mirror_group_ids(artifacts[0], episode_ids)
+    ordered_groups = list(dict.fromkeys(first_groups))
+    member_indices = {
+        group_id: [index for index, value in enumerate(first_groups) if value == group_id]
+        for group_id in ordered_groups
+    }
+    if any(len(indices) < 2 for indices in member_indices.values()):
+        raise ValueError("Every mirror group must contain at least two episode members.")
+    for artifact in artifacts[1:]:
+        current_groups = mirror_group_ids(artifact, episode_ids)
+        if current_groups != first_groups:
+            raise ValueError(f"Mirror-group ordering differs for {method!r} in {artifact.path}")
+    grouped = np.full((matrix.shape[0], len(ordered_groups)), np.nan, dtype=np.float64)
+    for group_index, group_id in enumerate(ordered_groups):
+        members = matrix[:, member_indices[group_id]]
+        counts = np.isfinite(members).sum(axis=1)
+        grouped[:, group_index] = np.divide(
+            np.nansum(members, axis=1),
+            counts,
+            out=np.full(matrix.shape[0], np.nan, dtype=np.float64),
+            where=counts > 0,
+        )
+    return ordered_groups, grouped
+
+
+def bootstrap_metric_matrix(
+    artifacts: list[RunArtifact], method: str, metric: str, bootstrap_unit: str
+) -> tuple[list[int], np.ndarray]:
+    if bootstrap_unit == "mirror_group":
+        return grouped_metric_matrix(artifacts, method, metric)
+    return aligned_metric_matrix(artifacts, method, metric)
 
 
 def hierarchical_bootstrap_ci(values: np.ndarray, rng: np.random.Generator, samples: int) -> tuple[float, float]:
@@ -251,7 +343,7 @@ def latency_summary(artifacts: list[RunArtifact], method: str) -> dict[str, dict
     result: dict[str, dict[str, float]] = {}
     for field in LATENCY_FIELDS:
         values = np.asarray(
-            [metric_value(row, field) for artifact in artifacts for row in artifact.steps[method]],
+            [latency_value(row, field) for artifact in artifacts for row in artifact.steps[method]],
             dtype=np.float64,
         )
         values = values[np.isfinite(values)]
@@ -268,6 +360,7 @@ def summarize_group(
     artifacts: list[RunArtifact],
     rng: np.random.Generator,
     bootstrap_samples: int,
+    bootstrap_unit: str = "episode",
 ) -> dict[str, Any]:
     methods = sorted(set.intersection(*(set(artifact.methods) for artifact in artifacts)))
     if not methods:
@@ -277,7 +370,7 @@ def summarize_group(
         metrics: dict[str, Any] = {}
         episode_count: int | None = None
         for metric in OUTCOME_METRICS:
-            episode_ids, matrix = aligned_metric_matrix(artifacts, method, metric)
+            episode_ids, matrix = bootstrap_metric_matrix(artifacts, method, metric, bootstrap_unit)
             episode_count = len(episode_ids)
             metrics[metric] = metric_summary(matrix, rng, bootstrap_samples)
         summary[method] = {
@@ -296,6 +389,7 @@ def paired_comparison(
     method: str,
     rng: np.random.Generator,
     bootstrap_samples: int,
+    bootstrap_unit: str = "episode",
 ) -> dict[str, Any]:
     reference_by_seed = {artifact.seed: artifact for artifact in reference}
     candidate_by_seed = {artifact.seed: artifact for artifact in candidate}
@@ -306,8 +400,12 @@ def paired_comparison(
     aligned_candidate = [candidate_by_seed[seed] for seed in shared_seeds]
     metrics: dict[str, Any] = {}
     for metric in OUTCOME_METRICS:
-        reference_ids, reference_matrix = aligned_metric_matrix(aligned_reference, method, metric)
-        candidate_ids, candidate_matrix = aligned_metric_matrix(aligned_candidate, method, metric)
+        reference_ids, reference_matrix = bootstrap_metric_matrix(
+            aligned_reference, method, metric, bootstrap_unit
+        )
+        candidate_ids, candidate_matrix = bootstrap_metric_matrix(
+            aligned_candidate, method, metric, bootstrap_unit
+        )
         if reference_ids != candidate_ids:
             raise ValueError(f"Paired comparison episode mismatch for {method!r}.")
         differences = candidate_matrix - reference_matrix
@@ -317,6 +415,49 @@ def paired_comparison(
             "paired_bootstrap_95_ci": list(difference_summary["bootstrap_95_ci"]),
         }
     return {"method": method, "shared_training_seeds": shared_seeds, "episode_metrics": metrics}
+
+
+def paired_method_comparison(
+    reference: list[RunArtifact],
+    candidate: list[RunArtifact],
+    reference_method: str,
+    candidate_method: str,
+    rng: np.random.Generator,
+    bootstrap_samples: int,
+    bootstrap_unit: str = "episode",
+) -> dict[str, Any]:
+    """Compare two methods on matched predictor seeds and frozen scenes."""
+
+    reference_by_seed = {artifact.seed: artifact for artifact in reference}
+    candidate_by_seed = {artifact.seed: artifact for artifact in candidate}
+    shared_seeds = sorted(set(reference_by_seed).intersection(candidate_by_seed))
+    if not shared_seeds:
+        raise ValueError("Compared methods have no matched training seeds.")
+    aligned_reference = [reference_by_seed[seed] for seed in shared_seeds]
+    aligned_candidate = [candidate_by_seed[seed] for seed in shared_seeds]
+    metrics: dict[str, Any] = {}
+    for metric in OUTCOME_METRICS:
+        reference_ids, reference_matrix = bootstrap_metric_matrix(
+            aligned_reference, reference_method, metric, bootstrap_unit
+        )
+        candidate_ids, candidate_matrix = bootstrap_metric_matrix(
+            aligned_candidate, candidate_method, metric, bootstrap_unit
+        )
+        if reference_ids != candidate_ids:
+            raise ValueError("Paired method comparison has different scene units.")
+        difference_summary = metric_summary(
+            candidate_matrix - reference_matrix, rng, bootstrap_samples
+        )
+        metrics[metric] = {
+            "mean_delta_candidate_minus_reference": difference_summary["mean"],
+            "paired_bootstrap_95_ci": list(difference_summary["bootstrap_95_ci"]),
+        }
+    return {
+        "reference_method": reference_method,
+        "candidate_method": candidate_method,
+        "shared_training_seeds": shared_seeds,
+        "episode_metrics": metrics,
+    }
 
 
 def render_interval(metric: dict[str, Any], percent: bool = False) -> str:
@@ -338,7 +479,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
     lines = [
         f"# {payload['report_title']}",
         "",
-        f"All runs use the same frozen {split_description}. Confidence intervals are hierarchical 95% bootstrap intervals that resample matched predictor training seeds and episode indices.",
+        f"All runs use the same frozen {split_description}. Confidence intervals are hierarchical 95% bootstrap intervals over {payload['bootstrap']['unit']} units and matched predictor training seeds.",
         "",
         "| Predictor family | Method | Safe capture | Collision | Timeout | Capture time (s) | Condition available | Total p95 (ms) |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -388,7 +529,7 @@ def main() -> None:
         raise ValueError(f"Reference group {args.reference_group!r} was not supplied.")
     rng = np.random.default_rng(args.bootstrap_seed)
     summaries = {
-        label: summarize_group(artifacts, rng, args.bootstrap_samples)
+        label: summarize_group(artifacts, rng, args.bootstrap_samples, args.bootstrap_unit)
         for label, artifacts in groups.items()
     }
     reference_methods = set(summaries[args.reference_group])
@@ -399,7 +540,7 @@ def main() -> None:
         shared_methods = sorted(reference_methods.intersection(summaries[label]))
         paired[label] = {
             method: paired_comparison(
-                groups[args.reference_group], artifacts, method, rng, args.bootstrap_samples
+                groups[args.reference_group], artifacts, method, rng, args.bootstrap_samples, args.bootstrap_unit
             )
             for method in shared_methods
         }
@@ -411,7 +552,7 @@ def main() -> None:
         "bootstrap": {
             "samples": args.bootstrap_samples,
             "seed": args.bootstrap_seed,
-            "unit": "matched predictor training seed and frozen-scene episode",
+            "unit": f"matched predictor training seed and frozen-scene {args.bootstrap_unit}",
         },
         "groups": summaries,
         "paired_vs_reference": paired,

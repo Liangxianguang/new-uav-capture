@@ -503,7 +503,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE55_UAKR_QUEUE_RISK_PLAN.md`。
 
-### P31：Phase 56 强基线、规模化场景与 QDR 形式化（执行中）
+### P31：Phase 56 强基线、规模化场景与 QDR 形式化（开发集已完成，确认集冻结）
 
 - [x] 完成独立 QDR deterministic time-index checker；队列长度 `0/2/4/8` 全部
   通过，最大 position/velocity equivalence error 为 `0`，无 double delay；
@@ -518,19 +518,29 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
   planner、QDR/tube、safety、total 的 p50/p95/p99，并写入 TensorBoard/JSONL；
 - [x] 完成确定性 asynchronous communication mode 与 fixed-tube/queue-aware-
   tube/QDR+async/fixed-K=8 baseline aliases；
-- [ ] 用三种子完成 development-calibration 的 B0--B7 闭环矩阵并做
-  mirror-group bootstrap 汇总；当前运行已启动，结果尚未定稿；
-- [ ] 实现 current-state delayed-MPC、fixed-tube MPC、queue-aware tube MPC、
-  synchronous distributed MPC 和 asynchronous distributed MPC 强基线；
-- [ ] 固定同一 checkpoint、candidate、MPC horizon、执行器、线程和 wall-time
-  合同，禁止用不同计算预算制造比较优势；
-- [ ] 将 QDR 写成 queue prefix / first-controllable state / suffix 的形式化
-  定义，增加独立的时间索引等价性 checker，验证不会重复计算 delay；
-- [ ] 统一报告 predictor、planner、QDR/tube、safety、total control 的
+- [x] 用三种子完成 development-calibration 的 B0--B7 闭环矩阵：每个方法
+  `120 episodes`，并完成 mirror-group bootstrap 汇总；
+- [x] 实现并通过统一 smoke 的 current-state delayed-MPC、fixed-tube MPC、
+  queue-aware tube MPC、synchronous/asynchronous distributed MPC、QDR+async
+  和 fixed-K=8 QDR 强基线；
+- [x] 固定同一 checkpoint、candidate、MPC horizon、执行器、Torch `1/1`
+  线程和 wall-time 合同；不以 100 ms 作为硬门槛；
+- [x] 将 QDR 写成 queue prefix / first-controllable state / suffix 的形式化
+  定义，独立 checker 在队列长度 `0/2/4/8` 下通过，time-index error 为 `0`，
+  显式 double-delay 检查通过；
+- [x] 统一报告 predictor、planner、QDR/tube、safety、total control 的
   p50/p95/p99，并同步记录 TensorBoard、JSONL、communication 和 failure taxonomy；
-- [ ] 明确 local CBF 仅为经验过滤器；不得将其命名为 R-CLBF-QP 或安全证明；
-- [ ] 只有 QDR 同时通过 ID non-inferiority、stress safety 和 liveness gate，
-  才允许作为主论文贡献；否则冻结为条件性诊断结果。
+- [x] 聚合器支持以 mirror group 为 bootstrap 单位，避免 upper/lower 镜像对被
+  当成独立样本；正式结果见 `results/phase56_dev_calibration_phase56_report.json`；
+- [x] 明确 local CBF 仅为经验过滤器；不命名为 R-CLBF-QP，也不宣称安全证明；
+- [x] 开发集预注册 gate 已执行：stress safety 与 liveness 通过，但 B1 QDR 的
+  ID non-inferiority 失败（safe-capture `-10.00 pp [-23.33, +1.69]`），
+  asynchronous 相对 synchronous 的 total p95 仅下降 `4.64%`，未达到 `15%`；
+  因此 promotion gate 失败，QDR 当前冻结为条件性诊断结果，不进入 confirmation
+  或 locked 调参流程；
+- [ ] 若要重开研究，必须先新建并预注册独立 calibration：优先拆分 B6
+  `QDR+asynchronous` 的组合增益与异步调度增益，不能把本次开发集结果改写成
+  B1 单模块通过；随后才可在冻结配置下运行 confirmation，最后运行 locked-diagnostic。
 
 详细执行合同、场景矩阵、公式、gate、TensorBoard 标签和六周交付物见
 `docs/PHASE56_STRONG_BASELINES_AND_QDR_FORMALIZATION_TODOLIST.md`。
@@ -557,8 +567,8 @@ P24 EGC-MPC No-Go freeze
   -> P10 Phase54 UAKR fresh development + reliability audit (completed; original UAKR No-Go)
   -> P10b Phase55 queue-prefix-risk UAKR development calibration (completed; No-Go negative ablation)
   -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
-  -> P31 Phase56 strong baselines + QDR formalization (planned; main QDR claim remains closed)
-  -> Full confirmation remains closed until each promoted module passes its independent gate
+  -> P31 Phase56 strong baselines + QDR formalization (development complete; B1/async promotion No-Go)
+  -> Full confirmation remains closed until a new pre-registered calibration promotes a primary method
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
 ```
