@@ -30,3 +30,17 @@ def test_phase27_generator_rejects_odd_episode_count() -> None:
     protocol = load_protocol(DEFAULT_PROTOCOL)
     with pytest.raises(ValueError, match="pair"):
         build_records(protocol, Path("configs/capture_radius_pursuit_central_v4_flee.yaml"), 3, 781101)
+
+
+def test_generator_supports_named_validation_blocks() -> None:
+    protocol = load_protocol(DEFAULT_PROTOCOL)
+    records = build_records(
+        protocol,
+        Path("configs/capture_radius_pursuit_central_v4_flee.yaml"),
+        2,
+        991101,
+        scene_block="phase34_qdr_fresh_validation",
+        rollout_policy="qdr_precondition_evaluation_only",
+    )
+    assert {record["scene_block"] for record in records} == {"phase34_qdr_fresh_validation"}
+    assert {record["rollout_policy"] for record in records} == {"qdr_precondition_evaluation_only"}

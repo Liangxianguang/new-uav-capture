@@ -47,6 +47,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed-start", type=int, default=781101)
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--environment-config", type=Path, default=DEFAULT_ENVIRONMENT_CONFIG)
+    parser.add_argument("--scene-block", default="phase27_rnic_fresh_validation")
+    parser.add_argument("--rollout-policy", default="rnic_confirmation_evaluation_only")
+    parser.add_argument("--name", default=None)
+    parser.add_argument("--evaluation-split", default="validation_confirmation")
     return parser.parse_args()
 
 
@@ -55,6 +59,9 @@ def build_records(
     environment_config: Path,
     episodes: int,
     seed_start: int,
+    *,
+    scene_block: str = "phase27_rnic_fresh_validation",
+    rollout_policy: str = "rnic_confirmation_evaluation_only",
 ) -> list[dict[str, Any]]:
     if episodes <= 0 or episodes % 2:
         raise ValueError("episodes must be a positive even number for mirror pairing")
@@ -83,10 +90,10 @@ def build_records(
                 "observation_condition": str(observation["name"]),
                 "pursuit_overrides": copy.deepcopy(observation["pursuit_overrides"]),
                 "defender_bias": defender_bias,
-                "rollout_policy": "rnic_confirmation_evaluation_only",
+                "rollout_policy": str(rollout_policy),
                 "condition_index": condition_index,
                 "condition_table_size": condition_count,
-                "scene_block": "phase27_rnic_fresh_validation",
+                "scene_block": str(scene_block),
                 "training_variation_ranges": copy.deepcopy(TRAINING_VARIATION),
             }
             config = config_for_spec(environment_config, protocol, spec, max_steps=None)
@@ -155,7 +162,14 @@ def main() -> None:
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
     protocol = load_protocol(args.protocol.resolve())
-    records = build_records(protocol, args.environment_config.resolve(), args.episodes, args.seed_start)
+    records = build_records(
+        protocol,
+        args.environment_config.resolve(),
+        args.episodes,
+        args.seed_start,
+        scene_block=args.scene_block,
+        rollout_policy=args.rollout_policy,
+    )
     validate_records(records)
     output.mkdir(parents=True, exist_ok=True)
     scenes_path = output / "scenes.jsonl"
@@ -164,8 +178,8 @@ def main() -> None:
         encoding="utf-8",
     )
     manifest = {
-        "name": "phase27_rnic_fresh_validation",
-        "evaluation_split": "validation_confirmation",
+        "name": str(args.name or args.scene_block),
+        "evaluation_split": str(args.evaluation_split),
         "episodes": len(records),
         "mirror_groups": len(records) // 2,
         "seed_start": int(args.seed_start),
