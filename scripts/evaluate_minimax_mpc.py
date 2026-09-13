@@ -1523,6 +1523,12 @@ def run_episode(
                     else 0.0
                 ),
                 "planner_latency_ms": float(planner_diagnostics.latency_ms),
+                "planner_status_name": planner_status,
+                "planner_fallback_reason": (
+                    None
+                    if getattr(planner_diagnostics, "fallback_reason", None) is None
+                    else str(getattr(planner_diagnostics, "fallback_reason"))
+                ),
                 "planner_status": 1.0 if planner_status == "success" else 0.0,
                 "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
                 "planner_valid": 1.0 if planner_status in {"success", "not_converged", "partial_fallback"} else 0.0,
@@ -1889,6 +1895,9 @@ def run_episode(
             np.nanmean([row["total_control_latency_ms"] for row in step_rows])
         ),
         "planner_fallback_count": int(sum(row["planner_fallback"] for row in step_rows)),
+        "planner_fallback_reason_counts": _diagnostic_category_counts(
+            step_rows, "planner_fallback_reason"
+        ),
         "planner_success_count": int(sum(row["planner_status"] for row in step_rows)),
         "planner_valid_count": int(sum(row["planner_valid"] for row in step_rows)),
         "planner_converged_count": int(sum(row["planner_converged"] for row in step_rows)),

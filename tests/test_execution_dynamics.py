@@ -15,6 +15,7 @@ from encirclement3d.execution_dynamics import (
     position_uncertainty_radii,
     reachable_tube_radii,
     resolve_reachable_tube_multiplier,
+    rollout_action_sequence,
     rollout_execution,
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
@@ -572,6 +573,44 @@ def test_shared_execution_rollout_matches_delay_and_tracking_contract() -> None:
     np.testing.assert_allclose(rollout_velocities[1, :, 0], 0.5)
     np.testing.assert_allclose(rollout_positions[1, :, 0], 0.05)
     assert position_uncertainty_radii(parameters, 4, 2).shape == (2, 4)
+
+
+def test_full_action_sequence_rollout_is_batched_and_execution_consistent() -> None:
+    parameters = ExecutionParameters(
+        enabled=True,
+        dt_seconds=0.1,
+        action_delay_steps=0,
+        command_noise_std_mps=0.0,
+        command_noise_bound_mps=0.0,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.2,
+        drag_coefficient=0.0,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        mass_scale=1.0,
+    )
+    positions = np.zeros((2, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    actions = np.stack(
+        [
+            np.full((2, 3), [1.0, 0.0, 0.0]),
+            np.full((2, 3), [2.0, 0.0, 0.0]),
+        ],
+        axis=0,
+    )
+
+    position_path, velocity_path, steps = rollout_action_sequence(
+        positions,
+        velocities,
+        actions,
+        parameters,
+    )
+
+    assert position_path.shape == velocity_path.shape == (2, 2, 3)
+    assert len(steps) == 2
+    np.testing.assert_allclose(velocity_path[0, :, 0], 0.5)
+    np.testing.assert_allclose(velocity_path[1, :, 0], 1.1)
+    np.testing.assert_allclose(position_path[:, :, 0], [[0.05, 0.05], [0.16, 0.16]])
 
 
 def test_execution_aware_qp_and_certificate_share_queue_contract() -> None:

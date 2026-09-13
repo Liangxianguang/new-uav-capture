@@ -16,6 +16,7 @@ from typing import Any, Iterable, Literal
 import numpy as np
 
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
+from .execution_dynamics import parameters_from_observation, rollout_action_sequence
 from .escape_gap import escape_gap_metrics
 from .belief_fusion import fuse_public_beliefs
 from .reachability_interception import (
@@ -605,11 +606,31 @@ def evaluate_candidate_capture_distances(
     if positions.ndim != 2 or positions.shape[-1] != 3 or positions.shape[0] != actions.shape[1]:
         raise ValueError("Observation and action sequence have incompatible defender shapes.")
 
+    qdr_metadata = observation.get("qdr", {})
+    qdr_execution_aware = isinstance(qdr_metadata, dict) and bool(
+        qdr_metadata.get("execution_aware_action_rollout", False)
+    )
+    if qdr_execution_aware:
+        velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
+        parameters = parameters_from_observation(observation, float(dt_seconds))
+        positions_path, _velocities_path, _steps = rollout_action_sequence(
+            positions,
+            velocities,
+            actions,
+            parameters,
+        )
+    else:
+        positions_path = None
+
     minimum_distances = np.full(paths.shape[0], np.inf, dtype=np.float64)
     terminal_distances = np.full(paths.shape[0], np.inf, dtype=np.float64)
     for timestep, target_positions in enumerate(paths.transpose(1, 0, 2)):
-        action = _clip_rows(actions[timestep], max_speed_mps)
-        positions += action * float(dt_seconds)
+        if qdr_execution_aware:
+            assert positions_path is not None
+            positions = positions_path[timestep]
+        else:
+            action = _clip_rows(actions[timestep], max_speed_mps)
+            positions += action * float(dt_seconds)
         distances = np.linalg.norm(positions[None, :, :] - target_positions[:, None, :], axis=-1)
         nearest_distances = np.min(distances, axis=1)
         minimum_distances = np.minimum(minimum_distances, nearest_distances)
@@ -997,11 +1018,48 @@ class ScenarioMinimaxMPC:
         if horizon != candidate_horizon or horizon != self.config.horizon_steps:
             raise ValueError("Action and target horizons must match planner horizon.")
         initial_positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-        positions = np.broadcast_to(initial_positions[None, :, :], (sequence_count, defender_count, 3)).copy()
+        initial_velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
         previous_action = np.broadcast_to(
-            np.asarray(observation["defender_velocities"], dtype=np.float64)[None, :, :],
+            initial_velocities[None, :, :],
             (sequence_count, defender_count, 3),
         ).copy()
+        effective_sequences = np.empty_like(sequences)
+        for timestep in range(horizon):
+            action = _project_actions(
+                sequences[:, timestep],
+                previous_action,
+                max_speed_mps=self.config.max_speed_mps,
+                action_change_limit_mps=self.config.action_change_limit_mps,
+            )
+            effective_sequences[:, timestep] = action
+            previous_action = action
+
+        qdr_metadata = observation.get("qdr", {})
+        qdr_execution_aware = isinstance(qdr_metadata, dict) and bool(
+            qdr_metadata.get("execution_aware_action_rollout", False)
+        )
+        execution_position_paths: np.ndarray | None = None
+        execution_velocity_paths: np.ndarray | None = None
+        if qdr_execution_aware:
+            parameters = parameters_from_observation(observation, float(self.config.dt_seconds))
+            execution_rollouts = [
+                rollout_action_sequence(
+                    initial_positions,
+                    initial_velocities,
+                    effective_sequences[index],
+                    parameters,
+                )
+                for index in range(sequence_count)
+            ]
+            execution_position_paths = np.stack(
+                [rollout[0] for rollout in execution_rollouts],
+                axis=0,
+            )
+            execution_velocity_paths = np.stack(
+                [rollout[1] for rollout in execution_rollouts],
+                axis=0,
+            )
+        positions = np.broadcast_to(initial_positions[None, :, :], (sequence_count, defender_count, 3)).copy()
         scenario_costs = np.zeros((sequence_count, candidate_count), dtype=np.float64)
         constraint_violations = np.zeros((sequence_count, candidate_count), dtype=np.float64)
         position_paths: list[np.ndarray] = []
@@ -1014,15 +1072,17 @@ class ScenarioMinimaxMPC:
             lower = np.full(3, -np.inf, dtype=np.float64)
             upper = np.full(3, np.inf, dtype=np.float64)
         for timestep in range(horizon):
-            action = _project_actions(
-                sequences[:, timestep],
-                previous_action,
-                max_speed_mps=self.config.max_speed_mps,
-                action_change_limit_mps=self.config.action_change_limit_mps,
-            )
-            positions += action * self.config.dt_seconds
+            action = effective_sequences[:, timestep]
+            if qdr_execution_aware:
+                assert execution_position_paths is not None
+                assert execution_velocity_paths is not None
+                positions = execution_position_paths[:, timestep]
+                executed_velocity = execution_velocity_paths[:, timestep]
+            else:
+                positions += action * self.config.dt_seconds
+                executed_velocity = action
             position_paths.append(positions.copy())
-            velocity_paths.append(action.copy())
+            velocity_paths.append(executed_velocity.copy())
             target = paths[:, timestep]
             delta = positions[:, None, :, :] - target[None, :, None, :]
             distances = np.linalg.norm(delta, axis=-1)
@@ -1051,7 +1111,6 @@ class ScenarioMinimaxMPC:
             change = action - previous_action
             scenario_costs += self.config.weight_control_change * np.sum(change * change, axis=(1, 2))[:, None] / max(defender_count, 1)
             scenario_costs += self.config.weight_relative_speed * np.mean(np.linalg.norm(change, axis=2), axis=1)[:, None]
-            previous_action = action
 
             for obstacle in observation.get("obstacles", []):
                 shape = str(obstacle.get("shape", "cylinder"))
@@ -1155,6 +1214,15 @@ def _rollout_action_positions(
     actions = np.asarray(action_sequence, dtype=np.float64)
     if actions.ndim != 3 or actions.shape[1:] != positions.shape:
         raise ValueError("action_sequence must have shape [horizon, defenders, 3].")
+    qdr_metadata = observation.get("qdr", {})
+    if isinstance(qdr_metadata, dict) and bool(qdr_metadata.get("execution_aware_action_rollout", False)):
+        parameters = parameters_from_observation(observation, float(config.dt_seconds))
+        return rollout_action_sequence(
+            positions,
+            np.asarray(observation["defender_velocities"], dtype=np.float64),
+            actions,
+            parameters,
+        )[0]
     path: list[np.ndarray] = []
     for raw_action in actions:
         action = _project_actions(

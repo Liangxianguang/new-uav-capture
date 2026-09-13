@@ -161,7 +161,9 @@ def prepare_queue_aware_observation(
     execution = dict(value.get("execution", {})) if isinstance(value.get("execution", {}), Mapping) else {}
     execution["action_queue"] = []
     value["execution"] = execution
-    value["qdr"] = state.as_dict()
+    qdr_metadata = state.as_dict()
+    qdr_metadata["execution_aware_action_rollout"] = True
+    value["qdr"] = qdr_metadata
     return value, state
 
 

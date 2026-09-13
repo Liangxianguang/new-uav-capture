@@ -34,10 +34,103 @@ from .reachability_interception import (
     reachability_normalized_interception_cost,
 )
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
+from .execution_dynamics import parameters_from_observation, rollout_action_sequence
 
 
 CommunicationMode = Literal["none", "ideal", "delayed", "dropout"]
 _COMMUNICATION_MODES = {"none", "ideal", "delayed", "dropout"}
+
+
+def _qdr_execution_aware(observation: dict[str, Any]) -> bool:
+    metadata = observation.get("qdr", {})
+    return isinstance(metadata, dict) and bool(
+        metadata.get("execution_aware_action_rollout", False)
+    )
+
+
+def _rollout_local_action_candidates(
+    observation: dict[str, Any],
+    actions: np.ndarray,
+    agent_id: int,
+    dt_seconds: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return position/velocity paths for own commands under the QDR contract."""
+
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
+    parameters = parameters_from_observation(observation, float(dt_seconds))
+    position_paths: list[np.ndarray] = []
+    velocity_paths: list[np.ndarray] = []
+    for candidate in np.asarray(actions, dtype=np.float64):
+        position_path, velocity_path, _steps = rollout_action_sequence(
+            positions[agent_id][None, :],
+            velocities[agent_id][None, :],
+            candidate[:, None, :],
+            parameters,
+        )
+        position_paths.append(position_path[:, 0, :])
+        velocity_paths.append(velocity_path[:, 0, :])
+    return np.stack(position_paths, axis=0), np.stack(velocity_paths, axis=0)
+
+
+def _rollout_peer_action_path(
+    observation: dict[str, Any],
+    message: _PlannerMessage,
+    action_sequence: np.ndarray | None,
+    dt_seconds: float,
+    horizon_steps: int,
+    max_speed_mps: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Roll out a peer message with the same execution convention as own actions."""
+
+    if action_sequence is None:
+        actions = np.broadcast_to(
+            np.asarray(message.velocity, dtype=np.float64),
+            (int(horizon_steps), 3),
+        ).copy()
+    else:
+        actions = _clip_rows(np.asarray(action_sequence, dtype=np.float64), max_speed_mps)
+    if _qdr_execution_aware(observation):
+        parameters = parameters_from_observation(observation, float(dt_seconds))
+        position_path, velocity_path, _steps = rollout_action_sequence(
+            np.asarray(message.position, dtype=np.float64)[None, :],
+            np.asarray(message.velocity, dtype=np.float64)[None, :],
+            actions[:, None, :],
+            parameters,
+        )
+        # The helper rolls a one-agent batch and therefore returns [H, 1, 3].
+        # Local distributed costs use the peer convention [H, 3], matching the
+        # ideal-execution branch below and avoiding an accidental H-by-H
+        # broadcast in the candidate/peer subtraction.
+        return position_path[:, 0, :], velocity_path[:, 0, :]
+    return (
+        np.asarray(message.position, dtype=np.float64)[None, :]
+        + np.cumsum(actions * float(dt_seconds), axis=0),
+        actions,
+    )
+
+
+def _rollout_full_action_sequence(
+    observation: dict[str, Any],
+    sequences: np.ndarray,
+    dt_seconds: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Roll out a complete team command sequence for cooperative costs."""
+
+    actions = np.asarray(sequences, dtype=np.float64)
+    positions = np.asarray(observation["defender_positions"], dtype=np.float64)
+    velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
+    if _qdr_execution_aware(observation):
+        return rollout_action_sequence(
+            positions,
+            velocities,
+            actions,
+            parameters_from_observation(observation, float(dt_seconds)),
+        )[:2]
+    return (
+        positions[None, :, :] + np.cumsum(actions * float(dt_seconds), axis=0),
+        actions,
+    )
 
 
 @dataclass(frozen=True)
@@ -693,10 +786,19 @@ class DistributedMinimaxDNMPC:
         paths = np.asarray(scenarios.trajectories, dtype=np.float64)
         weights = scenarios.normalized_weights
         candidate_count = paths.shape[0]
-        current = positions[agent_id][None, None, :] + np.cumsum(
-            actions * self.config.dt_seconds,
-            axis=1,
-        )
+        if _qdr_execution_aware(observation):
+            current, executed_velocity_paths = _rollout_local_action_candidates(
+                observation,
+                actions,
+                agent_id,
+                self.config.dt_seconds,
+            )
+        else:
+            current = positions[agent_id][None, None, :] + np.cumsum(
+                actions * self.config.dt_seconds,
+                axis=1,
+            )
+            executed_velocity_paths = actions
         distances = np.linalg.norm(
             current[:, None, :, :] - paths[None, :, :, :],
             axis=-1,
@@ -749,31 +851,25 @@ class DistributedMinimaxDNMPC:
                 expected_peers = set(range(positions.shape[0])) - {int(agent_id)}
                 if set(known) >= expected_peers:
                     team_position_paths = [current]
-                    team_velocity_paths = [actions]
+                    team_velocity_paths = [executed_velocity_paths]
                     for peer in range(positions.shape[0]):
                         if peer == agent_id:
                             continue
                         message = known[peer]
                         peer_actions = peer_sequences.get(peer)
-                        if peer_actions is None:
-                            peer_actions = np.broadcast_to(
-                                np.asarray(message.velocity, dtype=np.float64),
-                                (self.config.horizon_steps, 3),
-                            )
-                        else:
-                            peer_actions = _clip_rows(
-                                np.asarray(peer_actions, dtype=np.float64),
-                                self.config.max_speed_mps,
-                            )
-                        peer_position = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
-                            peer_actions * self.config.dt_seconds,
-                            axis=0,
+                        peer_position, peer_velocity = _rollout_peer_action_path(
+                            observation,
+                            message,
+                            peer_actions,
+                            self.config.dt_seconds,
+                            self.config.horizon_steps,
+                            self.config.max_speed_mps,
                         )
                         team_position_paths.append(
                             np.broadcast_to(peer_position, current.shape)
                         )
                         team_velocity_paths.append(
-                            np.broadcast_to(peer_actions, actions.shape)
+                            np.broadcast_to(peer_velocity, actions.shape)
                         )
                     formation_cost, _best_slack, _assignments, _arrival_times = formation_slot_reachability_cost(
                         np.stack(team_position_paths, axis=2),
@@ -829,19 +925,14 @@ class DistributedMinimaxDNMPC:
                     continue
                 message = known[peer]
                 peer_actions = peer_sequences.get(peer)
-                if peer_actions is None:
-                    peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + (
-                        np.arange(self.config.horizon_steps, dtype=np.float64)[:, None] + 1.0
-                    ) * np.asarray(message.velocity, dtype=np.float64)[None, :] * self.config.dt_seconds
-                else:
-                    peer_actions = _clip_rows(
-                        np.asarray(peer_actions, dtype=np.float64),
-                        self.config.max_speed_mps,
-                    )
-                    peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
-                        peer_actions * self.config.dt_seconds,
-                        axis=0,
-                    )
+                peer_positions, _peer_velocity = _rollout_peer_action_path(
+                    observation,
+                    message,
+                    peer_actions,
+                    self.config.dt_seconds,
+                    self.config.horizon_steps,
+                    self.config.max_speed_mps,
+                )
                 team_position_paths.append(np.broadcast_to(peer_positions, current.shape))
             gap_metrics = escape_gap_metrics(
                 np.stack(team_position_paths, axis=2),
@@ -867,16 +958,14 @@ class DistributedMinimaxDNMPC:
 
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
-            if peer_actions is None:
-                peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + (
-                    np.arange(self.config.horizon_steps, dtype=np.float64)[:, None] + 1.0
-                ) * np.asarray(message.velocity, dtype=np.float64)[None, :] * self.config.dt_seconds
-            else:
-                peer_actions = _clip_rows(np.asarray(peer_actions, dtype=np.float64), self.config.max_speed_mps)
-                peer_positions = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
-                    peer_actions * self.config.dt_seconds,
-                    axis=0,
-                )
+            peer_positions, _peer_velocity = _rollout_peer_action_path(
+                observation,
+                message,
+                peer_actions,
+                self.config.dt_seconds,
+                self.config.horizon_steps,
+                self.config.max_speed_mps,
+            )
             inter_agent = np.maximum(
                 self.config.minimum_inter_agent_distance_m
                 - np.linalg.norm(current - peer_positions[None, :, :], axis=-1),
@@ -945,34 +1034,38 @@ class DistributedMinimaxDNMPC:
             self._stats["fc_dbf_incomplete_consensus"] += 1
             return base_costs
 
-        own_path = positions[agent_id][None, None, :] + np.cumsum(
-            np.asarray(actions, dtype=np.float64) * self.config.dt_seconds,
-            axis=1,
-        )
+        actions = np.asarray(actions, dtype=np.float64)
+        if _qdr_execution_aware(observation):
+            own_path, own_velocity_path = _rollout_local_action_candidates(
+                observation,
+                actions,
+                agent_id,
+                self.config.dt_seconds,
+            )
+        else:
+            own_path = positions[agent_id][None, None, :] + np.cumsum(
+                actions * self.config.dt_seconds,
+                axis=1,
+            )
+            own_velocity_path = actions
         path_count = actions.shape[0]
         team_position_paths = [own_path]
-        team_velocity_paths = [np.asarray(actions, dtype=np.float64)]
+        team_velocity_paths = [own_velocity_path]
         for peer in range(positions.shape[0]):
             if peer == agent_id:
                 continue
             message = known[peer]
             peer_actions = peer_sequences.get(peer)
-            if peer_actions is None:
-                peer_actions = np.broadcast_to(
-                    np.asarray(message.velocity, dtype=np.float64),
-                    (self.config.horizon_steps, 3),
-                )
-            else:
-                peer_actions = _clip_rows(
-                    np.asarray(peer_actions, dtype=np.float64),
-                    self.config.max_speed_mps,
-                )
-            peer_path = np.asarray(message.position, dtype=np.float64)[None, :] + np.cumsum(
-                peer_actions * self.config.dt_seconds,
-                axis=0,
+            peer_path, peer_velocity = _rollout_peer_action_path(
+                observation,
+                message,
+                peer_actions,
+                self.config.dt_seconds,
+                self.config.horizon_steps,
+                self.config.max_speed_mps,
             )
             team_position_paths.append(np.broadcast_to(peer_path, own_path.shape))
-            team_velocity_paths.append(np.broadcast_to(peer_actions, actions.shape))
+            team_velocity_paths.append(np.broadcast_to(peer_velocity, actions.shape))
 
         team_position_array = np.stack(team_position_paths, axis=2)
         team_velocity_array = np.stack(team_velocity_paths, axis=2)
@@ -1067,12 +1160,22 @@ class DistributedMinimaxDNMPC:
         )[0]
 
     def _local_obstacles(self, observation: dict[str, Any], own_position: np.ndarray) -> list[dict[str, Any]]:
+        obstacle_range = float(self.distributed.local_obstacle_range_m)
+        if _qdr_execution_aware(observation):
+            # A queued command is not evaluated at the current instant.  The
+            # queue-aware local objective therefore needs to see obstacles
+            # that can enter the agent's reachable swept volume during the
+            # shooting horizon, while the ordinary distributed contract keeps
+            # its original local-obstacle range.
+            obstacle_range += float(self.config.max_speed_mps) * float(self.config.horizon_steps) * float(
+                self.config.dt_seconds
+            )
         result = []
         for obstacle in observation.get("obstacles", []):
             center_xy = np.asarray(obstacle["center_xy"], dtype=np.float64)
             radius = float(obstacle.get("radius", 0.0))
             distance = float(np.linalg.norm(own_position[:2] - center_xy) - radius)
-            if distance <= self.distributed.local_obstacle_range_m:
+            if distance <= obstacle_range:
                 result.append(obstacle)
         return result
 
@@ -1106,14 +1209,14 @@ class DistributedMinimaxDNMPC:
             self.config.reachability_normalized_cost_enabled
             and self.config.reachability_cost_mode == "formation_slot"
         ):
-            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-            position_paths = positions[None, :, :] + np.cumsum(
-                np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
-                axis=0,
+            position_paths, velocity_paths = _rollout_full_action_sequence(
+                observation,
+                np.asarray(sequences, dtype=np.float64),
+                self.config.dt_seconds,
             )
             formation_cost, _best_slack, _assignments, _arrival_times = formation_slot_reachability_cost(
                 position_paths[None, :, :, :],
-                np.asarray(sequences, dtype=np.float64)[None, :, :, :],
+                velocity_paths[None, :, :, :],
                 np.asarray(scenarios.trajectories, dtype=np.float64),
                 slot_radius_m=float(
                     self.config.role_perimeter_m
@@ -1130,10 +1233,10 @@ class DistributedMinimaxDNMPC:
             )
             total += self.config.weight_reachability * formation_cost[0]
         if self.config.escape_gap_cost_enabled and self.config.weight_escape_gap > 0.0:
-            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-            position_paths = positions[None, :, :] + np.cumsum(
-                np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
-                axis=0,
+            position_paths, _velocity_paths = _rollout_full_action_sequence(
+                observation,
+                np.asarray(sequences, dtype=np.float64),
+                self.config.dt_seconds,
             )
             gap_metrics = escape_gap_metrics(
                 position_paths[None, :, :, :],
@@ -1148,12 +1251,13 @@ class DistributedMinimaxDNMPC:
             # score; local best responses omit it to avoid D-fold counting.
             total += self.config.weight_escape_gap * gap_metrics["cost"][0]
         if self.config.fc_dbf_enabled:
-            positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-            position_paths = positions[None, None, :, :] + np.cumsum(
-                np.asarray(sequences, dtype=np.float64)[None, :, :, :] * self.config.dt_seconds,
-                axis=1,
+            position_path, velocity_path = _rollout_full_action_sequence(
+                observation,
+                np.asarray(sequences, dtype=np.float64),
+                self.config.dt_seconds,
             )
-            action_paths = np.asarray(sequences, dtype=np.float64)[None, :, :, :]
+            position_paths = position_path[None, :, :, :]
+            action_paths = velocity_path[None, :, :, :]
             fc_metrics = feasible_consensus_slot_gate(
                 position_paths,
                 action_paths,
@@ -1194,10 +1298,10 @@ class DistributedMinimaxDNMPC:
         target_paths: np.ndarray,
         target_weights: np.ndarray,
     ) -> dict[str, float]:
-        positions = np.asarray(observation["defender_positions"], dtype=np.float64)
-        position_paths = positions[None, :, :] + np.cumsum(
-            np.asarray(sequences, dtype=np.float64) * self.config.dt_seconds,
-            axis=0,
+        position_paths, _velocity_paths = _rollout_full_action_sequence(
+            observation,
+            np.asarray(sequences, dtype=np.float64),
+            self.config.dt_seconds,
         )
         metrics = escape_gap_metrics(
             position_paths[None, :, :, :],

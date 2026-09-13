@@ -266,6 +266,50 @@ def rollout_execution(
     return np.stack(positions_out, axis=0), np.stack(velocities_out, axis=0), results
 
 
+def rollout_action_sequence(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    action_sequence: np.ndarray,
+    parameters: ExecutionParameters,
+    *,
+    noises: list[np.ndarray] | tuple[np.ndarray, ...] | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[ExecutionStep]]:
+    """Roll out a full sequence of desired commands through execution dynamics.
+
+    ``rollout_execution`` models one newly appended command behind an existing
+    queue.  This companion function is for planner cost evaluation after the
+    QDR prefix has already been consumed: every horizon element is therefore a
+    newly controllable desired command, while tracking, acceleration limits,
+    drag and bounded command noise remain in the rollout contract.
+    """
+
+    position = np.asarray(positions, dtype=np.float64).copy()
+    velocity = np.asarray(velocities, dtype=np.float64).copy()
+    actions = np.asarray(action_sequence, dtype=np.float64)
+    if (
+        position.ndim != 2
+        or position.shape[-1] != 3
+        or velocity.shape != position.shape
+        or actions.ndim != 3
+        or actions.shape[1:] != position.shape
+    ):
+        raise ValueError("positions, velocities, and action_sequence have incompatible shapes")
+    if actions.shape[0] <= 0 or not np.isfinite(actions).all():
+        raise ValueError("action_sequence must be non-empty and finite")
+    results: list[ExecutionStep] = []
+    positions_out: list[np.ndarray] = []
+    velocities_out: list[np.ndarray] = []
+    for index, desired in enumerate(actions):
+        noise = None if noises is None or index >= len(noises) else noises[index]
+        result = advance_execution(velocity, desired, parameters, noise=noise)
+        velocity = result.executed.copy()
+        position = position + float(parameters.dt_seconds) * velocity
+        results.append(result)
+        positions_out.append(position.copy())
+        velocities_out.append(velocity.copy())
+    return np.stack(positions_out, axis=0), np.stack(velocities_out, axis=0), results
+
+
 def _clip_row_with_jacobian(
     value: np.ndarray,
     max_norm: float,
@@ -555,6 +599,7 @@ __all__ = [
     "command_authority_from_observation",
     "move_toward_velocity",
     "parameters_from_observation",
+    "rollout_action_sequence",
     "position_uncertainty_radii",
     "reachable_tube_radii",
     "resolve_reachable_tube_multiplier",

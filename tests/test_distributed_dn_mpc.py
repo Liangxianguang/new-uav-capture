@@ -74,6 +74,46 @@ def test_ideal_communication_is_bounded_and_auditable() -> None:
     assert diagnostics.status == "not_converged"
 
 
+def test_queue_aware_peer_rollout_keeps_single_agent_shape() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 0,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.0,
+        "velocity_time_constant_seconds": 0.0,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    planner = _planner("ideal")
+
+    plan = planner.plan(observation, _scenarios(), step_index=0)
+
+    assert plan.diagnostics.status in {"not_converged", "success", "partial_fallback"}
+    assert plan.diagnostics.status != "fallback"
+    assert np.isfinite(plan.action_sequence).all()
+
+
+def test_queue_aware_local_obstacles_include_horizon_reachable_geometry() -> None:
+    observation = _observation()
+    observation["obstacles"] = [
+        {
+            "center_xy": np.array([5.0, -2.0]),
+            "radius": 0.5,
+            "height": 4.0,
+            "shape": "cylinder",
+        }
+    ]
+    observation["execution"] = {"enabled": True, "action_delay_steps": 0}
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    planner = _planner("ideal")
+
+    visible = planner._local_obstacles(observation, observation["defender_positions"][0])
+
+    assert len(visible) == 1
+
+
 def test_no_communication_does_not_create_peer_messages() -> None:
     planner = _planner("none")
     first = planner.plan(_observation(), _scenarios(), step_index=0)
