@@ -1584,6 +1584,9 @@ def run_episode(
                 "qdr_execution_tube_multiplier": float(
                     getattr(planner_diagnostics, "qdr_execution_tube_multiplier", 1.0)
                 ),
+                "qdr_execution_tube_active_steps": float(
+                    getattr(planner_diagnostics, "qdr_execution_tube_active_steps", 0)
+                ),
                 "qdr_mean_execution_tube_radius_m": float(
                     getattr(planner_diagnostics, "qdr_mean_execution_tube_radius_m", 0.0)
                 ),
@@ -1829,6 +1832,9 @@ def run_episode(
         ),
         "mean_qdr_execution_tube_multiplier": _diagnostic_mean(
             step_rows, "qdr_execution_tube_multiplier"
+        ),
+        "mean_qdr_execution_tube_active_steps": _diagnostic_mean(
+            step_rows, "qdr_execution_tube_active_steps"
         ),
         "mean_qdr_execution_tube_radius_m": _diagnostic_mean(
             step_rows, "qdr_mean_execution_tube_radius_m"
@@ -2310,6 +2316,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "mean_qdr_execution_tube_multiplier": finite_mean(
             [row["mean_qdr_execution_tube_multiplier"] for row in rows]
+        ),
+        "mean_qdr_execution_tube_active_steps": finite_mean(
+            [row["mean_qdr_execution_tube_active_steps"] for row in rows]
         ),
         "mean_qdr_execution_tube_radius_m": finite_mean(
             [row["mean_qdr_execution_tube_radius_m"] for row in rows]

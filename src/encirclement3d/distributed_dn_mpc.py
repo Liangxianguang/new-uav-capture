@@ -222,6 +222,7 @@ class DistributedDNMPCConfig:
     qdr_execution_tube_enabled: bool = False
     qdr_execution_tube_multiplier: float = 1.0
     qdr_execution_tube_radius_m_by_step: tuple[float, ...] = ()
+    qdr_execution_tube_active_steps: int | None = None
 
     def __post_init__(self) -> None:
         if self.communication_mode not in _COMMUNICATION_MODES:
@@ -262,6 +263,8 @@ class DistributedDNMPCConfig:
             float(value) < 0.0 for value in configured_radii
         ):
             raise ValueError("qdr_execution_tube_radius_m_by_step must be finite and non-negative.")
+        if self.qdr_execution_tube_active_steps is not None and int(self.qdr_execution_tube_active_steps) <= 0:
+            raise ValueError("qdr_execution_tube_active_steps must be positive when provided.")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "DistributedDNMPCConfig":
@@ -297,6 +300,7 @@ class DistributedDNMPCDiagnostics:
     qdr_suffix_gate_rejected_candidates: int = 0
     qdr_execution_tube_enabled: bool = False
     qdr_execution_tube_multiplier: float = 1.0
+    qdr_execution_tube_active_steps: int = 0
     qdr_mean_execution_tube_radius_m: float = 0.0
     qdr_max_execution_tube_radius_m: float = 0.0
     escape_gap_cost: float = float("nan")
@@ -351,6 +355,7 @@ class DistributedDNMPCDiagnostics:
             "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
             "qdr_execution_tube_enabled": self.qdr_execution_tube_enabled,
             "qdr_execution_tube_multiplier": self.qdr_execution_tube_multiplier,
+            "qdr_execution_tube_active_steps": self.qdr_execution_tube_active_steps,
             "qdr_mean_execution_tube_radius_m": self.qdr_mean_execution_tube_radius_m,
             "qdr_max_execution_tube_radius_m": self.qdr_max_execution_tube_radius_m,
             "escape_gap_cost": self.escape_gap_cost,
@@ -706,14 +711,26 @@ class DistributedMinimaxDNMPC:
                 raise ValueError(
                     "qdr_execution_tube_radius_m_by_step must match the planner horizon."
                 )
+            active_steps = horizon if self.distributed.qdr_execution_tube_active_steps is None else int(
+                self.distributed.qdr_execution_tube_active_steps
+            )
+            if active_steps > horizon:
+                raise ValueError("qdr_execution_tube_active_steps cannot exceed the planner horizon.")
+            radii[active_steps:] = 0.0
             return np.broadcast_to(radii[:, None], (horizon, int(defender_count))).copy()
         parameters = parameters_from_observation(observation, float(self.config.dt_seconds))
-        return reachable_tube_radii(
+        radii = reachable_tube_radii(
             parameters,
             int(defender_count),
             horizon,
             multiplier=float(self.distributed.qdr_execution_tube_multiplier),
         )
+        if self.distributed.qdr_execution_tube_active_steps is not None:
+            active_steps = int(self.distributed.qdr_execution_tube_active_steps)
+            if active_steps > horizon:
+                raise ValueError("qdr_execution_tube_active_steps cannot exceed the planner horizon.")
+            radii[active_steps:] = 0.0
+        return radii
 
     def _qdr_execution_tube_summary(self) -> dict[str, float | bool]:
         radii = self._qdr_execution_tube_radii
@@ -722,12 +739,19 @@ class DistributedMinimaxDNMPC:
             return {
                 "qdr_execution_tube_enabled": False,
                 "qdr_execution_tube_multiplier": float(self.distributed.qdr_execution_tube_multiplier),
+                "qdr_execution_tube_active_steps": 0,
                 "qdr_mean_execution_tube_radius_m": 0.0,
                 "qdr_max_execution_tube_radius_m": 0.0,
             }
+        active_steps = (
+            self.config.horizon_steps
+            if self.distributed.qdr_execution_tube_active_steps is None
+            else int(self.distributed.qdr_execution_tube_active_steps)
+        )
         return {
             "qdr_execution_tube_enabled": True,
             "qdr_execution_tube_multiplier": float(self.distributed.qdr_execution_tube_multiplier),
+            "qdr_execution_tube_active_steps": active_steps,
             "qdr_mean_execution_tube_radius_m": float(np.mean(radii)),
             "qdr_max_execution_tube_radius_m": float(np.max(radii)),
         }
@@ -1783,6 +1807,7 @@ class DistributedMinimaxDNMPC:
         qdr_suffix_gate_rejected_candidates: int = 0,
         qdr_execution_tube_enabled: bool = False,
         qdr_execution_tube_multiplier: float = 1.0,
+        qdr_execution_tube_active_steps: int = 0,
         qdr_mean_execution_tube_radius_m: float = 0.0,
         qdr_max_execution_tube_radius_m: float = 0.0,
         escape_gap_cost: float = float("nan"),
@@ -1837,6 +1862,7 @@ class DistributedMinimaxDNMPC:
             qdr_suffix_gate_rejected_candidates=int(qdr_suffix_gate_rejected_candidates),
             qdr_execution_tube_enabled=bool(qdr_execution_tube_enabled),
             qdr_execution_tube_multiplier=float(qdr_execution_tube_multiplier),
+            qdr_execution_tube_active_steps=int(qdr_execution_tube_active_steps),
             qdr_mean_execution_tube_radius_m=float(qdr_mean_execution_tube_radius_m),
             qdr_max_execution_tube_radius_m=float(qdr_max_execution_tube_radius_m),
             escape_gap_cost=float(escape_gap_cost),

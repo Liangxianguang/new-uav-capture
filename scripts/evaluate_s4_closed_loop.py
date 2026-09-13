@@ -122,6 +122,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Variant key in --qdr-execution-tube-calibration; required when it has multiple variants.",
     )
+    parser.add_argument(
+        "--qdr-execution-tube-active-steps",
+        type=int,
+        help="Apply the empirical QDR tube only to this many immediate suffix steps.",
+    )
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
@@ -547,6 +552,10 @@ def main() -> None:
         drag_coefficient=args.execution_drag_coefficient,
     )
     distributed_mapping = dict(mpc_document.get("distributed", {}))
+    if args.qdr_execution_tube_active_steps is not None:
+        if int(args.qdr_execution_tube_active_steps) <= 0:
+            raise ValueError("qdr-execution-tube-active-steps must be positive")
+        distributed_mapping["qdr_execution_tube_active_steps"] = int(args.qdr_execution_tube_active_steps)
     qdr_execution_tube_calibration_path = None
     qdr_execution_tube_calibration_variant = None
     if args.qdr_execution_tube_calibration is not None:
@@ -819,6 +828,7 @@ def main() -> None:
                     "qdr_suffix_gate_recovery_count",
                     "qdr_execution_tube_enabled",
                     "qdr_execution_tube_multiplier",
+                    "qdr_execution_tube_active_steps",
                     "qdr_mean_execution_tube_radius_m",
                     "qdr_max_execution_tube_radius_m",
                     "qdr_precondition_recovery_recommended_rate",
@@ -907,6 +917,11 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/execution_tube_multiplier",
                 overall.get("mean_qdr_execution_tube_multiplier", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/execution_tube_active_steps",
+                overall.get("mean_qdr_execution_tube_active_steps", float("nan")),
                 0,
             )
             writer.add_scalar(
