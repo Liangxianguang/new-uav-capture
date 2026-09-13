@@ -102,4 +102,3 @@ QDR-off flags、effective config、source hashes 和场景 hash。
 - [ ] 若任一 stress axis 的 safe-capture non-inferiority 和相对 latency gate 同时
   通过，再进行三种子 confirmation；
 - [ ] 在 QDR 通过前不开放 UAKR、RNIC 或 Full 组合，避免把失败原因混在一起。
-
