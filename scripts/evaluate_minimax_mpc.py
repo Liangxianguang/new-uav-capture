@@ -1578,6 +1578,18 @@ def run_episode(
                 "qdr_suffix_gate_rejected_candidates": int(
                     getattr(planner_diagnostics, "qdr_suffix_gate_rejected_candidates", 0)
                 ),
+                "qdr_execution_tube_enabled": bool(
+                    getattr(planner_diagnostics, "qdr_execution_tube_enabled", False)
+                ),
+                "qdr_execution_tube_multiplier": float(
+                    getattr(planner_diagnostics, "qdr_execution_tube_multiplier", 1.0)
+                ),
+                "qdr_mean_execution_tube_radius_m": float(
+                    getattr(planner_diagnostics, "qdr_mean_execution_tube_radius_m", 0.0)
+                ),
+                "qdr_max_execution_tube_radius_m": float(
+                    getattr(planner_diagnostics, "qdr_max_execution_tube_radius_m", 0.0)
+                ),
                 "planner_status": 1.0 if planner_status == "success" else 0.0,
                 "planner_fallback": 1.0 if planner_status in {"fallback", "partial_fallback"} else 0.0,
                 "planner_valid": 1.0 if planner_status in {"success", "not_converged", "partial_fallback"} else 0.0,
@@ -1812,6 +1824,18 @@ def run_episode(
             step_rows, "qdr_suffix_minimum_barrier_m"
         ),
         "qdr_suffix_admissible_rate": _diagnostic_mean(step_rows, "qdr_suffix_admissible"),
+        "qdr_execution_tube_enabled_rate": _diagnostic_mean(
+            step_rows, "qdr_execution_tube_enabled"
+        ),
+        "mean_qdr_execution_tube_multiplier": _diagnostic_mean(
+            step_rows, "qdr_execution_tube_multiplier"
+        ),
+        "mean_qdr_execution_tube_radius_m": _diagnostic_mean(
+            step_rows, "qdr_mean_execution_tube_radius_m"
+        ),
+        "max_qdr_execution_tube_radius_m": _diagnostic_max(
+            step_rows, "qdr_max_execution_tube_radius_m"
+        ),
         "qdr_precondition_recovery_recommended_rate": _diagnostic_rate(
             step_rows, "qdr_precondition_recovery_recommended"
         ),
@@ -2280,6 +2304,18 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_suffix_admissible_rate": finite_mean(
             [row["qdr_suffix_admissible_rate"] for row in rows]
+        ),
+        "qdr_execution_tube_enabled_rate": finite_mean(
+            [row["qdr_execution_tube_enabled_rate"] for row in rows]
+        ),
+        "mean_qdr_execution_tube_multiplier": finite_mean(
+            [row["mean_qdr_execution_tube_multiplier"] for row in rows]
+        ),
+        "mean_qdr_execution_tube_radius_m": finite_mean(
+            [row["mean_qdr_execution_tube_radius_m"] for row in rows]
+        ),
+        "max_qdr_execution_tube_radius_m": finite_max(
+            [row["max_qdr_execution_tube_radius_m"] for row in rows]
         ),
         "qdr_precondition_recovery_recommended_rate": finite_mean(
             [row["qdr_precondition_recovery_recommended_rate"] for row in rows]

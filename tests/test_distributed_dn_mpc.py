@@ -97,6 +97,40 @@ def test_queue_aware_peer_rollout_keeps_single_agent_shape() -> None:
     assert plan.diagnostics.qdr_suffix_gate_exhausted is False
 
 
+def test_qdr_execution_tube_is_explicit_and_auditable() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 4,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.08,
+        "command_noise_bound_mps": 0.24,
+        "velocity_time_constant_seconds": 0.2,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+
+    nominal = _planner("ideal")
+    nominal_plan = nominal.plan(observation, _scenarios(), step_index=0)
+    assert nominal_plan.diagnostics.qdr_execution_tube_enabled is False
+    assert nominal_plan.diagnostics.qdr_mean_execution_tube_radius_m == 0.0
+    assert nominal_plan.diagnostics.qdr_max_execution_tube_radius_m == 0.0
+
+    calibrated = _planner(
+        "ideal",
+        qdr_execution_tube_enabled=True,
+        qdr_execution_tube_multiplier=2.0,
+    )
+    calibrated_plan = calibrated.plan(observation, _scenarios(), step_index=0)
+    assert calibrated_plan.diagnostics.qdr_execution_tube_enabled is True
+    assert calibrated_plan.diagnostics.qdr_execution_tube_multiplier == 2.0
+    assert calibrated_plan.diagnostics.qdr_mean_execution_tube_radius_m > 0.0
+    assert calibrated_plan.diagnostics.qdr_max_execution_tube_radius_m >= (
+        calibrated_plan.diagnostics.qdr_mean_execution_tube_radius_m
+    )
+
+
 def test_local_candidates_remove_duplicate_weighted_reference() -> None:
     observation = _observation()
     observation["execution"] = {

@@ -1,0 +1,45 @@
+experiment_name: phase52_qdr_execution_contract
+
+# This variant mirrors the Phase 48 validation-confirmation execution block.
+# It is used only to calibrate an empirical QDR suffix margin on an independent
+# command sample; it is not a safety certificate.
+variants:
+  qdr_delay4_noise008:
+    enabled: true
+    random_seed_offset: 104729
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+    max_speed_scale: 1.0
+    max_acceleration_scale: 1.0
+    mass_scale: 1.0
+    randomize_per_episode: false
+    max_speed_scale_range: [1.0, 1.0]
+    max_acceleration_scale_range: [1.0, 1.0]
+    mass_scale_range: [1.0, 1.0]
+    drag_coefficient_range: [0.0, 0.0]
+
+  # Stress calibration used to freeze one multiplier for the closed-loop
+  # diagnostic.  The online evaluator still exposes the multiplier explicitly.
+  qdr_delay4_noise008_randomized:
+    enabled: true
+    random_seed_offset: 104729
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.40
+    drag_coefficient: 0.10
+    max_speed_scale: 1.0
+    max_acceleration_scale: 1.0
+    mass_scale: 1.0
+    randomize_per_episode: true
+    max_speed_scale_range: [0.85, 0.98]
+    max_acceleration_scale_range: [0.70, 0.95]
+    mass_scale_range: [0.90, 1.10]
+    drag_coefficient_range: [0.05, 0.20]

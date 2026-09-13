@@ -36,6 +36,7 @@ from .reachability_interception import (
 from .pursuit_env import TETRAHEDRON_DIRECTIONS, _unit
 from .execution_dynamics import (
     parameters_from_observation,
+    reachable_tube_radii,
     rollout_action_candidates,
     rollout_action_sequence,
 )
@@ -216,6 +217,10 @@ class DistributedDNMPCConfig:
     # Optional QDR optimization.  It is deliberately off by default until
     # action-selection equivalence has been checked against the full scorer.
     qdr_feasibility_first: bool = False
+    # Optional empirical execution-error tube for the controllable suffix.
+    # This is a calibrated diagnostic margin, not a formal safety certificate.
+    qdr_execution_tube_enabled: bool = False
+    qdr_execution_tube_multiplier: float = 1.0
 
     def __post_init__(self) -> None:
         if self.communication_mode not in _COMMUNICATION_MODES:
@@ -244,6 +249,11 @@ class DistributedDNMPCConfig:
             raise ValueError("message_dropout_probability must lie in [0, 1].")
         if not str(self.fallback_policy).strip():
             raise ValueError("fallback_policy must be non-empty.")
+        if (
+            not np.isfinite(float(self.qdr_execution_tube_multiplier))
+            or float(self.qdr_execution_tube_multiplier) < 1.0
+        ):
+            raise ValueError("qdr_execution_tube_multiplier must be finite and at least one.")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "DistributedDNMPCConfig":
@@ -277,6 +287,10 @@ class DistributedDNMPCDiagnostics:
     qdr_suffix_gate_active: bool = False
     qdr_suffix_gate_exhausted: bool = False
     qdr_suffix_gate_rejected_candidates: int = 0
+    qdr_execution_tube_enabled: bool = False
+    qdr_execution_tube_multiplier: float = 1.0
+    qdr_mean_execution_tube_radius_m: float = 0.0
+    qdr_max_execution_tube_radius_m: float = 0.0
     escape_gap_cost: float = float("nan")
     escape_gap_max_rad: float = float("nan")
     escape_gap_escape_rad: float = float("nan")
@@ -327,6 +341,10 @@ class DistributedDNMPCDiagnostics:
             "qdr_suffix_gate_active": self.qdr_suffix_gate_active,
             "qdr_suffix_gate_exhausted": self.qdr_suffix_gate_exhausted,
             "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
+            "qdr_execution_tube_enabled": self.qdr_execution_tube_enabled,
+            "qdr_execution_tube_multiplier": self.qdr_execution_tube_multiplier,
+            "qdr_mean_execution_tube_radius_m": self.qdr_mean_execution_tube_radius_m,
+            "qdr_max_execution_tube_radius_m": self.qdr_max_execution_tube_radius_m,
             "escape_gap_cost": self.escape_gap_cost,
             "escape_gap_max_rad": self.escape_gap_max_rad,
             "escape_gap_escape_rad": self.escape_gap_escape_rad,
@@ -427,6 +445,7 @@ class DistributedMinimaxDNMPC:
         self._fc_dbf_last_metrics: dict[str, np.ndarray | float | bool] | None = None
         self._fc_dbf_last_gate_exhausted = False
         self._qdr_rollout_cache: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray]] = {}
+        self._qdr_execution_tube_radii: np.ndarray | None = None
 
     def plan(
         self,
@@ -450,6 +469,10 @@ class DistributedMinimaxDNMPC:
         # their execution rollouts within this plan only; never carry them to
         # a later environment step.
         self._qdr_rollout_cache = {}
+        self._qdr_execution_tube_radii = self._prepare_qdr_execution_tube(
+            observation,
+            positions.shape[0],
+        )
         self._stats = {
             "messages_attempted": 0,
             "messages_sent": 0,
@@ -597,6 +620,7 @@ class DistributedMinimaxDNMPC:
                     assignments = np.asarray(self._fc_dbf_last_metrics["assignments"], dtype=np.int64)
                     self._fc_dbf_previous_assignment = assignments[0, critical_scenario].copy()
             fusion_summary = belief_fusion_diagnostics(observation, self.config)
+            qdr_execution_tube_summary = self._qdr_execution_tube_summary()
             diagnostics = self._diagnostics(
                 status=status,
                 iterations=iterations,
@@ -615,6 +639,7 @@ class DistributedMinimaxDNMPC:
                 qdr_suffix_gate_rejected_candidates=int(
                     self._stats["qdr_suffix_gate_rejected_candidates"]
                 ),
+                **qdr_execution_tube_summary,
                 **escape_gap_summary,
                 **fc_summary,
                 **fusion_summary,
@@ -648,6 +673,48 @@ class DistributedMinimaxDNMPC:
         if sequence.shape != expected or not np.isfinite(sequence).all():
             return None
         return _clip_rows(sequence, self.config.max_speed_mps)
+
+    def _prepare_qdr_execution_tube(
+        self,
+        observation: dict[str, Any],
+        defender_count: int,
+    ) -> np.ndarray:
+        """Return a suffix-indexed empirical execution tube for this plan.
+
+        The tube is deliberately opt-in.  A disabled tube returns exact zeros,
+        preserving the historical QDR action-selection path bit-for-bit.  When
+        enabled, the radius is derived from the shared execution dynamics and
+        a validation-frozen multiplier; it is a robust diagnostic margin, not a
+        forward-invariance certificate.
+        """
+
+        horizon = int(self.config.horizon_steps)
+        if not _qdr_execution_aware(observation) or not self.distributed.qdr_execution_tube_enabled:
+            return np.zeros((horizon, int(defender_count)), dtype=np.float64)
+        parameters = parameters_from_observation(observation, float(self.config.dt_seconds))
+        return reachable_tube_radii(
+            parameters,
+            int(defender_count),
+            horizon,
+            multiplier=float(self.distributed.qdr_execution_tube_multiplier),
+        )
+
+    def _qdr_execution_tube_summary(self) -> dict[str, float | bool]:
+        radii = self._qdr_execution_tube_radii
+        enabled = bool(self.distributed.qdr_execution_tube_enabled and radii is not None)
+        if not enabled or radii is None:
+            return {
+                "qdr_execution_tube_enabled": False,
+                "qdr_execution_tube_multiplier": float(self.distributed.qdr_execution_tube_multiplier),
+                "qdr_mean_execution_tube_radius_m": 0.0,
+                "qdr_max_execution_tube_radius_m": 0.0,
+            }
+        return {
+            "qdr_execution_tube_enabled": True,
+            "qdr_execution_tube_multiplier": float(self.distributed.qdr_execution_tube_multiplier),
+            "qdr_mean_execution_tube_radius_m": float(np.mean(radii)),
+            "qdr_max_execution_tube_radius_m": float(np.max(radii)),
+        }
 
     def _initial_sequences(
         self,
@@ -817,6 +884,7 @@ class DistributedMinimaxDNMPC:
         self,
         observation: dict[str, Any],
         current: np.ndarray,
+        agent_id: int,
         obstacles: list[dict[str, Any]],
         lower: np.ndarray,
         upper: np.ndarray,
@@ -832,6 +900,20 @@ class DistributedMinimaxDNMPC:
         equivalent to the current suffix-gate feasibility test.
         """
 
+        tube_radii = (
+            np.asarray(self._qdr_execution_tube_radii, dtype=np.float64)
+            if self._qdr_execution_tube_radii is not None
+            else np.zeros(
+                (
+                    self.config.horizon_steps,
+                    np.asarray(observation["defender_positions"]).shape[0],
+                ),
+                dtype=np.float64,
+            )
+        )
+        if tube_radii.shape[0] != self.config.horizon_steps:
+            raise ValueError("QDR execution tube must have one row per horizon step.")
+        own_tube = tube_radii[:, int(agent_id)][None, :]
         qdr_candidate_violation = np.zeros(current.shape[0], dtype=np.float64)
         for peer, message in known.items():
             peer_actions = peer_sequences.get(peer)
@@ -846,6 +928,8 @@ class DistributedMinimaxDNMPC:
             )
             inter_agent = np.maximum(
                 self.config.minimum_inter_agent_distance_m
+                + own_tube
+                + tube_radii[:, int(peer)][None, :]
                 - np.linalg.norm(current - peer_positions[None, :, :], axis=-1),
                 0.0,
             )
@@ -887,7 +971,8 @@ class DistributedMinimaxDNMPC:
                     -np.max(-signed, axis=-1),
                 )
             violation = np.maximum(
-                self.config.safety_margin_m - (clearance - self.config.drone_radius_m),
+                self.config.safety_margin_m
+                - (clearance - self.config.drone_radius_m - own_tube),
                 0.0,
             )
             qdr_candidate_violation = np.maximum(
@@ -896,8 +981,8 @@ class DistributedMinimaxDNMPC:
             )
 
         boundary = np.maximum(
-            np.max(np.maximum(lower[None, None, :] - current, 0.0), axis=2),
-            np.max(np.maximum(current - upper[None, None, :], 0.0), axis=2),
+            np.max(np.maximum(lower[None, None, :] - current + own_tube[..., None], 0.0), axis=2),
+            np.max(np.maximum(current - upper[None, None, :] + own_tube[..., None], 0.0), axis=2),
         )
         return np.maximum(qdr_candidate_violation, np.max(boundary, axis=1))
 
@@ -978,6 +1063,14 @@ class DistributedMinimaxDNMPC:
         lower = np.asarray(observation.get("world_lower_bounds", [-np.inf] * 3), dtype=np.float64)
         upper = np.asarray(observation.get("world_upper_bounds", [np.inf] * 3), dtype=np.float64)
         qdr_execution_aware = _qdr_execution_aware(observation)
+        execution_tube_radii = (
+            np.asarray(self._qdr_execution_tube_radii, dtype=np.float64)
+            if qdr_execution_aware and self._qdr_execution_tube_radii is not None
+            else np.zeros((self.config.horizon_steps, positions.shape[0]), dtype=np.float64)
+        )
+        if execution_tube_radii.shape != (self.config.horizon_steps, positions.shape[0]):
+            raise ValueError("QDR execution tube must have shape [horizon, defenders].")
+        own_execution_tube = execution_tube_radii[:, int(agent_id)][None, :]
         # QDR evaluates a command suffix over the full public horizon.  The
         # suffix gate therefore uses every public obstacle, while ordinary
         # distributed DN-MPC retains its local-obstacle information boundary.
@@ -1015,6 +1108,7 @@ class DistributedMinimaxDNMPC:
             qdr_candidate_violation = self._qdr_candidate_violation(
                 observation,
                 current,
+                agent_id,
                 obstacles,
                 lower,
                 upper,
@@ -1255,6 +1349,8 @@ class DistributedMinimaxDNMPC:
             )
             inter_agent = np.maximum(
                 self.config.minimum_inter_agent_distance_m
+                + own_execution_tube
+                + execution_tube_radii[:, int(peer)][None, :]
                 - np.linalg.norm(current - peer_positions[None, :, :], axis=-1),
                 0.0,
             )
@@ -1294,7 +1390,8 @@ class DistributedMinimaxDNMPC:
                     -np.max(-signed, axis=-1),
                 )
             violation = np.maximum(
-                self.config.safety_margin_m - (clearance - self.config.drone_radius_m),
+                self.config.safety_margin_m
+                - (clearance - self.config.drone_radius_m - own_execution_tube),
                 0.0,
             )
             result += self.config.weight_obstacle * np.sum(violation * violation, axis=1)[:, None]
@@ -1305,8 +1402,14 @@ class DistributedMinimaxDNMPC:
                 )
 
         boundary = np.maximum(
-            np.max(np.maximum(lower[None, None, :] - current, 0.0), axis=2),
-            np.max(np.maximum(current - upper[None, None, :], 0.0), axis=2),
+            np.max(
+                np.maximum(lower[None, None, :] - current + own_execution_tube[..., None], 0.0),
+                axis=2,
+            ),
+            np.max(
+                np.maximum(current - upper[None, None, :] + own_execution_tube[..., None], 0.0),
+                axis=2,
+            ),
         )
         result += self.config.weight_boundary * np.sum(boundary * boundary, axis=1)[:, None]
         if qdr_execution_aware:
@@ -1662,6 +1765,10 @@ class DistributedMinimaxDNMPC:
         qdr_suffix_gate_active: bool = False,
         qdr_suffix_gate_exhausted: bool = False,
         qdr_suffix_gate_rejected_candidates: int = 0,
+        qdr_execution_tube_enabled: bool = False,
+        qdr_execution_tube_multiplier: float = 1.0,
+        qdr_mean_execution_tube_radius_m: float = 0.0,
+        qdr_max_execution_tube_radius_m: float = 0.0,
         escape_gap_cost: float = float("nan"),
         escape_gap_max_rad: float = float("nan"),
         escape_gap_escape_rad: float = float("nan"),
@@ -1712,6 +1819,10 @@ class DistributedMinimaxDNMPC:
             qdr_suffix_gate_active=bool(qdr_suffix_gate_active),
             qdr_suffix_gate_exhausted=bool(qdr_suffix_gate_exhausted),
             qdr_suffix_gate_rejected_candidates=int(qdr_suffix_gate_rejected_candidates),
+            qdr_execution_tube_enabled=bool(qdr_execution_tube_enabled),
+            qdr_execution_tube_multiplier=float(qdr_execution_tube_multiplier),
+            qdr_mean_execution_tube_radius_m=float(qdr_mean_execution_tube_radius_m),
+            qdr_max_execution_tube_radius_m=float(qdr_max_execution_tube_radius_m),
             escape_gap_cost=float(escape_gap_cost),
             escape_gap_max_rad=float(escape_gap_max_rad),
             escape_gap_escape_rad=float(escape_gap_escape_rad),

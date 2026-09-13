@@ -1,0 +1,18 @@
+experiment_name: phase52_qdr_execution_tube_calibration
+base_environment_config: capture_radius_pursuit_central_v4_flee.yaml
+execution_audit_config: phase52_qdr_execution_contract.yaml
+seed: 913713
+samples_per_variant: 2048
+horizon_steps: 8
+defenders: 4
+target_coverage: 0.99
+quantile: 0.99
+variants:
+  - qdr_delay4_noise008
+  - qdr_delay4_noise008_randomized
+reporting:
+  tensorboard_required: true
+  preserve_samples_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true

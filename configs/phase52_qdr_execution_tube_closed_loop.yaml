@@ -1,0 +1,53 @@
+experiment_name: phase52_qdr_execution_tube_closed_loop
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# The multiplier is frozen from the independent Phase 52 calibration.  It is
+# passed to evaluate_s4_closed_loop.py with --qdr-execution-tube-multiplier.
+# This empirical tube is a diagnostic margin, not a formal safety certificate.
+calibration:
+  source: results/phase52_qdr_execution_tube_calibration_v2/summary.json
+  selected_variant: qdr_delay4_noise008_randomized
+  target_coverage: 0.99
+  quantile: 0.99
+  frozen_multiplier: 2.0342518477112503
+
+scene_manifest: results/phase48_qdr_liveness_confirmation_scenes/scenes.jsonl
+episodes: 40
+seed: 727201
+
+thread_control:
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  execution: sequential_single_process
+
+phase17:
+  queue_aware_rollout: true
+  queue_aware_safety_projection: true
+  adaptive_k: false
+  reachability_normalized_cost: false
+  execution:
+    enabled: true
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+
+evaluation:
+  split: validation_development
+  methods: [distributed_delayed]
+  safety_layer: local_cbf
+  decision: validation_selection
+  paired_scene_prefix_episodes: 40
+  same_length_prefix_control_steps: 18
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_latency_percentiles: [50, 95, 99]

@@ -107,6 +107,11 @@ def parse_args() -> argparse.Namespace:
         choices=("immutable", "replace_nonexecuting", "flush_pending"),
         help="When a public-geometry QDR prefix is unsafe, request the configured emergency-brake authority.",
     )
+    parser.add_argument(
+        "--qdr-execution-tube-multiplier",
+        type=float,
+        help="Enable the validation-frozen empirical QDR execution tube with this multiplier.",
+    )
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
@@ -532,6 +537,14 @@ def main() -> None:
         drag_coefficient=args.execution_drag_coefficient,
     )
     distributed_mapping = dict(mpc_document.get("distributed", {}))
+    if args.qdr_execution_tube_multiplier is not None:
+        if (
+            not np.isfinite(float(args.qdr_execution_tube_multiplier))
+            or float(args.qdr_execution_tube_multiplier) < 1.0
+        ):
+            raise ValueError("qdr-execution-tube-multiplier must be finite and at least one")
+        distributed_mapping["qdr_execution_tube_enabled"] = True
+        distributed_mapping["qdr_execution_tube_multiplier"] = float(args.qdr_execution_tube_multiplier)
     device = select_device(args.device)
     checkpoint_data = (
         model_from_checkpoint(args.checkpoint, device, args.official_s4_root)
@@ -585,6 +598,7 @@ def main() -> None:
         "environment_config": str(args.environment_config.resolve()),
         "mpc_config": str(args.mpc_config.resolve()),
         "planner": planner_config.__dict__,
+        "distributed": distributed_mapping,
         "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
         "official_s4_root": None if args.official_s4_root is None else str(args.official_s4_root.resolve()),
         "candidate_source": args.candidate_source,
@@ -743,6 +757,10 @@ def main() -> None:
                     "qdr_suffix_gate_first_exhaustion_step",
                     "qdr_suffix_gate_max_exhaustion_streak_steps",
                     "qdr_suffix_gate_recovery_count",
+                    "qdr_execution_tube_enabled",
+                    "qdr_execution_tube_multiplier",
+                    "qdr_mean_execution_tube_radius_m",
+                    "qdr_max_execution_tube_radius_m",
                     "qdr_precondition_recovery_recommended_rate",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
@@ -821,6 +839,26 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/suffix_minimum_clearance_m", overall["qdr_suffix_minimum_clearance_m"], 0)
             writer.add_scalar("Summary/QDR/suffix_minimum_barrier_m", overall["qdr_suffix_minimum_barrier_m"], 0)
             writer.add_scalar("Summary/QDR/suffix_admissible_rate", overall["qdr_suffix_admissible_rate"], 0)
+            writer.add_scalar(
+                "Summary/QDR/execution_tube_enabled_rate",
+                overall.get("qdr_execution_tube_enabled_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/execution_tube_multiplier",
+                overall.get("mean_qdr_execution_tube_multiplier", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/mean_execution_tube_radius_m",
+                overall.get("mean_qdr_execution_tube_radius_m", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/max_execution_tube_radius_m",
+                overall.get("max_qdr_execution_tube_radius_m", float("nan")),
+                0,
+            )
             writer.add_scalar(
                 "Summary/QDR/suffix_gate_active_rate",
                 overall.get("qdr_suffix_gate_active_rate", float("nan")),
