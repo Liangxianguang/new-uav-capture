@@ -505,6 +505,10 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 ### P31：Phase 56 强基线、规模化场景与 QDR 形式化（计划中）
 
+- [x] 完成独立 QDR deterministic time-index checker；队列长度 `0/2/4/8` 全部
+  通过，最大 position/velocity equivalence error 为 `0`，无 double delay；
+- [x] 完成三 block 场景生成器 smoke，验证 upper/lower mirror pair、split
+  隔离和 delay/noise、communication/execution 条件字段；
 - [ ] 新建最低 360 episodes / 180 mirror groups 的全新场景集，划分
   development-calibration、development-confirmation 和 locked-diagnostic；
 - [ ] 实现 current-state delayed-MPC、fixed-tube MPC、queue-aware tube MPC、

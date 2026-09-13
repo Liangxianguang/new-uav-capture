@@ -1,0 +1,23 @@
+experiment_name: phase56_qdr_formalization_smoke
+
+# Independent deterministic checker for queue+suffix time indexing. This is
+# not a controller safety proof and does not read target truth.
+seed: 20260913
+defenders: 4
+horizon_steps: 8
+dt_seconds: 0.1
+queue_lengths: [0, 2, 4, 8]
+
+checks:
+  deterministic_equivalence_error_max: 1.0e-9
+  candidate_action_application_index: "t + d + k"
+  candidate_state_visibility_index: "t + d + k + 1"
+  terminal_delay_count: 1
+  double_delay_forbidden: true
+
+reporting:
+  tensorboard_required: true
+  preserve_summary_json: true
+  preserve_effective_config: true
+  claim_boundary: "time-index equivalence only; not a safety certificate"
+
