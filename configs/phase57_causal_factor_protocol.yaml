@@ -1,0 +1,119 @@
+experiment_name: phase57_causal_factor_calibration
+stage: fresh_development_calibration
+protocol_name: phase57_s4_causal_factor
+episodes_minimum: 360
+mirror_groups_minimum: 180
+groups_per_block: 45
+seeds: [727201, 727202, 727203]
+
+# The runner consumes the same S4 adaptive-branching geometry contract as the
+# existing evaluator; frozen scene records override only the declared factors.
+seed_blocks:
+  pilot: 971101
+episodes_per_split:
+  pilot: 120
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.50, 0.65, 0.80]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: phase57_frozen_public_belief
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 250
+
+# Every method sees the same frozen scene. These blocks vary only the declared
+# environment factors and are used to separate QDR, asynchronous, and
+# interaction effects.
+blocks:
+  - name: id_replication
+    groups: 45
+    factors:
+      action_delay_steps: [4]
+      command_noise_std: [0.08]
+      message_delay_steps: [2]
+      message_dropout_probability: [0.05]
+      velocity_time_constant_seconds: [0.0]
+  - name: delay_noise_factorial
+    groups: 45
+    factors:
+      action_delay_steps: [2, 4, 6, 8]
+      command_noise_std: [0.04, 0.08, 0.12]
+  - name: communication_factorial
+    groups: 45
+    factors:
+      message_dropout_probability: [0.0, 0.1, 0.2, 0.3]
+      message_delay_steps: [0, 2, 4]
+      velocity_time_constant_seconds: [0.0, 0.1]
+  - name: interaction_stress
+    groups: 45
+    factors:
+      action_delay_steps: [4, 8]
+      command_noise_std: [0.08, 0.12]
+      message_dropout_probability: [0.1, 0.3]
+      message_delay_steps: [2, 4]
+      velocity_time_constant_seconds: [0.1]
+
+methods:
+  - id: B0_current_state_delayed_mpc
+    qdr: false
+    distributed_mode: synchronous
+  - id: B1_qdr_mpc
+    qdr: true
+    distributed_mode: synchronous
+  - id: B4_synchronous_distributed_mpc
+    qdr: false
+    distributed_mode: synchronous
+  - id: B5_asynchronous_distributed_mpc
+    qdr: false
+    distributed_mode: asynchronous
+  - id: B6_qdr_asynchronous_mpc
+    qdr: true
+    distributed_mode: asynchronous
+
+fairness:
+  predictor_condition: both
+  sampling_seed: 745102
+  sampling_steps: 8
+  projection_iterations: 4
+  horizon_steps: 8
+  control_horizon_steps: 3
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  same_wall_time_budget: true
+  same_candidate_limit: true
+
+split_policy:
+  development_calibration: mirror_group_disjoint
+  development_confirmation: mirror_group_disjoint
+  locked_diagnostic: frozen_only
+  locked_tuning: forbidden
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  latency_percentiles: [50, 95, 99]
+  components: [predictor, planner, qdr_or_tube, safety, total_control]
+  local_cbf_claim: empirical_filter_only
+  robust_clbf_qp_proof: not_claimed
+
+gate_policy:
+  id_safe_capture_noninferiority_lower_bound: -0.02
+  stress_collision_delta_upper_bound: -0.05
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  asynchronous_total_p95_reduction: 0.15
+  multiple_comparison_correction: holm

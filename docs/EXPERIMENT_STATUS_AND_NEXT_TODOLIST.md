@@ -545,6 +545,39 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 详细执行合同、场景矩阵、公式、gate、TensorBoard 标签和六周交付物见
 `docs/PHASE56_STRONG_BASELINES_AND_QDR_FORMALIZATION_TODOLIST.md`。
 
+### P32：Phase 57 因果因素校准与运行时公平性（开发集完成，promotion No-Go）
+
+- [x] 新建并冻结 Phase57 场景矩阵：4 个 block、360 episodes、180 mirror
+  groups；每个 split 为 120 episodes/60 groups，selected-scene hash 为
+  `7484ca57990574d41a77c813267bc6cee975e4059c8017f63e3f6b8d824ebc6d`；
+- [x] 覆盖 `id_replication`、`delay_noise_factorial`、
+  `communication_factorial` 和 `interaction_stress`，显式记录 action delay、
+  command noise、message delay、message dropout 和 tracking time constant；
+- [x] 用三个 predictor seeds 完成 B0/B1/B4/B5/B6 development-calibration，
+  并按 mirror group 做配对 bootstrap；
+- [x] 完整记录 predictor/planner/QDR-or-tube/safety/total 的 p50、p95、p99，
+  同时写入 JSONL、summary 和 TensorBoard；
+- [x] QDR 的 queue-prefix、first-controllable state、suffix 定义和不重复延迟
+  计算检查保持通过；该检查只证明时间索引合同，不构成安全证明；
+- [x] stress collision gate 与 liveness gate 通过；
+- [x] B1 ID non-inferiority 失败：safe-capture paired delta 为
+  `-7.78 pp [-16.67,-1.11]`；B5 相对 B4 的 async efficiency 失败，total-p95
+  reduction 仅 `1.86%`；promotion gate 因此失败；
+- [x] B6 `QDR+async` 在全体 block 上取得较强的条件性 interaction 结果，
+  但不得归因为 QDR 单模块或 asynchronous 单模块的已证实收益；
+- [x] 完成 5-episode 独立进程短探针，确认主矩阵的绝对 runtime 受三进程并发
+  负载影响；短探针不替代正式多 seed benchmark；
+- [x] 明确 `local_cbf` 只是经验过滤器；不宣称 R-CLBF-QP、CLBF certificate、
+  forward invariance 或真实飞行安全证明；
+- [ ] 在 promotion 失败后不运行当前 confirmation/locked 调参；
+- [ ] 先完成 process-isolated、fixed-thread、matched-prefix runtime benchmark，
+  再决定是否建立新的 confirmation protocol；
+- [ ] 若重新推进，必须把 B2/B3/B7 强基线补入新的 calibration，并把 QDR 主效应、
+  async 主效应和 interaction effect 预注册为不同假设。
+
+详细结果、延迟表、QDR 边界和下一阶段 To-do List 见
+`docs/PHASE57_CAUSAL_FACTOR_CALIBRATION_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
@@ -568,6 +601,8 @@ P24 EGC-MPC No-Go freeze
   -> P10b Phase55 queue-prefix-risk UAKR development calibration (completed; No-Go negative ablation)
   -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
   -> P31 Phase56 strong baselines + QDR formalization (development complete; B1/async promotion No-Go)
+  -> P32 Phase57 causal-factor calibration (development complete; ID/async promotion No-Go)
+  -> P32a isolated runtime benchmark + B2/B3/B7 causal matrix (precondition for any new confirmation)
   -> Full confirmation remains closed until a new pre-registered calibration promotes a primary method
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料

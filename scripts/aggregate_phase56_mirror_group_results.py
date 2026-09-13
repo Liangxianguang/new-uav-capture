@@ -15,16 +15,28 @@ from typing import Any
 
 import numpy as np
 
-from aggregate_closed_loop_seed_results import (
-    OUTCOME_METRICS,
-    RunArtifact,
-    bootstrap_metric_matrix,
-    load_groups,
-    metric_summary,
-    paired_method_comparison,
-    read_jsonl,
-    summarize_group,
-)
+try:
+    from aggregate_closed_loop_seed_results import (
+        OUTCOME_METRICS,
+        RunArtifact,
+        bootstrap_metric_matrix,
+        load_groups,
+        metric_summary,
+        paired_method_comparison,
+        read_jsonl,
+        summarize_group,
+    )
+except ModuleNotFoundError:  # Importable from the repository root as well as CLI execution.
+    from scripts.aggregate_closed_loop_seed_results import (
+        OUTCOME_METRICS,
+        RunArtifact,
+        bootstrap_metric_matrix,
+        load_groups,
+        metric_summary,
+        paired_method_comparison,
+        read_jsonl,
+        summarize_group,
+    )
 
 
 DIAGNOSTIC_METRICS = (
@@ -90,7 +102,7 @@ def scene_selectors(artifacts: list[RunArtifact]) -> dict[str, set[int]]:
         selectors["all"].add(episode_id)
         block = str(scene["scene_block"])
         selectors.setdefault(block, set()).add(episode_id)
-        if block == "delay_noise_grid":
+        if block in {"delay_noise_grid", "delay_noise_factorial", "interaction_stress"}:
             overrides = scene["execution_overrides"]
             delay = int(overrides["action_delay_steps"])
             noise = float(overrides["command_noise_std"])
@@ -297,6 +309,25 @@ def markdown_report(payload: dict[str, Any]) -> str:
         comparison = comparisons["B1_qdr_mpc"]
         metrics = comparison["episode_metrics"]
         lines.append(f"| {scope} | {render_delta(metrics['safe_capture_success'])} | {render_delta(metrics['collision'])} | {render_delta(metrics['timeout'])} |")
+    lines.extend(
+        [
+            "",
+            "## Factorized paired contrasts",
+            "",
+            "These contrasts keep scenes and predictor seeds paired. They are evidence for the planned factor decomposition, not a claim that the implementation has isolated every causal pathway.",
+            "",
+            "| Scope | B1-B0 safe/collision | B5-B4 safe/collision | B6-B5 safe/collision | B6-B4 safe/collision |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for scope, pairs in payload["factor_contrasts"].items():
+        def pair_text(key: str) -> str:
+            metrics = pairs[key]["episode_metrics"]
+            return f"{render_delta(metrics['safe_capture_success'])} / {render_delta(metrics['collision'])}"
+        lines.append(
+            f"| {scope} | {pair_text('B1_minus_B0')} | {pair_text('B5_minus_B4')} | "
+            f"{pair_text('B6_minus_B5')} | {pair_text('B6_minus_B4')} |"
+        )
     lines.extend(["", "## Pre-registered gate status", "", "| Gate | Status | Evidence |", "| --- | --- | --- |"])
     for name, gate in payload["gates"].items():
         if name == "promotion":
@@ -357,6 +388,13 @@ def main() -> None:
     summaries: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
     paired: dict[str, Any] = {}
+    factor_contrasts: dict[str, Any] = {}
+    factor_specs = {
+        "B1_minus_B0": ("B0_current_state_delayed_mpc", "B1_qdr_mpc"),
+        "B5_minus_B4": ("B4_synchronous_distributed_mpc", "B5_asynchronous_distributed_mpc"),
+        "B6_minus_B5": ("B5_asynchronous_distributed_mpc", "B6_qdr_asynchronous_mpc"),
+        "B6_minus_B4": ("B4_synchronous_distributed_mpc", "B6_qdr_asynchronous_mpc"),
+    }
     for index, (scope, episode_ids) in enumerate(selectors.items()):
         selected = subset_runs(artifacts, episode_ids)
         rng = np.random.default_rng(args.bootstrap_seed + index)
@@ -378,13 +416,31 @@ def main() -> None:
             for method in methods
             if method != args.reference_method
         }
+        factor_contrasts[scope] = {
+            name: paired_method_comparison(
+                selected,
+                selected,
+                reference_method,
+                candidate_method,
+                rng,
+                args.bootstrap_samples,
+                "mirror_group",
+            )
+            for name, (reference_method, candidate_method) in factor_specs.items()
+        }
+    id_scope = next((scope for scope in ("id_reference", "id_replication") if scope in selectors), None)
+    if id_scope is None:
+        raise ValueError("No ID reference scope is present in the scene manifest.")
+    stress_scope = "stress_delay_ge6_or_noise_ge008"
+    if stress_scope not in paired:
+        raise ValueError("No declared delay/noise stress scope is present in the scene manifest.")
     gates = compute_gates(
         paired["all"],
-        paired["id_reference"],
-        paired["stress_delay_ge6_or_noise_ge008"],
-        diagnostics["id_reference"],
+        paired[id_scope],
+        paired[stress_scope],
+        diagnostics[id_scope],
     )
-    apply_runtime_gates(gates, summaries["all"], summaries["id_reference"])
+    apply_runtime_gates(gates, summaries["all"], summaries[id_scope])
     payload = {
         "schema_version": "phase56-mirror-group-aggregate-v1",
         "report_title": args.report_title,
@@ -397,6 +453,7 @@ def main() -> None:
         "summaries": summaries,
         "diagnostics": diagnostics,
         "paired_vs_b0": paired,
+        "factor_contrasts": factor_contrasts,
         "gates": gates,
     }
     output = args.output.resolve()
