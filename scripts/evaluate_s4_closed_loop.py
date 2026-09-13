@@ -494,6 +494,8 @@ def phase56_method_contract(
         contract.update(canonical_method="distributed_async", distributed_mode="asynchronous", queue_aware_rollout=False)
     elif method == "qdr_asynchronous_mpc":
         contract.update(canonical_method="distributed_async", distributed_mode="asynchronous", queue_aware_rollout=True)
+    elif method == "distributed_async":
+        contract.update(distributed_mode="asynchronous", queue_aware_rollout=False)
     elif method == "fixed_k8_qdr":
         contract.update(canonical_method="worst_case", queue_aware_rollout=True, adaptive_k=False, num_samples=max(8, num_samples))
     if contract["queue_aware_safety_projection"] and not contract["queue_aware_rollout"]:
