@@ -311,6 +311,17 @@ outcome，但 efficiency/liveness promotion 仍为 No-Go；下一步只改变 au
 不能与 noise 或 target behavior 同时改变。详见
 `docs/PHASE44_QDR_DELAY4_NOISE008_CONFIRMATION_REPORT.md`。
 
+### 3.12 Phase 45 QDR prefix recovery authority ablation
+
+固定 delay4、noise008、checkpoint 和其他实验条件后，`replace_nonexecuting` 与
+`flush_pending` 都把 collision/boundary 降为 `0%`，但 safe capture 分别降至
+`81.25%/85.42%`，timeout 分别升至 `18.75%/14.58%`；相对 immutable 的 paired
+safe-capture delta 为 `-16.67 pp [-22.50,-10.83]` 与 `-12.50 pp [-19.17,-5.83]`。
+三种子 summary total p95 由 immutable `123.91 ms` 增至 `136.54/138.55 ms`。
+因此两种可取消 pending 的 authority 均冻结为 safety--liveness negative ablation，
+不能取代 immutable 主分支，也不构成安全证明。详见
+`docs/PHASE45_QDR_AUTHORITY_ABLATION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
