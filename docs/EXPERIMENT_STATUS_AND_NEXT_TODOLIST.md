@@ -431,6 +431,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE16_OOD_GEOMETRY_REPORT.md`。
 
+### P27：Phase 52 QDR empirical execution tube
+
+- [x] 使用独立 `2048` 样本标定 delay4、bounded-noise 和随机执行参数压力块；基础管覆盖率为 `100.00%/43.80%`，校准后均为 `99.02%`。
+- [x] 冻结 multiplier `2.0343` 和逐步 radius vector，将其接入 QDR suffix obstacle/boundary/inter-agent gate；默认关闭，记录配置、hash、逐步诊断和 TensorBoard。
+- [x] 在同一 40-episode validation development prefix 完成 nominal/empirical 配对；safe capture `100.00%→15.00%`，timeout `0.00%→85.00%`，collision/boundary 均为 `0%`。
+- [x] 判定当前版本为 safety--liveness negative ablation：suffix gate exhaustion `89.25%`，不进入 locked-test，不构成安全证明。
+- [ ] 不继续在当前 prefix 扫描 multiplier；若重开，只研究与剩余可恢复时间、局部障碍距离耦合的 gated tube，并新建 development split 与 liveness gate。
+
+详见 `docs/PHASE52_QDR_EMPIRICAL_EXECUTION_TUBE_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
@@ -448,7 +458,8 @@ P24 EGC-MPC No-Go freeze
   -> P9 controlled same-length runtime benchmark (completed; negative runtime ablation)
   -> Phase 50 QDR × UAKR development pilot (completed; efficiency/negative ablation)
    -> P9 single-process fixed-thread benchmark (completed; safety direction reproduced, efficiency No-Go)
-   -> P9 delayed execution contract repair
+   -> Phase 52 empirical QDR tube calibration + closed-loop diagnostic (completed; safety--liveness No-Go)
+   -> P9 delayed execution contract repair / recoverability-aware tube redesign
   -> P10 only then reopen QDR × UAKR, followed by three-seed Full confirmation only if UAKR is repaired
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料

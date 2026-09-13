@@ -412,6 +412,23 @@ efficiency promotion 继续 No-Go；该实验是一种子 development diagnostic
 不改变 Phase48 三种子 confirmation，也不构成安全证明。详见
 `docs/PHASE51_QDR_SINGLE_PROCESS_RUNTIME_REPORT.md`。
 
+### 3.19 Phase 52 QDR empirical execution tube
+
+在独立的 `2048` 样本 calibration 上，固定 delay4/noise008 块的基础管覆盖率为
+`100.00%`，执行参数随机化压力块的基础管覆盖率为 `43.80%`；逐步校准后两者
+均为 `99.02%`。冻结压力块 simultaneous multiplier `2.0342518477112503` 和
+8-step calibrated radius vector，并把它接入 QDR suffix 的 obstacle、boundary、
+inter-agent gate。该半径默认关闭，在线使用 calibration artifact，不是形式化
+reachable-set 证明。
+
+同一 40-episode validation development prefix 上，nominal QDR 与 empirical tube
+QDR 的 safe capture 为 `100.00%/15.00%`，timeout 为 `0.00%/85.00%`，collision
+和 boundary 均为 `0%`；paired safe-capture delta 为
+`-85.00 pp [-95.00,-72.50]`。经验管提高了 clearance 和 suffix admissible rate，
+但 immutable queue 下 gate exhaustion 达 `89.25%`，因此判定为 safety--liveness
+negative ablation，不晋级、不访问 locked-test，也不写成安全证明。详见
+`docs/PHASE52_QDR_EMPIRICAL_EXECUTION_TUBE_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
