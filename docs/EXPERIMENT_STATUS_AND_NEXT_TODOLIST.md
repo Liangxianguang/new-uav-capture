@@ -26,6 +26,8 @@
 
 > Phase 32 freshness--covariance public-belief fusion 更新：已实现只使用公开 belief 的确定性融合，按 confidence、message age、dropout 和 covariance trace 加权，并提供有效样本数、年龄、协方差迹和 deterministic self-anchor fallback 诊断；centralized、distributed 和闭环评估器均已接入，相关 focused tests 为 `34 passed`。在一组 one-seed/20-episode validation development prefix 上，worst-case safe capture 为 `85.0%→90.0%`、collision 为 `15.0%→10.0%`，distributed delayed 两臂均为 `95.0%/5.0%` safe capture/collision；distributed total p95 为 `89.61→100.28 ms`。这只是描述性 pilot，不能作为统计提升或 locked-test 结果；参数已冻结，下一步必须用 fresh holdout 和三种子做 confirmation。完整数值和 TensorBoard 标签见 `docs/PHASE32_FRESHNESS_COVARIANCE_PILOT_REPORT.md`。
 
+> Phase 32b confirmation 更新：在冻结参数、40-episode/20-mirror-group fresh holdout 和 checkpoint seeds `727201/727202/727203` 上，freshness--covariance fusion 的 centralized worst-case safe capture 为 `86.67%`，baseline 为 `87.50%`，paired delta 为 `-0.83 pp [-5.00,+1.67]`；collision 为 `13.33%` vs `12.50%`。distributed delayed 两臂均为 `97.50%` safe capture、`2.50%` collision。worst-case 的 non-inferiority CI 下界低于预设 `-2 pp`，因此该版本 promotion No-Go 并冻结为可复现负消融；不开放 locked-test，也不继续在该 holdout 上调参。6 个 run 均保存了 effective config、hash、episode/step JSONL 和 TensorBoard。详见 `docs/PHASE32_FRESHNESS_COVARIANCE_CONFIRMATION_REPORT.md`。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -403,10 +405,8 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 P24 EGC-MPC No-Go freeze
   -> P25 FC-DBF pilot + P26 confirmation (completed; promotion No-Go)
   -> P26b Phase 16b geometry OOD diagnostic (completed; transfer boundary exposed)
-  -> P32 freshness--covariance fusion fresh three-seed confirmation
-  -> 若通过：作为 QDR/RNIC 支撑臂进入单模块 confirmation
-  -> 若不通过：冻结为 belief-fusion negative ablation
-  -> P8 修复 reset/margin/action-authority/fallback 契约
+  -> P32/P32b freshness--covariance fusion pilot + confirmation (completed; promotion No-Go)
+  -> P8 修复 QDR reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化
   -> P10 三种子端到端 confirmation

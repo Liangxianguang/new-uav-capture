@@ -183,13 +183,15 @@ belief、message age、dropout、confidence 和 covariance，不读取 target tr
 
 Phase 32 的 one-seed/20-episode development pilot 给出一个值得验证但尚未成立的
 信号：worst-case safe capture `85%→90%`、collision `15%→10%`，distributed
-delayed episode outcome 保持 `95%/5%`；distributed total p95
-`89.61→100.28 ms`。因此下一步是冻结参数后在 fresh holdout 上做三种子
-confirmation，而不是在这 20 个 episode 上继续调权重。confirmation 的最低 gate
-为 ID paired safe-capture CI 下界不低于 `-2 pp`、collision/boundary 不增加、至少
-一个 delay/OOD 分层获得预注册改善，并完整报告 predictor/planner/safety/total
-p50/p95/p99。若不通过，该模块降级为可复现 belief-fusion ablation；若通过，才
-作为 QDR 或 RNIC 的支撑臂进入新的 factorial，不修改主参考模型。
+delayed episode outcome 保持 `95%/5%`。冻结参数后的 fresh 40-episode/20-group
+confirmation 已完成：worst-case safe capture 为 `87.50%→86.67%`，paired delta
+`-0.83 pp [-5.00,+1.67]`，collision 为 `12.50%→13.33%`；distributed delayed
+两臂均为 `97.50%/2.50%`。因此该版本未通过 ID non-inferiority gate，已降级为
+可复现 negative/engineering ablation，不再把它作为 QDR 或 RNIC 的支撑臂，也不
+在该 holdout 上继续调权重。完整的 predictor/planner/safety/total
+p50/p95/p99、TensorBoard 和 artifact 记录见
+`docs/PHASE32_FRESHNESS_COVARIANCE_CONFIRMATION_REPORT.md`。若未来提出新的
+public-belief fusion 假设，必须建立新的 development split 和新的预注册 gate。
 
 完整 pilot 记录见 `docs/PHASE32_FRESHNESS_COVARIANCE_PILOT_REPORT.md`。
 
