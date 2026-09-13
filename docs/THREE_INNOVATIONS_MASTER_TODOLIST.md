@@ -429,22 +429,29 @@ QDR 的 safe capture 为 `100.00%/15.00%`，timeout 为 `0.00%/85.00%`，collisi
 negative ablation，不晋级、不访问 locked-test，也不写成安全证明。详见
 `docs/PHASE52_QDR_EMPIRICAL_EXECUTION_TUBE_REPORT.md`。
 
-### 3.20 Phase 53 QDR recoverability-window repair
+### 3.20 Phase 53 QDR recoverability-window repair and confirmation
 
 Phase 52 的全 horizon 经验执行管在 40 个 validation development episode 上造成
-`15%` safe capture 和 `85%` timeout。Phase 53 保持同一 calibration、执行合同、
-scene prefix 和 checkpoint，只把经验管限制在 immediate controllable window 的
+`15%` safe capture 和 `85%` timeout。Phase 53 保持 calibration、执行合同和
+immutable queue authority，只把经验管限制在 immediate controllable window 的
 前 2 个 suffix steps，后续 suffix 交给下一次 replanning。
 
-windowed tube 的 safe capture 为 `100%`，timeout、collision、boundary 均为 `0%`；
-相对 nominal QDR 的 paired safe-capture delta 为 `0 pp [0,0]`，minimum clearance
-增加 `0.0372 m [0.0091,0.0643]`，maximum exhaustion streak 从 `23` 降至 `18`。
-total p50/p95/p99 为 `21.43/25.88/28.04 ms`，没有把 `100 ms` 当作硬门槛。
+在新的 `100`-episode/`50`-mirror-group `validation_confirmation` manifest 上，
+三种子 nominal/windowed 均为 `99.33% [98.00,100.00]` safe capture；paired
+safe-capture delta 为 `0.00 pp [-1.67,+1.67]`，collision/boundary/timeout
+均为 `0.33%`，minimum clearance 增加 `0.044 m [0.030,0.056]`。但最大
+exhaustion streak 为 `30`，超过预注册的 `24` 步上限，因此 windowed tube 的
+liveness gate 为 **No-Go**。该结果说明 2-step window 可以增加短期几何裕量，
+但当前经验管尚未形成可晋级的安全--活性机制，也不是安全证明。
 
-该结果是单 seed、40 episode 的 development pass，不是 superiority 或安全证明。
-下一步必须在新的 confirmation manifest 上完成三种子复现；在此之前不访问
-locked-test，也不与 UAKR/RNIC 混合。详见
-`docs/PHASE53_QDR_RECOVERABILITY_WINDOW_REPORT.md`。
+confirmation pooled predictor/planner/safety/total p50/p95/p99 分别为
+`5.39/7.40/10.71`、`12.51/17.24/22.03`、`0.62/0.85/1.72`、
+`21.54/28.24/36.03 ms`；QDR diagnostic arithmetic-mean percentiles 为
+`0.63/0.96/1.28 ms`。Nominal 对照 total 为 `21.91/32.32/45.00 ms`。
+这些结果没有把 `100 ms` 当作硬门槛。后续冻结 nominal QDR 为当前可用参考，
+windowed tube 保留为负消融；不得在该 confirmation 上继续调 active_steps、
+multiplier 或 planner 权重。详见
+`docs/PHASE53_QDR_RECOVERABILITY_CONFIRMATION_REPORT.md`。
 
 ## 4. 数据集与实验协议冻结
 
