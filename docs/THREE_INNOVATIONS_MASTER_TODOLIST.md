@@ -374,6 +374,17 @@ p50/p95/p99 为 `84.60/103.99/120.67 ms`。因此 QDR 获得该固定执行契�
 先做同 episode-length runtime benchmark，再在全新 development block 测试
 QDR×UAKR。详见 `docs/PHASE48_QDR_LIVENESS_CONFIRMATION_REPORT.md`。
 
+### 3.16 Phase 49 matched-length QDR runtime benchmark
+
+对 Phase48 三种子 off/on 日志按相同 episode index 截取前 18 个控制步；
+双方各保留 300 个 episode、5,400 个 step。QDR-on total p50/p95/p99 为
+`84.81/103.14/117.92 ms`，off 为 `30.59/59.51/68.32 ms`；planner p95
+增加 `35.92 ms`，QDR 自身 p95 约 `2.90 ms`。该设计消除了 episode 终止长度
+混杂，但原始日志来自独立 evaluator 进程，因此不是 process-isolated 部署
+基准。结论为 QDR efficiency promotion No-Go，下一步研究 candidate rollout/
+suffix gate 的语义等价优化，并保留单进程固定线程 benchmark。详见
+`docs/PHASE49_QDR_RUNTIME_BENCHMARK_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结
