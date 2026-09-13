@@ -53,3 +53,23 @@ def test_phase58_split_is_deterministic_and_balanced() -> None:
         "locked_diagnostic",
     ]
     assert len(BLOCKS) == 4
+
+
+def test_phase60_rollout_policy_is_explicitly_overridable() -> None:
+    from scripts.generate_phase58_delayed_planning_scenes import build_records
+    from scripts.evaluate_s4_branching import load_protocol
+    from evaluate_minimax_mpc import DEFAULT_ENVIRONMENT_CONFIG
+    from pathlib import Path
+
+    protocol = load_protocol(Path("configs/phase60_qdr_revalidation_protocol.yaml"))
+    records = build_records(
+        protocol,
+        DEFAULT_ENVIRONMENT_CONFIG,
+        groups_per_block=3,
+        seed_start=991101,
+        rollout_policy="phase60_qdr_revalidation_matrix",
+    )
+
+    assert {record["rollout_policy"] for record in records} == {
+        "phase60_qdr_revalidation_matrix"
+    }

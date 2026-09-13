@@ -144,7 +144,7 @@ def audit_matrix(scenes: Path, manifest: Path) -> dict[str, Any]:
     if any(value != expected_per_split for value in split_counts.values()):
         raise ValueError(f"unexpected split counts: {split_counts}")
     return {
-        "experiment_name": "phase58_scene_matrix_audit",
+        "experiment_name": f"{manifest_data.get('name', 'phase58_scene_matrix')}_audit",
         "scenes": str(scene_path),
         "manifest": str(manifest_path),
         "scene_manifest_sha256": scene_hash,

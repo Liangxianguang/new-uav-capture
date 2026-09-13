@@ -91,6 +91,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--groups-per-block", type=int, default=60)
     parser.add_argument("--seed-start", type=int, default=981101)
     parser.add_argument("--manifest-name", default="phase58_delayed_planning_matrix")
+    parser.add_argument(
+        "--rollout-policy",
+        default="phase58_delayed_planning_matrix",
+        help="Immutable provenance label stored in each scene record.",
+    )
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--environment-config", type=Path, default=DEFAULT_ENVIRONMENT_CONFIG)
     return parser.parse_args()
@@ -199,6 +204,7 @@ def build_records(
     *,
     groups_per_block: int,
     seed_start: int,
+    rollout_policy: str = "phase58_delayed_planning_matrix",
 ) -> list[dict[str, Any]]:
     if groups_per_block <= 0 or groups_per_block % 3:
         raise ValueError("groups_per_block must be positive and divisible by three")
@@ -229,7 +235,7 @@ def build_records(
                             "observation_condition": condition_id,
                             "pursuit_overrides": copy.deepcopy(pursuit),
                             "execution_overrides": copy.deepcopy(execution),
-                            "rollout_policy": "phase58_delayed_planning_matrix",
+                            "rollout_policy": str(rollout_policy),
                             "scene_block": block_name,
                             "evaluation_split": split,
                             "condition_id": condition_id,
@@ -309,6 +315,7 @@ def main() -> None:
         args.environment_config.resolve(),
         groups_per_block=args.groups_per_block,
         seed_start=args.seed_start,
+        rollout_policy=str(args.rollout_policy),
     )
     validate_records(records, args.groups_per_block)
     output.mkdir(parents=True, exist_ok=True)
@@ -331,6 +338,7 @@ def main() -> None:
         "mirror_groups": len(records) // 2,
         "groups_per_block": int(args.groups_per_block),
         "seed_start": int(args.seed_start),
+        "rollout_policy": str(args.rollout_policy),
         "blocks": list(BLOCKS),
         "block_counts_episodes": block_counts,
         "split_counts_episodes": split_counts,

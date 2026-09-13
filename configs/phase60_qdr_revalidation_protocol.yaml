@@ -1,0 +1,139 @@
+experiment_name: phase60_qdr_revalidation
+stage: fresh_calibration_confirmation_locked_diagnostic
+episodes_minimum: 360
+episodes_target: 360
+mirror_groups_minimum: 180
+mirror_groups_target: 180
+groups_per_block: 45
+seed_blocks:
+  pilot: 991101
+episodes_per_split:
+  pilot: 120
+
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.50, 0.65, 0.80]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: phase60_nominal_public_belief
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 300
+
+blocks:
+  - name: id_reference
+    groups: 45
+    factors:
+      action_delay_steps: [4]
+      command_noise_std: [0.08]
+      message_delay_steps: [2]
+      message_dropout_probability: [0.05]
+      velocity_time_constant_seconds: [0.0]
+      drag_coefficient: [0.0]
+  - name: delay_noise_factorial
+    groups: 45
+    factors:
+      action_delay_steps: [0, 2, 4, 6, 8, 10]
+      command_noise_std: [0.00, 0.04, 0.08, 0.12, 0.16]
+      allocation: fractional_factorial
+  - name: communication_execution_factorial
+    groups: 45
+    factors:
+      message_delay_steps: [0, 2, 4, 6]
+      message_dropout_probability: [0.00, 0.10, 0.20, 0.30]
+      velocity_time_constant_seconds: [0.0, 0.10, 0.20]
+      drag_coefficient: [0.0, 0.05]
+      allocation: fractional_factorial
+  - name: joint_stress_transfer
+    groups: 45
+    factors:
+      action_delay_steps: [8, 10]
+      command_noise_std: [0.12, 0.16]
+      message_delay_steps: [4, 6]
+      message_dropout_probability: [0.20, 0.30]
+      velocity_time_constant_seconds: [0.10, 0.20]
+      drag_coefficient: [0.05]
+      geometry: training_ood_transfer
+
+methods:
+  - id: B0_strong_delayed_mpc
+    contract: known_delay_without_queue_rollout
+  - id: B1_fixed_tube_mpc
+    contract: calibration_only_fixed_reachable_tube
+  - id: B2_queue_aware_tube_mpc
+    contract: immutable_prefix_plus_same_tube
+  - id: B3_synchronous_distributed_mpc
+    contract: fixed_round_delayed_communication
+  - id: B4_asynchronous_distributed_mpc
+    contract: fixed_event_trigger_and_message_age
+  - id: Q0_qdr_synchronous_dn_mpc
+    contract: qdr_plus_synchronous_distributed
+  - id: Q1_qdr_asynchronous_dn_mpc
+    contract: qdr_plus_asynchronous_distributed
+  - id: K4_fixed_qdr
+    contract: four_realized_sample_set_candidates
+  - id: K8_fixed_qdr
+    contract: eight_realized_sample_set_candidates
+
+qdr:
+  queue_authority: immutable
+  time_index_rule: candidate_j_first_acts_at_t_plus_q_plus_j
+  double_delay_forbidden: true
+  checker_required: true
+
+fairness:
+  predictor_condition: both
+  sampling_seed: 745102
+  sampling_steps: 8
+  projection_iterations: 4
+  horizon_steps: 8
+  control_horizon_steps: 3
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  process_isolated_latency: required
+  same_candidate_limit: true
+  same_execution_contract: true
+
+runtime:
+  reference_only_latency_ms: 100
+  reference_is_hard_gate: false
+  latency_percentiles: [50, 95, 99]
+  components: [predictor, planner, qdr_or_tube, safety, total_control]
+  matched_prefix_steps: 18
+  warmup_steps_excluded_from_percentiles: true
+
+split_policy:
+  development_calibration: mirror_group_disjoint
+  development_confirmation: mirror_group_disjoint
+  locked_diagnostic: frozen_only
+  locked_tuning: forbidden
+
+gates:
+  id_safe_capture_noninferiority_lower_bound: -0.02
+  timeout_upper_bound: 0.05
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  candidate_budget_realized_rate: 1.0
+  planner_or_safety_unexplained_failure_rate: 0.01
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  candidate_budget_audit_required: true
+  local_cbf_claim: empirical_filter_only
+  robust_clbf_qp_proof: not_claimed
+
+claim_boundary: no_safety_proof_local_cbf_empirical_filter_only
