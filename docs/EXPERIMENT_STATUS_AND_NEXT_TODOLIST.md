@@ -589,29 +589,32 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 详细结果、延迟表、QDR 边界和下一阶段 To-do List 见
 `docs/PHASE57_CAUSAL_FACTOR_CALIBRATION_REPORT.md`。
 
-### Phase 58：重新设计的延迟规划证据链（计划，尚未开始）
+### Phase 58：重新设计的延迟规划证据链（执行中，P58-0/1 完成）
 
 Phase 57 的 promotion gate 已失败，因此下一阶段改为一份独立的、证据优先的
 delayed-planning 实验，不在旧结果上继续调参。完整计划见
 `docs/PHASE58_REDESIGNED_DELAYED_PLANNING_TODOLIST.md`。
 
-- [ ] 冻结新的 protocol/runtime contract、方法 ID、seed、预算、tube 估计规则、
-  async 通信合同和 Go/No-Go gate；不得先看结果再改配置；
-- [ ] 生成全新的 `480 episodes / 240 mirror groups`（最低 360/180），划分为
+- [x] 冻结新的 protocol/runtime contract、方法 ID、seed、预算、tube 估计规则、
+  async 通信合同和 Go/No-Go gate；不得先看结果再改配置；配置见
+  `configs/phase58_delayed_planning_protocol.yaml` 和
+  `configs/phase58_runtime_contract.yaml`；
+- [x] 生成全新的 `480 episodes / 240 mirror groups`（最低 360/180），划分为
   development-calibration、development-confirmation、locked-diagnostic，四个
   block 覆盖 ID、delay-noise factorial、communication/execution 和 joint stress；
-- [ ] 实现充分的 M0--M8 强基线：current-state/known-delay delayed-MPC、
+  manifest hash 为 `f4787252c2ca18e99316f0630f15c31c610504b60bba818b301b1cbf6af4207f`；
+- [x] 实现 M0--M8 的 evaluator contract：current-state/known-delay delayed-MPC、
   fixed-tube/queue-aware-tube MPC、同步/异步 distributed MPC、QDR 组合和
-  fixed-K=8 control；oracle communication 仅作为附录诊断；
-- [ ] 独立实现 QDR checker，验证 queue prefix、first-controllable state、
+  fixed-K=8 control；M0/M1/M6 已完成 smoke，oracle communication 保留为附录诊断；
+- [x] 独立实现 QDR checker，验证 queue prefix、first-controllable state、
   suffix、候选物理时间索引和 `q=0/2/4/8/10` 的 double-delay=false；该结论
   只证明时间索引合同，不证明安全；
 - [ ] 每个 block/method/seed 统一报告 predictor、planner、QDR/tube、safety、
   total 的 p50/p95/p99，并同时保存 full-episode 与 first-18-step
   process-isolated matched-prefix 视图；100 ms 仅作参考而非硬门槛；
-- [ ] 所有配置、hash、失败 taxonomy、队列/消息年龄、TensorBoard scalar、
-  JSONL 和 summary 都可追溯；local CBF 继续标注为 empirical filter，robust
-  CBF-QP 继续保持 diagnostic No-Go；
+- [x] P58-0/1 的配置、hash、场景审计、QDR checker、TensorBoard scalar、JSONL
+  和 summary 可追溯；闭环阶段继续记录 failure taxonomy、队列/消息年龄；local
+  CBF 继续标注为 empirical filter，robust CBF-QP 继续保持 diagnostic No-Go；
 - [ ] 只有 calibration 同时满足 ID safe-capture 非劣、stress collision 改善、
   liveness、强基线公平和 latency 审计，才打开一次性 confirmation；否则冻结
   为 conditional/negative result，不访问 locked-test 调参。
@@ -621,9 +624,9 @@ delayed-planning 实验，不在旧结果上继续调参。完整计划见
 ```text
 P32 Phase57 causal calibration (completed; promotion No-Go)
   -> P32a isolated runtime + repaired B2/B3/B7 (completed)
-  -> Phase58 protocol and runtime freeze
-  -> P58 new 480-episode matrix and audit
-  -> P58 strong-baseline implementation + independent QDR checker
+  -> Phase58 protocol and runtime freeze (completed)
+  -> P58 new 480-episode matrix and audit (completed)
+  -> P58 strong-baseline implementation + independent QDR checker (contract/smoke completed)
   -> P58 development-calibration and pre-registered gate
   -> confirmation only if all gates pass
   -> locked-diagnostic only after confirmation

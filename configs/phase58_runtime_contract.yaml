@@ -22,5 +22,12 @@ cache_reporting:
 percentiles_ms: [50, 95, 99]
 reference_only_latency_ms: 100
 reference_is_hard_gate: false
+asynchronous_contract:
+  communication_interval_steps: 2
+  max_message_age_steps: 6
+  stale_peer_plan_policy: hold_last_valid_plan
+  message_order: monotonically_increasing_sequence
+  queue_capacity: 8
+  retry_policy: no_retransmission_in_primary_matrix
 tensorboard_required: true
 claim_boundary: runtime_fairness_contract_not_deployment_guarantee

@@ -76,7 +76,7 @@ methods:
     tube_mpc: false
     distributed_mode: synchronous
   - id: M1_known_delay_delayed_mpc
-    implementation_alias: pending
+    implementation_alias: phase58_evaluator_contract
     queue_aware_rollout: false
     known_delay_compensation: true
     tube_mpc: false
@@ -102,7 +102,7 @@ methods:
     tube_mpc: false
     distributed_mode: asynchronous
   - id: M6_qdr_synchronous_mpc
-    implementation_alias: pending
+    implementation_alias: phase58_evaluator_contract
     queue_aware_rollout: true
     distributed_mode: synchronous
   - id: M7_qdr_asynchronous_mpc
@@ -134,6 +134,15 @@ fairness:
   same_candidate_limit: true
   process_isolated_latency: required
   full_and_matched_prefix_views: required
+
+asynchronous_contract:
+  communication_interval_steps: 2
+  max_message_age_steps: 6
+  message_order: monotonically_increasing_sequence
+  stale_peer_plan_policy: hold_last_valid_plan
+  local_update_policy: fixed_period_plus_event_trigger
+  queue_capacity: 8
+  retry_policy: no_retransmission_in_primary_matrix
 
 split_policy:
   development_calibration: mirror_group_disjoint

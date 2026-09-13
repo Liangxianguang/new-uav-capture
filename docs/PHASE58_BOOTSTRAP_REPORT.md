@@ -6,7 +6,7 @@ Phase 58-0/1 已完成，尚未运行闭环性能矩阵。该报告只证明协�
 时间索引审计通过，不代表任何方法的捕获率或安全性提升。
 
 执行日期：2026-09-14
-源代码提交：`831ec56`（协议接口修复；后续审计代码待提交）
+源代码提交：`dd5e76a`（M1/M6 baseline contract 与 runner smoke）
 主计划：`docs/PHASE58_REDESIGNED_DELAYED_PLANNING_TODOLIST.md`
 
 ## 2. 冻结的场景矩阵
@@ -77,10 +77,29 @@ results/phase58_qdr_time_index/tensorboard/
 forward invariance、概率覆盖率或真实飞行安全证明。`local_cbf` 在后续闭环中
 仍只标记为 empirical filter；不宣称 R-CLBF-QP 或安全证书。
 
+## 4.1 Runner smoke（非正式性能结果）
+
+在 calibration selection 的前 6 个 episode、GRU `both` seed `727201`、CPU
+Torch `1/1` 线程、`K=1`、sampling steps `8`、local CBF 下，M0/M1/M6 均完成
+闭环并写入 method-specific TensorBoard。该 smoke 只验证接口连通和计时字段，
+不能作为 480 episode 性能结论。
+
+| Method | Safe capture | Collision | Timeout | Total p50/p95/p99 (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| M0 current-state delayed-MPC | 100.0% | 0.0% | 0.0% | 8.08/8.92/10.94 |
+| M1 known-delay delayed-MPC | 100.0% | 0.0% | 0.0% | 8.02/9.00/9.69 |
+| M6 QDR+synchronous distributed | 100.0% | 0.0% | 0.0% | 15.91/18.72/20.21 |
+
+Smoke TensorBoard：
+
+```text
+results/phase58_smoke_seed727201_m0_m1_m6/*/tensorboard/
+```
+
 ## 5. 下一步
 
-1. 补齐 M1 known-delay delayed-MPC 与 M6 QDR+synchronous evaluator contract，
-   并写 enabled/disabled 行为单元测试；
+1. M1 known-delay delayed-MPC 与 M6 QDR+synchronous evaluator contract 已补齐，
+   enabled/disabled 行为单元测试和 6-episode smoke 已通过；
 2. 在 calibration split 先完成 M0--M8 smoke，再运行三 seed 全矩阵；
 3. process-isolated fixed-thread 记录 predictor/planner/QDR-or-tube/safety/total
    的 p50、p95、p99；
