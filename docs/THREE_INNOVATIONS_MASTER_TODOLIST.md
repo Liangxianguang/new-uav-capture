@@ -1,6 +1,6 @@
 # 三个创新点完整 TodoList 目标计划书
 
-> 版本：v1.1
+> 版本：v1.2
 > 更新时间：2026-09-13
 > 适用仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 研究对象：部分观测、通信/执行延迟和高机动目标下的多无人机围捕拦截
@@ -131,7 +131,7 @@ C_{\mathrm{RNIC}}(i,q)=
 
 | 模块 | 已有证据 | 当前判断 | 计划含义 |
 | --- | --- | --- | --- |
-| QDR | validation 上 QDR-on safe capture `88.89%`，QDR-off `94.44%`，collision `11.11%/5.56%` | No-Go | 必须先修正 queue authority、状态契约和动作索引，不能重复旧阈值扫描 |
+| QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后，在独立 40-episode、2-step immutable development block 上 QDR-on safe capture `85.0%`、QDR-off `100.0%`，collision `15.0%/0%` | Implementation pass, promotion No-Go | 必须先完成 suffix-feasibility gate 和 fresh delay/authority/noise confirmation，不能重复旧阈值扫描 |
 | UAKR | 三种子验证平均 `K≈2.68`、刷新率约 `36.6%`，但 ID safe-capture 非劣 CI 未过；残差触发 high-K 和 refresh-only 也均为负消融 | No-Go for closed-loop promotion | 保留为效率/失败分析方向；若重开，必须做 intervention-effect calibration |
 | RNIC | ID 行为基本不变，target-speed/delay OOD 变差并增加延迟；slack 对 collision 的 pooled AUROC `0.504` | No-Go | 先修复 reachable-time label 和 slot-level 定义，再做 planner 消融 |
 | 主参考 | GRU + distributed delayed DN-MPC + local CBF 的 locked-test safe capture `94.81%`，collision/boundary `0/0` | 当前主参考 | 所有新模块都必须与它配对比较 |
@@ -215,6 +215,20 @@ prefix_unsafe_unrecoverable
 是否开放 QDR×UAKR×RNIC 组合。详细 smoke 证据见
 `docs/PHASE33_QDR_PRECONDITION_AUDIT_REPORT.md`。
 
+### 3.4 Phase 34 QDR execution-aware repair
+
+Phase 34 修复了 QDR 分支中单个队友执行轨迹的维度错误：`[H,1,3]` 被错误地
+参与了与 `[C,H,3]` 的广播，导致 distributed planner 每步 fallback。修复后新增
+完整动作序列执行 rollout、QDR 前视障碍范围以及 fallback 原因日志，完整回归为
+`264 passed`。不过修复后的独立 development block 仍显示 QDR-on 低于 QDR-off：
+queue-aware safety projection 开启时 safe capture `85.0%`、collision `15.0%`，
+QDR-off 为 `100.0%/0%`；prefix/suffix admissible rate 为 `95.93%/44.63%`，
+total p95 为 `118.60 ms` 对 `46.53 ms`。因此实现层已具备可复现性，但 QDR 还
+没有性能晋级资格。下一步不是继续调阈值，而是在候选生成/best-response 阶段加入
+suffix-feasibility gate，明确 immutable prefix 的不可修复边界，再按单因素做
+delay、authority 和 bounded execution-noise confirmation。详细数值见
+`docs/PHASE34_QDR_EXECUTION_AWARE_VALIDATION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
@@ -280,12 +294,13 @@ prefix_unsafe_unrecoverable
 ### 6.1 QDR 实现清单
 
 - [ ] 定义 `QueueState` 数据类，区分 commanded、planned、executed action；
-- [ ] 实现 pending command 的追加、替换、取消、flush 四种 authority，并在配置中显式声明；
-- [ ] 实现 queue-aware horizon index：候选轨迹的第 `j` 步必须对应实际执行时间；
-- [ ] 记录 queue prefix、queue length、action age、prediction age 和 execution error；
-- [ ] 实现 nominal dynamics 与 execution dynamics 两套 rollout，禁止混用；
-- [ ] 写出 hand-check 场景：零延迟、固定延迟、队列长度变化、flush 后重新规划；
-- [ ] 对比 QDR 与手工逐步执行模拟，确保同一输入得到一致的 post-state。
+- [x] 实现 pending command 的追加、替换、取消、flush 四种 authority，并在配置中显式声明；
+- [x] 实现 queue-aware horizon index：候选轨迹的第 `j` 步必须对应实际执行时间；
+- [x] 记录 queue prefix、queue length、action age、prediction age 和 execution error；
+- [x] 实现 nominal dynamics 与 execution dynamics 两套 rollout，禁止混用；
+- [x] 写出 hand-check 场景：零延迟、固定延迟、队列长度变化、flush 后重新规划；
+- [x] 对比 QDR 与手工逐步执行模拟，确保同一输入得到一致的 post-state；
+- [ ] 在候选生成/best-response 阶段加入 suffix-feasibility gate，并验证其不会把不可修复的 immutable prefix 误标为可修复。
 
 ### 6.2 UAKR 实现清单
 
@@ -324,6 +339,10 @@ prefix_unsafe_unrecoverable
 
 ### 7.2 实验顺序
 
+- [x] Phase34 在独立 development block 上完成当前源码 QDR-off / QDR-on 配对，修复 planner fallback 的队友 rollout 维度错误，并验证 queue-aware safety projection；
+- [x] Phase34 完成 TensorBoard、source hash、manifest hash、episode/step JSONL 和四级 latency 记录；
+- [ ] Phase34 的性能 gate 未通过：QDR-on safe capture `85.0%` 对 QDR-off `100.0%`，collision `15.0%` 对 `0%`，suffix admissible rate `44.63%`；不得进入 confirmation；
+- [ ] 在候选生成/best-response 阶段实现并验证 suffix-feasibility gate；
 - [ ] B0/B1 在 development-calibration 和 confirmation 上重跑，确认当前基线可复现；
 - [ ] 只打开 QDR，固定 predictor、K、MPC cost、safety layer；
 - [ ] 在零延迟、2-step、4-step、6-step、8-step 五个 delay 档测试；
@@ -526,8 +545,8 @@ TensorBoard 每次运行至少写入：effective config、git/source hash、mani
 | 周次 | 任务 | 必须交付 |
 | --- | --- | --- |
 | 第 1 周 | P0 协议、manifest、信息隔离和 baseline 复现 | protocol、scene hash、baseline report |
-| 第 2 周 | P1 QDR 接口、authority、队列索引和单元测试 | source、tests、TensorBoard smoke |
-| 第 3 周 | P2 QDR validation/OOD 与失败回放 | QDR report、Go/No-Go |
+| 第 2 周 | P1 QDR 接口、authority、队列索引和单元测试（已完成）；修复执行感知 peer rollout 维度错误 | source、tests、TensorBoard smoke、`264 passed` |
+| 第 3 周 | P2 QDR suffix-feasibility gate、delay/authority/noise 单因素 validation 与失败回放 | QDR report、Go/No-Go；当前 Phase34 为 implementation pass / promotion No-Go |
 | 第 4 周 | P3 UAKR offline reliability 和 intervention-effect calibration | calibration artifact、reliability report |
 | 第 5 周 | P3 UAKR confirmation 和预算/延迟分析 | UAKR report、Go/No-Go |
 | 第 6 周 | P4 RNIC reachable-time checker、slot cost 和 validation | RNIC report、slack audit |

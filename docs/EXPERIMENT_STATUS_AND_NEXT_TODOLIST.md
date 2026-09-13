@@ -30,6 +30,8 @@
 
 > Phase 33 QDR 前缀/后缀审计更新：新增共享执行动力学的 nominal suffix rollout，并把每个控制步划分为 `prefix_safe_suffix_safe`、`prefix_safe_suffix_unsafe`、`prefix_unsafe_recoverable` 和 `prefix_unsafe_unrecoverable` 四类；同时记录 authority、recovery recommendation、suffix barrier/clearance 和 TensorBoard 标签。2 episode schema smoke 中出现 `13/29/3` 个前三类（第四类为 0），safe capture `50.0%` 仅用于 schema/因果审计，不是性能结论。该阶段确认了“不可变队列前缀已经不安全时，新 suffix 无法事后修复”的契约边界；下一步必须在 fresh validation 上按 delay、authority、bounded execution noise 逐轴验证，不能把 precondition classifier 写成安全证明。详见 `docs/PHASE33_QDR_PRECONDITION_AUDIT_REPORT.md`。
 
+> Phase 34 QDR 执行感知修复更新：修复了 QDR 分支单个队友 rollout 的 `[H,1,3]`/`[H,3]` 维度错误，该错误此前使 distributed planner 每步 fallback；新增完整动作序列执行 rollout、QDR 前视障碍范围和 planner fallback 原因日志，完整测试为 `264 passed`。在独立 40-episode/20-mirror-group development block、固定 2-step immutable delay 上，当前源码 QDR-off 为 `100.0%` safe capture、`0%` collision，total p50/p95/p99 `27.84/46.53/51.59 ms`；QDR-on + queue-aware safety projection 为 `85.0%` safe capture、`15.0%` collision，QDR prefix/suffix admissible rate 为 `95.93%/44.63%`，total `87.83/118.60/135.02 ms`。因此实现修复通过，但 QDR 性能 promotion 仍为 No-Go；queue-aware safety projection 仅带来描述性改善，不能掩盖大量 unsafe suffix 和 immutable prefix 不可修复问题。完整记录见 `docs/PHASE34_QDR_EXECUTION_AWARE_VALIDATION_REPORT.md`。未通过 QDR gate 前不进入 confirmation、locked-test 或 Full 组合。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -409,7 +411,8 @@ P24 EGC-MPC No-Go freeze
   -> P26b Phase 16b geometry OOD diagnostic (completed; transfer boundary exposed)
   -> P32/P32b freshness--covariance fusion pilot + confirmation (completed; promotion No-Go)
   -> P33 QDR prefix/suffix precondition audit (completed; diagnostic only)
-  -> P8 fresh QDR delay/authority/noise confirmation
+  -> P34 QDR execution-aware contract repair (completed; implementation pass, promotion No-Go)
+  -> P8 QDR suffix-feasibility gate and fresh delay/authority/noise confirmation
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化
   -> P10 三种子端到端 confirmation
