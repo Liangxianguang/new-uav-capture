@@ -1,0 +1,19 @@
+experiment_name: phase49_qdr_same_length_runtime_benchmark
+evaluation_split: validation_confirmation
+benchmark: qdr_same_length_prefix
+
+# Runtime comparison is performed on the already frozen Phase 48 logs.  The
+# first 18 control steps are selected for every matched episode present in both
+# arms, so episode termination cannot change the per-step percentile estimate.
+steps_per_episode: 18
+training_seeds: [727201, 727202, 727203]
+qdr_off_dirs:
+  - results/phase48_qdr_liveness_off_seed727201
+  - results/phase48_qdr_liveness_off_seed727202
+  - results/phase48_qdr_liveness_off_seed727203
+qdr_on_dirs:
+  - results/phase48_qdr_liveness_on_seed727201
+  - results/phase48_qdr_liveness_on_seed727202
+  - results/phase48_qdr_liveness_on_seed727203
+report_latency_percentiles: [50, 95, 99]
+tensorboard_required: true
