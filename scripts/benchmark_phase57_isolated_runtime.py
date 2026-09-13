@@ -40,6 +40,15 @@ LATENCY_KEYS = (
     "safety_latency_ms",
     "total_control_latency_ms",
 )
+OUTCOME_KEYS = (
+    "safe_capture_success",
+    "capture_event",
+    "collision",
+    "boundary_violation",
+    "timeout",
+    "capture_time_seconds",
+    "min_clearance_m",
+)
 DEFAULT_SEEDS = (727201, 727202, 727203)
 
 
@@ -85,6 +94,19 @@ def load_steps(path: Path) -> dict[int, list[dict[str, Any]]]:
     return dict(grouped)
 
 
+def load_episodes(path: Path) -> dict[int, dict[str, Any]]:
+    result: dict[int, dict[str, Any]] = {}
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                row = json.loads(line)
+                episode_index = int(row["episode_index"])
+                if episode_index in result:
+                    raise ValueError(f"duplicate episode index in {path}: {episode_index}")
+                result[episode_index] = row
+    return result
+
+
 def percentile(values: Iterable[float], quantile: float) -> float:
     array = np.asarray(list(values), dtype=np.float64)
     if array.size == 0:
@@ -101,6 +123,28 @@ def summarize_latency(rows: list[dict[str, Any]]) -> dict[str, Any]:
         }
         for key in LATENCY_KEYS
     } | {"samples": len(rows)}
+
+
+def outcome_value(row: dict[str, Any], key: str) -> float:
+    value = row.get(key)
+    if value is None:
+        return float("nan")
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    numeric = float(value)
+    return numeric if np.isfinite(numeric) else float("nan")
+
+
+def summarize_outcomes(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in OUTCOME_KEYS:
+        values = np.asarray([outcome_value(row, key) for row in rows], dtype=np.float64)
+        finite = values[np.isfinite(values)]
+        result[key] = {
+            "mean": float(np.mean(finite)) if finite.size else float("nan"),
+            "finite_samples": int(finite.size),
+        }
+    return result
 
 
 def fixed_prefix(rows_by_episode: dict[int, list[dict[str, Any]]], prefix_steps: int) -> tuple[list[dict[str, Any]], list[int]]:
@@ -217,6 +261,7 @@ def aggregate_child(
     for seed in seeds:
         child = child_output_dir(output_root, seed, method) / method
         rows_by_episode = load_steps(child / "steps.jsonl")
+        episodes = load_episodes(child / "episodes.jsonl")
         full = [row for rows in rows_by_episode.values() for row in rows]
         prefix, retained = fixed_prefix(rows_by_episode, prefix_steps)
         full_rows.extend(full)
@@ -226,6 +271,7 @@ def aggregate_child(
                 "seed": seed,
                 "episodes": len(rows_by_episode),
                 "prefix_retained_episodes": len(retained),
+                "outcomes": summarize_outcomes(list(episodes.values())),
                 "full": summarize_latency(full),
                 "matched_prefix": summarize_latency(prefix),
             }
@@ -236,6 +282,15 @@ def aggregate_child(
         "prefix_steps": prefix_steps,
         "full": summarize_latency(full_rows),
         "matched_prefix": summarize_latency(prefix_rows),
+        "outcomes": summarize_outcomes(
+            [
+                row
+                for seed in seeds
+                for row in load_episodes(
+                    child_output_dir(output_root, seed, method) / method / "episodes.jsonl"
+                ).values()
+            ]
+        ),
         "per_seed": per_seed,
     }
 

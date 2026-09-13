@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from scripts.benchmark_phase57_isolated_runtime import fixed_prefix, summarize_latency
+from scripts.benchmark_phase57_isolated_runtime import (
+    fixed_prefix,
+    summarize_latency,
+    summarize_outcomes,
+)
 
 
 def _rows(count: int) -> dict[int, list[dict[str, float | int]]]:
@@ -39,3 +43,15 @@ def test_summary_contains_all_required_latency_percentiles() -> None:
         "total_control_latency_ms",
         "samples",
     }
+
+
+def test_outcome_summary_treats_boolean_and_missing_time_as_expected() -> None:
+    rows = [
+        {"safe_capture_success": True, "collision": False, "capture_time_seconds": 2.0},
+        {"safe_capture_success": False, "collision": True, "capture_time_seconds": None},
+    ]
+    result = summarize_outcomes(rows)
+    assert result["safe_capture_success"]["mean"] == 0.5
+    assert result["collision"]["mean"] == 0.5
+    assert result["capture_time_seconds"]["mean"] == 2.0
+    assert result["capture_time_seconds"]["finite_samples"] == 1

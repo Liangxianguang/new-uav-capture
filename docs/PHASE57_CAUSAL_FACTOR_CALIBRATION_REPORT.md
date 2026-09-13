@@ -81,7 +81,33 @@ seed 的 pooled 结果：
 `results/phase57_isolated_runtime_benchmark/aggregate.json`，TensorBoard 位于
 `results/phase57_isolated_runtime_benchmark/tensorboard/`。
 
-## 4. 因果对比
+## 4. B2/B3/B7 强基线扩展
+
+为避免“tube 只写入 metadata、没有进入 planner objective”的伪基线，已增加
+`target_tube_cost_enabled`。B2/B3 使用固定 `0.35 m` target tube，并在
+capture-hinge 与 terminal interception distance 中加入最坏径向距离；B7 只
+保持固定 K=8 的 QDR，不启用 target-tube cost。该开关默认关闭，因此不会改变
+历史 B0/B1/B4/B5/B6 行为。
+
+三个 predictor seeds、同一 120-episode split 和独立进程下的扩展结果如下。闭环
+指标是 360 episode 的 pooled descriptive rate；延迟为 matched first-18-step
+pooled p50/p95/p99：
+
+| 方法 | Safe capture | Collision | Boundary | Timeout | Predictor | Planner | QDR/tube | Safety | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| B2 fixed tube | 70.83% | 29.17% | 9.72% | 0.00% | 4.20/5.50/7.49 | 3.19/4.09/5.81 | 0.00/0.00/0.00 | 0.49/0.66/1.07 | 8.68/10.84/14.45 |
+| B3 queue-aware tube | 78.89% | 20.83% | 10.56% | 0.28% | 4.35/5.52/7.60 | 8.69/10.26/12.98 | 0.52/0.90/1.31 | 0.50/0.65/1.01 | 15.90/18.70/22.68 |
+| B7 fixed-K=8 QDR | 80.00% | 20.00% | 12.50% | 0.00% | 4.41/5.68/7.56 | 8.74/10.40/13.29 | 0.51/0.87/1.24 | 0.51/0.67/1.10 | 15.95/19.01/23.20 |
+
+扩展基线的含义是负结果：B2 没有优于 B0，B3 没有优于 B1，B7 与 B1 基本
+一致。因此 fixed tube 目前应作为强基线/消融，而不是主方法贡献。B3/B7 的
+planner 与 QDR 代价也说明 queue-aware rollout 的安全代价不能只用 QDR
+几百微秒的局部计算时间概括。
+
+扩展结果目录为 `results/phase57_isolated_tubeaware_baselines/`，其配置和
+TensorBoard 记录与 P57-A 相同，且使用了修复后的 source hash。
+
+## 5. 因果对比
 
 以下比较按 scene 和 predictor seed 配对，并在 mirror group 内先平均，避免把
 upper/lower 镜像当作独立样本。
@@ -98,7 +124,7 @@ interaction-stress block 中更明显；B5 相对 B4 没有显示异步规划的
 B6 的组合增益较强，但不能把它改写成 QDR 单模块或 asynchronous 单模块已经
 通过主分支验证。
 
-## 5. 预注册 gate
+## 6. 预注册 gate
 
 | Gate | 状态 | 证据 |
 | --- | --- | --- |
@@ -111,7 +137,7 @@ B6 的组合增益较强，但不能把它改写成 QDR 单模块或 asynchronou
 因此当前不打开 development-confirmation 或 locked-diagnostic 的调参流程。
 失败 gate 是停止选择性调参的信号，不是继续扫描阈值的理由。
 
-## 6. QDR 形式化边界
+## 7. QDR 形式化边界
 
 令决策时刻为 `t`，当前不可修改的执行队列长度为 `q_t`，队列前缀为
 `u^queue_{t:t+q_t-1}`。在离散动力学 `x_{k+1}=F(x_k,u_k)` 下，QDR 定义为：
@@ -132,7 +158,7 @@ position/velocity equivalence error 均为 0，并通过 double-delay 检查。
 invariance 或闭环安全。`local_cbf` 仍然只是经验过滤器；本报告不宣称
 R-CLBF-QP、CLBF certificate 或真实飞行安全证明。
 
-## 7. 下一阶段 To-do List
+## 8. 下一阶段 To-do List
 
 ### P57-A：先修复 runtime 证据链（最高优先级）
 
@@ -148,8 +174,13 @@ R-CLBF-QP、CLBF certificate 或真实飞行安全证明。
 
 ### P57-B：补齐强基线的可审计因果矩阵
 
-- [ ] 在新的 calibration manifest 中加入 B2 fixed-tube、B3 queue-aware-tube
-  和 B7 fixed-K=8 QDR，与 B0/B1/B4/B5/B6 保持同一 scene/seed；
+- [x] 在相同 frozen calibration manifest 中完成 B2 fixed-tube、B3
+  queue-aware-tube 和 B7 fixed-K=8 QDR，与 B0/B1/B4/B5/B6 使用同一 scene/seed；
+- [x] 修复 B2/B3 的 tube-aware objective，使固定 target tube 真实进入
+  capture/terminal cost；默认开关保持关闭，旧方法行为不变；
+- [x] 扩展基线仍未超过主方法：B2/B3/B7 safe capture 为 `70.83/78.89/80.00%`，
+  matched-prefix total p95 为 `10.84/18.70/19.01 ms`；冻结为 reproducible
+  strong-baseline negative result；
 - [ ] 每个新的 delay/noise/communication block 至少 45 个 mirror groups，
   三个 split 各自保持 mirror-group disjoint；总规模不少于 300 episodes；
 - [ ] 不在 Phase57 locked-diagnostic split 上调参；所有预算、tube radius、
@@ -185,7 +216,7 @@ R-CLBF-QP、CLBF certificate 或真实飞行安全证明。
 - [ ] 最终补充代码版本、manifest hash、checkpoint hash、完整命令、TensorBoard
   日志索引和失败案例视频。
 
-## 8. 当前结论
+## 9. 当前结论
 
 Phase 57 已经完成了“规模化场景 + 因果因素拆分 + 五类延迟统计 + QDR 时间索引
 审计”的开发阶段目标，但没有完成“主方法 promotion”。当前最有价值且可以

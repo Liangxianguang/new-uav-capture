@@ -571,14 +571,20 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 - [x] 隔离结果确认 B5/B4 matched-prefix total p95 约为 `12.31/12.47 ms`，
   异步效率优势不足；B6 matched-prefix total p95 为 `20.55 ms`，额外开销主要
   来自 planner/QDR，而不是 predictor；
+- [x] 修复并完成 B2/B3/B7 强基线扩展：启用显式 tube-aware interception cost
+  后，三者 safe capture 为 `70.83/78.89/80.00%`，matched-prefix total p95
+  为 `10.84/18.70/19.01 ms`；B2 未超过 B0，B3 未超过 B1，B7 与 B1 基本一致，
+  冻结为可复现的 strong-baseline negative result；
 - [x] 明确 `local_cbf` 只是经验过滤器；不宣称 R-CLBF-QP、CLBF certificate、
   forward invariance 或真实飞行安全证明；
 - [ ] 在 promotion 失败后不运行当前 confirmation/locked 调参；
 - [x] 完成 process-isolated、fixed-thread、matched-prefix runtime benchmark；
 - [ ] 基于隔离 benchmark 和当前失败 gate，决定是否建立新的 confirmation
   protocol；
-- [ ] 若重新推进，必须把 B2/B3/B7 强基线补入新的 calibration，并把 QDR 主效应、
-  async 主效应和 interaction effect 预注册为不同假设。
+- [x] 已把 B2/B3/B7 强基线补入 calibration，并将 QDR 主效应、async 主效应和
+  interaction effect 作为不同假设记录；
+- [ ] 若要重开研究，必须新建一份独立 calibration/confirmation，而不能把本次
+  negative result 重新解释为 promotion 通过。
 
 详细结果、延迟表、QDR 边界和下一阶段 To-do List 见
 `docs/PHASE57_CAUSAL_FACTOR_CALIBRATION_REPORT.md`。
