@@ -66,6 +66,9 @@ class QDRTimeIndexAudit:
     candidate_state_visibility_steps: tuple[int, ...]
     max_position_error_m: float
     max_velocity_error_mps: float
+    expected_terminal_index_steps: int
+    reported_terminal_index_steps: int
+    double_delay_terminal_index_steps: int
     terminal_time_index_error_steps: int
     double_delay_detected: bool
 
@@ -88,6 +91,9 @@ class QDRTimeIndexAudit:
             "candidate_state_visibility_steps": list(self.candidate_state_visibility_steps),
             "max_position_error_m": float(self.max_position_error_m),
             "max_velocity_error_mps": float(self.max_velocity_error_mps),
+            "expected_terminal_index_steps": int(self.expected_terminal_index_steps),
+            "reported_terminal_index_steps": int(self.reported_terminal_index_steps),
+            "double_delay_terminal_index_steps": int(self.double_delay_terminal_index_steps),
             "terminal_time_index_error_steps": int(self.terminal_time_index_error_steps),
             "double_delay_detected": bool(self.double_delay_detected),
             "passed": bool(self.passed),
@@ -101,6 +107,7 @@ def audit_qdr_time_index(
     suffix_actions: np.ndarray | list[np.ndarray] | tuple[np.ndarray, ...],
     *,
     dt_seconds: float = 0.1,
+    reported_terminal_index_steps: int | None = None,
 ) -> QDRTimeIndexAudit:
     """Compare one full queue+suffix rollout with a shifted suffix rollout.
 
@@ -109,7 +116,8 @@ def audit_qdr_time_index(
     immutable queue and then executes the same suffix. Equality of the suffix
     states proves the state composition is independent of whether the planner
     starts at ``t`` or at ``t+d``. No terminal-time or arrival-time delay is
-    added by this checker.
+    added by this checker. An intentionally reported terminal index may be
+    supplied to demonstrate that a second delay is rejected.
     """
 
     initial_positions = np.asarray(positions, dtype=np.float64)
@@ -123,6 +131,8 @@ def audit_qdr_time_index(
     defenders = int(initial_positions.shape[0])
     queue = _action_array(queue_actions, defenders)
     suffix = _action_array(suffix_actions, defenders)
+    if suffix.shape[0] <= 0:
+        raise ValueError("suffix_actions must contain at least one controllable step")
     full_actions = np.concatenate([queue, suffix], axis=0)
     full_positions, full_velocities = _rollout(
         initial_positions,
@@ -161,7 +171,14 @@ def audit_qdr_time_index(
     # The suffix terminal state is at t+d+H. A second delay would incorrectly
     # move it to t+2d+H; the explicit index check makes that error auditable.
     expected_terminal_index = queue_length + horizon_steps
-    reported_terminal_index = queue_length + horizon_steps
+    reported_terminal_index = (
+        expected_terminal_index
+        if reported_terminal_index_steps is None
+        else int(reported_terminal_index_steps)
+    )
+    if reported_terminal_index < 0:
+        raise ValueError("reported_terminal_index_steps must be non-negative")
+    double_delay_terminal_index = queue_length + 2 * horizon_steps
     terminal_error = int(reported_terminal_index - expected_terminal_index)
     return QDRTimeIndexAudit(
         queue_length=queue_length,
@@ -171,10 +188,12 @@ def audit_qdr_time_index(
         candidate_state_visibility_steps=visibility_slots,
         max_position_error_m=position_error,
         max_velocity_error_mps=velocity_error,
+        expected_terminal_index_steps=expected_terminal_index,
+        reported_terminal_index_steps=reported_terminal_index,
+        double_delay_terminal_index_steps=double_delay_terminal_index,
         terminal_time_index_error_steps=terminal_error,
-        double_delay_detected=bool(reported_terminal_index == queue_length + 2 * horizon_steps),
+        double_delay_detected=bool(reported_terminal_index == double_delay_terminal_index),
     )
 
 
 __all__ = ["QDRTimeIndexAudit", "audit_qdr_time_index"]
-

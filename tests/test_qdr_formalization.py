@@ -43,3 +43,22 @@ def test_qdr_rejects_wrong_action_shape() -> None:
     else:  # pragma: no cover
         raise AssertionError("invalid action shape must be rejected")
 
+
+def test_qdr_rejects_an_explicit_second_delay_report() -> None:
+    positions = np.zeros((1, 3), dtype=np.float64)
+    velocities = np.zeros((1, 3), dtype=np.float64)
+    queue = np.ones((2, 1, 3), dtype=np.float64)
+    suffix = np.ones((3, 1, 3), dtype=np.float64)
+
+    result = audit_qdr_time_index(
+        positions,
+        velocities,
+        queue,
+        suffix,
+        reported_terminal_index_steps=8,
+    )
+
+    assert result.double_delay_detected is True
+    assert result.expected_terminal_index_steps == 5
+    assert result.terminal_time_index_error_steps == 3
+    assert result.passed is False
