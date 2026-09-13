@@ -63,6 +63,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed-start", type=int, default=831101)
+    parser.add_argument("--manifest-name", default="phase48_qdr_liveness_confirmation")
+    parser.add_argument("--evaluation-split", default="validation_confirmation")
+    parser.add_argument("--rollout-policy", default="qdr_liveness_confirmation")
+    parser.add_argument("--scene-block", default="phase48_qdr_liveness_confirmation")
+    parser.add_argument("--observation-condition", default="nominal_liveness_confirmation")
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--environment-config", type=Path, default=DEFAULT_ENVIRONMENT_CONFIG)
     return parser.parse_args()
@@ -73,6 +78,11 @@ def build_records(
     environment_config: Path,
     episodes: int,
     seed_start: int,
+    *,
+    evaluation_split: str = "validation_confirmation",
+    rollout_policy: str = "qdr_liveness_confirmation",
+    scene_block: str = "phase48_qdr_liveness_confirmation",
+    observation_condition: str = "nominal_liveness_confirmation",
 ) -> list[dict[str, Any]]:
     if episodes <= 0 or episodes % 2:
         raise ValueError("episodes must be a positive even number for mirror pairing.")
@@ -96,12 +106,12 @@ def build_records(
                         "mirror_pair_member": member,
                         "target_speed_scale": speed,
                         "defender_bias": defender_bias,
-                        "observation_condition": "nominal_liveness_confirmation",
+                        "observation_condition": observation_condition,
                         "pursuit_overrides": copy.deepcopy(NOMINAL_PURSUIT),
                         "execution_overrides": copy.deepcopy(LIVENESS_EXECUTION),
-                        "rollout_policy": "qdr_liveness_confirmation",
-                        "scene_block": "phase48_qdr_liveness_confirmation",
-                        "evaluation_split": "validation_confirmation",
+                        "rollout_policy": rollout_policy,
+                        "scene_block": scene_block,
+                        "evaluation_split": evaluation_split,
                         "training_target_speed_scales": list(TRAINING_SPEED_SCALES),
                         "training_geometry_ranges": copy.deepcopy(TRAINING_GEOMETRY),
                     }
@@ -160,14 +170,23 @@ def main() -> None:
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output}")
     protocol = load_protocol(args.protocol)
-    records = build_records(protocol, args.environment_config.resolve(), args.episodes, args.seed_start)
+    records = build_records(
+        protocol,
+        args.environment_config.resolve(),
+        args.episodes,
+        args.seed_start,
+        evaluation_split=args.evaluation_split,
+        rollout_policy=args.rollout_policy,
+        scene_block=args.scene_block,
+        observation_condition=args.observation_condition,
+    )
     validate_records(records)
     output.mkdir(parents=True, exist_ok=True)
     scenes_path = output / "scenes.jsonl"
     scenes_path.write_text("".join(json.dumps(record, sort_keys=True) + "\n" for record in records), encoding="utf-8")
     manifest = {
-        "name": "phase48_qdr_liveness_confirmation",
-        "evaluation_split": "validation_confirmation",
+        "name": args.manifest_name,
+        "evaluation_split": args.evaluation_split,
         "episodes": len(records),
         "mirror_groups": len(records) // 2,
         "seed_start": int(args.seed_start),

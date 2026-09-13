@@ -1,0 +1,85 @@
+experiment_name: phase54_uakr_development
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Fresh development-calibration block for UAKR. Thresholds are inherited from
+# the frozen Phase 17 policy in this first intervention audit; they must not be
+# tuned against this block's closed-loop outcomes.
+scene_manifest: results/phase54_uakr_development_scenes/scenes.jsonl
+episodes: 100
+training_seeds: [727201, 727202, 727203]
+
+protocol:
+  split: validation_development
+  manifest_role: intervention_effect_calibration
+  locked_test_access: forbidden
+  mirror_group_disjoint: true
+
+phase17:
+  queue_aware_rollout: true
+  queue_aware_safety_projection: true
+  adaptive_k: true
+  reachability_normalized_cost: false
+  execution:
+    enabled: true
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+
+prediction:
+  candidate_source: checkpoint
+  candidate_status_required: projected
+  fixed_reference_k: 8
+  adaptive_policy: original_frozen_phase17
+  num_samples: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+  refresh_interval_steps: 1
+  adaptive_budget:
+    low_threshold: 0.35
+    high_threshold: 0.65
+    low_k: 1
+    medium_k: 4
+    high_k: 8
+    low_refresh_interval_steps: 4
+    medium_refresh_interval_steps: 2
+    high_refresh_interval_steps: 1
+    max_cache_age_steps: 4
+    hysteresis: 0.05
+    covariance_scale: 0.50
+    message_age_scale_steps: 8.0
+    speed_ratio_scale: 0.80
+    residual_scale_m: 0.50
+    covariance_weight: 0.30
+    age_weight: 0.20
+    confidence_weight: 0.20
+    speed_weight: 0.15
+    cache_weight: 0.10
+    residual_weight: 0.05
+
+evaluation:
+  methods: [distributed_delayed]
+  arms: [fixed_k8, original_uakr]
+  safety_layer: local_cbf
+  same_scene_and_seed_pairing: true
+  target_truth_online_prediction: false
+  local_effect_labels:
+    - next_state_safety_violation
+    - prediction_residual_increase
+    - candidate_feasibility
+    - timeout
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_uncertainty_components: true
+  report_budget_and_cache_age: true
+  report_latency_percentiles: [50, 95, 99]
