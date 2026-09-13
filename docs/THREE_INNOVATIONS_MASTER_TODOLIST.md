@@ -477,6 +477,25 @@ development block 中加入 public queue/QDR prefix feasibility 或 recoverable-
 特征，先完成 intervention-effect calibration，再做 fresh confirmation。完整
 数值、TensorBoard 位置和复现路径见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
 
+### 3.22 Phase 55 Queue-prefix risk augmented UAKR
+
+Phase 55 在独立的 `validation_selection` manifest（100 episodes、50 mirror
+groups）上固定 QDR、delay4、bounded command noise、GRU `both`、distributed
+delayed DN-MPC 和 local CBF，比较 fixed-K=8、original UAKR 与加入公开
+queue-prefix risk 的 UAKR。风险分数只读取 immutable queue prefix 的公开
+minimum clearance 与 safety-margin violation，并以固定
+`buffer=0.15 m`、`scale=0.50 m`、`weight=0.30` 加性接入，不读取 target truth，
+风险为 0 时严格退化为原始 UAKR。
+
+queue-risk UAKR safe capture 为 `91.33% [87.67,94.67]`，fixed-K=8 为
+`98.33% [96.33,99.67]`，paired delta 为 `-7.00 pp [-11.00,-3.33]`；timeout
+delta 为 `+4.67 pp [+1.67,+8.33]`。风险对 next-state violation 的
+calibration/confirmation AUROC 为 `0.706/0.604`，但 current-state confirmation
+仅 `0.559`，因此排序信息未转化为可接受的闭环干预收益。Phase 55 判定
+**No-Go**，冻结为可复现的诊断/负消融，不扫描阈值、不访问 locked-test，且不
+开放 QDR×UAKR×RNIC Full 组合。详见
+`docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结

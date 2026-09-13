@@ -478,7 +478,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
 
-### P30：Phase 55 queue-prefix-risk UAKR 修复候选（仅实现阶段）
+### P30：Phase 55 queue-prefix-risk UAKR 修复候选（已完成，No-Go）
 
 - [x] 增加只使用公开 immutable queue prefix geometry 的有界风险特征；
 - [x] 将 `queue_prefix_risk` 接入 UAKR 的显式加权分数，默认权重保持为 `0`，
@@ -488,11 +488,18 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
   buffer=`0.15 m`、scale=`0.50 m`、weight=`0.30`，不做网格调参；
 - [x] 新增风险公式、实验矩阵、预注册 gate 和复现产物说明；
 - [x] 通过全量回归测试；
-- [ ] 新建独立 fresh development manifest 并完成 fixed-K=8、original UAKR、
-  queue-risk UAKR 三种子配对；
-- [ ] 若 confirmation AUROC 不能达到 `0.60` 或 safe-capture/timeout gate 失败，
-  停止 UAKR 主线并保留为负消融；
-- [ ] 在 Phase 55 通过独立 gate 前，不访问 locked-test、不开放 Full 组合。
+- [x] 在独立 fresh development manifest（100 episodes / 50 mirror groups）上
+  完成 fixed-K=8、original UAKR、queue-risk UAKR 三种子配对；
+- [x] queue-prefix risk 的 next-state violation AUROC 为
+  `0.706/0.604`（calibration/confirmation），但 current-state confirmation
+  仅 `0.559`；
+- [x] queue-risk UAKR safe capture 为 `91.33% [87.67,94.67]`，相对 fixed-K=8
+  的 paired delta 为 `-7.00 pp [-11.00,-3.33]`，timeout delta 为
+  `+4.67 pp [+1.67,+8.33]`，未通过安全/活性 gate；
+- [x] 判定 Phase 55 **No-Go**，冻结为可复现的诊断/负消融，不扫描阈值、不访问
+  locked-test、不开放 Full 组合；
+- [x] 补充 `adaptive_queue_prefix_risk` 的 mirror-group reliability audit，
+  结果和复现路径写入 `docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md`。
 
 详见 `docs/PHASE55_UAKR_QUEUE_RISK_PLAN.md`。
 
@@ -516,7 +523,7 @@ P24 EGC-MPC No-Go freeze
    -> Phase 52 empirical QDR tube calibration + closed-loop diagnostic (completed; safety--liveness No-Go)
   -> P9 delayed execution contract repair / recoverability-aware tube redesign (Phase53 windowed confirmation No-Go; nominal QDR retained)
   -> P10 Phase54 UAKR fresh development + reliability audit (completed; original UAKR No-Go)
-  -> P10b Phase55 queue-prefix-risk UAKR development calibration (implementation complete; closed-loop pending; no threshold scan)
+  -> P10b Phase55 queue-prefix-risk UAKR development calibration (completed; No-Go negative ablation)
   -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
   -> Full confirmation remains closed until each promoted module passes its independent gate
   -> P11 可选 R-CLBF-QP 与形式化证明

@@ -41,3 +41,45 @@ def test_local_reliability_audit_splits_by_canonical_groups(tmp_path: Path) -> N
     assert result["confirmation_group_count"] == 2
     assert result["splits"]["calibration"]["uncertainty"]["next_state_violation"]["step_count"] == 4
     assert result["splits"]["confirmation"]["uncertainty"]["next_state_violation"]["step_count"] == 4
+
+
+def test_local_reliability_can_audit_queue_prefix_risk(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    method = run / "distributed_delayed"
+    method.mkdir(parents=True)
+    episodes = []
+    steps = []
+    for index in range(8):
+        episodes.append({"episode_index": index})
+        steps.append(
+            {
+                "episode_index": index,
+                "adaptive_uncertainty_score": 0.0,
+                "adaptive_prediction_residual_m": 0.0,
+                "adaptive_queue_prefix_risk": index / 10.0,
+                "safety_independent_next_state_safe": index < 4,
+                "safety_independent_current_state_safe": index < 4,
+            }
+        )
+    (method / "episodes.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in episodes), encoding="utf-8"
+    )
+    (method / "steps.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in steps), encoding="utf-8"
+    )
+    scenes = tmp_path / "scenes.jsonl"
+    scenes.write_text(
+        "\n".join(
+            json.dumps({"episode_index": index, "mirror_group_id": f"g{index // 2}"})
+            for index in range(8)
+        ),
+        encoding="utf-8",
+    )
+
+    result = analyze([run], scenes, split_seed=3, include_queue_prefix_risk=True)
+
+    assert "queue_prefix_risk" in result["score_keys"]
+    assert (
+        result["splits"]["confirmation"]["queue_prefix_risk"]["next_state_violation"]["step_count"]
+        == 4
+    )

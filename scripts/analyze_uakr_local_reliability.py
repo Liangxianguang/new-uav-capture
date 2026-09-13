@@ -36,7 +36,12 @@ def _split_groups(groups: list[str], split_seed: int) -> tuple[set[str], set[str
     return calibration, confirmation
 
 
-def _step_rows(runs: list[Path], scene_manifest: Path) -> list[dict[str, Any]]:
+def _step_rows(
+    runs: list[Path],
+    scene_manifest: Path,
+    *,
+    include_queue_prefix_risk: bool = False,
+) -> list[dict[str, Any]]:
     episode_to_group = _scene_groups(scene_manifest)
     output: list[dict[str, Any]] = []
     for run in runs:
@@ -47,17 +52,20 @@ def _step_rows(runs: list[Path], scene_manifest: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"scene manifest is missing episode_index={episode_index}")
             if "adaptive_uncertainty_score" not in row:
                 raise ValueError("step log is missing adaptive_uncertainty_score")
-            output.append(
-                {
-                    "run": str(run.resolve()),
-                    "episode_index": episode_index,
-                    "mirror_group_id": episode_to_group[episode_index],
-                    "uncertainty": float(row["adaptive_uncertainty_score"]),
-                    "prediction_residual": float(row.get("adaptive_prediction_residual_m", 0.0)),
-                    "next_state_violation": not bool(row.get("safety_independent_next_state_safe", True)),
-                    "current_state_violation": not bool(row.get("safety_independent_current_state_safe", True)),
-                }
-            )
+            item = {
+                "run": str(run.resolve()),
+                "episode_index": episode_index,
+                "mirror_group_id": episode_to_group[episode_index],
+                "uncertainty": float(row["adaptive_uncertainty_score"]),
+                "prediction_residual": float(row.get("adaptive_prediction_residual_m", 0.0)),
+                "next_state_violation": not bool(row.get("safety_independent_next_state_safe", True)),
+                "current_state_violation": not bool(row.get("safety_independent_current_state_safe", True)),
+            }
+            if include_queue_prefix_risk:
+                if "adaptive_queue_prefix_risk" not in row:
+                    raise ValueError("step log is missing adaptive_queue_prefix_risk")
+                item["queue_prefix_risk"] = float(row["adaptive_queue_prefix_risk"])
+            output.append(item)
     if not output:
         raise ValueError("no step rows found")
     return output
@@ -84,8 +92,13 @@ def analyze(
     scene_manifest: Path,
     *,
     split_seed: int = 20260912,
+    include_queue_prefix_risk: bool = False,
 ) -> dict[str, Any]:
-    rows = _step_rows(runs, scene_manifest)
+    rows = _step_rows(
+        runs,
+        scene_manifest,
+        include_queue_prefix_risk=include_queue_prefix_risk,
+    )
     groups = sorted({str(row["mirror_group_id"]) for row in rows})
     calibration_groups, confirmation_groups = _split_groups(groups, split_seed)
     result: dict[str, Any] = {
@@ -96,7 +109,8 @@ def analyze(
         "group_count": len(groups),
         "calibration_group_count": len(calibration_groups),
         "confirmation_group_count": len(confirmation_groups),
-        "score_keys": ["uncertainty", "prediction_residual"],
+        "score_keys": ["uncertainty", "prediction_residual"]
+        + (["queue_prefix_risk"] if include_queue_prefix_risk else []),
         "labels": ["next_state_violation", "current_state_violation"],
         "splits": {},
     }
@@ -151,12 +165,18 @@ def main() -> None:
     parser.add_argument("--run", type=Path, nargs="+", required=True)
     parser.add_argument("--scene-manifest", type=Path, required=True)
     parser.add_argument("--split-seed", type=int, default=20260912)
+    parser.add_argument(
+        "--include-queue-prefix-risk",
+        action="store_true",
+        help="also audit the public queue-prefix risk score when present in step logs",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = analyze(
         [path.resolve() for path in args.run],
         args.scene_manifest.resolve(),
         split_seed=args.split_seed,
+        include_queue_prefix_risk=args.include_queue_prefix_risk,
     )
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

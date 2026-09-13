@@ -68,5 +68,10 @@ DN-MPC、local CBF、采样 seed 和 episode 配对不变。
 
 ## 当前状态
 
-实现、单元测试和冻结配置已完成；Phase 55 闭环实验尚未运行，因此不能把该
-候选称为有效改进。
+实现、单元测试、冻结配置和三种子闭环开发实验均已完成。queue-prefix risk
+对 next-state violation 的 calibration/confirmation AUROC 为 `0.706/0.604`，
+但 queue-risk UAKR 相对 fixed-K=8 的 paired safe-capture delta 为
+`-7.00 pp [-11.00,-3.33]`，timeout delta 为 `+4.67 pp [+1.67,+8.33]`；
+因此安全/活性 gate 失败，Phase 55 判定 **No-Go**。该候选冻结为可复现的
+诊断/负消融，不访问 locked-test，不开放 Full 组合。完整结果见
+`docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md`。
