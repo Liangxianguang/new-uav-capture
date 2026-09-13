@@ -589,7 +589,7 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 详细结果、延迟表、QDR 边界和下一阶段 To-do List 见
 `docs/PHASE57_CAUSAL_FACTOR_CALIBRATION_REPORT.md`。
 
-### Phase 58：重新设计的延迟规划证据链（执行中，P58-0/1 完成）
+### Phase 58：重新设计的延迟规划证据链（calibration 完成，promotion gate 待判定）
 
 Phase 57 的 promotion gate 已失败，因此下一阶段改为一份独立的、证据优先的
 delayed-planning 实验，不在旧结果上继续调参。完整计划见
@@ -609,15 +609,21 @@ delayed-planning 实验，不在旧结果上继续调参。完整计划见
 - [x] 独立实现 QDR checker，验证 queue prefix、first-controllable state、
   suffix、候选物理时间索引和 `q=0/2/4/8/10` 的 double-delay=false；该结论
   只证明时间索引合同，不证明安全；
-- [ ] 每个 block/method/seed 统一报告 predictor、planner、QDR/tube、safety、
+- [x] 每个 block/method/seed 统一报告 predictor、planner、QDR/tube、safety、
   total 的 p50/p95/p99，并同时保存 full-episode 与 first-18-step
-  process-isolated matched-prefix 视图；100 ms 仅作参考而非硬门槛；
+  process-isolated matched-prefix 视图；100 ms 仅作参考而非硬门槛；结果见
+  `docs/PHASE58_CALIBRATION_REPORT.md`、`results/phase58_calibration_by_block.json`
+  和 `results/phase58_isolated_runtime/aggregate.json`；
 - [x] P58-0/1 的配置、hash、场景审计、QDR checker、TensorBoard scalar、JSONL
   和 summary 可追溯；闭环阶段继续记录 failure taxonomy、队列/消息年龄；local
   CBF 继续标注为 empirical filter，robust CBF-QP 继续保持 diagnostic No-Go；
-- [ ] 只有 calibration 同时满足 ID safe-capture 非劣、stress collision 改善、
-  liveness、强基线公平和 latency 审计，才打开一次性 confirmation；否则冻结
-  为 conditional/negative result，不访问 locked-test 调参。
+- [x] calibration M0--M8 三 seed 闭环与隔离运行时已完成；M6/M7 在 delay-noise
+  与 joint-stress 上显示显著压力条件性收益，但 M6 的 ID non-inferiority
+  区间下界为 `-4.2 pp`，M7 joint-stress timeout 为 `8.3%`，因此尚不能宣布
+  promotion Go；
+- [ ] 运行 P58-5a 自动 gate 审计并冻结最终判定；只有全部 gate 通过才打开一次性
+  confirmation，否则固定为 conditional/negative result，不访问 locked-test
+  调参。
 
 当前推荐执行顺序调整为：
 
@@ -626,8 +632,9 @@ P32 Phase57 causal calibration (completed; promotion No-Go)
   -> P32a isolated runtime + repaired B2/B3/B7 (completed)
   -> Phase58 protocol and runtime freeze (completed)
   -> P58 new 480-episode matrix and audit (completed)
-  -> P58 strong-baseline implementation + independent QDR checker (contract/smoke completed)
-  -> P58 development-calibration and pre-registered gate
+  -> P58 strong-baseline implementation + independent QDR checker (completed)
+  -> P58 development-calibration and process-isolated runtime (completed; gate pending)
+  -> P58 automatic gate audit
   -> confirmation only if all gates pass
   -> locked-diagnostic only after confirmation
   -> final paper tables / videos / reproducibility package

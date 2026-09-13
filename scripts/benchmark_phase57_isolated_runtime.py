@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-METHODS = (
+PHASE57_METHODS = (
     "B0_current_state_delayed_mpc",
     "B1_qdr_mpc",
     "B2_fixed_tube_mpc",
@@ -33,6 +33,18 @@ METHODS = (
     "B6_qdr_asynchronous_mpc",
     "B7_fixed_k8_qdr",
 )
+PHASE58_METHODS = (
+    "M0_current_state_delayed_mpc",
+    "M1_known_delay_delayed_mpc",
+    "M2_fixed_tube_mpc",
+    "M3_queue_aware_tube_mpc",
+    "M4_synchronous_distributed_mpc",
+    "M5_asynchronous_distributed_mpc",
+    "M6_qdr_synchronous_mpc",
+    "M7_qdr_asynchronous_mpc",
+    "M8_fixed_k8_qdr",
+)
+METHODS = PHASE57_METHODS + PHASE58_METHODS
 LATENCY_KEYS = (
     "predictor_latency_ms",
     "planner_latency_ms",
@@ -71,7 +83,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--torch-num-threads", type=int, default=1)
     parser.add_argument("--torch-num-interop-threads", type=int, default=1)
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_SEEDS))
-    parser.add_argument("--methods", nargs="+", choices=METHODS, default=list(METHODS))
+    parser.add_argument("--methods", nargs="+", choices=METHODS, default=list(PHASE57_METHODS))
+    parser.add_argument(
+        "--benchmark-name",
+        default="phase57_process_isolated_runtime",
+        help="Artifact label written to the aggregate JSON; use a Phase 58 label for M0--M8.",
+    )
+    parser.add_argument(
+        "--schema-version",
+        default="phase57-isolated-runtime-v1",
+        help="Schema label written to the aggregate JSON.",
+    )
     parser.add_argument("--safety-layer", choices=("none", "local_cbf"), default="local_cbf")
     parser.add_argument("--decision", default="validation_selection")
     parser.add_argument(
@@ -334,8 +356,8 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         for method in args.methods
     }
     return {
-        "schema_version": "phase57-isolated-runtime-v1",
-        "benchmark": "phase57_process_isolated_runtime",
+        "schema_version": args.schema_version,
+        "benchmark": args.benchmark_name,
         "config": {
             "scenes": str(args.scenes.resolve()),
             "protocol": str(args.protocol.resolve()),

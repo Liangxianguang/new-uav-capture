@@ -2,11 +2,12 @@
 
 ## 1. 阶段状态
 
-Phase 58-0/1 已完成，尚未运行闭环性能矩阵。该报告只证明协议、场景和 QDR
-时间索引审计通过，不代表任何方法的捕获率或安全性提升。
+Phase 58-0/1 已完成，闭环 calibration 与 process-isolated runtime 也已完成。
+该报告前半部分只证明协议、场景和 QDR 时间索引审计；闭环数值与 gate 判定见
+`docs/PHASE58_CALIBRATION_REPORT.md`。任何结果都不构成安全证明。
 
 执行日期：2026-09-14
-源代码提交：`dd5e76a`（M1/M6 baseline contract 与 runner smoke）
+源代码提交：见仓库 Phase 58 最新提交（协议、runner、block aggregator 与报告）
 主计划：`docs/PHASE58_REDESIGNED_DELAYED_PLANNING_TODOLIST.md`
 
 ## 2. 冻结的场景矩阵
@@ -96,12 +97,26 @@ Smoke TensorBoard：
 results/phase58_smoke_seed727201_m0_m1_m6/*/tensorboard/
 ```
 
-## 5. 下一步
+## 5. 闭环 calibration 与运行时
 
-1. M1 known-delay delayed-MPC 与 M6 QDR+synchronous evaluator contract 已补齐，
-   enabled/disabled 行为单元测试和 6-episode smoke 已通过；
-2. 在 calibration split 先完成 M0--M8 smoke，再运行三 seed 全矩阵；
-3. process-isolated fixed-thread 记录 predictor/planner/QDR-or-tube/safety/total
-   的 p50、p95、p99；
-4. 只有 calibration gate 通过，才使用 80 个 confirmation mirror groups；
-5. locked-diagnostic 在 confirmation 之前保持关闭。
+三种 predictor seed 已在 160-episode calibration selection 上完成 M0--M8，
+并按 mirror group 聚合。M6 QDR+synchronous 的 safe capture 为 `88.75%`
+（95% CI `85.00--92.08%`），M7 QDR+asynchronous 为 `86.25%`
+（`82.29--90.00%`）；但 ID non-inferiority 与 joint-stress liveness 仍需按
+预注册 gate 判定，不能直接打开 confirmation。完整行为、分 block paired contrast
+和五段 latency 见 `docs/PHASE58_CALIBRATION_REPORT.md`。
+
+process-isolated matched-prefix 已完成 9 methods × 3 seeds，统一 Torch 1/1
+线程；结果保留于 `results/phase58_isolated_runtime/aggregate.json` 与其
+TensorBoard。该视图用于公平比较尾延迟，不是部署吞吐保证。
+
+## 6. 下一步
+
+1. M1 known-delay delayed-MPC 与 M6 QDR+synchronous evaluator contract、独立
+   QDR checker、三 seed M0--M8 calibration 和 isolated runtime 已完成；
+2. 自动执行 P58-5a gate 审计，并核验每个 block 的 failure taxonomy、queue age、
+   fallback、QDR prefix/suffix coverage 与 tube 来源；
+3. 只有 calibration gate 通过，才使用 80 个 confirmation mirror groups；
+4. confirmation 只运行一次且配置冻结；locked-diagnostic 在 confirmation 之前
+   保持关闭；
+5. 如 gate 失败，冻结为 stress-conditional/negative result，不通过调参改写结论。
