@@ -26,8 +26,9 @@ safety-margin violation，`s_m=0.35 m`，buffer `b=0.15 m`，scale
 - 只使用 defender geometry、obstacle geometry、world bounds 和公开 action queue；
 - 不读取 target truth、终局标签或未来 episode outcome；
 - 不取消队列、不改变 command authority，不是安全证书；
-- 以 `queue_prefix_risk_weight=0.30` 加入 UAKR 的同一加权分数，阈值仍固定为
-  `0.35/0.65`，不在 locked-test 上选择。
+- 以 `queue_prefix_risk_weight=0.30` 作为原始 UAKR 分数上的有界加性触发项，
+  风险为 0 时严格退化为原始 UAKR；阈值仍固定为 `0.35/0.65`，不在
+  locked-test 上选择。
 
 ## 实验矩阵
 

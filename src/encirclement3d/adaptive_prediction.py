@@ -256,9 +256,17 @@ class AdaptivePredictionPolicy:
             "queue_prefix_risk": self.config.queue_prefix_risk_weight,
             "tube_width": self.config.tube_weight,
         }
-        weights = np.asarray([configured_weights[name] for name in components], dtype=np.float64)
-        values = np.asarray(list(components.values()), dtype=np.float64)
-        score = float(np.clip(np.dot(weights, values) / weights.sum(), 0.0, 1.0))
+        # The queue-prefix feature is an intervention trigger, not a new
+        # denominator term.  Keeping it additive means a zero-risk queue
+        # exactly recovers the frozen UAKR score instead of silently diluting
+        # the existing uncertainty features through weight renormalization.
+        base_names = [name for name in components if name != "queue_prefix_risk"]
+        weights = np.asarray([configured_weights[name] for name in base_names], dtype=np.float64)
+        values = np.asarray([components[name] for name in base_names], dtype=np.float64)
+        score = float(np.dot(weights, values) / weights.sum())
+        if "queue_prefix_risk" in components:
+            score += float(self.config.queue_prefix_risk_weight) * float(components["queue_prefix_risk"])
+        score = float(np.clip(score, 0.0, 1.0))
         bucket = self._bucket_for_score(score)
         if (
             self.config.residual_high_trigger_m is not None

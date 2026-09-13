@@ -134,3 +134,23 @@ def test_queue_prefix_risk_is_an_optional_public_budget_feature() -> None:
     assert decision.num_samples == 8
     assert decision.components["queue_prefix_risk"] == 1.0
     assert "target_position" not in decision.as_dict()
+
+
+def test_zero_queue_prefix_risk_preserves_frozen_uakr_score() -> None:
+    observation = _observation(0.9, 0.8, 1.0, 1.0)
+    reference = AdaptivePredictionPolicy().decide(
+        observation,
+        cached_age_steps=1,
+        has_cache=True,
+    )
+    augmented = AdaptivePredictionPolicy(
+        AdaptivePredictionConfig(queue_prefix_risk_weight=0.30)
+    ).decide(
+        observation,
+        cached_age_steps=1,
+        has_cache=True,
+        queue_prefix_risk_score=0.0,
+    )
+    assert augmented.uncertainty_score == reference.uncertainty_score
+    assert augmented.bucket == reference.bucket
+    assert augmented.num_samples == reference.num_samples
