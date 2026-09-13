@@ -496,6 +496,27 @@ calibration/confirmation AUROC 为 `0.706/0.604`，但 current-state confirmatio
 开放 QDR×UAKR×RNIC Full 组合。详见
 `docs/PHASE55_UAKR_QUEUE_RISK_REPORT.md`。
 
+### 3.23 Phase 56 强基线与 QDR 形式化复核计划
+
+下一阶段将主线收敛到 QDR，使用至少 `360 episodes / 180 mirror groups` 的全新
+场景，加入 current-state delayed-MPC、fixed-tube MPC、queue-aware tube MPC、
+synchronous distributed MPC 和 asynchronous distributed MPC 强基线。所有方法
+固定 checkpoint、candidate、horizon、执行器、线程数和 wall-time 合同，并统一
+报告 predictor/planner/QDR-or-tube/safety/total p50/p95/p99。
+
+QDR 必须被定义为一次 `queue prefix + candidate suffix` 的动力学组合：候选第
+`k` 个动作第一次影响物理时刻 `t+d+k`，prefix cost 和 suffix cost 各计一次，
+不能重复添加 delay。独立 checker 需在 toy dynamics、固定扰动 replay 和 planner
+日志上验证该等价性。local CBF 仍只称为经验安全过滤器，不进入 R-CLBF-QP
+安全证明表述。
+
+Phase 56 的 promotion gate 为：QDR 相对普通 delayed-MPC 在 ID 上 safe-capture
+paired CI 下界不低于 `-2 pp`，在预先指定的高 delay/noise 子集上 collision 至少
+下降 `5 pp`，timeout 增量 CI 上界不超过 `+5 pp`，最大 suffix exhaustion
+streak 不超过 `24`，且所有比较可由 JSONL/TensorBoard 独立复算。任一条件失败，
+只保留条件性经验结果，不开放完整三模块组合。完整清单见
+`docs/PHASE56_STRONG_BASELINES_AND_QDR_FORMALIZATION_TODOLIST.md`。
+
 ## 4. 数据集与实验协议冻结
 
 ### P0：研究协议和数据契约冻结

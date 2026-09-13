@@ -503,6 +503,25 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE55_UAKR_QUEUE_RISK_PLAN.md`。
 
+### P31：Phase 56 强基线、规模化场景与 QDR 形式化（计划中）
+
+- [ ] 新建最低 360 episodes / 180 mirror groups 的全新场景集，划分
+  development-calibration、development-confirmation 和 locked-diagnostic；
+- [ ] 实现 current-state delayed-MPC、fixed-tube MPC、queue-aware tube MPC、
+  synchronous distributed MPC 和 asynchronous distributed MPC 强基线；
+- [ ] 固定同一 checkpoint、candidate、MPC horizon、执行器、线程和 wall-time
+  合同，禁止用不同计算预算制造比较优势；
+- [ ] 将 QDR 写成 queue prefix / first-controllable state / suffix 的形式化
+  定义，增加独立的时间索引等价性 checker，验证不会重复计算 delay；
+- [ ] 统一报告 predictor、planner、QDR/tube、safety、total control 的
+  p50/p95/p99，并同步记录 TensorBoard、JSONL、communication 和 failure taxonomy；
+- [ ] 明确 local CBF 仅为经验过滤器；不得将其命名为 R-CLBF-QP 或安全证明；
+- [ ] 只有 QDR 同时通过 ID non-inferiority、stress safety 和 liveness gate，
+  才允许作为主论文贡献；否则冻结为条件性诊断结果。
+
+详细执行合同、场景矩阵、公式、gate、TensorBoard 标签和六周交付物见
+`docs/PHASE56_STRONG_BASELINES_AND_QDR_FORMALIZATION_TODOLIST.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
@@ -525,6 +544,7 @@ P24 EGC-MPC No-Go freeze
   -> P10 Phase54 UAKR fresh development + reliability audit (completed; original UAKR No-Go)
   -> P10b Phase55 queue-prefix-risk UAKR development calibration (completed; No-Go negative ablation)
   -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
+  -> P31 Phase56 strong baselines + QDR formalization (planned; main QDR claim remains closed)
   -> Full confirmation remains closed until each promoted module passes its independent gate
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
