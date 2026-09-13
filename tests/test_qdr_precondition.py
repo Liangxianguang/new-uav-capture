@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from encirclement3d.execution_dynamics import ExecutionParameters
+from encirclement3d.qdr_precondition import (
+    audit_qdr_precondition,
+    classify_qdr_precondition,
+    rollout_suffix_state,
+)
+
+
+def _diagnostic(barrier: float) -> dict[str, float | bool]:
+    return {"minimum_prefix_barrier_m": barrier, "prefix_admissible": barrier >= 0.0}
+
+
+def _parameters(*, enabled: bool = False) -> ExecutionParameters:
+    return ExecutionParameters(
+        enabled=enabled,
+        dt_seconds=0.1,
+        action_delay_steps=2,
+        command_noise_std_mps=0.0,
+        command_noise_bound_mps=0.0,
+        clip_command_noise=True,
+        velocity_time_constant_seconds=0.0,
+        drag_coefficient=0.0,
+        max_speed_mps=5.0,
+        max_acceleration_mps2=6.0,
+        mass_scale=1.0,
+    )
+
+
+def test_classification_distinguishes_safe_prefix_and_unsafe_suffix() -> None:
+    result = classify_qdr_precondition(
+        _diagnostic(0.25),
+        _diagnostic(-0.10),
+        authority_mode="immutable",
+    )
+    assert result.status == "prefix_safe_suffix_unsafe"
+    assert not result.recovery_recommended
+
+
+def test_immutable_unsafe_prefix_is_explicitly_unrecoverable() -> None:
+    result = classify_qdr_precondition(
+        _diagnostic(-0.25),
+        _diagnostic(-0.10),
+        authority_mode="immutable",
+    )
+    assert result.status == "prefix_unsafe_unrecoverable"
+    assert not result.recovery_allowed
+    assert not result.recovery_recommended
+
+
+@pytest.mark.parametrize("authority", ["replace_nonexecuting", "flush_pending"])
+def test_nonimmutable_authority_can_recommend_recovery(authority: str) -> None:
+    result = classify_qdr_precondition(
+        _diagnostic(-0.25),
+        _diagnostic(0.20),
+        authority_mode=authority,
+    )
+    assert result.status == "prefix_unsafe_recoverable"
+    assert result.recovery_allowed
+    assert result.recovery_recommended
+
+
+def test_safe_prefix_and_suffix_is_feasible() -> None:
+    result = classify_qdr_precondition(
+        _diagnostic(0.25),
+        _diagnostic(0.20),
+        authority_mode="immutable",
+    )
+    assert result.status == "prefix_safe_suffix_safe"
+    assert result.prefix_admissible and result.suffix_admissible
+
+
+def test_rollout_suffix_uses_execution_dynamics_and_preserves_shape() -> None:
+    positions = np.zeros((2, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    actions = np.asarray(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            [[2.0, 0.0, 0.0], [0.0, 2.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+    state = rollout_suffix_state(positions, velocities, actions, _parameters())
+    assert state.prefix_positions.shape == (2, 2, 3)
+    np.testing.assert_allclose(state.delayed_positions, [[0.3, 0.0, 0.0], [0.0, 0.3, 0.0]])
+    assert state.queue_length == 2
+
+
+def test_audit_returns_suffix_geometry_and_assessment() -> None:
+    positions = np.zeros((1, 3), dtype=np.float64)
+    velocities = np.zeros_like(positions)
+    actions = np.asarray([[[0.0, 0.0, 0.0]]], dtype=np.float64)
+    observation = {
+        "world_lower_bounds": np.asarray([-10.0, -10.0, -10.0]),
+        "world_upper_bounds": np.asarray([10.0, 10.0, 10.0]),
+        "obstacles": [],
+    }
+    result = audit_qdr_precondition(
+        prefix_diagnostics=_diagnostic(0.25),
+        delayed_positions=positions,
+        delayed_velocities=velocities,
+        action_sequence=actions,
+        observation=observation,
+        parameters=_parameters(),
+        drone_radius_m=0.25,
+        safety_margin_m=0.35,
+        authority_mode="immutable",
+    )
+    assert result["assessment"]["status"] == "prefix_safe_suffix_safe"
+    assert result["suffix"]["prefix_admissible"]
+
+
+def test_invalid_tolerance_and_action_shape_are_rejected() -> None:
+    with pytest.raises(ValueError, match="tolerance_m"):
+        classify_qdr_precondition(_diagnostic(0.0), _diagnostic(0.0), authority_mode="immutable", tolerance_m=-1.0)
+    with pytest.raises(ValueError, match="action_sequence"):
+        rollout_suffix_state(
+            np.zeros((1, 3)),
+            np.zeros((1, 3)),
+            np.zeros((1, 3)),
+            _parameters(),
+        )

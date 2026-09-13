@@ -76,6 +76,7 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.reachability_interception import planned_rnic_diagnostics  # noqa: E402
+from encirclement3d.execution_dynamics import parameters_from_observation  # noqa: E402
 from encirclement3d.delay_aware_conformal_tube import (  # noqa: E402
     DelayAwareConformalReachableTube,
 )
@@ -84,6 +85,9 @@ from encirclement3d.queue_aware_rollout import (  # noqa: E402
     prepare_queue_aware_observation,
     prefix_geometry_diagnostics,
     shift_scenario_trajectory_set,
+)
+from encirclement3d.qdr_precondition import (  # noqa: E402
+    audit_qdr_precondition,
 )
 from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
@@ -348,6 +352,7 @@ def source_hashes(mpc_config_path: Path | None = None) -> dict[str, str]:
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_controllers.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "pursuit_env.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "queue_aware_rollout.py",
+        PROJECT_ROOT / "src" / "encirclement3d" / "qdr_precondition.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "adaptive_prediction.py",
         PROJECT_ROOT / "src" / "encirclement3d" / "delay_aware_conformal_tube.py",
         PROJECT_ROOT / "configs" / "innovation_mpc.yaml",
@@ -982,6 +987,14 @@ def run_episode(
         qdr_prefix_violation_step_ratio = float("nan")
         qdr_prefix_recovery_requested = 0.0
         qdr_authority_mode = "none"
+        qdr_precondition_status = "not_applicable"
+        qdr_suffix_minimum_clearance_m = float("nan")
+        qdr_suffix_minimum_barrier_m = float("nan")
+        qdr_suffix_admissible = float("nan")
+        qdr_precondition_recovery_recommended = 0.0
+        qdr_precondition_reason = "not_applicable"
+        qdr_prefix_diagnostics_for_audit: dict[str, Any] | None = None
+        qdr_state_for_audit: Any | None = None
         adaptive_enabled = False
         adaptive_uncertainty_score = 0.0
         adaptive_bucket_index = 0
@@ -1125,6 +1138,8 @@ def run_episode(
                 qdr_prefix_first_violation_cause = str(qdr_prefix_diagnostics["first_violation_cause"])
                 qdr_prefix_violation_step_count = float(qdr_prefix_diagnostics["violation_step_count"])
                 qdr_prefix_violation_step_ratio = float(qdr_prefix_diagnostics["violation_step_ratio"])
+                qdr_prefix_diagnostics_for_audit = qdr_prefix_diagnostics
+                qdr_state_for_audit = qdr_state
                 if qdr_state.queue_length > 0:
                     pending_qdr_endpoint_checks.append(
                         (
@@ -1168,6 +1183,34 @@ def run_episode(
                     planning_scenarios,
                     fallback_actions=fallback_actions,
                 )
+            if (
+                qdr_enabled
+                and qdr_prefix_diagnostics_for_audit is not None
+                and qdr_state_for_audit is not None
+            ):
+                qdr_audit = audit_qdr_precondition(
+                    prefix_diagnostics=qdr_prefix_diagnostics_for_audit,
+                    delayed_positions=qdr_state_for_audit.delayed_positions,
+                    delayed_velocities=qdr_state_for_audit.delayed_velocities,
+                    action_sequence=np.asarray(plan.action_sequence, dtype=np.float64),
+                    observation=planning_observation,
+                    parameters=parameters_from_observation(
+                        planning_observation,
+                        float(planner_config.dt_seconds),
+                    ),
+                    drone_radius_m=float(env.agents["drone_radius"]),
+                    safety_margin_m=float(env.pursuit["safety_margin"]),
+                    authority_mode=qdr_authority_mode,
+                )
+                qdr_assessment = qdr_audit["assessment"]
+                qdr_precondition_status = str(qdr_assessment["status"])
+                qdr_suffix_minimum_clearance_m = float(qdr_audit["suffix"]["minimum_clearance_m"])
+                qdr_suffix_minimum_barrier_m = float(qdr_assessment["suffix_minimum_barrier_m"])
+                qdr_suffix_admissible = 1.0 if qdr_assessment["suffix_admissible"] else 0.0
+                qdr_precondition_recovery_recommended = (
+                    1.0 if qdr_assessment["recovery_recommended"] else 0.0
+                )
+                qdr_precondition_reason = str(qdr_assessment["reason"])
             previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
@@ -1329,7 +1372,7 @@ def run_episode(
             qdr_enabled
             and qdr_prefix_recovery_authority is not None
             and qdr_prefix_recovery_authority != "immutable"
-            and qdr_prefix_admissible == 0.0
+            and qdr_precondition_recovery_recommended == 1.0
         ):
             command_authority = {
                 "mode": qdr_prefix_recovery_authority,
@@ -1408,6 +1451,14 @@ def run_episode(
                 ),
                 "qdr_prefix_recovery_override_slots": float(final_info.get("queue_override_slots", 0)),
                 "qdr_authority_mode": qdr_authority_mode,
+                "qdr_precondition_status": qdr_precondition_status,
+                "qdr_suffix_minimum_clearance_m": float(qdr_suffix_minimum_clearance_m),
+                "qdr_suffix_minimum_barrier_m": float(qdr_suffix_minimum_barrier_m),
+                "qdr_suffix_admissible": float(qdr_suffix_admissible),
+                "qdr_precondition_recovery_recommended": float(
+                    qdr_precondition_recovery_recommended
+                ),
+                "qdr_precondition_reason": qdr_precondition_reason,
                 "qdr_endpoint_position_error_mean_m": float(qdr_endpoint_position_error_mean_m),
                 "qdr_endpoint_position_error_max_m": float(qdr_endpoint_position_error_max_m),
                 "qdr_endpoint_velocity_error_mean_mps": float(qdr_endpoint_velocity_error_mean_mps),
@@ -1697,6 +1748,19 @@ def run_episode(
             )
             if any(np.isfinite(float(row["qdr_prefix_minimum_clearance_m"])) for row in step_rows)
             else 0.0
+        ),
+        "qdr_suffix_minimum_clearance_m": _diagnostic_min(
+            step_rows, "qdr_suffix_minimum_clearance_m"
+        ),
+        "qdr_suffix_minimum_barrier_m": _diagnostic_min(
+            step_rows, "qdr_suffix_minimum_barrier_m"
+        ),
+        "qdr_suffix_admissible_rate": _diagnostic_mean(step_rows, "qdr_suffix_admissible"),
+        "qdr_precondition_recovery_recommended_rate": _diagnostic_rate(
+            step_rows, "qdr_precondition_recovery_recommended"
+        ),
+        "qdr_precondition_status_counts": _diagnostic_category_counts(
+            step_rows, "qdr_precondition_status"
         ),
         "qdr_endpoint_position_error_mean_m": _diagnostic_mean(
             step_rows, "qdr_endpoint_position_error_mean_m"
@@ -2120,6 +2184,21 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
             [row["qdr_prefix_violation_cause_counts"] for row in rows]
         ),
         "qdr_prefix_violation_rate": finite_mean([row["qdr_prefix_violation_rate"] for row in rows]),
+        "qdr_suffix_minimum_clearance_m": finite_min(
+            [row["qdr_suffix_minimum_clearance_m"] for row in rows]
+        ),
+        "qdr_suffix_minimum_barrier_m": finite_min(
+            [row["qdr_suffix_minimum_barrier_m"] for row in rows]
+        ),
+        "qdr_suffix_admissible_rate": finite_mean(
+            [row["qdr_suffix_admissible_rate"] for row in rows]
+        ),
+        "qdr_precondition_recovery_recommended_rate": finite_mean(
+            [row["qdr_precondition_recovery_recommended_rate"] for row in rows]
+        ),
+        "qdr_precondition_status_counts": _merge_category_counts(
+            [row["qdr_precondition_status_counts"] for row in rows]
+        ),
         "qdr_endpoint_position_error_mean_m": finite_mean(
             [row["qdr_endpoint_position_error_mean_m"] for row in rows]
         ),
@@ -2711,6 +2790,10 @@ def main() -> None:
                     "qdr_prefix_recovery_requested",
                     "qdr_prefix_recovery_applied",
                     "qdr_prefix_recovery_override_slots",
+                    "qdr_suffix_minimum_clearance_m",
+                    "qdr_suffix_minimum_barrier_m",
+                    "qdr_suffix_admissible_rate",
+                    "qdr_precondition_recovery_recommended_rate",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -2781,6 +2864,11 @@ def main() -> None:
             writer.add_text(
                 "Summary/SafetyIndependentViolationCounts",
                 json.dumps(summary.get("safety_independent_violation_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/PreconditionStatusCounts",
+                json.dumps(summary.get("qdr_precondition_status_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar("Summary/PlannerLatency/p50_ms", summary["planner_latency_ms"]["p50"], 0)

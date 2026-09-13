@@ -195,6 +195,26 @@ public-belief fusion 假设，必须建立新的 development split 和新的预�
 
 完整 pilot 记录见 `docs/PHASE32_FRESHNESS_COVARIANCE_PILOT_REPORT.md`。
 
+### 3.3 当前 QDR 契约修复状态
+
+Phase 33 已完成一个只读的 prefix/suffix precondition audit：它沿用共享执行动力学
+滚动新规划 suffix，并把已进入执行队列的 prefix 与新 suffix 分开判定。该审计明确
+区分以下四种状态：
+
+```text
+prefix_safe_suffix_safe
+prefix_safe_suffix_unsafe
+prefix_unsafe_recoverable
+prefix_unsafe_unrecoverable
+```
+
+这一步只解决“失败发生在已提交 prefix 还是新 suffix”的可观测性问题，**不改变
+默认 authority、不自动 flush/replace 队列，也不提供 reachable-set 或安全证明**。
+因此后续完整计划仍按 P2 QDR gate 执行：先在 fresh validation 上做
+`delay ∈ {0,1,2,4}`、authority 和 bounded execution-noise 的单因素确认，再决定
+是否开放 QDR×UAKR×RNIC 组合。详细 smoke 证据见
+`docs/PHASE33_QDR_PRECONDITION_AUDIT_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结

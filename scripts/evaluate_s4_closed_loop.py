@@ -628,6 +628,10 @@ def main() -> None:
                     "qdr_prefix_recovery_requested",
                     "qdr_prefix_recovery_applied",
                     "qdr_prefix_recovery_override_slots",
+                    "qdr_suffix_minimum_clearance_m",
+                    "qdr_suffix_minimum_barrier_m",
+                    "qdr_suffix_admissible_rate",
+                    "qdr_precondition_recovery_recommended_rate",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -702,9 +706,22 @@ def main() -> None:
             writer.add_scalar("Summary/QDR/prefix_violation_rate", overall["qdr_prefix_violation_rate"], 0)
             writer.add_scalar("Summary/QDR/prefix_admissible_rate", overall["qdr_prefix_admissible_rate"], 0)
             writer.add_scalar("Summary/QDR/prefix_minimum_barrier_m", overall["qdr_prefix_minimum_barrier_m"], 0)
+            writer.add_scalar("Summary/QDR/suffix_minimum_clearance_m", overall["qdr_suffix_minimum_clearance_m"], 0)
+            writer.add_scalar("Summary/QDR/suffix_minimum_barrier_m", overall["qdr_suffix_minimum_barrier_m"], 0)
+            writer.add_scalar("Summary/QDR/suffix_admissible_rate", overall["qdr_suffix_admissible_rate"], 0)
+            writer.add_scalar(
+                "Summary/QDR/precondition_recovery_recommended_rate",
+                overall["qdr_precondition_recovery_recommended_rate"],
+                0,
+            )
             writer.add_text(
                 "Summary/QDR/prefix_violation_cause_counts",
                 json.dumps(overall.get("qdr_prefix_violation_cause_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/precondition_status_counts",
+                json.dumps(overall.get("qdr_precondition_status_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar("Summary/QDR/prefix_recovery_request_rate", overall["qdr_prefix_recovery_request_rate"], 0)
