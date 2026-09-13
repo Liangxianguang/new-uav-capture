@@ -22,7 +22,6 @@ try:
         LATENCY_FIELDS,
         OUTCOME_METRICS,
         RunArtifact,
-        grouped_metric_matrix,
         latency_value,
         load_groups,
         metric_summary,
@@ -33,7 +32,6 @@ except ModuleNotFoundError:  # direct ``python scripts/<file>.py`` execution
         LATENCY_FIELDS,
         OUTCOME_METRICS,
         RunArtifact,
-        grouped_metric_matrix,
         latency_value,
         load_groups,
         metric_summary,
@@ -105,6 +103,64 @@ def latency_summary(
     }
 
 
+def grouped_subset_metric_matrix(
+    artifacts: list[RunArtifact], method: str, metric: str, episode_ids: list[int]
+) -> tuple[list[int], np.ndarray]:
+    """Return mirror-group means for only the requested scene-block episodes."""
+
+    wanted = set(int(value) for value in episode_ids)
+    matrices: list[np.ndarray] = []
+    group_order: list[int] | None = None
+    reference_groups_by_episode: dict[int, int] | None = None
+    for artifact in artifacts:
+        if method not in artifact.methods:
+            raise ValueError(f"Method {method!r} is missing from {artifact.path}")
+        rows = [
+            row
+            for row in artifact.methods[method]
+            if int(row["episode_index"]) in wanted
+        ]
+        rows.sort(key=lambda row: int(row["episode_index"]))
+        if [int(row["episode_index"]) for row in rows] != sorted(wanted):
+            raise ValueError(f"{artifact.path} is missing requested block episodes")
+        matrices.append(np.asarray([metric_value(row, metric) for row in rows], dtype=np.float64))
+        scene_rows = read_jsonl(artifact.path / "scenes.jsonl")
+        by_episode = {
+            int(row["episode_index"]): int(row["mirror_group_id"])
+            for row in scene_rows
+        }
+        current_groups = [by_episode[int(row["episode_index"])] for row in rows]
+        if group_order is None:
+            group_order = list(dict.fromkeys(current_groups))
+            reference_groups_by_episode = {
+                int(row["episode_index"]): int(group_id)
+                for row, group_id in zip(rows, current_groups)
+            }
+        elif reference_groups_by_episode is None or current_groups != [
+            reference_groups_by_episode[int(row["episode_index"])] for row in rows
+        ]:
+            raise ValueError("Mirror-group ordering differs across repair artifacts")
+    assert group_order is not None
+    assert reference_groups_by_episode is not None
+    matrix = np.stack(matrices, axis=0)
+    grouped = np.full((matrix.shape[0], len(group_order)), np.nan, dtype=np.float64)
+    for group_index, group_id in enumerate(group_order):
+        columns = [
+            index
+            for index, episode_id in enumerate(sorted(wanted))
+            if reference_groups_by_episode[episode_id] == group_id
+        ]
+        values = matrix[:, columns]
+        counts = np.isfinite(values).sum(axis=1)
+        grouped[:, group_index] = np.divide(
+            np.nansum(values, axis=1),
+            counts,
+            out=np.full(matrix.shape[0], np.nan, dtype=np.float64),
+            where=counts > 0,
+        )
+    return group_order, grouped
+
+
 def budget_summary(
     artifacts: list[RunArtifact], method: str, episode_ids: list[int]
 ) -> dict[str, Any]:
@@ -154,8 +210,12 @@ def paired_delta(
     rng: np.random.Generator,
     bootstrap_samples: int,
 ) -> dict[str, Any]:
-    candidate_groups, candidate_matrix = grouped_metric_matrix(artifacts, candidate, metric)
-    reference_groups, reference_matrix = grouped_metric_matrix(artifacts, reference, metric)
+    candidate_groups, candidate_matrix = grouped_subset_metric_matrix(
+        artifacts, candidate, metric, episode_ids
+    )
+    reference_groups, reference_matrix = grouped_subset_metric_matrix(
+        artifacts, reference, metric, episode_ids
+    )
     if candidate_groups != reference_groups:
         raise ValueError("paired repair methods do not have identical mirror groups")
     result = metric_summary(candidate_matrix - reference_matrix, rng, bootstrap_samples)
@@ -177,7 +237,7 @@ def summarize_block(
 ) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     for metric in REPAIR_METRICS:
-        _, matrix = grouped_metric_matrix(artifacts, method, metric)
+        _, matrix = grouped_subset_metric_matrix(artifacts, method, metric, episode_ids)
         metrics[metric] = metric_summary(matrix, rng, bootstrap_samples)
     return {
         "training_seeds": [artifact.seed for artifact in artifacts],
@@ -239,11 +299,9 @@ def main() -> None:
     blocks = scene_blocks(args.scenes.resolve())
     rng = np.random.default_rng(args.bootstrap_seed)
     block_payload: dict[str, Any] = {}
-    for block, episode_ids in blocks.items():
-        block_methods = {
-            method: summarize_block(artifacts, method, episode_ids, rng, args.bootstrap_samples)
-            for method in methods
-        }
+    all_episode_ids = sorted(episode_id for ids in blocks.values() for episode_id in ids)
+
+    def comparison_payload(episode_ids: list[int]) -> dict[str, Any]:
         comparisons: dict[str, Any] = {}
         for candidate, reference in (
             ("R1_phase59_queue_cbf_k1", "R0_phase59_qdr_baseline"),
@@ -262,12 +320,23 @@ def main() -> None:
                 )
                 for metric in ("safe_capture_success", "collision", "timeout", "min_clearance_m")
             }
+        return comparisons
+
+    for block, episode_ids in blocks.items():
+        block_methods = {
+            method: summarize_block(artifacts, method, episode_ids, rng, args.bootstrap_samples)
+            for method in methods
+        }
         block_payload[block] = {
             "episodes": len(episode_ids),
             "mirror_groups": len(episode_ids) // 2,
             "methods": block_methods,
-            "paired_comparisons": comparisons,
+            "paired_comparisons": comparison_payload(episode_ids),
         }
+    overall_methods = {
+        method: summarize_block(artifacts, method, all_episode_ids, rng, args.bootstrap_samples)
+        for method in methods
+    }
     payload = {
         "schema_version": "phase59-repair-by-block-v1",
         "scene_manifest_sha256": artifacts[0].scene_hash,
@@ -281,6 +350,12 @@ def main() -> None:
             "candidate_budget_audit": "requested versus realized candidate_count from raw step logs",
             "local_cbf_claim": "empirical_filter_only",
             "robust_clbf_qp_proof": "not_claimed",
+        },
+        "overall": {
+            "episodes": len(all_episode_ids),
+            "mirror_groups": len(all_episode_ids) // 2,
+            "methods": overall_methods,
+            "paired_comparisons": comparison_payload(all_episode_ids),
         },
         "blocks": block_payload,
     }
