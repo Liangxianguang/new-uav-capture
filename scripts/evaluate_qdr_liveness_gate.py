@@ -13,9 +13,27 @@ from torch.utils.tensorboard import SummaryWriter
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--aggregate-json", type=Path, required=True)
-    parser.add_argument("--on-summary", type=Path, action="append", required=True)
+    parser.add_argument(
+        "--on-summary",
+        "--candidate-summary",
+        dest="on_summary",
+        type=Path,
+        action="append",
+        required=True,
+        help="Summary JSON for each candidate seed (legacy name: --on-summary).",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tensorboard-dir", type=Path, required=True)
+    parser.add_argument(
+        "--candidate-group",
+        default="on",
+        help="Group key used for the candidate arm in the aggregate JSON.",
+    )
+    parser.add_argument(
+        "--candidate-label",
+        default="on",
+        help="Human-readable candidate label used in the gate artifact.",
+    )
     parser.add_argument("--timeout-rate-max", type=float, default=0.05)
     parser.add_argument("--timeout-delta-vs-off-max", type=float, default=0.05)
     parser.add_argument("--max-exhaustion-streak-steps-max", type=float, default=24.0)
@@ -35,16 +53,18 @@ def evaluate(
     timeout_rate_max: float,
     timeout_delta_vs_off_max: float,
     max_exhaustion_streak_steps_max: float,
+    candidate_group: str = "on",
+    candidate_label: str = "on",
 ) -> dict[str, Any]:
     on_timeout_rate = _metric(
         aggregate,
-        ["groups", "on", "distributed_delayed", "episode_metrics", "timeout", "mean"],
+        ["groups", candidate_group, "distributed_delayed", "episode_metrics", "timeout", "mean"],
     )
     timeout_delta = _metric(
         aggregate,
         [
             "paired_vs_reference",
-            "on",
+            candidate_group,
             "distributed_delayed",
             "episode_metrics",
             "timeout",
@@ -75,6 +95,8 @@ def evaluate(
     }
     return {
         "gate": "qdr_liveness_confirmation",
+        "candidate_group": candidate_group,
+        "candidate_label": candidate_label,
         "status": "pass" if all(item["pass"] for item in checks.values()) else "no_go",
         "checks": checks,
         "training_seed_count": len(summaries),
@@ -91,12 +113,16 @@ def main() -> None:
         args.timeout_rate_max,
         args.timeout_delta_vs_off_max,
         args.max_exhaustion_streak_steps_max,
+        candidate_group=args.candidate_group,
+        candidate_label=args.candidate_label,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     args.tensorboard_dir.mkdir(parents=True, exist_ok=True)
     with SummaryWriter(str(args.tensorboard_dir)) as writer:
         writer.add_text("Gate/config", json.dumps({
+            "candidate_group": args.candidate_group,
+            "candidate_label": args.candidate_label,
             "timeout_rate_max": args.timeout_rate_max,
             "timeout_delta_vs_off_max": args.timeout_delta_vs_off_max,
             "max_exhaustion_streak_steps_max": args.max_exhaustion_streak_steps_max,
