@@ -331,7 +331,9 @@ boundary `741`、obstacle `202` 和 inter-agent `5`；replace/flush 的 prefix
 admissible 降至 `60.33%/67.73%`，而 suffix gate exhaustion 仍为
 `18.23%/21.28%`。在 240 个 immutable episode 中，238 个曾出现过至少一次
 exhaustion，但大多数仍最终 safe capture，说明单一的“是否耗尽”指标不能代表失败。
-后续将保持 immutable authority，增加连续耗尽长度、首次耗尽位置和恢复结果日志，
+已在 evaluator 中加入连续耗尽长度、首次耗尽位置和恢复次数日志，并通过 2-episode
+schema smoke；
+后续仍保持 immutable authority，
 并只研究与当前候选选择语义等价的 feasibility-first/incremental rollout。已完成的
 40-episode development smoke 保持 episode outcome、step-level gate 字段及测试
 中的 selected action/cost 一致，但 planner/total 延迟没有下降，因此该优化暂不

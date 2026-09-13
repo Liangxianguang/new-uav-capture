@@ -700,6 +700,10 @@ def main() -> None:
                     "qdr_suffix_minimum_clearance_m",
                     "qdr_suffix_minimum_barrier_m",
                     "qdr_suffix_admissible_rate",
+                    "qdr_suffix_gate_exhausted_once",
+                    "qdr_suffix_gate_first_exhaustion_step",
+                    "qdr_suffix_gate_max_exhaustion_streak_steps",
+                    "qdr_suffix_gate_recovery_count",
                     "qdr_precondition_recovery_recommended_rate",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
@@ -791,6 +795,26 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/suffix_gate_rejected_candidates",
                 overall.get("qdr_suffix_gate_rejected_candidates", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_exhausted_episode_rate",
+                overall.get("qdr_suffix_gate_exhausted_episode_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_first_exhaustion_step",
+                overall.get("qdr_suffix_gate_first_exhaustion_step", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_max_exhaustion_streak_steps",
+                overall.get("qdr_suffix_gate_max_exhaustion_streak_steps", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/suffix_gate_recovery_count",
+                overall.get("qdr_suffix_gate_recovery_count", float("nan")),
                 0,
             )
             writer.add_scalar(

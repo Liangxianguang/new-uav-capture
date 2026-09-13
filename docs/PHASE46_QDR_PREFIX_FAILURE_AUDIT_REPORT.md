@@ -124,8 +124,27 @@ prefix/suffix admissibility 字段逐行一致。focused unit test 还验证了�
 cost 计算。它保留为可审计的等价性实现和负 runtime ablation，不替换 Phase 40
 参考，也不开放 locked-test。
 
+## 6. Exhaustion persistence logging schema smoke
+
+已在 evaluator 中加入以下不改变控制逻辑的过程字段：
+
+```text
+qdr_suffix_gate_exhausted_once
+qdr_suffix_gate_first_exhaustion_step
+qdr_suffix_gate_exhaustion_streak_steps
+qdr_suffix_gate_max_exhaustion_streak_steps
+qdr_suffix_gate_recovered_after_exhaustion
+qdr_suffix_gate_recovery_count
+```
+
+在同一 development block 的 2-episode schema smoke 中，新增 summary 能记录
+`exhausted_once=1.0`、平均首次耗尽步 `14.0`、最大连续耗尽长度 `5.0` 和平均恢复
+次数 `7.5`；两条 TensorBoard run 均包含新增 episode 字段和原有完整 latency
+分位数标签。该数值仅用于验证日志契约，不能作为新的性能估计。
+
 ## 7. 阶段判定
 
 **诊断完成；QDR promotion 状态不变。** Phase 46 找到了可执行的优化方向：对
 immutable authority 保持不变的前提下，压缩无望候选的 full-cost 计算并增加连续耗尽
-诊断。它没有证明新的捕获收益，也没有为 replace/flush 提供升级依据。
+诊断。新增持久性字段已经通过 schema smoke，但候选压缩尚未提速；它没有证明新的
+捕获收益，也没有为 replace/flush 提供升级依据。

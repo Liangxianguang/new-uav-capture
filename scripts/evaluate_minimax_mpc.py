@@ -794,6 +794,46 @@ def _shift_warm_start_sequence(sequence: np.ndarray) -> np.ndarray:
     return np.concatenate([value[1:], value[-1:]], axis=0)
 
 
+def _annotate_qdr_gate_exhaustion(step_rows: list[dict[str, Any]]) -> dict[str, float]:
+    """Add auditable persistence/recovery diagnostics for QDR gate exhaustion."""
+
+    current_streak = 0
+    maximum_streak = 0
+    first_exhaustion_step: float | None = None
+    recovery_count = 0
+    exhausted_once = False
+    for row in step_rows:
+        exhausted = bool(row.get("qdr_suffix_gate_exhausted", False))
+        recovered = False
+        if exhausted:
+            exhausted_once = True
+            current_streak += 1
+            maximum_streak = max(maximum_streak, current_streak)
+            if first_exhaustion_step is None:
+                first_exhaustion_step = float(row.get("step", float("nan")))
+        else:
+            recovered = current_streak > 0
+            if recovered:
+                recovery_count += 1
+            current_streak = 0
+        row["qdr_suffix_gate_exhaustion_streak_steps"] = float(current_streak)
+        row["qdr_suffix_gate_max_exhaustion_streak_steps"] = float(maximum_streak)
+        row["qdr_suffix_gate_first_exhaustion_step"] = (
+            float("nan") if first_exhaustion_step is None else float(first_exhaustion_step)
+        )
+        row["qdr_suffix_gate_recovered_after_exhaustion"] = 1.0 if recovered else 0.0
+        row["qdr_suffix_gate_recovery_count"] = float(recovery_count)
+        row["qdr_suffix_gate_exhausted_once"] = 1.0 if exhausted_once else 0.0
+    return {
+        "qdr_suffix_gate_exhausted_once": 1.0 if exhausted_once else 0.0,
+        "qdr_suffix_gate_first_exhaustion_step": (
+            float("nan") if first_exhaustion_step is None else float(first_exhaustion_step)
+        ),
+        "qdr_suffix_gate_max_exhaustion_streak_steps": float(maximum_streak),
+        "qdr_suffix_gate_recovery_count": float(recovery_count),
+    }
+
+
 def run_episode(
     config: dict[str, Any],
     *,
@@ -1676,6 +1716,7 @@ def run_episode(
         )
         if terminated or truncated:
             break
+    qdr_exhaustion_summary = _annotate_qdr_gate_exhaustion(step_rows)
     summary = {
         "method": method,
         "seed": int(seed),
@@ -1914,6 +1955,7 @@ def run_episode(
         "qdr_suffix_gate_rejected_candidates": int(
             sum(row["qdr_suffix_gate_rejected_candidates"] for row in step_rows)
         ),
+        **qdr_exhaustion_summary,
         "planner_success_count": int(sum(row["planner_status"] for row in step_rows)),
         "planner_valid_count": int(sum(row["planner_valid"] for row in step_rows)),
         "planner_converged_count": int(sum(row["planner_converged"] for row in step_rows)),
@@ -2134,6 +2176,18 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_suffix_gate_rejected_candidates": int(
             sum(row.get("qdr_suffix_gate_rejected_candidates", 0) for row in rows)
+        ),
+        "qdr_suffix_gate_exhausted_episode_rate": finite_mean(
+            [row.get("qdr_suffix_gate_exhausted_once", float("nan")) for row in rows]
+        ),
+        "qdr_suffix_gate_first_exhaustion_step": finite_mean(
+            [row.get("qdr_suffix_gate_first_exhaustion_step", float("nan")) for row in rows]
+        ),
+        "qdr_suffix_gate_max_exhaustion_streak_steps": finite_max(
+            [row.get("qdr_suffix_gate_max_exhaustion_streak_steps", float("nan")) for row in rows]
+        ),
+        "qdr_suffix_gate_recovery_count": finite_mean(
+            [row.get("qdr_suffix_gate_recovery_count", float("nan")) for row in rows]
         ),
         "planner_latency_ms": {
             "p50": percentile(planner_latencies, 50),

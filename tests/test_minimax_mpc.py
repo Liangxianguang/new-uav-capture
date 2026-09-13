@@ -20,10 +20,35 @@ from encirclement3d.minimax_mpc import (
 from encirclement3d.safety_qp import RobustCBFQPConfig
 from encirclement3d.observation_encoding import policy_observations
 from encirclement3d.prediction import HistoryTargetPredictor, TrajectoryNormalizer
-from scripts.evaluate_minimax_mpc import PredictionRuntime, run_episode
+from scripts.evaluate_minimax_mpc import (
+    PredictionRuntime,
+    _annotate_qdr_gate_exhaustion,
+    run_episode,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_qdr_gate_exhaustion_annotation_tracks_streaks_and_recovery() -> None:
+    rows = [
+        {"step": 1.0, "qdr_suffix_gate_exhausted": False},
+        {"step": 2.0, "qdr_suffix_gate_exhausted": True},
+        {"step": 3.0, "qdr_suffix_gate_exhausted": True},
+        {"step": 4.0, "qdr_suffix_gate_exhausted": False},
+        {"step": 5.0, "qdr_suffix_gate_exhausted": True},
+    ]
+
+    summary = _annotate_qdr_gate_exhaustion(rows)
+
+    assert summary == {
+        "qdr_suffix_gate_exhausted_once": 1.0,
+        "qdr_suffix_gate_first_exhaustion_step": 2.0,
+        "qdr_suffix_gate_max_exhaustion_streak_steps": 2.0,
+        "qdr_suffix_gate_recovery_count": 1.0,
+    }
+    assert [row["qdr_suffix_gate_exhaustion_streak_steps"] for row in rows] == [0.0, 1.0, 2.0, 0.0, 1.0]
+    assert [row["qdr_suffix_gate_recovered_after_exhaustion"] for row in rows] == [0.0, 0.0, 0.0, 1.0, 0.0]
 
 
 def _observation() -> dict[str, object]:
