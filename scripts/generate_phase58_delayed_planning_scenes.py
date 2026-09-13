@@ -82,6 +82,7 @@ MESSAGE_DELAY_LEVELS = (0, 2, 4, 6)
 DROPOUT_LEVELS = (0.00, 0.10, 0.20, 0.30)
 TRACKING_LEVELS = (0.0, 0.10, 0.20)
 DRAG_LEVELS = (0.0, 0.05)
+TRACKING_DRAG_PAIRS = ((0.0, 0.0), (0.10, 0.05), (0.20, 0.05))
 
 
 def parse_args() -> argparse.Namespace:
@@ -136,7 +137,7 @@ def condition_for(
             (message_delay, dropout, tracking, drag)
             for message_delay in MESSAGE_DELAY_LEVELS
             for dropout in DROPOUT_LEVELS
-            for tracking, drag in zip(TRACKING_LEVELS, DRAG_LEVELS + (0.05,))
+            for tracking, drag in TRACKING_DRAG_PAIRS
         ]
         message_delay, dropout, tracking, drag = cells[group_in_block % len(cells)]
         pursuit["message_delay_steps"] = int(message_delay)

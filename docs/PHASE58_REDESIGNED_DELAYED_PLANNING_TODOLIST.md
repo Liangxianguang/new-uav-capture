@@ -127,8 +127,9 @@ manifest，不能把未声明的因素混在同一因果结论中。
 | command noise std | `0.00, 0.04, 0.08, 0.12, 0.16 m/s` |
 | noise bound | 固定 `3 sigma`，不在测试集重新估计 |
 
-使用平衡的 fractional-factorial 分配，每个关键 cell 至少 4 个 mirror groups。
-报告完整 response surface，而不是只报告最难 cell 的总体均值。
+使用平衡的 fractional-factorial 分配；边缘风险 level 和预先指定的交互 cell
+至少 4 个 mirror groups，其余 fractional cell 至少 2 个 mirror groups。报告
+完整 response surface，而不是只报告最难 cell 的总体均值。
 
 #### C. communication/execution block
 
@@ -451,4 +452,3 @@ P58-0 protocol / runtime contract freeze       2--3 days
   阶段先通过独立安全合同和 liveness gate；
 - 不通过增加难度来“做坏”对比方法。难度必须来自预先声明、可复现、对所有
   方法相同的 delay/noise/communication 条件。
-
