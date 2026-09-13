@@ -57,6 +57,7 @@ def _rollout_local_action_candidates(
     actions: np.ndarray,
     agent_id: int,
     dt_seconds: float,
+    cache: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return position/velocity paths for own commands under the QDR contract."""
 
@@ -64,6 +65,22 @@ def _rollout_local_action_candidates(
     velocities = np.asarray(observation["defender_velocities"], dtype=np.float64)
     parameters = parameters_from_observation(observation, float(dt_seconds))
     candidate_actions = np.asarray(actions, dtype=np.float64)
+    cache_key: tuple[Any, ...] | None = None
+    if cache is not None:
+        # A planner call keeps the observation and execution parameters fixed.
+        # Include the initial state and action bytes so the cache cannot leak
+        # a rollout across agents or control steps.
+        cache_key = (
+            int(agent_id),
+            float(dt_seconds),
+            positions[agent_id].tobytes(),
+            velocities[agent_id].tobytes(),
+            candidate_actions.shape,
+            candidate_actions.tobytes(),
+        )
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
     initial_position = np.broadcast_to(
         positions[agent_id], (candidate_actions.shape[0], 3)
     ).copy()
@@ -76,6 +93,8 @@ def _rollout_local_action_candidates(
         candidate_actions,
         parameters,
     )
+    if cache is not None and cache_key is not None:
+        cache[cache_key] = (position_paths, velocity_paths)
     return position_paths, velocity_paths
 
 
@@ -86,6 +105,7 @@ def _rollout_peer_action_path(
     dt_seconds: float,
     horizon_steps: int,
     max_speed_mps: float,
+    cache: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Roll out a peer message with the same execution convention as own actions."""
 
@@ -97,6 +117,21 @@ def _rollout_peer_action_path(
     else:
         actions = _clip_rows(np.asarray(action_sequence, dtype=np.float64), max_speed_mps)
     if _qdr_execution_aware(observation):
+        cache_key: tuple[Any, ...] | None = None
+        if cache is not None:
+            cache_key = (
+                "peer",
+                float(dt_seconds),
+                int(horizon_steps),
+                float(max_speed_mps),
+                np.asarray(message.position, dtype=np.float64).tobytes(),
+                np.asarray(message.velocity, dtype=np.float64).tobytes(),
+                actions.shape,
+                actions.tobytes(),
+            )
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
         parameters = parameters_from_observation(observation, float(dt_seconds))
         position_path, velocity_path, _steps = rollout_action_sequence(
             np.asarray(message.position, dtype=np.float64)[None, :],
@@ -108,7 +143,10 @@ def _rollout_peer_action_path(
         # Local distributed costs use the peer convention [H, 3], matching the
         # ideal-execution branch below and avoiding an accidental H-by-H
         # broadcast in the candidate/peer subtraction.
-        return position_path[:, 0, :], velocity_path[:, 0, :]
+        result = (position_path[:, 0, :], velocity_path[:, 0, :])
+        if cache is not None and cache_key is not None:
+            cache[cache_key] = result
+        return result
     return (
         np.asarray(message.position, dtype=np.float64)[None, :]
         + np.cumsum(actions * float(dt_seconds), axis=0),
@@ -365,6 +403,7 @@ class DistributedMinimaxDNMPC:
         self._fc_dbf_previous_assignment: np.ndarray | None = None
         self._fc_dbf_last_metrics: dict[str, np.ndarray | float | bool] | None = None
         self._fc_dbf_last_gate_exhausted = False
+        self._qdr_rollout_cache: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray]] = {}
 
     def plan(
         self,
@@ -383,6 +422,11 @@ class DistributedMinimaxDNMPC:
         if int(step_index) < 0:
             raise ValueError("step_index must be non-negative.")
         self._prepare_step(int(step_index), positions.shape[0])
+        # Candidate actions are regenerated during sequential best-response
+        # iterations, while the state at this control step is fixed.  Reuse
+        # their execution rollouts within this plan only; never carry them to
+        # a later environment step.
+        self._qdr_rollout_cache = {}
         self._stats = {
             "messages_attempted": 0,
             "messages_sent": 0,
@@ -688,7 +732,12 @@ class DistributedMinimaxDNMPC:
         paths = np.asarray(scenarios.trajectories, dtype=np.float64)
         reference = np.average(paths, axis=0, weights=scenarios.normalized_weights)
         selected_paths = [reference]
-        selected_paths.extend(list(paths[: self.distributed.max_local_candidate_paths]))
+        for target_path in paths[: self.distributed.max_local_candidate_paths]:
+            # With K=1 the weighted reference is exactly the only candidate.
+            # Do not evaluate the same suffix twice; retain every distinct
+            # public candidate for K>1 without changing its ordering.
+            if not any(np.array_equal(target_path, existing) for existing in selected_paths):
+                selected_paths.append(target_path)
         team_positions = {agent_id: np.asarray(own_position, dtype=np.float64)}
         team_positions.update({peer: message.position for peer, message in known.items()})
         first_target = reference[0]
@@ -834,6 +883,7 @@ class DistributedMinimaxDNMPC:
                 actions,
                 agent_id,
                 self.config.dt_seconds,
+                self._qdr_rollout_cache,
             )
         else:
             current = positions[agent_id][None, None, :] + np.cumsum(
@@ -906,6 +956,7 @@ class DistributedMinimaxDNMPC:
                             self.config.dt_seconds,
                             self.config.horizon_steps,
                             self.config.max_speed_mps,
+                            cache=self._qdr_rollout_cache,
                         )
                         team_position_paths.append(
                             np.broadcast_to(peer_position, current.shape)
@@ -974,6 +1025,7 @@ class DistributedMinimaxDNMPC:
                     self.config.dt_seconds,
                     self.config.horizon_steps,
                     self.config.max_speed_mps,
+                    cache=self._qdr_rollout_cache,
                 )
                 team_position_paths.append(np.broadcast_to(peer_positions, current.shape))
             gap_metrics = escape_gap_metrics(
@@ -1007,6 +1059,7 @@ class DistributedMinimaxDNMPC:
                 self.config.dt_seconds,
                 self.config.horizon_steps,
                 self.config.max_speed_mps,
+                cache=self._qdr_rollout_cache,
             )
             inter_agent = np.maximum(
                 self.config.minimum_inter_agent_distance_m
@@ -1111,6 +1164,7 @@ class DistributedMinimaxDNMPC:
                 actions,
                 agent_id,
                 self.config.dt_seconds,
+                self._qdr_rollout_cache,
             )
         else:
             own_path = positions[agent_id][None, None, :] + np.cumsum(
@@ -1133,6 +1187,7 @@ class DistributedMinimaxDNMPC:
                 self.config.dt_seconds,
                 self.config.horizon_steps,
                 self.config.max_speed_mps,
+                cache=self._qdr_rollout_cache,
             )
             team_position_paths.append(np.broadcast_to(peer_path, own_path.shape))
             team_velocity_paths.append(np.broadcast_to(peer_velocity, actions.shape))

@@ -252,6 +252,20 @@ Phase35 的 `127.46/150.21 ms` 降到 `82.39/105.27 ms`。由于相对 QDR-off �
 不认定为 QDR performance promotion。详细结果见
 `docs/PHASE36_QDR_BATCHED_ROLLOUT_REPORT.md`。
 
+### 3.7 Phase 38--40 QDR rollout cache 与候选压缩
+
+Phase 38--40 继续保持 QDR 的信息边界和 immutable queue authority，只消除同一
+控制步内的重复计算：local candidate execution rollout 使用 step-local cache，
+peer action path 使用相同参数/初始状态/action bytes 的 cache；随后移除与 weighted
+reference 完全相同的候选。40-episode development block 上，safe capture 仍为
+`100.0%`，collision/boundary/timeout 仍为 `0%`，suffix admissible `86.80%`，
+gate exhaustion `21.76%`。Phase40 的 planner/total p95 为 `40.43/63.77 ms`，
+相对 Phase36 total p95 `105.27 ms` 下降约 `39.4%`，但相对 QDR-off `46.53 ms`
+仍高约 `37.1%`，没有通过预注册的 `+15%` 相对延迟门槛。因此该阶段是可复现的
+runtime optimization pass，不是 QDR promotion；immutable prefix 仍可能不可恢复，
+也没有产生 safety proof。完整结果见
+`docs/PHASE38_40_QDR_RUNTIME_COMPRESSION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结

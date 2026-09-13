@@ -97,6 +97,34 @@ def test_queue_aware_peer_rollout_keeps_single_agent_shape() -> None:
     assert plan.diagnostics.qdr_suffix_gate_exhausted is False
 
 
+def test_local_candidates_remove_duplicate_weighted_reference() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 0,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.0,
+        "velocity_time_constant_seconds": 0.0,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    planner = _planner("ideal")
+    path = np.tile(np.array([[1.0, 0.0, 3.0]], dtype=np.float64), (4, 1))
+    scenarios = ScenarioTrajectorySet(path[None, ...], np.ones(1))
+
+    candidates = planner._local_candidate_sequences(
+        observation,
+        scenarios,
+        agent_id=0,
+        own_position=observation["defender_positions"][0],
+        known={},
+    )
+
+    # One unique target path plus the two QDR recovery candidates.
+    assert len(candidates) == 3
+
+
 def test_queue_aware_local_obstacles_include_horizon_reachable_geometry() -> None:
     observation = _observation()
     observation["obstacles"] = [
