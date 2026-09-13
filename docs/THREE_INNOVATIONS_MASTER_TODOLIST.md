@@ -131,7 +131,7 @@ C_{\mathrm{RNIC}}(i,q)=
 
 | 模块 | 已有证据 | 当前判断 | 计划含义 |
 | --- | --- | --- | --- |
-| QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后 QDR-on 为 `85.0%` safe capture、`15.0%` collision；Phase35 加入 suffix gate 与有限 recovery candidates 后在同一开发块达到 `100.0%/0%`，但 gate exhaustion `21.76%` 且 total p95 `150.21 ms` 对 QDR-off `46.53 ms` | Safety outcome repaired, efficiency promotion No-Go | 先做候选批量化/增量 rollout/可行性预筛，再做 fresh delay/authority/noise confirmation；不把当前 gate 写成安全证明 |
+| QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后 QDR-on 为 `85.0%` safe capture、`15.0%` collision；Phase35 加入 suffix gate 与有限 recovery candidates 后达到 `100.0%/0%`；Phase36 批量化 rollout 后 total p95 降至 `105.27 ms`，但 gate exhaustion `21.76%` 且相对 QDR-off `46.53 ms` 仍超门槛 | Safety outcome repaired, runtime improved, promotion No-Go | 继续做候选早停/缓存和增量 rollout，再做 fresh delay/authority/noise confirmation；不把当前 gate 写成安全证明 |
 | UAKR | 三种子验证平均 `K≈2.68`、刷新率约 `36.6%`，但 ID safe-capture 非劣 CI 未过；残差触发 high-K 和 refresh-only 也均为负消融 | No-Go for closed-loop promotion | 保留为效率/失败分析方向；若重开，必须做 intervention-effect calibration |
 | RNIC | ID 行为基本不变，target-speed/delay OOD 变差并增加延迟；slack 对 collision 的 pooled AUROC `0.504` | No-Go | 先修复 reachable-time label 和 slot-level 定义，再做 planner 消融 |
 | 主参考 | GRU + distributed delayed DN-MPC + local CBF 的 locked-test safe capture `94.81%`，collision/boundary `0/0` | 当前主参考 | 所有新模块都必须与它配对比较 |
@@ -241,6 +241,16 @@ block 上，QDR-on safe capture 从未修复版本的 `87.5%` 恢复到 `100.0%`
 候选均不可行时系统仍选择最小违反候选，gate 不构成 safety certificate，也不能
 修复 immutable prefix。完整结果见
 `docs/PHASE35_QDR_SUFFIX_GATE_RECOVERY_REPORT.md`。
+
+### 3.6 Phase 36 QDR batched execution-rollout
+
+Phase 36 将本地候选执行 dynamics rollout 改为候选维度批量计算，并用逐候选参考
+实现做数值等价测试。相同 40-episode development block 上，safe capture 仍为
+`100.0%`，collision/boundary/timeout 仍为 `0%`，而 planner/total p95 从
+Phase35 的 `127.46/150.21 ms` 降到 `82.39/105.27 ms`。由于相对 QDR-off 的
+`46.53 ms` 仍远超 `15%` 增幅门槛，当前只认定为 runtime optimization pass，
+不认定为 QDR performance promotion。详细结果见
+`docs/PHASE36_QDR_BATCHED_ROLLOUT_REPORT.md`。
 
 ---
 

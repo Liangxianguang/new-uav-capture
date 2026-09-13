@@ -19,6 +19,9 @@ suffix 不可行；在 `immutable` authority 下，已提交且不安全的 queu
 和可观测性，但 gate exhaustion 本身不是 safety certificate，也不能修复
 immutable prefix。
 
+Phase 36 随后将本地候选 rollout 批量化，在不改变控制决策和安全 outcome 的条件下
+降低计算开销；详见 `docs/PHASE36_QDR_BATCHED_ROLLOUT_REPORT.md`。
+
 本阶段只使用 validation-development 场景，不读取 locked-test，不用本结果回调
  predictor、MPC 权重或安全阈值，也没有重新接入 robust CBF-QP。
 
