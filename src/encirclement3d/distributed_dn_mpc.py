@@ -221,6 +221,7 @@ class DistributedDNMPCConfig:
     # This is a calibrated diagnostic margin, not a formal safety certificate.
     qdr_execution_tube_enabled: bool = False
     qdr_execution_tube_multiplier: float = 1.0
+    qdr_execution_tube_radius_m_by_step: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
         if self.communication_mode not in _COMMUNICATION_MODES:
@@ -254,6 +255,13 @@ class DistributedDNMPCConfig:
             or float(self.qdr_execution_tube_multiplier) < 1.0
         ):
             raise ValueError("qdr_execution_tube_multiplier must be finite and at least one.")
+        configured_radii = self.qdr_execution_tube_radius_m_by_step
+        if configured_radii is None:
+            configured_radii = ()
+        if not np.isfinite(np.asarray(configured_radii, dtype=np.float64)).all() or any(
+            float(value) < 0.0 for value in configured_radii
+        ):
+            raise ValueError("qdr_execution_tube_radius_m_by_step must be finite and non-negative.")
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "DistributedDNMPCConfig":
@@ -691,6 +699,14 @@ class DistributedMinimaxDNMPC:
         horizon = int(self.config.horizon_steps)
         if not _qdr_execution_aware(observation) or not self.distributed.qdr_execution_tube_enabled:
             return np.zeros((horizon, int(defender_count)), dtype=np.float64)
+        configured_radii = self.distributed.qdr_execution_tube_radius_m_by_step
+        if configured_radii:
+            radii = np.asarray(configured_radii, dtype=np.float64)
+            if radii.shape != (horizon,):
+                raise ValueError(
+                    "qdr_execution_tube_radius_m_by_step must match the planner horizon."
+                )
+            return np.broadcast_to(radii[:, None], (horizon, int(defender_count))).copy()
         parameters = parameters_from_observation(observation, float(self.config.dt_seconds))
         return reachable_tube_radii(
             parameters,

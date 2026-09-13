@@ -130,6 +130,16 @@ def test_qdr_execution_tube_is_explicit_and_auditable() -> None:
         calibrated_plan.diagnostics.qdr_mean_execution_tube_radius_m
     )
 
+    frozen = _planner(
+        "ideal",
+        qdr_execution_tube_enabled=True,
+        qdr_execution_tube_multiplier=2.0,
+        qdr_execution_tube_radius_m_by_step=(0.1, 0.2, 0.3, 0.4),
+    )
+    frozen_plan = frozen.plan(observation, _scenarios(), step_index=0)
+    assert frozen_plan.diagnostics.qdr_mean_execution_tube_radius_m == pytest.approx(0.25)
+    assert frozen_plan.diagnostics.qdr_max_execution_tube_radius_m == pytest.approx(0.4)
+
 
 def test_local_candidates_remove_duplicate_weighted_reference() -> None:
     observation = _observation()

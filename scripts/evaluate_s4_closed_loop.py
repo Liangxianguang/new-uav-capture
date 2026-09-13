@@ -112,6 +112,16 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Enable the validation-frozen empirical QDR execution tube with this multiplier.",
     )
+    parser.add_argument(
+        "--qdr-execution-tube-calibration",
+        type=Path,
+        help="Load a validation-frozen QDR execution-tube summary JSON and use its step radii.",
+    )
+    parser.add_argument(
+        "--qdr-execution-tube-calibration-variant",
+        type=str,
+        help="Variant key in --qdr-execution-tube-calibration; required when it has multiple variants.",
+    )
     adaptive_group = parser.add_mutually_exclusive_group()
     adaptive_group.add_argument("--adaptive-k", dest="adaptive_k", action="store_true")
     adaptive_group.add_argument("--no-adaptive-k", dest="adaptive_k", action="store_false")
@@ -537,6 +547,46 @@ def main() -> None:
         drag_coefficient=args.execution_drag_coefficient,
     )
     distributed_mapping = dict(mpc_document.get("distributed", {}))
+    qdr_execution_tube_calibration_path = None
+    qdr_execution_tube_calibration_variant = None
+    if args.qdr_execution_tube_calibration is not None:
+        if args.qdr_execution_tube_multiplier is not None:
+            raise ValueError(
+                "qdr-execution-tube-calibration cannot be combined with an explicit multiplier"
+            )
+        qdr_execution_tube_calibration_path = args.qdr_execution_tube_calibration.resolve()
+        calibration_document = json.loads(
+            qdr_execution_tube_calibration_path.read_text(encoding="utf-8")
+        )
+        variants = dict(calibration_document.get("variants", {}))
+        if not variants:
+            raise ValueError("QDR execution-tube calibration has no variants")
+        if args.qdr_execution_tube_calibration_variant is None:
+            if len(variants) != 1:
+                raise ValueError(
+                    "--qdr-execution-tube-calibration-variant is required for multiple variants"
+                )
+            qdr_execution_tube_calibration_variant = next(iter(variants))
+        else:
+            qdr_execution_tube_calibration_variant = str(args.qdr_execution_tube_calibration_variant)
+        if qdr_execution_tube_calibration_variant not in variants:
+            raise ValueError(
+                f"Unknown QDR execution-tube calibration variant: {qdr_execution_tube_calibration_variant}"
+            )
+        calibration_summary = dict(variants[qdr_execution_tube_calibration_variant])
+        calibrated_radii = calibration_summary.get("simultaneous_calibrated_radius_m_by_step")
+        if not isinstance(calibrated_radii, list):
+            raise ValueError("QDR execution-tube calibration is missing step radii")
+        if len(calibrated_radii) != planner_config.horizon_steps:
+            raise ValueError("QDR execution-tube calibration horizon does not match the planner")
+        selected_multiplier = max(1.0, float(calibration_summary.get("simultaneous_multiplier", 1.0)))
+        if not np.isfinite(selected_multiplier) or selected_multiplier < 1.0:
+            raise ValueError("QDR execution-tube calibration has an invalid multiplier")
+        distributed_mapping["qdr_execution_tube_enabled"] = True
+        distributed_mapping["qdr_execution_tube_multiplier"] = selected_multiplier
+        distributed_mapping["qdr_execution_tube_radius_m_by_step"] = [
+            float(value) for value in calibrated_radii
+        ]
     if args.qdr_execution_tube_multiplier is not None:
         if (
             not np.isfinite(float(args.qdr_execution_tube_multiplier))
@@ -585,6 +635,10 @@ def main() -> None:
         hashes[str(tube_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
             tube_path.read_bytes()
         ).hexdigest()
+    if qdr_execution_tube_calibration_path is not None:
+        hashes[
+            str(qdr_execution_tube_calibration_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        ] = hashlib.sha256(qdr_execution_tube_calibration_path.read_bytes()).hexdigest()
     if args.adaptive_risk_calibration is not None:
         calibration_path = args.adaptive_risk_calibration.resolve()
         hashes[str(calibration_path.relative_to(PROJECT_ROOT)).replace("\\", "/")] = hashlib.sha256(
@@ -599,6 +653,12 @@ def main() -> None:
         "mpc_config": str(args.mpc_config.resolve()),
         "planner": planner_config.__dict__,
         "distributed": distributed_mapping,
+        "qdr_execution_tube_calibration": (
+            None
+            if qdr_execution_tube_calibration_path is None
+            else str(qdr_execution_tube_calibration_path)
+        ),
+        "qdr_execution_tube_calibration_variant": qdr_execution_tube_calibration_variant,
         "checkpoint": None if args.checkpoint is None else str(args.checkpoint.resolve()),
         "official_s4_root": None if args.official_s4_root is None else str(args.official_s4_root.resolve()),
         "candidate_source": args.candidate_source,
