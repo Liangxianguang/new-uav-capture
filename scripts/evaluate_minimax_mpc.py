@@ -88,6 +88,7 @@ from encirclement3d.queue_aware_rollout import (  # noqa: E402
 )
 from encirclement3d.qdr_precondition import (  # noqa: E402
     audit_qdr_precondition,
+    queue_prefix_risk_score,
 )
 from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig, RobustCBFQPFilter  # noqa: E402
@@ -546,6 +547,7 @@ class PredictionRuntime:
         observation: dict[str, Any],
         planner_horizon: int,
         future_action_sequence: np.ndarray | None = None,
+        queue_prefix_risk_score_value: float | None = None,
     ) -> tuple[ScenarioTrajectorySet, float, bool, int]:
         started = time.perf_counter()
         adaptive = self.adaptive_policy is not None
@@ -585,6 +587,7 @@ class PredictionRuntime:
                 has_cache=self.cached_scenarios is not None,
                 previous_residual_m=previous_residual_m,
                 reachable_tube_radius_m=tube_radius_for_budget,
+                queue_prefix_risk_score=queue_prefix_risk_score_value,
             )
             self.last_adaptive_decision = decision
             sample_count = int(decision.num_samples)
@@ -1043,6 +1046,7 @@ def run_episode(
         adaptive_forced_refresh = False
         adaptive_cache_age_steps = 0
         adaptive_prediction_residual_m = 0.0
+        adaptive_queue_prefix_risk = 0.0
         adaptive_refresh_reason: str | None = None
         rnic_enabled = False
         rnic_cost_mode = "disabled"
@@ -1106,10 +1110,36 @@ def run_episode(
             candidate_weights = np.empty(0, dtype=np.float64)
         else:
             assert runtime is not None
+            if (
+                queue_aware_rollout
+                and runtime.adaptive_policy is not None
+                and runtime.adaptive_policy.config.queue_prefix_risk_weight > 0.0
+            ):
+                # Compute the budget feature from the same public queued-prefix
+                # geometry that QDR audits below.  It does not inspect target
+                # truth and does not alter immutable command authority.
+                risk_observation = _planning_observation(env, observation)
+                risk_observation, risk_state = prepare_queue_aware_observation(
+                    risk_observation,
+                    dt_seconds=planner_config.dt_seconds,
+                )
+                risk_diagnostics = prefix_geometry_diagnostics(
+                    risk_state,
+                    risk_observation,
+                    drone_radius_m=float(env.agents["drone_radius"]),
+                    safety_margin_m=float(env.pursuit["safety_margin"]),
+                )
+                adaptive_queue_prefix_risk = queue_prefix_risk_score(
+                    risk_diagnostics,
+                    safety_margin_m=float(env.pursuit["safety_margin"]),
+                    risk_buffer_m=float(runtime.adaptive_policy.config.queue_prefix_risk_buffer_m),
+                    scale_m=float(runtime.adaptive_policy.config.queue_prefix_risk_scale_m),
+                )
             scenarios, predictor_latency_ms, prediction_refreshed, prediction_age_steps = runtime.predict(
                 observation,
                 planner_config.horizon_steps,
                 future_action_sequence=previous_planned_sequence,
+                queue_prefix_risk_score_value=adaptive_queue_prefix_risk,
             )
             if runtime.last_adaptive_decision is not None:
                 decision = runtime.last_adaptive_decision
@@ -1121,6 +1151,9 @@ def run_episode(
                 adaptive_forced_refresh = bool(decision.forced_refresh)
                 adaptive_cache_age_steps = int(prediction_age_steps)
                 adaptive_prediction_residual_m = float(runtime.last_prediction_residual_m or 0.0)
+                adaptive_queue_prefix_risk = float(
+                    decision.components.get("queue_prefix_risk", adaptive_queue_prefix_risk)
+                )
                 adaptive_refresh_reason = decision.forced_refresh_reason
             planner_config_for_method = MinimaxMPCConfig(
                 **{
@@ -1512,6 +1545,7 @@ def run_episode(
                 "adaptive_forced_refresh": 1.0 if adaptive_forced_refresh else 0.0,
                 "adaptive_cache_age_steps": float(adaptive_cache_age_steps),
                 "adaptive_prediction_residual_m": float(adaptive_prediction_residual_m),
+                "adaptive_queue_prefix_risk": float(adaptive_queue_prefix_risk),
                 "adaptive_refresh_reason": adaptive_refresh_reason,
                 "rnic_enabled": 1.0 if rnic_enabled else 0.0,
                 "rnic_cost_mode": rnic_cost_mode,
@@ -1883,6 +1917,9 @@ def run_episode(
         ),
         "mean_adaptive_prediction_residual_m": float(
             np.mean([row["adaptive_prediction_residual_m"] for row in step_rows])
+        ),
+        "mean_adaptive_queue_prefix_risk": float(
+            np.mean([row["adaptive_queue_prefix_risk"] for row in step_rows])
         ),
         "adaptive_bucket_counts": {
             bucket: int(sum(row["adaptive_bucket_index"] == index for row in step_rows))
@@ -2369,6 +2406,9 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "mean_adaptive_prediction_residual_m": finite_mean(
             [row["mean_adaptive_prediction_residual_m"] for row in rows]
+        ),
+        "mean_adaptive_queue_prefix_risk": finite_mean(
+            [row["mean_adaptive_queue_prefix_risk"] for row in rows]
         ),
         "adaptive_bucket_counts": {
             bucket: int(sum(row.get("adaptive_bucket_counts", {}).get(bucket, 0) for row in rows))
@@ -2940,6 +2980,7 @@ def main() -> None:
                     "adaptive_forced_refresh",
                     "adaptive_cache_age_steps",
                     "adaptive_prediction_residual_m",
+                    "adaptive_queue_prefix_risk",
                     "rnic_enabled",
                     "rnic_latency_ms",
                     "rnic_minimum_best_slack_s",
@@ -3094,6 +3135,11 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/UAKR/mean_prediction_residual_m",
                 summary["mean_adaptive_prediction_residual_m"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/UAKR/mean_queue_prefix_risk",
+                summary["mean_adaptive_queue_prefix_risk"],
                 0,
             )
             writer.add_text(

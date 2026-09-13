@@ -118,6 +118,41 @@ def classify_qdr_precondition(
     )
 
 
+def queue_prefix_risk_score(
+    diagnostics: Mapping[str, Any],
+    *,
+    safety_margin_m: float,
+    risk_buffer_m: float = 0.15,
+    scale_m: float = 0.50,
+) -> float:
+    """Convert public queued-prefix geometry into a bounded UAKR risk feature.
+
+    The score is intentionally a transparent, non-learned feature.  It uses
+    only the minimum public clearance along the immutable queue prefix and the
+    reported safety-margin violation.  An empty queue has infinite clearance
+    and therefore zero risk.  This is a budget trigger, not a safety
+    certificate and it does not change command authority.
+    """
+
+    margin = float(safety_margin_m)
+    buffer = float(risk_buffer_m)
+    scale = float(scale_m)
+    if not np.isfinite([margin, buffer, scale]).all() or margin < 0.0 or buffer < 0.0 or scale <= 0.0:
+        raise ValueError("safety_margin_m and risk_buffer_m must be non-negative; scale_m must be positive")
+    if "minimum_clearance_m" not in diagnostics:
+        raise ValueError("diagnostics must contain minimum_clearance_m")
+    clearance = float(diagnostics["minimum_clearance_m"])
+    violation = float(diagnostics.get("maximum_safety_margin_violation_m", 0.0))
+    if not np.isfinite(clearance) and not np.isinf(clearance):
+        raise ValueError("minimum_clearance_m must be finite or infinite")
+    if not np.isfinite(violation) or violation < 0.0:
+        raise ValueError("maximum_safety_margin_violation_m must be finite and non-negative")
+    if np.isinf(clearance):
+        return 0.0
+    near_margin_gap = max(margin + buffer - clearance, 0.0)
+    return float(np.clip(max(near_margin_gap, violation) / scale, 0.0, 1.0))
+
+
 def rollout_suffix_state(
     positions: np.ndarray,
     velocities: np.ndarray,
@@ -215,5 +250,6 @@ __all__ = [
     "QDRPreconditionStatus",
     "audit_qdr_precondition",
     "classify_qdr_precondition",
+    "queue_prefix_risk_score",
     "rollout_suffix_state",
 ]

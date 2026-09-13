@@ -478,6 +478,24 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
 
+### P30：Phase 55 queue-prefix-risk UAKR 修复候选（仅实现阶段）
+
+- [x] 增加只使用公开 immutable queue prefix geometry 的有界风险特征；
+- [x] 将 `queue_prefix_risk` 接入 UAKR 的显式加权分数，默认权重保持为 `0`，
+  不改变已有实验行为；
+- [x] 记录 step-level 风险、aggregate summary 和 TensorBoard 指标；
+- [x] 新增 `configs/phase55_uakr_queue_risk_development.yaml`，固定
+  buffer=`0.15 m`、scale=`0.50 m`、weight=`0.30`，不做网格调参；
+- [x] 新增风险公式、实验矩阵、预注册 gate 和复现产物说明；
+- [x] 通过全量回归测试；
+- [ ] 新建独立 fresh development manifest 并完成 fixed-K=8、original UAKR、
+  queue-risk UAKR 三种子配对；
+- [ ] 若 confirmation AUROC 不能达到 `0.60` 或 safe-capture/timeout gate 失败，
+  停止 UAKR 主线并保留为负消融；
+- [ ] 在 Phase 55 通过独立 gate 前，不访问 locked-test、不开放 Full 组合。
+
+详见 `docs/PHASE55_UAKR_QUEUE_RISK_PLAN.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
@@ -498,7 +516,7 @@ P24 EGC-MPC No-Go freeze
    -> Phase 52 empirical QDR tube calibration + closed-loop diagnostic (completed; safety--liveness No-Go)
   -> P9 delayed execution contract repair / recoverability-aware tube redesign (Phase53 windowed confirmation No-Go; nominal QDR retained)
   -> P10 Phase54 UAKR fresh development + reliability audit (completed; original UAKR No-Go)
-  -> P10b optional public queue/QDR-feasibility intervention calibration (new development only; no threshold scan)
+  -> P10b Phase55 queue-prefix-risk UAKR development calibration (implementation complete; closed-loop pending; no threshold scan)
   -> P10c RNIC independent repair/confirmation, or freeze UAKR as negative ablation
   -> Full confirmation remains closed until each promoted module passes its independent gate
   -> P11 可选 R-CLBF-QP 与形式化证明

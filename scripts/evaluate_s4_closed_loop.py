@@ -844,6 +844,7 @@ def main() -> None:
                     "adaptive_forced_refresh_rate",
                     "mean_adaptive_cache_age_steps",
                     "mean_adaptive_prediction_residual_m",
+                    "mean_adaptive_queue_prefix_risk",
                     "rnic_enabled_rate",
                     "mean_rnic_latency_ms",
                     "rnic_minimum_best_slack_s",
@@ -1007,6 +1008,11 @@ def main() -> None:
                 0,
             )
             writer.add_text("Summary/UAKR/BucketCounts", json.dumps(overall.get("adaptive_bucket_counts", {})), 0)
+            writer.add_scalar(
+                "Summary/UAKR/mean_queue_prefix_risk",
+                overall.get("mean_adaptive_queue_prefix_risk", float("nan")),
+                0,
+            )
             writer.add_scalar("Summary/RNIC/enabled_rate", overall["rnic_enabled_rate"], 0)
             writer.add_scalar("Summary/RNIC/latency_p50_ms", overall["rnic_latency_ms"]["p50"], 0)
             writer.add_scalar("Summary/RNIC/latency_p95_ms", overall["rnic_latency_ms"]["p95"], 0)

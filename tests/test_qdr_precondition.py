@@ -7,6 +7,7 @@ from encirclement3d.execution_dynamics import ExecutionParameters
 from encirclement3d.qdr_precondition import (
     audit_qdr_precondition,
     classify_qdr_precondition,
+    queue_prefix_risk_score,
     rollout_suffix_state,
 )
 
@@ -123,4 +124,33 @@ def test_invalid_tolerance_and_action_shape_are_rejected() -> None:
             np.zeros((1, 3)),
             np.zeros((1, 3)),
             _parameters(),
+        )
+
+
+def test_queue_prefix_risk_is_bounded_and_uses_public_clearance_only() -> None:
+    safe = queue_prefix_risk_score(
+        {"minimum_clearance_m": 2.0, "maximum_safety_margin_violation_m": 0.0},
+        safety_margin_m=0.35,
+    )
+    near = queue_prefix_risk_score(
+        {"minimum_clearance_m": 0.20, "maximum_safety_margin_violation_m": 0.15},
+        safety_margin_m=0.35,
+    )
+    empty = queue_prefix_risk_score(
+        {"minimum_clearance_m": float("inf"), "maximum_safety_margin_violation_m": 0.0},
+        safety_margin_m=0.35,
+    )
+    assert safe == 0.0
+    assert 0.0 < near <= 1.0
+    assert empty == 0.0
+
+
+def test_queue_prefix_risk_rejects_invalid_diagnostic_values() -> None:
+    with pytest.raises(ValueError, match="minimum_clearance_m"):
+        queue_prefix_risk_score({}, safety_margin_m=0.35)
+    with pytest.raises(ValueError, match="scale_m"):
+        queue_prefix_risk_score(
+            {"minimum_clearance_m": 0.2},
+            safety_margin_m=0.35,
+            scale_m=0.0,
         )

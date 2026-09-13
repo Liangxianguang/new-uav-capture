@@ -118,3 +118,19 @@ def test_residual_refresh_trigger_preserves_bucket_and_forces_refresh() -> None:
     assert decision.num_samples == 1
     assert decision.refresh is True
     assert decision.forced_refresh_reason == "residual_refresh_trigger"
+
+
+def test_queue_prefix_risk_is_an_optional_public_budget_feature() -> None:
+    policy = AdaptivePredictionPolicy(
+        AdaptivePredictionConfig(queue_prefix_risk_weight=4.0)
+    )
+    decision = policy.decide(
+        _observation(0.0, 1.0, 0.0, 0.0),
+        cached_age_steps=0,
+        has_cache=True,
+        queue_prefix_risk_score=1.0,
+    )
+    assert decision.bucket == "high"
+    assert decision.num_samples == 8
+    assert decision.components["queue_prefix_risk"] == 1.0
+    assert "target_position" not in decision.as_dict()

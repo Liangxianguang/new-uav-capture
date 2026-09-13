@@ -37,6 +37,9 @@ class AdaptivePredictionConfig:
     speed_weight: float = 0.15
     cache_weight: float = 0.10
     residual_weight: float = 0.05
+    queue_prefix_risk_scale_m: float = 0.50
+    queue_prefix_risk_buffer_m: float = 0.15
+    queue_prefix_risk_weight: float = 0.0
     tube_radius_scale_m: float = 2.0
     tube_weight: float = 0.0
     residual_high_trigger_m: float | None = None
@@ -55,10 +58,13 @@ class AdaptivePredictionConfig:
             self.message_age_scale_steps,
             self.speed_ratio_scale,
             self.residual_scale_m,
+            self.queue_prefix_risk_scale_m,
             self.tube_radius_scale_m,
         )
         if any(not np.isfinite(float(value)) or float(value) <= 0.0 for value in scales):
             raise ValueError("adaptive feature scales must be finite and positive")
+        if not np.isfinite(float(self.queue_prefix_risk_buffer_m)) or float(self.queue_prefix_risk_buffer_m) < 0.0:
+            raise ValueError("queue_prefix_risk_buffer_m must be finite and non-negative")
         weights = (
             self.covariance_weight,
             self.age_weight,
@@ -66,6 +72,7 @@ class AdaptivePredictionConfig:
             self.speed_weight,
             self.cache_weight,
             self.residual_weight,
+            self.queue_prefix_risk_weight,
             self.tube_weight,
         )
         if any(not np.isfinite(float(value)) or float(value) < 0.0 for value in weights):
@@ -159,6 +166,7 @@ class AdaptivePredictionPolicy:
         cached_age_steps: int,
         previous_residual_m: float | None,
         reachable_tube_radius_m: float | None,
+        queue_prefix_risk_score: float | None,
     ) -> dict[str, float]:
         covariance = np.asarray(
             observation.get("target_observation_covariance", np.zeros((1, 3, 3))),
@@ -190,6 +198,11 @@ class AdaptivePredictionPolicy:
             "cache_age": float(np.clip(float(cached_age_steps) / self.config.max_cache_age_steps, 0.0, 1.0)),
             "one_step_residual": float(np.clip(residual / self.config.residual_scale_m, 0.0, 1.0)),
         }
+        if self.config.queue_prefix_risk_weight > 0.0:
+            queue_risk = 0.0 if queue_prefix_risk_score is None else float(queue_prefix_risk_score)
+            if not np.isfinite(queue_risk):
+                raise ValueError("queue_prefix_risk_score must be finite when supplied")
+            components["queue_prefix_risk"] = float(np.clip(queue_risk, 0.0, 1.0))
         if self.config.tube_weight > 0.0:
             tube_radius = 0.0 if reachable_tube_radius_m is None else max(float(reachable_tube_radius_m), 0.0)
             components["tube_width"] = float(
@@ -222,6 +235,7 @@ class AdaptivePredictionPolicy:
         has_cache: bool,
         previous_residual_m: float | None = None,
         reachable_tube_radius_m: float | None = None,
+        queue_prefix_risk_score: float | None = None,
     ) -> AdaptivePredictionDecision:
         if int(cached_age_steps) < 0:
             raise ValueError("cached_age_steps must be non-negative")
@@ -230,6 +244,7 @@ class AdaptivePredictionPolicy:
             cached_age_steps=cached_age_steps,
             previous_residual_m=previous_residual_m,
             reachable_tube_radius_m=reachable_tube_radius_m,
+            queue_prefix_risk_score=queue_prefix_risk_score,
         )
         configured_weights = {
             "covariance": self.config.covariance_weight,
@@ -238,6 +253,7 @@ class AdaptivePredictionPolicy:
             "speed_ratio": self.config.speed_weight,
             "cache_age": self.config.cache_weight,
             "one_step_residual": self.config.residual_weight,
+            "queue_prefix_risk": self.config.queue_prefix_risk_weight,
             "tube_width": self.config.tube_weight,
         }
         weights = np.asarray([configured_weights[name] for name in components], dtype=np.float64)
