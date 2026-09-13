@@ -299,6 +299,18 @@ total p95 均值为 `90.14 ms`，off 为 `64.65 ms`，相对增幅约 `39.4%`。
 delay4、单独加入 bounded execution noise，再单独测试 authority，禁止混杂调参。详见
 `docs/PHASE43_QDR_DELAY4_THREE_SEED_CONFIRMATION_REPORT.md`。
 
+### 3.11 Phase 44 delay4 + bounded execution noise confirmation
+
+固定 delay4 和 immutable authority，只加入 command-noise std `0.08 m/s`、`3σ`
+clipping 后，三种子、240 episodes/arm 的 QDR-off/on safe capture 为
+`77.92%/97.92%`，collision 为 `22.08%/0.83%`；paired delta 分别为
+`+20.00 pp [14.17,25.83]` 与 `-21.25 pp [-27.50,-15.00]`。QDR-on timeout 为
+`1.25%`，suffix gate exhaustion 均值 `19.99%`；三种子 summary total p95 均值
+`123.91 ms`，off 为 `92.49 ms`。该结果支持 QDR 在延迟和有界执行扰动下改善安全
+outcome，但 efficiency/liveness promotion 仍为 No-Go；下一步只改变 authority，
+不能与 noise 或 target behavior 同时改变。详见
+`docs/PHASE44_QDR_DELAY4_NOISE008_CONFIRMATION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
