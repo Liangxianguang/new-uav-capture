@@ -384,11 +384,23 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE31_FC_DBF_PILOT_REPORT.md`。
 
+### P26：Phase 16b OOD geometry-shift transfer diagnostic
+
+- [x] 新增确定性 OOD 几何生成器，保持完整 mirror group 不跨 split，并将 wall half-x、half-y 和 height 同时移出训练范围；manifest 为 100 episodes / 50 groups，hash 为 `47c393d1d678f25aad14c978734aae5d89105d826ea3e7b32b16a46cc1654501`。
+- [x] 在 GRU `both` checkpoint seeds `727201/727202/727203` 上完成 centralized worst-case 与 distributed delayed 三种子评估；QDR、RNIC、EGC 均关闭，使用 local CBF，未使用 locked-test 调参。
+- [x] centralized worst-case safe capture 为 `46.33% [39.67%,53.33%]`，collision/boundary 为 `1.67%/1.67%`，timeout 为 `52.00%`；distributed delayed safe capture 为 `84.00% [79.33%,88.33%]`，collision/boundary 为 `0%/0%`，timeout 为 `16.00%`。
+- [x] 记录 predictor/planner/safety/total p50/p95/p99：centralized total `61.77/77.13/97.40 ms`，distributed total `72.93/93.60/111.26 ms`；100 ms 仅作参考，distributed p99 超过该值。
+- [x] 完成 aggregate JSON、源/配置快照、episode/step JSONL、TensorBoard 保留和报告；判定为“可复现的单轴 transfer diagnostic”，不晋级为泛化保证，不开放新的 locked-test。
+- [ ] 后续 OOD 只允许逐轴新增 target behavior/speed 或 delay/execution block；每个 block 先做开发 smoke，再做 fresh three-seed confirmation，不把几何 OOD 结果回流为调参依据。
+
+详见 `docs/PHASE16_OOD_GEOMETRY_REPORT.md`。
+
 ## 7. 当前推荐执行顺序
 
 ```text
 P24 EGC-MPC No-Go freeze
   -> P25 FC-DBF pilot + P26 confirmation (completed; promotion No-Go)
+  -> P26b Phase 16b geometry OOD diagnostic (completed; transfer boundary exposed)
   -> P8 修复 reset/margin/action-authority/fallback 契约
   -> P8 多步执行扰动安全 gate
   -> P9 延迟架构优化
