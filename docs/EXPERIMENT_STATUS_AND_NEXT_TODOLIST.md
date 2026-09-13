@@ -565,13 +565,18 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
   reduction 仅 `1.86%`；promotion gate 因此失败；
 - [x] B6 `QDR+async` 在全体 block 上取得较强的条件性 interaction 结果，
   但不得归因为 QDR 单模块或 asynchronous 单模块的已证实收益；
-- [x] 完成 5-episode 独立进程短探针，确认主矩阵的绝对 runtime 受三进程并发
-  负载影响；短探针不替代正式多 seed benchmark；
+- [x] 完成正式 process-isolated runtime benchmark：15 个 method/seed 子进程
+  顺序执行，统一 Torch `1/1` 线程和 K=8；full 与 first-18-step matched-prefix
+  均报告 predictor/planner/QDR-or-tube/safety/total 的 p50/p95/p99；
+- [x] 隔离结果确认 B5/B4 matched-prefix total p95 约为 `12.31/12.47 ms`，
+  异步效率优势不足；B6 matched-prefix total p95 为 `20.55 ms`，额外开销主要
+  来自 planner/QDR，而不是 predictor；
 - [x] 明确 `local_cbf` 只是经验过滤器；不宣称 R-CLBF-QP、CLBF certificate、
   forward invariance 或真实飞行安全证明；
 - [ ] 在 promotion 失败后不运行当前 confirmation/locked 调参；
-- [ ] 先完成 process-isolated、fixed-thread、matched-prefix runtime benchmark，
-  再决定是否建立新的 confirmation protocol；
+- [x] 完成 process-isolated、fixed-thread、matched-prefix runtime benchmark；
+- [ ] 基于隔离 benchmark 和当前失败 gate，决定是否建立新的 confirmation
+  protocol；
 - [ ] 若重新推进，必须把 B2/B3/B7 强基线补入新的 calibration，并把 QDR 主效应、
   async 主效应和 interaction effect 预注册为不同假设。
 

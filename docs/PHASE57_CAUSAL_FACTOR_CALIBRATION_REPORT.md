@@ -54,18 +54,32 @@ bootstrap 区间。它们是当前校准证据，不是 locked-test 结论。
 
 ### 运行时公平性结论
 
-同一 checkpoint、同一 K=8、同一 sampling steps 的 5-episode 独立进程短
-探针得到：
+P57-A 已完成正式的多 seed process-isolated benchmark：15 个子进程顺序执行，
+每个 method/seed 使用独立 Python 进程、Torch `1/1` 线程、相同 K=8、相同
+sampling steps，并同时计算完整闭环和前 18 步 matched prefix。以下是跨三个
+seed 的 pooled 结果：
 
-| 独立短探针 | Predictor p50/p95/p99 (ms) | Planner p50/p95/p99 (ms) | QDR p50/p95/p99 (ms) | Total p50/p95/p99 (ms) |
-| --- | ---: | ---: | ---: | ---: |
-| B0，独立进程 | 4.18/5.76/6.49 | 3.07/3.75/5.11 | 0.00/0.00/0.00 | 8.45/11.03/12.60 |
-| B6，独立进程 | 4.13/4.91/6.70 | 8.79/11.34/13.51 | 0.47/0.71/1.16 | 15.63/18.52/23.25 |
+| 方法 | 视图 | Predictor p50/p95/p99 (ms) | Planner p50/p95/p99 (ms) | QDR/tube p50/p95/p99 (ms) | Safety p50/p95/p99 (ms) | Total p50/p95/p99 (ms) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| B0 | full | 4.24/6.10/9.34 | 3.23/4.41/6.90 | 0.00/0.00/0.00 | 0.50/0.71/1.45 | 8.69/11.97/17.38 |
+| B0 | first 18 | 4.23/5.98/9.07 | 3.22/4.33/6.74 | 0.00/0.00/0.00 | 0.50/0.70/1.43 | 8.66/11.75/16.63 |
+| B1 | full | 4.33/5.71/7.71 | 8.64/10.66/14.05 | 0.53/0.93/1.34 | 0.50/0.70/1.23 | 15.88/19.32/24.40 |
+| B1 | first 18 | 4.32/5.80/7.67 | 8.64/10.80/14.20 | 0.52/0.91/1.32 | 0.50/0.71/1.19 | 15.84/19.43/24.71 |
+| B4 | full | 4.31/5.41/7.27 | 4.71/6.34/7.67 | 0.00/0.00/0.00 | 0.51/0.68/1.19 | 10.31/12.57/15.37 |
+| B4 | first 18 | 4.31/5.45/7.16 | 4.68/5.95/7.58 | 0.00/0.00/0.00 | 0.51/0.68/1.27 | 10.26/12.47/15.32 |
+| B5 | full | 4.32/5.49/7.24 | 4.60/6.01/7.68 | 0.00/0.00/0.00 | 0.51/0.68/1.17 | 10.21/12.45/15.38 |
+| B5 | first 18 | 4.32/5.49/7.27 | 4.58/5.82/7.47 | 0.00/0.00/0.00 | 0.51/0.68/1.17 | 10.17/12.31/15.31 |
+| B6 | full | 4.44/5.51/7.45 | 9.55/12.08/14.74 | 0.55/0.92/1.31 | 0.52/0.67/1.13 | 16.95/20.20/24.79 |
+| B6 | first 18 | 4.43/5.65/7.74 | 9.60/12.22/14.97 | 0.52/0.90/1.31 | 0.52/0.67/1.12 | 16.92/20.55/25.79 |
 
-这个短探针只证明并发负载会显著改变绝对计时，不能替代正式的多 seed
-runtime benchmark。后续正式比较必须使用独立进程、固定 Torch 线程、统一
-warm-up、统一 episode prefix，并同时报告全闭环和固定长度 prefix 两种视图。
-100 ms 不是硬门槛；无论是否低于 100 ms，都必须公开 p50/p95/p99。
+这组结果确认：B5 相对 B4 的 matched-prefix total p95 仅下降约 1.3%，不足以
+支持异步效率优势；B6 相对 B5 的额外开销主要来自 planner 与 QDR，不能用
+并发负载解释。主矩阵中的并发计时仍保留用于历史分解，但效率结论以本节的
+隔离结果为准。100 ms 不是硬门槛；无论是否低于 100 ms，都公开 p50/p95/p99。
+
+复现入口：`scripts/benchmark_phase57_isolated_runtime.py`；聚合结果保留在
+`results/phase57_isolated_runtime_benchmark/aggregate.json`，TensorBoard 位于
+`results/phase57_isolated_runtime_benchmark/tensorboard/`。
 
 ## 4. 因果对比
 
@@ -122,14 +136,15 @@ R-CLBF-QP、CLBF certificate 或真实飞行安全证明。
 
 ### P57-A：先修复 runtime 证据链（最高优先级）
 
-- [ ] 新增可复现的 single-process / process-isolated benchmark；每个方法使用
-  相同场景、相同 predictor seed、固定 Torch `1/1` 线程和显式 warm-up；
-- [ ] 对每个 method 报告 predictor/planner/QDR-or-tube/safety/total 的
+- [x] 完成可复现的 single-process / process-isolated benchmark；每个方法使用
+  相同场景、相同 predictor seed、固定 Torch `1/1` 线程和顺序独立子进程；
+- [x] 对每个 method 报告 predictor/planner/QDR-or-tube/safety/total 的
   p50、p95、p99，分别给出 full-episode 和 first-18-step matched-prefix；
-- [ ] TensorBoard 记录 `Runtime/{component}/{p50,p95,p99}_ms`、有效 step 数、
-  warm-up 规则、CPU/thread metadata；
-- [ ] 只有在进程隔离后才允许做 B5/B4 或 B6/B5 的效率比较；若仍不稳定，撤销
-  efficiency claim，只报告安全--计算量 Pareto。
+- [x] TensorBoard 记录 `RuntimeIsolated/{method}/{view}/{component}/{p50,p95,p99}`
+  以及 prefix、seed、线程和运行合同；
+- [x] 以隔离 benchmark 作为 B4/B5/B6 的效率证据：B5/B4 matched-prefix total
+  p95 仅下降约 1.3%，异步效率 promotion 仍为 No-Go；B6 的额外 planner/QDR
+  开销已被确认，后续只报告安全--计算量 Pareto。
 
 ### P57-B：补齐强基线的可审计因果矩阵
 
