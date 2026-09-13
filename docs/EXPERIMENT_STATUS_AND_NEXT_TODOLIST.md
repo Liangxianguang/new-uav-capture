@@ -50,6 +50,8 @@
 
 > Phase 46 QDR 前缀失败路径诊断更新：对 Phase44 immutable 与 Phase45 两种 authority 的 9 个 `steps.jsonl` 做公开几何审计，所有 19,951--21,378 行均具备九个 classifier 字段。immutable 的 pooled prefix admissible 为 `93.48%`，首次 violation 主要为 boundary `741`、obstacle `202`、inter-agent `5`；replace/flush 分别降至 `60.33%/67.73%`，但 gate-exhaustion 仍为 `18.23%/21.28%`。240 个 immutable episode 中有 238 个曾出现过至少一次 exhaustion，说明“ever exhausted”不能直接作为失败标签。evaluator 已加入连续耗尽长度、首次耗尽步、恢复次数和 episode-level exhausted 标志，并通过 schema smoke；可选 feasibility-first 在 40-episode development smoke 中保持 outcome、step gate 字段及测试中的 selected action/cost 一致，但 planner/total 延迟没有下降。该阶段是后验机制诊断，不改变 QDR promotion No-Go，也不构成安全证明。详见 `docs/PHASE46_QDR_PREFIX_FAILURE_AUDIT_REPORT.md`。
 
+> Phase 47 QDR OOD 延迟/执行压力更新：在同一冻结的 100 episode / 50 mirror-group 通信+执行 OOD manifest 上，使用 GRU `both` 三种子、local CBF、同一采样和 planner 条件完成 QDR-off/on 配对。QDR-on 的 distributed safe capture 为 `93.67% [90.33,96.67]`，QDR-off 为 `47.00% [41.00,53.00]`；collision 为 `2.33%` 对 `53.00%`，paired delta 为 `-50.67 pp [-57.00,-44.00]`，safe-capture delta 为 `+46.67 pp [40.00,53.00]`。boundary 为 `2.33%` 对 `19.00%`，但 timeout 从 `0%` 增至 `4%`，mean capture time 从 `3.874` 增至 `5.681 s`，minimum clearance 从 `0.136` 增至 `0.522 m`。QDR-on pooled total p50/p95/p99 为 `50.35/97.74/111.21 ms`；QDR queue mean/max 为 `2/2`，prefix/suffix admissible 为 `95.84%/86.14%`，ever-exhausted episode rate 为 `96.67%`，说明安全收益伴随 liveness/feasibility 代价。该阶段是 OOD 条件性安全证据，不是形式化安全证明或无条件 promotion；下一步固定 QDR，单独预注册 timeout/exhaustion gate 和同长度 runtime benchmark。详见 `docs/PHASE47_OOD_DELAY_EXECUTION_QDR_REPORT.md`。
+
 > Phase 18 delay-aware conformal reachable-tube pilot 更新：已实现公开 belief 边界内的 horizon-dependent split-conformal 半径校准、queue/prediction-age 对齐、RNIC 接入、UAKR 管宽诊断、TensorBoard 和在线 smoke。835 个 calibration windows 的完整轨迹覆盖率为 `90.18%`，1,087 个 untouched confirmation windows 为 `85.92%`，低于预设 `90%`；半径约为 `6.09--8.59 m`，在线 smoke 最大约 `10.11 m`，说明第一版管过宽且跨 split 泛化失败。8 场景 smoke 的 safe capture 为 `87.50%`、collision 为 `12.50%`，total p50/p95/p99 为 `36.81/57.88/66.22 ms`，仅用于连通性和日志验证。该候选判定 No-Go，不是安全证明，也不开放完整 QDR×UAKR×RNIC 组合。详见 `docs/PHASE18_DELAY_AWARE_CONFORMAL_TUBE_PILOT_REPORT.md`。
 
 > Phase 18b 平衡 mirror/context 修复更新：按完整 mirror group 和公开 context score 重划 validation，固定半径 confirmation 完整轨迹 coverage 为 `83.32%`；引入预设 `gain=0.25` 的公开 context 自适应缩放后升至 `99.79%`，但有效半径均值/最大值为 `8.416/10.404 m`，仍偏宽，且紧致性门槛未在探索性确认前预冻结。在线 8 场景 paired smoke 与无管对照的 episode 结局 `8/8` 一致，safe capture 均 `87.50%`、collision 均 `12.50%`，total p95 为 `56.27/55.99 ms`。该阶段是 coverage-repair diagnostic，不是捕获率提升或安全证明。详见 `docs/PHASE18B_BALANCED_CONTEXT_TUBE_REPORT.md`。
@@ -431,10 +433,12 @@ P24 EGC-MPC No-Go freeze
   -> P33 QDR prefix/suffix precondition audit (completed; diagnostic only)
   -> P34 QDR execution-aware contract repair (completed; implementation pass, promotion No-Go)
   -> P8 QDR suffix-feasibility gate + recovery candidates (development safety pass, efficiency No-Go)
-  -> P8 runtime optimization and fresh delay/authority/noise confirmation
-  -> P8 多步执行扰动安全 gate
-  -> P9 延迟架构优化
-  -> P10 三种子端到端 confirmation
+  -> P8 runtime optimization and fresh delay/authority/noise confirmation (completed; efficiency/liveness No-Go)
+  -> Phase 46 prefix-failure audit + persistence logging (completed; diagnostic only)
+  -> Phase 47 delay/execution OOD QDR confirmation (completed; conditional safety-axis Go)
+  -> P8 liveness confirmation: timeout/exhaustion-streak gate on a new manifest
+  -> P9 controlled same-length runtime benchmark and delayed execution contract repair
+  -> P10 only then reopen QDR × UAKR, followed by three-seed Full confirmation
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
 ```

@@ -340,6 +340,23 @@ schema smoke；
 晋级。该阶段是机制诊断，不改变 QDR promotion No-Go，也不构成安全证明。详见
 `docs/PHASE46_QDR_PREFIX_FAILURE_AUDIT_REPORT.md`。
 
+### 3.14 Phase 47 QDR under OOD delay/execution stress
+
+在同一冻结的 100 episode / 50 mirror-group 通信与执行 OOD manifest 上，使用
+GRU `both` 的三个 checkpoint seed 完成 QDR-off/on 配对。QDR-on distributed
+safe capture 为 `93.67% [90.33,96.67]`，QDR-off 为 `47.00% [41.00,53.00]`；
+collision 为 `2.33%` 对 `53.00%`，paired delta 为
+`-50.67 pp [-57.00,-44.00]`，safe-capture delta 为
+`+46.67 pp [40.00,53.00]`。boundary 为 `2.33%` 对 `19.00%`，但 timeout
+从 `0%` 增至 `4%`，mean capture time 从 `3.874` 增至 `5.681 s`，minimum
+clearance 从 `0.136` 增至 `0.522 m`。QDR-on pooled total p50/p95/p99 为
+`50.35/97.74/111.21 ms`；prefix/suffix admissible 为
+`95.84%/86.14%`，ever-exhausted episode rate 为 `96.67%`。该阶段支持
+QDR 在该压力轴上的条件性安全收益，同时暴露 liveness/feasibility 代价；
+不构成形式化安全证明，也不开放无条件 promotion。下一步固定 QDR，只在新的
+confirmation manifest 上预注册 timeout 与 exhaustion-streak gate，并做同长度
+runtime benchmark。详见 `docs/PHASE47_OOD_DELAY_EXECUTION_QDR_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
