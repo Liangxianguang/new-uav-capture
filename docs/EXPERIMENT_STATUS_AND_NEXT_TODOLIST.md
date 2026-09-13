@@ -503,12 +503,16 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详见 `docs/PHASE55_UAKR_QUEUE_RISK_PLAN.md`。
 
-### P31：Phase 56 强基线、规模化场景与 QDR 形式化（计划中）
+### P31：Phase 56 强基线、规模化场景与 QDR 形式化（执行中）
 
 - [x] 完成独立 QDR deterministic time-index checker；队列长度 `0/2/4/8` 全部
   通过，最大 position/velocity equivalence error 为 `0`，无 double delay；
 - [x] 完成三 block 场景生成器 smoke，验证 upper/lower mirror pair、split
   隔离和 delay/noise、communication/execution 条件字段；
+- [x] 完成 baseline contract smoke：B0/B1/B5 可运行，统一输出 predictor、
+  planner、QDR/tube、safety、total 的 p50/p95/p99，并写入 TensorBoard/JSONL；
+- [x] 完成确定性 asynchronous communication mode 与 fixed-tube/queue-aware-
+  tube/QDR+async/fixed-K=8 baseline aliases；
 - [ ] 新建最低 360 episodes / 180 mirror groups 的全新场景集，划分
   development-calibration、development-confirmation 和 locked-diagnostic；
 - [ ] 实现 current-state delayed-MPC、fixed-tube MPC、queue-aware tube MPC、
