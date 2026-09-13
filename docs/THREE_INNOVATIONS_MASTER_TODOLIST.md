@@ -276,6 +276,18 @@ total p95 增幅约 `47.1%`，因此 QDR 的相对效率 gate 仍为 No-Go。该
 源码 baseline 和 CLI 信息边界，不构成新的方法增益或安全证明。详见
 `docs/PHASE41_QDR_CURRENT_SOURCE_REFERENCE_REPORT.md`。
 
+### 3.9 Phase 42 delay4 fresh validation
+
+在独立 80-episode/40-mirror-group fresh manifest 上，只把 command delay 从 2 提高到
+4，QDR-off/on 的 safe capture 为 `77.5%/97.5%`，collision 为 `22.5%/2.5%`；配对
+bootstrap delta 分别为 `+20.0 pp [11.25,30.00]` 与 `-20.0 pp [-30.00,-11.25]`。
+QDR-on 的 total p50/p95/p99 为 `45.88/78.65/95.10 ms`，off 为
+`29.19/54.29/61.93 ms`，说明 QDR 在延迟压力轴上有实质安全收益，但付出约 `44.9%`
+的 total p95 代价。由于只有一个 checkpoint seed、仍有 `2.5%` collision 和
+`19.16%` gate exhaustion，本阶段只记为 conditional fresh-axis evidence；必须先
+完成另外两种子和 bounded-noise confirmation，再决定是否 promotion。详见
+`docs/PHASE42_QDR_DELAY4_FRESH_VALIDATION_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
