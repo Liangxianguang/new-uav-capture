@@ -131,7 +131,7 @@ C_{\mathrm{RNIC}}(i,q)=
 
 | 模块 | 已有证据 | 当前判断 | 计划含义 |
 | --- | --- | --- | --- |
-| QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后，在独立 40-episode、2-step immutable development block 上 QDR-on safe capture `85.0%`、QDR-off `100.0%`，collision `15.0%/0%` | Implementation pass, promotion No-Go | 必须先完成 suffix-feasibility gate 和 fresh delay/authority/noise confirmation，不能重复旧阈值扫描 |
+| QDR | 历史 validation QDR-on/off 为 `88.89%/94.44%`；Phase34 修复 planner 广播 bug 后 QDR-on 为 `85.0%` safe capture、`15.0%` collision；Phase35 加入 suffix gate 与有限 recovery candidates 后在同一开发块达到 `100.0%/0%`，但 gate exhaustion `21.76%` 且 total p95 `150.21 ms` 对 QDR-off `46.53 ms` | Safety outcome repaired, efficiency promotion No-Go | 先做候选批量化/增量 rollout/可行性预筛，再做 fresh delay/authority/noise confirmation；不把当前 gate 写成安全证明 |
 | UAKR | 三种子验证平均 `K≈2.68`、刷新率约 `36.6%`，但 ID safe-capture 非劣 CI 未过；残差触发 high-K 和 refresh-only 也均为负消融 | No-Go for closed-loop promotion | 保留为效率/失败分析方向；若重开，必须做 intervention-effect calibration |
 | RNIC | ID 行为基本不变，target-speed/delay OOD 变差并增加延迟；slack 对 collision 的 pooled AUROC `0.504` | No-Go | 先修复 reachable-time label 和 slot-level 定义，再做 planner 消融 |
 | 主参考 | GRU + distributed delayed DN-MPC + local CBF 的 locked-test safe capture `94.81%`，collision/boundary `0/0` | 当前主参考 | 所有新模块都必须与它配对比较 |
@@ -229,6 +229,19 @@ suffix-feasibility gate，明确 immutable prefix 的不可修复边界，再按
 delay、authority 和 bounded execution-noise confirmation。详细数值见
 `docs/PHASE34_QDR_EXECUTION_AWARE_VALIDATION_REPORT.md`。
 
+### 3.5 Phase 35 QDR suffix gate 与 recovery candidates
+
+Phase 35 在 centralized/distributed candidate stage 加入 suffix-feasibility gate，
+并增加零动作与当前速度保持 recovery candidates。相同 40-episode development
+block 上，QDR-on safe capture 从未修复版本的 `87.5%` 恢复到 `100.0%`，collision
+从 `12.5%` 降到 `0%`，suffix admissible rate 从 `48.03%` 提升到 `86.80%`。
+但 gate exhaustion 仍为 `21.76%`，mean capture time 为 `3.915 s`，total
+`p50/p95/p99=107.44/150.21/168.13 ms`，相对 QDR-off 的 `27.84/46.53/51.59 ms`
+明显变慢。因此当前判断是“开发块安全 outcome 通过、效率晋级 No-Go”；当所有
+候选均不可行时系统仍选择最小违反候选，gate 不构成 safety certificate，也不能
+修复 immutable prefix。完整结果见
+`docs/PHASE35_QDR_SUFFIX_GATE_RECOVERY_REPORT.md`。
+
 ---
 
 ## 4. 数据集与实验协议冻结
@@ -300,7 +313,9 @@ delay、authority 和 bounded execution-noise confirmation。详细数值见
 - [x] 实现 nominal dynamics 与 execution dynamics 两套 rollout，禁止混用；
 - [x] 写出 hand-check 场景：零延迟、固定延迟、队列长度变化、flush 后重新规划；
 - [x] 对比 QDR 与手工逐步执行模拟，确保同一输入得到一致的 post-state；
-- [ ] 在候选生成/best-response 阶段加入 suffix-feasibility gate，并验证其不会把不可修复的 immutable prefix 误标为可修复。
+- [x] 在候选生成/best-response 阶段加入 suffix-feasibility gate，并验证其不会把不可修复的 immutable prefix 误标为可修复；当 gate 耗尽时显式记录 No-Go 诊断。
+- [x] 增加零动作与当前速度保持 recovery candidates，并在 40-episode development block 上验证 episode-level safety outcome；
+- [ ] 解决 gate exhaustion 与重复 rollout 的计算代价，不能把“选择最小违反候选”写成安全保证。
 
 ### 6.2 UAKR 实现清单
 
@@ -342,7 +357,8 @@ delay、authority 和 bounded execution-noise confirmation。详细数值见
 - [x] Phase34 在独立 development block 上完成当前源码 QDR-off / QDR-on 配对，修复 planner fallback 的队友 rollout 维度错误，并验证 queue-aware safety projection；
 - [x] Phase34 完成 TensorBoard、source hash、manifest hash、episode/step JSONL 和四级 latency 记录；
 - [ ] Phase34 的性能 gate 未通过：QDR-on safe capture `85.0%` 对 QDR-off `100.0%`，collision `15.0%` 对 `0%`，suffix admissible rate `44.63%`；不得进入 confirmation；
-- [ ] 在候选生成/best-response 阶段实现并验证 suffix-feasibility gate；
+- [x] Phase35 在 candidate stage 实现 suffix-feasibility gate、有限 recovery candidates 和 gate TensorBoard 诊断；开发块 safe capture `100.0%`、collision `0%`，但 gate exhaustion `21.76%`；
+- [ ] Phase35 效率 gate 未通过：total p95 `150.21 ms` 对 QDR-off `46.53 ms`，mean capture time `3.915 s` 对 `1.963 s`；不得进入 confirmation；
 - [ ] B0/B1 在 development-calibration 和 confirmation 上重跑，确认当前基线可复现；
 - [ ] 只打开 QDR，固定 predictor、K、MPC cost、safety layer；
 - [ ] 在零延迟、2-step、4-step、6-step、8-step 五个 delay 档测试；
@@ -546,7 +562,7 @@ TensorBoard 每次运行至少写入：effective config、git/source hash、mani
 | --- | --- | --- |
 | 第 1 周 | P0 协议、manifest、信息隔离和 baseline 复现 | protocol、scene hash、baseline report |
 | 第 2 周 | P1 QDR 接口、authority、队列索引和单元测试（已完成）；修复执行感知 peer rollout 维度错误 | source、tests、TensorBoard smoke、`264 passed` |
-| 第 3 周 | P2 QDR suffix-feasibility gate、delay/authority/noise 单因素 validation 与失败回放 | QDR report、Go/No-Go；当前 Phase34 为 implementation pass / promotion No-Go |
+| 第 3 周 | P2 QDR suffix-feasibility gate、recovery candidates、delay/authority/noise 单因素 validation 与失败回放 | Phase35 已完成 safety-outcome development check；效率仍 No-Go，下一交付为运行时优化与 fresh confirmation |
 | 第 4 周 | P3 UAKR offline reliability 和 intervention-effect calibration | calibration artifact、reliability report |
 | 第 5 周 | P3 UAKR confirmation 和预算/延迟分析 | UAKR report、Go/No-Go |
 | 第 6 周 | P4 RNIC reachable-time checker、slot cost 和 validation | RNIC report、slack audit |

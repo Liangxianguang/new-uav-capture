@@ -97,6 +97,10 @@ QDR-on event file 包含 `Summary/QDR/*`、`Summary/PlannerLatency/*`、
 `Summary/PredictorLatency/*`、`Summary/SafetyLatency/*` 和
 `Summary/TotalControlLatency/*`；QDR-off 也保留同名字段，便于同一仪表板比较。
 
+Phase 35 又增加了 suffix gate、gate exhaustion、rejected candidates 和 recovery
+candidate 相关标签；完整结果见
+`docs/PHASE35_QDR_SUFFIX_GATE_RECOVERY_REPORT.md`。
+
 ## 5. 阶段判定
 
 **实现修复：通过。** 全量测试 `264 passed`；QDR 分布式 planner 不再因队友轨迹
@@ -121,3 +125,18 @@ confirmation 或 locked-test，也不能把 QDR 当前结果写成延迟鲁棒�
    不增加、且至少一个 delay/execution OOD 轴有改善时，才做三 seed confirmation。
 5. QDR 通过之前不开放 QDR×UAKR×RNIC Full 组合，也不重新接入 robust CBF-QP；
    robust CBF-QP 仍是独立诊断 No-Go，不构成闭环安全证明。
+
+## 7. Phase 35 后续修复结果
+
+在本阶段建议的 suffix-feasibility gate 基础上，Phase 35 增加了零动作和当前速度
+保持两个有限 recovery candidates。新的 40-episode development run 达到
+`100.0%` safe capture、`0%` collision、`0%` boundary violation 和 `0%` timeout，
+而未加入 recovery candidates 的同类 QDR-on 运行分别为 `87.5%`、`12.5%`、`0%`、
+`0%`。suffix admissible rate 从 `48.03%` 提升到 `86.80%`。
+
+但这不是性能晋级：gate exhaustion 仍为 `21.76%`，mean capture time 从 QDR-off
+的 `1.963 s` 增至 `3.915 s`，planner/total p95 为 `127.46/150.21 ms`，而
+QDR-off 为 `22.51/46.53 ms`。因此 recovery candidates 已恢复该开发块的 episode
+安全 outcome，却引入显著的计算和 liveness 代价；QDR 仍不得进入 confirmation 或
+locked-test。该阶段的完整可复现设置、TensorBoard 审计和后续效率 TodoList 见
+`docs/PHASE35_QDR_SUFFIX_GATE_RECOVERY_REPORT.md`。
