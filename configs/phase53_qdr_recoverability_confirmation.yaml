@@ -1,0 +1,55 @@
+experiment_name: phase53_qdr_recoverability_confirmation
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+# Pre-registered confirmation of the Phase 53 recoverability-window repair.
+# The calibration artifact and multiplier are frozen before this run. This
+# empirical tube is a diagnostic robustness margin, not a formal safety proof.
+calibration:
+  source: results/phase52_qdr_execution_tube_calibration_v2/summary.json
+  selected_variant: qdr_delay4_noise008_randomized
+  target_coverage: 0.99
+  quantile: 0.99
+  frozen_multiplier: 2.0342518477112503
+  active_steps: 2
+
+scene_manifest: results/phase53_qdr_recoverability_confirmation_scenes/scenes.jsonl
+episodes: 100
+seeds: [727201, 727202, 727203]
+
+thread_control:
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  execution: sequential_single_process
+
+phase17:
+  queue_aware_rollout: true
+  queue_aware_safety_projection: true
+  adaptive_k: false
+  reachability_normalized_cost: false
+  execution:
+    enabled: true
+    action_delay_steps: 4
+    pending_command_authority: immutable
+    command_noise_std: 0.08
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+
+evaluation:
+  split: validation_confirmation
+  methods: [distributed_delayed]
+  safety_layer: local_cbf
+  decision: validation_confirmation
+  paired_scene_manifest: true
+  comparison: nominal_qdr_vs_two_step_recoverability_window
+  locked_test_access: forbidden
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_latency_percentiles: [50, 95, 99]
