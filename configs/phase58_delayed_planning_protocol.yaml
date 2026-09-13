@@ -1,0 +1,158 @@
+experiment_name: phase58_delayed_planning_evidence
+stage: fresh_calibration_then_confirmation
+episodes_minimum: 360
+episodes_target: 480
+mirror_groups_minimum: 180
+mirror_groups_target: 240
+groups_per_block: 60
+seeds: [727201, 727202, 727203]
+
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.50, 0.65, 0.80]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: phase58_nominal_public_belief
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 250
+
+blocks:
+  - name: id_reference
+    groups: 60
+    factors:
+      action_delay_steps: [4]
+      command_noise_std: [0.08]
+      message_delay_steps: [2]
+      message_dropout_probability: [0.05]
+      velocity_time_constant_seconds: [0.0]
+      drag_coefficient: [0.0]
+  - name: delay_noise_factorial
+    groups: 60
+    factors:
+      action_delay_steps: [0, 2, 4, 6, 8, 10]
+      command_noise_std: [0.00, 0.04, 0.08, 0.12, 0.16]
+      allocation: fractional_factorial
+  - name: communication_execution_factorial
+    groups: 60
+    factors:
+      message_delay_steps: [0, 2, 4, 6]
+      message_dropout_probability: [0.00, 0.10, 0.20, 0.30]
+      velocity_time_constant_seconds: [0.0, 0.10, 0.20]
+      drag_coefficient: [0.0, 0.05]
+      allocation: fractional_factorial
+  - name: joint_stress_transfer
+    groups: 60
+    factors:
+      action_delay_steps: [8, 10]
+      command_noise_std: [0.12, 0.16]
+      message_delay_steps: [4, 6]
+      message_dropout_probability: [0.20, 0.30]
+      velocity_time_constant_seconds: [0.10, 0.20]
+      drag_coefficient: [0.05]
+      geometry: training_ood_transfer
+
+methods:
+  - id: M0_current_state_delayed_mpc
+    implementation_alias: B0_current_state_delayed_mpc
+    queue_aware_rollout: false
+    tube_mpc: false
+    distributed_mode: synchronous
+  - id: M1_known_delay_delayed_mpc
+    implementation_alias: pending
+    queue_aware_rollout: false
+    known_delay_compensation: true
+    tube_mpc: false
+    distributed_mode: synchronous
+  - id: M2_fixed_tube_mpc
+    implementation_alias: B2_fixed_tube_mpc
+    queue_aware_rollout: false
+    tube_mpc: fixed_calibration_only
+    distributed_mode: synchronous
+  - id: M3_queue_aware_tube_mpc
+    implementation_alias: B3_queue_aware_tube_mpc
+    queue_aware_rollout: queue_alignment_only
+    tube_mpc: fixed_calibration_only
+    distributed_mode: synchronous
+  - id: M4_synchronous_distributed_mpc
+    implementation_alias: B4_synchronous_distributed_mpc
+    queue_aware_rollout: false
+    tube_mpc: false
+    distributed_mode: synchronous
+  - id: M5_asynchronous_distributed_mpc
+    implementation_alias: B5_asynchronous_distributed_mpc
+    queue_aware_rollout: false
+    tube_mpc: false
+    distributed_mode: asynchronous
+  - id: M6_qdr_synchronous_mpc
+    implementation_alias: pending
+    queue_aware_rollout: true
+    distributed_mode: synchronous
+  - id: M7_qdr_asynchronous_mpc
+    implementation_alias: B6_qdr_asynchronous_mpc
+    queue_aware_rollout: true
+    distributed_mode: asynchronous
+  - id: M8_fixed_k8_qdr
+    implementation_alias: B7_fixed_k8_qdr
+    queue_aware_rollout: true
+    adaptive_k: false
+    candidate_count: 8
+    distributed_mode: synchronous
+
+fixed_tube:
+  radius_m: 0.35
+  source: development_calibration_only
+  claim: empirical_bounded_error_tightening_not_probability_coverage_or_safety_certificate
+
+fairness:
+  predictor_condition: both
+  sampling_seed: 745102
+  sampling_steps: 8
+  projection_iterations: 4
+  horizon_steps: 8
+  control_horizon_steps: 3
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  same_wall_time_budget: true
+  same_candidate_limit: true
+  process_isolated_latency: required
+  full_and_matched_prefix_views: required
+
+split_policy:
+  development_calibration: mirror_group_disjoint
+  development_confirmation: mirror_group_disjoint
+  locked_diagnostic: frozen_only
+  locked_tuning: forbidden
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  latency_percentiles: [50, 95, 99]
+  components: [predictor, planner, qdr_or_tube, safety, total_control]
+  local_cbf_claim: empirical_filter_only
+  robust_clbf_qp_proof: not_claimed
+
+gate_policy:
+  id_safe_capture_noninferiority_lower_bound: -0.02
+  stress_collision_delta_upper_bound: -0.05
+  timeout_upper_bound: 0.05
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  asynchronous_total_p95_reduction: 0.15
+  multiple_comparison_correction: holm
+  locked_test_tuning: forbidden
+
+claim_boundary: no_safety_proof_local_cbf_empirical_filter_only

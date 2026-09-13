@@ -1,0 +1,26 @@
+experiment_name: phase58_runtime_contract
+device_policy: cpu_primary_cuda_appendix
+torch_num_threads: 1
+torch_num_interop_threads: 1
+process_isolated_latency: true
+sequential_method_seed_runs: true
+warmup_steps_excluded_from_percentiles: true
+warmup_steps_recorded: true
+matched_prefix_steps: 18
+wall_time_includes_orchestration: true
+latency_components:
+  predictor: belief_encoding_candidate_generation_and_sampling
+  planner: mpc_or_distributed_optimization_only
+  qdr_or_tube: queue_composition_and_tube_preprocessing
+  safety: local_cbf_filter_and_fallback
+  total_control: decision_start_to_final_command_wall_clock
+cache_reporting:
+  refresh_latency_required: true
+  cached_decision_latency_required: true
+  cache_age_required: true
+  refresh_rate_required: true
+percentiles_ms: [50, 95, 99]
+reference_only_latency_ms: 100
+reference_is_hard_gate: false
+tensorboard_required: true
+claim_boundary: runtime_fairness_contract_not_deployment_guarantee
