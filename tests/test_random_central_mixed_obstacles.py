@@ -11,6 +11,7 @@ from encirclement3d.showcase import random_central_mixed_obstacle_scenario, scen
 from scripts.evaluate_random_central_mixed_obstacles import (
     config_for_spec,
     episode_spec,
+    effective_seed_block,
     load_protocol,
     resolved_episode_count,
     summarize_rows,
@@ -92,6 +93,24 @@ def test_s3_protocol_has_disjoint_reproducible_motion_and_layout_seed_blocks() -
     assert resolved_episode_count(protocol, "locked_test", 100) == 100
     with pytest.raises(ValueError, match="exactly 100 episodes"):
         resolved_episode_count(protocol, "locked_test", 40)
+
+
+def test_validation_seed_override_creates_an_independent_reproducible_block() -> None:
+    protocol = load_protocol(PROJECT_ROOT / "configs" / "central_random_mixed_obstacle_s3_v5_protocol.yaml")
+    first = effective_seed_block(protocol, "validation", 710201)
+    assert first == 710201
+    assert effective_seed_block(protocol, "validation", None) == int(protocol["seed_blocks"]["validation"])
+    first_specs = [episode_spec(protocol, "validation", index, seed_block=first) for index in range(4)]
+    second_specs = [episode_spec(protocol, "validation", index, seed_block=710301) for index in range(4)]
+    assert first_specs == [episode_spec(protocol, "validation", index, seed_block=first) for index in range(4)]
+    assert {item["episode_seed"] for item in first_specs}.isdisjoint(
+        {item["episode_seed"] for item in second_specs}
+    )
+    assert {item["layout_seed"] for item in first_specs}.isdisjoint(
+        {item["layout_seed"] for item in second_specs}
+    )
+    with pytest.raises(ValueError, match="only for the validation split"):
+        effective_seed_block(protocol, "locked_test", 710401)
 
 
 def test_s3_v4_environment_override_preserves_shape_aware_actor_contract() -> None:

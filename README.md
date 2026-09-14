@@ -116,6 +116,13 @@ three-seed aggregate and the offline reliability audit are described in
 Run TensorBoard over the local `results/` tree with
 `.\scripts\start_tensorboard.ps1 -LogDir results -Port 6006`.
 
+The latest Maneuvering Adversary v2 validation and defender adaptation attempt
+is documented in
+[`docs/PHASE71_MULTISEED_VALIDATION_AND_DEFENDER_FINETUNE_REPORT.md`](docs/PHASE71_MULTISEED_VALIDATION_AND_DEFENDER_FINETUNE_REPORT.md).
+It is validation-only: V5 reaches 6.67% safe capture on the new 60-episode
+development block, while the first fine-tune candidate reaches 3.33% and is
+rejected for negative transfer. The locked test remains untouched.
+
 ## Repository Map
 
 ```text
@@ -139,6 +146,8 @@ Important files:
 | Released model | `models/v5_development_exact_reactive_seed661606.pt` |
 | Training CLI | `scripts/train_capture_radius_recurrent_behavior_cloning.py` |
 | Random S3 evaluator | `scripts/evaluate_random_central_mixed_obstacles.py` |
+| Phase 71 validation scene cache | `scripts/generate_phase71_validation_scenes.py` |
+| Phase 71 multi-seed aggregator | `scripts/aggregate_phase71_validation_seed_results.py` |
 | Fixed S1/S2 evaluator | `scripts/evaluate_mixed_obstacle_showcase.py` |
 | Scene replay and 3-D renderer | `scripts/render_random_capture_episode.py`, `scripts/render_3d_capture_animation.py` |
 

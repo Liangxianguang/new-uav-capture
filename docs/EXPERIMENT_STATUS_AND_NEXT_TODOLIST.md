@@ -875,3 +875,35 @@ P24 EGC-MPC No-Go freeze
 在 P8 通过之前，不继续训练 learned CLBF，不继续扩大端到端矩阵，也不把 50% safe capture 的联合结果包装成成功结果。即使 P8 最终未通过，P2/P4 已完成的预测和 DN-MPC 模块化结果仍然可以独立形成阶段性贡献。
 
 最新 continuous-QP 结论同样不改变该顺序：短 pilot 的 100% post-state safety 不能替代 250-step 闭环审计；在 recovery gate 通过前，不扩大到 30--50 unseen seeds，也不重新接入 Mamba/扩散/DN-MPC 端到端组合。
+
+### Phase 71：Maneuvering Adversary v2 的多 seed validation 与防守方微调（已完成，当前候选 No-Go）
+
+本阶段严格只使用新的 validation seed block，不读取、不修改、不重跑
+locked-test。采用 `711201/711202/711203` 三个独立 seed，每个 20 个随机
+3--5 障碍场景，共 60 个 episode；场景先缓存，再由 V5 和微调模型复用，避免
+模型比较时重复 route-feasibility 搜索。验证协议、seed 覆盖保护和结果汇总器见
+`configs/phase71_maneuvering_defender_validation_protocol.yaml`、
+`scripts/generate_phase71_validation_scenes.py` 和
+`scripts/aggregate_phase71_validation_seed_results.py`。
+
+- [x] 增加 validation-only seed override；对 locked-test 传入该参数会拒绝；
+- [x] 从 V5 recurrent actor warm-start 微调 48 episode 混合示范，并保存
+  checkpoint、dataset manifest、source hash 与 TensorBoard；
+- [x] 完成三 seed/60 episode 的 V5 validation：pooled safe capture
+  `6.67% [1.67%,13.33%]`，collision/boundary `93.33%/93.33%`；
+- [x] 完成同场景微调候选 validation：pooled safe capture
+  `3.33% [0%,8.33%]`，collision/boundary `96.67%/96.67%`，判定为负迁移，
+  不选择该 checkpoint；
+- [x] 运行规则 expert 单 seed 上限诊断：`0/20` safe capture、`100%`
+  safety failure，说明新 adversary 已明显超出 V5 的验证工作域；
+- [x] 质量门控重训尝试未产生可接受 checkpoint，主要瓶颈是随机 route-valid
+  场景搜索慢和安全 expert 通过率低；未降低门控、不把失败轨迹包装成成功；
+- [x] 明确 Phase 71 不是 R-CLBF-QP 证明；当前 actor validation 不实例化
+  predictor/DN-MPC/QDR，因此这些组件的 latency p50/p95/p99 在本阶段为 N/A，
+  不能从本报告推断完整组合延迟。
+
+Phase 71 的详细结果与下一步计划见
+`docs/PHASE71_MULTISEED_VALIDATION_AND_DEFENDER_FINETUNE_REPORT.md`。当前推荐
+顺序为：先实现场景 route cache 和逐尝试持久化，再按 easy-to-hard curriculum
+收集安全、协同的 expert 轨迹；只有新的 checkpoint 在三 seed validation 上
+超过 V5 reference，才允许继续新的确认实验。locked-test 继续关闭。

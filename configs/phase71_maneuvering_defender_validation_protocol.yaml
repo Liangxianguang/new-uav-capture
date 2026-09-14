@@ -1,0 +1,45 @@
+protocol_name: phase71_maneuvering_defender_multiseed_validation
+phase: development_validation_only
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+seed_blocks:
+  train: 711101
+  validation: 711201
+  locked_test: 711301
+validation_seed_blocks: [711201, 711202, 711203]
+episodes_per_split:
+  train: 20
+  validation: 60
+  locked_test: 100
+s3:
+  target_crossing_required: false
+  required_defender_zone_entries: 1
+  obstacle_count_range: [3, 5]
+  initial_side_distances: [6.0, 7.0, 8.0]
+  defender_sides: [left, right]
+  target_speed_scales: [0.55, 0.65, 0.75]
+  target_crossing_speed_scales: [0.80]
+  target_motion_modes: [adaptive_maneuvering]
+  observation_conditions:
+    - name: nominal
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+    - name: delayed_noisy
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.22
+        observation_noise_std: 0.06
+        message_delay_steps: 4
+        message_dropout_probability: 0.10
+  max_sampling_attempts: 500
+evaluation_contract:
+  comparison_modes: [adaptive_maneuvering]
+  validation_seed_blocks: [711201, 711202, 711203]
+  report_target_maneuver_diagnostics: true
+  report_latency_percentiles: [p50, p95, p99]
+  tensorboard_required: true
+  locked_test_reuse_forbidden: true

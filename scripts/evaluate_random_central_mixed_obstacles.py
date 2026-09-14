@@ -59,6 +59,14 @@ def parse_args() -> argparse.Namespace:
         help="Optional environment YAML. Use the V4 YAML for shape-aware V4 checkpoints.",
     )
     parser.add_argument("--split", choices=REQUIRED_SPLITS, required=True)
+    parser.add_argument(
+        "--validation-seed",
+        type=int,
+        help=(
+            "Use an independent validation seed block for multi-seed validation. "
+            "This override is rejected for locked_test."
+        ),
+    )
     parser.add_argument("--episodes", type=int, help="Optional split-size override for smoke runs.")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--use-cbf", action="store_true")
@@ -128,10 +136,27 @@ def resolved_episode_count(protocol: dict[str, Any], split: str, override: int |
     return episodes
 
 
-def episode_spec(protocol: dict[str, Any], split: str, episode_index: int) -> dict[str, Any]:
+def effective_seed_block(protocol: dict[str, Any], split: str, override: int | None = None) -> int:
+    """Resolve a split seed without permitting locked-test mutation."""
+    if override is not None and split != "validation":
+        raise ValueError("--validation-seed is permitted only for the validation split.")
+    seed_block = int(protocol["seed_blocks"][split]) if override is None else int(override)
+    if seed_block < 0:
+        raise ValueError("Validation seed block must be non-negative.")
+    return seed_block
+
+
+def episode_spec(
+    protocol: dict[str, Any],
+    split: str,
+    episode_index: int,
+    *,
+    seed_block: int | None = None,
+) -> dict[str, Any]:
     settings = protocol["s3"]
-    episode_seed = int(protocol["seed_blocks"][split]) + int(episode_index)
-    layout_seed = int(protocol["seed_blocks"][split]) + 1_000_000 + int(episode_index)
+    resolved_seed_block = effective_seed_block(protocol, split, seed_block)
+    episode_seed = resolved_seed_block + int(episode_index)
+    layout_seed = resolved_seed_block + 1_000_000 + int(episode_index)
     minimum_count, maximum_count = (int(value) for value in settings["obstacle_count_range"])
     conditions = list(
         itertools.product(
@@ -147,7 +172,7 @@ def episode_spec(protocol: dict[str, Any], split: str, episode_index: int) -> di
     # episode.  Unlike synchronized modulo counters, this prevents the
     # direction, sensing condition, and target behavior from becoming aliases
     # of each other while remaining fully reproducible.
-    order = np.random.default_rng(int(protocol["seed_blocks"][split]) + 2_000_000).permutation(len(conditions))
+    order = np.random.default_rng(resolved_seed_block + 2_000_000).permutation(len(conditions))
     obstacle_count, defender_side, initial_side_distance, target_speed_scale, target_motion_mode, observation_condition = (
         conditions[int(order[episode_index % len(order)])]
     )
@@ -347,6 +372,7 @@ def main() -> None:
     if environment_config is not None and not environment_config.is_file():
         raise FileNotFoundError(f"Environment config does not exist: {environment_config}")
     episodes = resolved_episode_count(protocol, args.split, args.episodes)
+    seed_block = effective_seed_block(protocol, args.split, args.validation_seed)
     output_dir = args.output_dir.resolve()
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output directory: {output_dir}")
@@ -377,7 +403,7 @@ def main() -> None:
     rows: list[dict[str, Any]] = []
     scenes: list[dict[str, Any]] = []
     for episode_index in range(episodes):
-        spec = episode_spec(protocol, args.split, episode_index)
+        spec = episode_spec(protocol, args.split, episode_index, seed_block=seed_block)
         config = config_for_spec(args.method, spec, environment_config)
         validation_env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=float(spec["target_speed_scale"]))
         if reference_scenes is None:
@@ -530,7 +556,9 @@ def main() -> None:
                 ),
                 "not_a_locked_test": args.split != "locked_test",
                 "locked_test": args.split == "locked_test",
-                "seed_block": int(protocol["seed_blocks"][args.split]),
+                "seed_block": seed_block,
+                "protocol_seed_block": int(protocol["seed_blocks"][args.split]),
+                "seed_block_overridden": args.validation_seed is not None,
                 "protocol": str(protocol_path),
                 "environment_config": str(environment_config) if environment_config is not None else None,
                 "split": args.split,

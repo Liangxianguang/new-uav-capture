@@ -1,0 +1,43 @@
+experiment_name: phase71_maneuvering_defender_quality_finetune_fast
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+research_task:
+  name: quality_gated_defender_adaptation_to_maneuvering_adversary_v2
+  primary_scope: reproducible_safe_expert_finetuning_pilot
+  excluded_scope: locked_test_selection_and_formal_safety_certificate
+environment_config: phase70_maneuvering_adversary_v2.yaml
+
+# A deterministic, route-valid central training curriculum keeps collection
+# practical on CPU.  Validation remains the harder randomized 3--5 obstacle
+# protocol in phase71_maneuvering_defender_validation_protocol.yaml.
+imitation:
+  seed: 711501
+  device: cpu
+  initialize_from: ../models/v5_development_exact_reactive_seed661606.pt
+  episodes: 24
+  expert_max_attempts_per_episode: 4
+  expert_max_rejection_rate: 0.75
+  expert_collection_checkpoint_every_accepted_episodes: 4
+  expert_require_safe_capture: true
+  expert_require_cooperative_safe_capture: true
+  training_obstacle_counts: [3]
+  training_target_speed_scales: [0.45, 0.55]
+  training_target_motion_modes: [flee_persistence, s_curve, adaptive_maneuvering]
+  training_required_defender_zone_entries: 1
+  training_showcase_stages:
+    - until_progress: 1.0
+      showcase_probability: 1.0
+      randomized_central_probability: 0.0
+      layouts: [cylinder_box]
+      initial_side_distances: [7.0]
+      defender_sides: [left, right]
+      target_speed_scales: [0.45, 0.55]
+      target_motion_modes: [flee_persistence, s_curve, adaptive_maneuvering]
+      target_crossing_probability: 0.0
+      required_defender_zone_entries: 1
+  learning_rate: 0.00001
+  action_scale_mode: full_range
+  hidden_dim: 128
+  epochs: 8
+  validation_episodes: 2
+  recurrent_reset_interval_steps: 1
