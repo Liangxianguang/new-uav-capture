@@ -17,6 +17,19 @@
 > 是有希望的修复校准，不是 confirmation Go；不访问 locked-test。详见
 > `docs/PHASE59_QDR_LIVENESS_REPAIR_REPORT.md`。
 
+> Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
+> `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
+> Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线
+> 审计和独立 QDR 时间索引审计均通过；`q={0,2,4,8,10}` 的正常 rollout 误差为
+> 0，五个 double-delay negative probe 均被拒绝。候选预算日志显示 M8 为真实
+> `K=8`，M0--M7 为 `K=1`，所以不能把 M6/M7 写成 K4/K8 或 adaptive-K 结果。
+> M6/M7 在 delay-noise、joint-stress 中降低 collision，但 timeout 分别达到
+> `12.22%/16.67%` 和 `33.33%/36.67%`，最大 exhaustion streak 为 `168/112`，
+> 超过 24 步门槛；Phase 60 promotion No-Go，不进入 confirmation 或 locked-test。
+> 完整 predictor/planner/QDR/safety/total 的 p50/p95/p99 见
+> `docs/PHASE60_QDR_REVALIDATION_CALIBRATION_REPORT.md`。local CBF 仍只称经验
+> 过滤器，robust CBF-QP/R-CLBF-QP 不宣称安全证明。
+
 > Phase 53 QDR confirmation 更新：在新的 `validation_confirmation` 100 episode / 50 mirror-group manifest 上，三种子 nominal/windowed 的 safe capture 均为 `99.33% [98.00,100.00]`，paired delta 为 `0.00 pp [-1.67,+1.67]`；windowed minimum clearance 增加 `0.044 m [0.030,0.056]`，但最大 exhaustion streak 为 `30`，超过预注册 `24` 步上限，liveness gate 判定 **No-Go**。windowed predictor/planner/QDR/safety/total p50/p95/p99 为 `5.39/7.40/10.71`、`12.51/17.24/22.03`、`0.63/0.96/1.28`、`0.62/0.85/1.72`、`21.54/28.24/36.03 ms`；100 ms 仍不是硬门槛。nominal QDR 保留为当前固定 delay4/noise008 合同下的参考，windowed tube 冻结为负消融；不访问 locked-test，不混入 UAKR/RNIC。详见 `docs/PHASE53_QDR_RECOVERABILITY_CONFIRMATION_REPORT.md`。
 
 > Phase 54 UAKR fresh-development 更新：在新的 `validation_development` 100 episode / 50 mirror-group manifest 上，固定-K=8 safe capture 为 `98.33% [95.67,100.00]`，original UAKR 为 `95.00% [92.00,97.67]`，paired delta `-3.33 pp [-7.67,+1.00]`，未通过预注册 `-2 pp` 非劣界；timeout 从 `1.00%` 增至 `4.33%`，paired delta `+3.33 pp [+0.33,+7.00]`。UAKR 的平均 K 为 `2.145`、刷新率 `30.98%`，预算节省可复现，但平均 cache age 为 `1.264` steps、suffix admissible rate 下降 `5.68 pp`。uncertainty/residual 对 next-state violation 的 confirmation AUROC 仅 `0.520/0.513`，接近随机。该阶段判定 UAKR **No-Go**，冻结为 efficiency/negative ablation；不扫描阈值、不访问 locked-test、不开放 Full 组合。详细结果见 `docs/PHASE54_UAKR_DEVELOPMENT_REPORT.md`。
@@ -29,7 +42,7 @@
 
 > Phase 48 QDR liveness confirmation 更新：在新的 `validation_confirmation` 100 episode / 50 mirror-group manifest 上，固定 nominal sensing、delay4、bounded command noise `0.08`、immutable authority 和 local CBF，完成 QDR-off/on 三种子配对。QDR-on safe capture 为 `98.33% [95.67,100.00]`，off 为 `83.33% [79.00,87.33]`；paired safe-capture delta 为 `+15.00 pp [10.33,19.67]`，collision delta 为 `-15.33 pp [-20.00,-11.00]`，timeout delta 为 `+0.33 pp [0,1.33]`。QDR-on timeout `0.33%`、最大 exhaustion streak `23` 步，均通过预注册 `5%/5 pp/24 步` gate；prefix/suffix admissible 为 `95.36%/84.44%`，QDR queue mean/max 为 `4/4`。total p50/p95/p99 为 `84.60/103.99/120.67 ms`，因此 liveness confirmation 通过但效率不作正面结论，且不构成安全证明。gate 结果及 evaluator 指标已写入 TensorBoard；下一步为同 episode-length runtime benchmark，再考虑 QDR×UAKR development block。详见 `docs/PHASE48_QDR_LIVENESS_CONFIRMATION_REPORT.md`。
 
-> 更新时间：2026-09-13
+> 更新时间：2026-09-14
 > 仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
 > 当前总判定：**Conditional Go**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，完整方法尚未完成。
 

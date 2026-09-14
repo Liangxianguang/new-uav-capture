@@ -188,21 +188,22 @@ R_QDR = concat(x_prefix, x_suffix[1:])
 
 ### Phase 60.1：生成新场景与数据审计
 
-- [ ] 生成 360 episodes / 180 mirror groups；资源允许则生成 480/240。
-- [ ] 固化 calibration/confirmation/locked split 和四个 block。
-- [ ] 完成 route validity、public-belief isolation、factor-range、mirror-disjoint
+- [x] 生成 360 episodes / 180 mirror groups；资源允许则生成 480/240。
+- [x] 固化 calibration/confirmation/locked split 和四个 block。
+- [x] 完成 route validity、public-belief isolation、factor-range、mirror-disjoint
   audit，并将 manifest hash 写入 TensorBoard。
-- [ ] 只提交 generator、tests、protocol 和审计报告，不提交 results/ 大文件。
+- [x] 只提交 generator、tests、protocol 和审计报告，不提交 results/ 大文件。
 
 **停止规则：** 任一 split 泄漏、无效 route 静默重采样或 timestamp 缺失，重建
 manifest，不进入模型实验。
 
 ### Phase 60.2：强基线 calibration
 
-- [ ] 在 development_calibration 上运行 B0--B4、Q0--Q1、K4、K8。
-- [ ] 每个 predictor seed 至少 3 个；全部方法固定 seed 和 Torch `1/1`。
-- [ ] B1/B2 的 tube 只从 calibration 估计，不用 confirmation/locked。
-- [ ] 分 block 聚合 mirror-group bootstrap，并输出 paired CI。
+- [x] 在 development_calibration 上运行 M0--M8 强基线/QDR 矩阵；本轮 M8 为真实
+  fixed-K8，M0--M7 为 K=1 方法合同。
+- [x] 每个 predictor seed 至少 3 个；全部方法固定 seed 和 Torch `1/1`。
+- [x] B1/B2 的 tube 只从 calibration 估计，不用 confirmation/locked。
+- [x] 分 block 聚合 mirror-group bootstrap，并输出 paired CI。
 - [ ] 对同步/异步做 process-isolated matched-prefix benchmark。
 
 **停止规则：** 若 B0--B4 不能复现、方法 contract 不一致或 async 的硬件/线程
@@ -210,11 +211,13 @@ manifest，不进入模型实验。
 
 ### Phase 60.3：QDR 形式化与候选预算修复
 
-- [ ] 运行独立 QDR checker 全部 q level 和 double-delay negative probes。
-- [ ] 用 Diagonal-SSM 或 Official-S4 重跑 R0/R1/R2/R3 三种子 calibration。
-- [ ] 记录 requested K、realized count min/max、realized rate、mismatch steps。
-- [ ] 只有 R2/R3 realized rate=100% 才生成 K4/K8 paired comparison。
-- [ ] 比较 QDR prefix/suffix admissibility、exhaustion first step、maximum streak、
+- [x] 运行独立 QDR checker 全部 q level 和 double-delay negative probes。
+- [ ] 用 Diagonal-SSM 或 Official-S4 重跑 R0/R1/R2/R3 三种子 calibration；本轮
+  仅完成 M0--M8 主矩阵，未把缺少真实 K4 的 R2/R3 结果写入主结论。
+- [x] 记录 requested K、realized count min/max、realized rate、mismatch steps。
+- [ ] 只有 R2/R3 realized rate=100% 才生成 K4/K8 paired comparison；当前仅 M8
+  fixed-K8 满足该条件。
+- [x] 比较 QDR prefix/suffix admissibility、exhaustion first step、maximum streak、
   recovery count 和 timeout attribution。
 
 **停止规则：** 任何 candidate mismatch、double-delay 或 QDR checker failure，
