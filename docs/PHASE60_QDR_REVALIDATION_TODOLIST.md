@@ -245,6 +245,19 @@ manifest，不进入模型实验。
   budget audit 和 process-isolated latency 表。
 - [ ] S0 robust CBF-QP 单独放入 limitation/diagnostic appendix，明确无闭环安全证明。
 
+### Phase 60.6：adaptive-K 一致性与失败归因（本轮已完成）
+
+- [x] 对 fixed-K 与 adaptive-K 分开定义 candidate-budget expected value。
+- [x] budget 变化时强制刷新 cached candidate set，并记录 `budget_change` 原因。
+- [x] 在 validation-only smoke 中验证真实 `K={1,4,8}`、refresh、cache age 和
+  realized count；v1/v2 不一致结果归档为无效诊断，v3 才可引用实现结果。
+- [x] 对 M0/M5/M6/M7/M8 做 block-aware failure taxonomy，并写入 TensorBoard。
+- [ ] 对 prefix-unrecoverable recovery 做新的单变量 frozen ablation；在该实验
+  通过 timeout、collision、max-streak 和 total-p95 门槛前，不进入 confirmation。
+
+**当前停止规则：** Phase 60 calibration 的 joint timeout/max-streak gate 已经
+No-Go；adaptive-K smoke 不能绕过该 gate，也不能打开 locked diagnostic。
+
 ## 6. 统一指标和 TensorBoard 合同
 
 ### 6.1 结果指标

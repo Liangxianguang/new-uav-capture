@@ -233,6 +233,7 @@ class AdaptivePredictionPolicy:
         *,
         cached_age_steps: int,
         has_cache: bool,
+        cached_candidate_count: int | None = None,
         previous_residual_m: float | None = None,
         reachable_tube_radius_m: float | None = None,
         queue_prefix_risk_score: float | None = None,
@@ -303,6 +304,14 @@ class AdaptivePredictionPolicy:
             forced_reason = "cache_age_limit"
         elif previous_residual_m is not None and float(previous_residual_m) > self.config.residual_scale_m:
             forced_reason = "residual_limit"
+        elif (
+            cached_candidate_count is not None
+            and int(cached_candidate_count) != int(num_samples)
+        ):
+            # A budget change cannot be applied to a stale candidate set.  Force
+            # a refresh so the realized candidate count matches the decision
+            # recorded for this control step.
+            forced_reason = "budget_change"
         refresh = forced_reason is not None or int(cached_age_steps) % int(refresh_interval) == 0
         return AdaptivePredictionDecision(
             uncertainty_score=score,

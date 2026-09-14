@@ -585,6 +585,11 @@ class PredictionRuntime:
                 observation,
                 cached_age_steps=decision_age_steps,
                 has_cache=self.cached_scenarios is not None,
+                cached_candidate_count=(
+                    None
+                    if self.cached_scenarios is None
+                    else int(self.cached_scenarios.trajectories.shape[0])
+                ),
                 previous_residual_m=previous_residual_m,
                 reachable_tube_radius_m=tube_radius_for_budget,
                 queue_prefix_risk_score=queue_prefix_risk_score_value,
@@ -1788,11 +1793,29 @@ def run_episode(
                 ),
                 "total_control_latency_ms": float(total_control_latency_ms),
                 "nearest_target_distance": float(final_info["nearest_target_distance"]),
+                # For adaptive-K runs, ``num_samples`` is the envelope while
+                # ``adaptive_num_samples`` is the budget actually requested at
+                # this step.  Auditing against the envelope would label every
+                # intentional K=1/K=4 step as a false mismatch.
                 "candidate_budget_requested": float(num_samples),
+                "candidate_budget_expected": float(
+                    adaptive_num_samples
+                    if adaptive_enabled and adaptive_num_samples > 0
+                    else num_samples
+                ),
                 "candidate_count": float(candidate_minimum_distances.size),
                 "candidate_budget_realized": bool(
-                    candidate_minimum_distances.size >= int(num_samples)
-                    if int(num_samples) > 0
+                    candidate_minimum_distances.size
+                    >= int(
+                        adaptive_num_samples
+                        if adaptive_enabled and adaptive_num_samples > 0
+                        else num_samples
+                    )
+                    if int(
+                        adaptive_num_samples
+                        if adaptive_enabled and adaptive_num_samples > 0
+                        else num_samples
+                    ) > 0
                     else True
                 ),
                 "candidate_expected_minimum_distance_m": float(candidate_expected_minimum),
@@ -1809,30 +1832,46 @@ def run_episode(
             break
     qdr_exhaustion_summary = _annotate_qdr_gate_exhaustion(step_rows)
     requested_candidate_budget = int(num_samples)
-    realized_candidate_counts = [
-        int(float(row.get("candidate_count", 0.0)))
+    realized_candidate_pairs = [
+        (
+            int(float(row.get("candidate_count", 0.0))),
+            int(
+                float(
+                    row.get(
+                        "candidate_budget_expected",
+                        row.get("candidate_budget_requested", requested_candidate_budget),
+                    )
+                )
+            ),
+        )
         for row in step_rows
         if float(row.get("candidate_count", 0.0)) > 0.0
     ]
-    if realized_candidate_counts:
+    realized_candidate_counts = [count for count, _ in realized_candidate_pairs]
+    expected_candidate_budgets = [expected for _, expected in realized_candidate_pairs]
+    if realized_candidate_pairs:
         candidate_budget_realized_min = int(min(realized_candidate_counts))
         candidate_budget_realized_max = int(max(realized_candidate_counts))
+        candidate_budget_expected_min = int(min(expected_candidate_budgets))
+        candidate_budget_expected_max = int(max(expected_candidate_budgets))
         candidate_budget_realized_rate = float(
             np.mean(
                 [
-                    count >= requested_candidate_budget
-                    for count in realized_candidate_counts
+                    count >= expected
+                    for count, expected in realized_candidate_pairs
                 ]
             )
-            if requested_candidate_budget > 0
+            if any(expected > 0 for expected in expected_candidate_budgets)
             else 1.0
         )
         candidate_budget_mismatch_steps = int(
-            sum(count < requested_candidate_budget for count in realized_candidate_counts)
+            sum(count < expected for count, expected in realized_candidate_pairs)
         )
     else:
         candidate_budget_realized_min = 0
         candidate_budget_realized_max = 0
+        candidate_budget_expected_min = 0
+        candidate_budget_expected_max = 0
         candidate_budget_realized_rate = float("nan")
         candidate_budget_mismatch_steps = 0
     summary = {
@@ -2126,6 +2165,8 @@ def run_episode(
             sum(float(row["candidate_count"]) > 0.0 for row in step_rows)
         ),
         "candidate_budget_requested": requested_candidate_budget,
+        "candidate_budget_expected_min": candidate_budget_expected_min,
+        "candidate_budget_expected_max": candidate_budget_expected_max,
         "candidate_budget_realized_min": candidate_budget_realized_min,
         "candidate_budget_realized_max": candidate_budget_realized_max,
         "candidate_budget_realized_rate": candidate_budget_realized_rate,

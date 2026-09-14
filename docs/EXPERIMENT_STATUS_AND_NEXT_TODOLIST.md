@@ -17,6 +17,19 @@
 > 是有希望的修复校准，不是 confirmation Go；不访问 locked-test。详见
 > `docs/PHASE59_QDR_LIVENESS_REPAIR_REPORT.md`。
 
+> Phase 60b adaptive-K smoke 已完成：修复了预算切换但仍沿用旧 candidate cache 的
+> bug，并把 fixed-K 与 adaptive-K 的 realized-budget audit 分开。v3 validation
+> smoke 中 M6/M7 都出现真实 `K={1,4,8}`，平均 K 约 `1.69--1.78`、refresh 约
+> `42%--43%`、cache age 约 `1.0` step，三种子全部 realized rate `100%`、
+> mismatch `0`。这只是实现一致性 smoke，不是捕获率提升或 promotion 证据；详见
+> `docs/PHASE60_UAKR_ADAPTIVE_K_SMOKE_REPORT.md`。
+
+> Phase 60 failure taxonomy 已完成：对 M0/M5/M6/M7/M8 的 1,800 个 episode summary
+> 做 block-aware 公开日志归因。M6/M7 joint-stress 的 timeout 分别为 `30/90`、
+> `33/90`，且均伴随 QDR exhaustion；prefix-unrecoverable 分别为 `83/90`、
+> `77/90`，说明主要瓶颈是 immutable prefix 后的 liveness/recovery，而不是未解释
+> solver fallback。详见 `docs/PHASE60_FAILURE_TAXONOMY_REPORT.md`；仍不构成安全证明。
+
 > Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
 > `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
 > Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线

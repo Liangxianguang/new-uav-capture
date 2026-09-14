@@ -71,6 +71,21 @@ def test_adaptive_policy_refreshes_on_interval_and_residual_without_truth_fields
     assert "target_velocity" not in third.as_dict()
 
 
+def test_adaptive_policy_refreshes_when_budget_changes_for_cached_candidates() -> None:
+    policy = AdaptivePredictionPolicy()
+    decision = policy.decide(
+        _observation(2.0, 0.0, 16.0, 5.0),
+        cached_age_steps=1,
+        has_cache=True,
+        cached_candidate_count=1,
+    )
+
+    assert decision.num_samples == 8
+    assert decision.refresh is True
+    assert decision.forced_refresh is True
+    assert decision.forced_refresh_reason == "budget_change"
+
+
 def test_residual_high_trigger_escalates_budget_and_forces_refresh() -> None:
     policy = AdaptivePredictionPolicy(
         AdaptivePredictionConfig(

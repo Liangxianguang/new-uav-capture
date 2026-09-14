@@ -1,0 +1,15 @@
+experiment_name: phase60_failure_taxonomy
+source_phase: phase60_qdr_revalidation_calibration
+analysis_split: development_calibration
+uses_target_truth_online: false
+diagnostic_flags:
+  - termination_reason
+  - qdr_suffix_gate_exhaustion
+  - qdr_prefix_unrecoverable
+  - planner_fallback
+reporting:
+  tensorboard_required: true
+  json_required: true
+  markdown_required: true
+  local_cbf_claim: empirical_filter_only
+  robust_clbf_qp_proof: not_claimed
