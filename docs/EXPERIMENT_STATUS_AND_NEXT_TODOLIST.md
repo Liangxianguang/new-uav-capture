@@ -1,5 +1,25 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 66 baseline stress calibration 已完成：在 Phase 65 fresh manifest 的
+> `development_calibration` 子集（120 episodes / 60 mirror groups、4 个 scene block）上，
+> 使用三个 Diagonal-SSM seeds 对 M0 current-state delayed、M1 known-delay delayed、
+> M2 fixed-tube、M3 queue-aware-tube、M5 asynchronous distributed、M6 synchronous QDR 和
+> M7 asynchronous QDR 做了同场景比较。所有 21 个 method-seed 运行均完成 120 episodes，
+> 并保留 JSONL、effective config、root summary 与 TensorBoard event。结果显示 M1 在
+> communication-tail 达到 `91.11%` safe capture，M3 达到 `67.78%`，但在
+> joint-tail-transfer 中 M3 也只有 `10.00%` safe capture 且 timeout `35.56%`；M6/M7
+> 在该强压力配置下未取得捕获优势。因此这是一组 baseline/failure evidence，不是 promotion。
+> 五类 predictor/planner/QDR-or-tube/safety/total 的 p50/p95/p99 均已按 block 报告；local
+> CBF 仍只称经验过滤器，robust CBF-QP/R-CLBF-QP 不宣称安全证明。详见
+> `docs/PHASE66_BASELINE_STRESS_CALIBRATION_REPORT.md`。
+
+> 下一阶段重点从“继续堆叠 QDR 规则”转向两个可证伪方向：一是预注册的 bounded-recovery
+> planner，在 joint-tail-transfer 上限制恢复预算并报告恢复成功/超时代价；二是对 M1/M3
+> 的延迟补偿与 queue-aware tube 做因素隔离，确认收益究竟来自已知延迟、队列 rollout 还是
+> tube tightening。每个方向都要在新的至少 300 场景 calibration 上验证，并保持同样的
+> mirror-group bootstrap、TensorBoard 配置快照和五类延迟分位数；未通过 timeout、streak、
+> collision 与 safe-capture 联合门槛前，不访问 locked-test。
+
 > Phase 65 QDR prefix/suffix/terminal liveness audit 已完成：全新 tail-stress manifest 为
 > `360 episodes / 180 mirror groups`，包含 `id_reference`、`execution_tail`、
 > `communication_tail` 和 `joint_tail_transfer` 四个压力 block；development calibration
