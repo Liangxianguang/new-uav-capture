@@ -1,0 +1,102 @@
+experiment_name: phase63_queue_token_calibration
+purpose: fresh_queue_token_qdr_authority_calibration
+
+episodes_per_split:
+  pilot: 120
+
+seed_blocks:
+  pilot: 1001101
+
+s4:
+  target_motion_mode: adaptive_branching
+  target_speed_scales: [0.50, 0.65, 0.80]
+  defender_biases: [upper, lower]
+  observation_conditions:
+    - name: phase63_nominal_public_belief
+      pursuit_overrides:
+        detection_range: 14.0
+        detection_dropout_probability: 0.15
+        observation_noise_std: 0.03
+        message_delay_steps: 2
+        message_dropout_probability: 0.05
+  branch_geometry:
+    wall_half_extent_x_m: 0.55
+    wall_half_extent_y_m: 4.25
+    wall_height_m: 9.45
+    target_initial_x_m: -3.80
+    target_branch_decision_x_m: -3.65
+    target_branch_exit_offset_y_m: 5.30
+    target_branch_waypoint_x_m: 0.85
+    target_branch_goal_x_m: 7.50
+  max_steps: 250
+
+scene_matrix:
+  canonical_manifest: results/phase63_queue_token_calibration/scenes.jsonl
+  calibration_manifest: results/phase63_queue_token_calibration/development_calibration/scenes.jsonl
+  canonical_episodes: 360
+  canonical_mirror_groups: 180
+  calibration_episodes: 120
+  calibration_mirror_groups: 60
+  blocks: [id_reference, delay_noise_factorial, communication_execution_factorial, joint_stress_transfer]
+  locked_test_tuning: forbidden
+
+methods:
+  - id: M0_current_state_delayed_mpc
+    role: strong_delayed_mpc_reference
+    queue_aware_rollout: false
+    token_contract: false
+  - id: M6_qdr_synchronous_mpc
+    role: qdr_immutable_reference
+    queue_aware_rollout: true
+    queue_authority: immutable
+    token_contract: true
+  - id: M6_qdr_synchronous_mpc
+    role: qdr_token_matched_bounded_recovery
+    queue_aware_rollout: true
+    queue_authority: replace_nonexecuting
+    token_contract: true
+    max_override_slots: 1
+
+predictor:
+  architecture: diagonal_ssm
+  seeds: [727201, 727202, 727203]
+  condition: both
+  candidate_source: checkpoint
+  num_samples: 1
+  sampling_steps: 8
+  sampling_seed: 745102
+  refresh_interval_steps: 1
+
+execution:
+  physical_contract_from_scene: true
+  queue_token: [generation, issued_step, pending_length]
+  ack_required: true
+  stale_token_negative_probe: separate_diagnostic
+  single_pop_per_step: true
+
+fairness:
+  same_scene_manifest: true
+  same_checkpoint_seeds: true
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  safety_layer: local_cbf
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  latency_components: [predictor, planner, qdr_or_tube, safety, total_control]
+  latency_percentiles: [50, 95, 99]
+
+gates:
+  id_safe_capture_noninferiority_lower_bound: -0.02
+  timeout_upper_bound: 0.05
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  candidate_budget_realized_rate: 1.0
+
+claim_boundary:
+  stage: development_calibration_only
+  local_cbf: empirical_filter_only
+  robust_cbf_qp: diagnostic_no_go
+  no_safety_proof: true
+  no_locked_test_promotion: true
