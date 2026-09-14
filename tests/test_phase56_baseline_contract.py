@@ -59,6 +59,15 @@ def test_phase58_qdr_synchronous_composite_is_distributed_and_queue_aware() -> N
     assert contract["known_delay_compensation"] is False
 
 
+def test_phase64_soft_progress_contract_is_explicit() -> None:
+    contract = phase56_method_contract("M6_qdr_normalized_soft_progress", **_base())
+
+    assert contract["canonical_method"] == "distributed_delayed"
+    assert contract["distributed_mode"] == "delayed"
+    assert contract["queue_aware_rollout"] is True
+    assert contract["qdr_exhaustion_policy"] == "normalized_soft_progress"
+
+
 def test_phase59_candidate_budget_is_synchronized_after_alias_override() -> None:
     contract = phase56_method_contract("R2_phase59_queue_cbf_k4", **_base())
 

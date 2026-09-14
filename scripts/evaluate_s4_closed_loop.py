@@ -78,6 +78,7 @@ METHODS = (
     "M4_synchronous_distributed_mpc",
     "M5_asynchronous_distributed_mpc",
     "M6_qdr_synchronous_mpc",
+    "M6_qdr_normalized_soft_progress",
     "M7_qdr_asynchronous_mpc",
     "M8_fixed_k8_qdr",
     # Phase 59 repair-calibration variants.  They all retain immutable queue
@@ -149,6 +150,14 @@ def parse_args() -> argparse.Namespace:
         "--qdr-prefix-recovery-authority",
         choices=("immutable", "replace_nonexecuting", "flush_pending"),
         help="When a public-geometry QDR prefix is unsafe, request the configured emergency-brake authority.",
+    )
+    parser.add_argument(
+        "--qdr-exhaustion-policy",
+        choices=("hard_min_violation", "normalized_soft_progress"),
+        help=(
+            "QDR candidate selection when every candidate fails the suffix gate; "
+            "the soft policy is a development liveness diagnostic only."
+        ),
     )
     queue_token_group = parser.add_mutually_exclusive_group()
     queue_token_group.add_argument(
@@ -520,6 +529,7 @@ def phase56_method_contract(
         "M4_synchronous_distributed_mpc": "synchronous_distributed_mpc",
         "M5_asynchronous_distributed_mpc": "asynchronous_distributed_mpc",
         "M6_qdr_synchronous_mpc": "qdr_synchronous_mpc",
+        "M6_qdr_normalized_soft_progress": "qdr_synchronous_mpc",
         "M7_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
         "M8_fixed_k8_qdr": "fixed_k8_qdr",
     }
@@ -537,6 +547,7 @@ def phase56_method_contract(
         "target_tube_cost_enabled": False,
         "known_delay_compensation": False,
         "distributed_mode": None,
+        "qdr_exhaustion_policy": None,
     }
     if method == "delayed_mpc":
         contract.update(canonical_method="worst_case", queue_aware_rollout=False, queue_aware_safety_projection=False)
@@ -611,6 +622,8 @@ def phase56_method_contract(
             queue_aware_safety_projection=True,
             num_samples=max(8, int(num_samples)),
         )
+    elif requested_method == "M6_qdr_normalized_soft_progress":
+        contract["qdr_exhaustion_policy"] = "normalized_soft_progress"
     if contract["queue_aware_safety_projection"] and not contract["queue_aware_rollout"]:
         contract["queue_aware_safety_projection"] = False
     # Keep the requested budget synchronized with alias-specific overrides.
@@ -768,6 +781,8 @@ def main() -> None:
         drag_coefficient=args.execution_drag_coefficient,
     )
     distributed_mapping = dict(mpc_document.get("distributed", {}))
+    if args.qdr_exhaustion_policy is not None:
+        distributed_mapping["qdr_exhaustion_policy"] = str(args.qdr_exhaustion_policy)
     if args.qdr_execution_tube_active_steps is not None:
         if int(args.qdr_execution_tube_active_steps) <= 0:
             raise ValueError("qdr-execution-tube-active-steps must be positive")
@@ -960,10 +975,16 @@ def main() -> None:
             if checkpoint_model_kind is not None or args.candidate_source == "belief"
             else "not_applicable"
         )
+        method_distributed_mapping = dict(distributed_mapping)
+        if method_contract.get("qdr_exhaustion_policy") is not None:
+            method_distributed_mapping["qdr_exhaustion_policy"] = str(
+                method_contract["qdr_exhaustion_policy"]
+            )
         method_output = output / method
         method_output.mkdir(parents=True, exist_ok=True)
         method_run_config = {
             **run_config,
+            "distributed": method_distributed_mapping,
             "method_contract": method_contract,
         }
         method_output.joinpath("config.yaml").write_text(
@@ -980,15 +1001,24 @@ def main() -> None:
                     phase17_execution_mapping,
                     frozen_scene_record=spec,
                 )
-                if qdr_prefix_recovery_authority is not None:
+                if (
+                    qdr_prefix_recovery_authority is not None
+                    and bool(method_contract["queue_aware_rollout"])
+                ):
                     config.setdefault("dynamics", {}).setdefault("execution", {})[
                         "pending_command_authority"
                     ] = qdr_prefix_recovery_authority
-                if args.queue_token_contract is not None:
+                if (
+                    args.queue_token_contract is not None
+                    and bool(method_contract["queue_aware_rollout"])
+                ):
                     config.setdefault("dynamics", {}).setdefault("execution", {})[
                         "queue_token_contract_enabled"
                     ] = bool(args.queue_token_contract)
-                if args.queue_token_max_override_slots is not None:
+                if (
+                    args.queue_token_max_override_slots is not None
+                    and bool(method_contract["queue_aware_rollout"])
+                ):
                     config.setdefault("dynamics", {}).setdefault("execution", {})[
                         "queue_token_max_override_slots"
                     ] = int(args.queue_token_max_override_slots)
@@ -996,6 +1026,10 @@ def main() -> None:
                 canonical_method = str(method_contract["canonical_method"])
                 if canonical_method in distributed_modes:
                     effective_distributed_mapping = dict(distributed_mapping)
+                    if method_contract.get("qdr_exhaustion_policy") is not None:
+                        effective_distributed_mapping["qdr_exhaustion_policy"] = str(
+                            method_contract["qdr_exhaustion_policy"]
+                        )
                     if method_contract["distributed_mode"] == "asynchronous":
                         effective_distributed_mapping["communication_interval_steps"] = max(
                             2, int(effective_distributed_mapping.get("communication_interval_steps", 1))
@@ -1033,7 +1067,11 @@ def main() -> None:
                     queue_aware_rollout=bool(method_contract["queue_aware_rollout"]),
                     queue_aware_safety_projection=bool(method_contract["queue_aware_safety_projection"]),
                     known_delay_compensation=bool(method_contract["known_delay_compensation"]),
-                    qdr_prefix_recovery_authority=qdr_prefix_recovery_authority,
+                    qdr_prefix_recovery_authority=(
+                        qdr_prefix_recovery_authority
+                        if bool(method_contract["queue_aware_rollout"])
+                        else None
+                    ),
                     adaptive_prediction_config=(
                         adaptive_budget_mapping if bool(method_contract["adaptive_k"]) else None
                     ),
@@ -1085,8 +1123,21 @@ def main() -> None:
         all_summaries[method] = summary
         overall = summary["overall"]
         with require_summary_writer()(log_dir=str(method_output / "tensorboard"), flush_secs=5) as writer:
-            writer.add_text("Evaluation/config", yaml.safe_dump(run_config, sort_keys=False), 0)
-            writer.add_text("Evaluation/source_hashes", json.dumps(run_config["source_hashes"], indent=2), 0)
+            writer.add_text("Evaluation/config", yaml.safe_dump(method_run_config, sort_keys=False), 0)
+            writer.add_text(
+                "Evaluation/source_hashes",
+                json.dumps(method_run_config["source_hashes"], indent=2),
+                0,
+            )
+            writer.add_text(
+                "Evaluation/QDR/exhaustion_policy",
+                str(
+                    method_run_config.get("distributed", {}).get(
+                        "qdr_exhaustion_policy", "hard_min_violation"
+                    )
+                ),
+                0,
+            )
             writer.add_scalar("Evaluation/torch_num_threads", run_config["torch_num_threads"], 0)
             writer.add_scalar("Evaluation/torch_num_interop_threads", run_config["torch_num_interop_threads"], 0)
             for episode_index, row in enumerate(rows):
@@ -1130,6 +1181,7 @@ def main() -> None:
                     "qdr_suffix_gate_first_exhaustion_step",
                     "qdr_suffix_gate_max_exhaustion_streak_steps",
                     "qdr_suffix_gate_recovery_count",
+                    "qdr_exhaustion_soft_fallback_count",
                     "qdr_execution_tube_enabled",
                     "qdr_execution_tube_multiplier",
                     "qdr_execution_tube_active_steps",
@@ -1272,6 +1324,11 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/suffix_gate_recovery_count",
                 overall.get("qdr_suffix_gate_recovery_count", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_soft_fallback_count",
+                overall.get("qdr_exhaustion_soft_fallback_count", float("nan")),
                 0,
             )
             writer.add_scalar(

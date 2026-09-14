@@ -236,6 +236,43 @@ def test_queue_aware_local_obstacles_include_horizon_reachable_geometry() -> Non
     assert len(visible) == 1
 
 
+def test_qdr_exhaustion_soft_progress_policy_is_explicit_and_auditable() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 0,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.0,
+        "velocity_time_constant_seconds": 0.0,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    # Enclose every finite candidate so the planner must enter the explicitly
+    # diagnosed exhausted-candidate branch.
+    observation["obstacles"] = [
+        {
+            "center_xy": np.array([-2.0, 0.0]),
+            "radius": 20.0,
+            "height": 20.0,
+            "shape": "cylinder",
+        }
+    ]
+
+    hard = _planner("ideal")
+    hard_plan = hard.plan(observation, _scenarios(), step_index=0)
+    soft = _planner("ideal", qdr_exhaustion_policy="normalized_soft_progress")
+    soft_plan = soft.plan(observation, _scenarios(), step_index=0)
+
+    assert hard_plan.diagnostics.qdr_suffix_gate_exhausted is True
+    assert hard_plan.diagnostics.qdr_exhaustion_policy == "hard_min_violation"
+    assert hard_plan.diagnostics.qdr_exhaustion_soft_fallback_count == 0
+    assert soft_plan.diagnostics.qdr_suffix_gate_exhausted is True
+    assert soft_plan.diagnostics.qdr_exhaustion_policy == "normalized_soft_progress"
+    assert soft_plan.diagnostics.qdr_exhaustion_soft_fallback_count > 0
+    assert np.isfinite(soft_plan.action_sequence).all()
+
+
 def test_no_communication_does_not_create_peer_messages() -> None:
     planner = _planner("none")
     first = planner.plan(_observation(), _scenarios(), step_index=0)
@@ -296,6 +333,11 @@ def test_dropout_is_deterministic_and_raw_candidates_fallback() -> None:
 def test_configuration_rejects_invalid_dropout_probability() -> None:
     with pytest.raises(ValueError, match="dropout"):
         DistributedDNMPCConfig(message_dropout_probability=1.1)
+
+
+def test_configuration_rejects_unknown_qdr_exhaustion_policy() -> None:
+    with pytest.raises(ValueError, match="qdr_exhaustion_policy"):
+        DistributedDNMPCConfig(qdr_exhaustion_policy="unknown")
 
 
 def test_receding_horizon_warm_start_shifts_executed_action() -> None:

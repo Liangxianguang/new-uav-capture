@@ -1,5 +1,21 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 64 QDR exhausted-candidate liveness repair 已完成 development calibration：
+> 全新 manifest 为 `360 episodes / 180 mirror groups`，本阶段使用 `120 episodes /
+> 60 mirror groups`、三个 Diagonal-SSM seeds，并比较 strong delayed-MPC、immutable
+> hard-QDR 和 normalized soft-progress QDR。soft arm 的 safe capture 为 `86.94%`
+> [80.56,92.22]，hard arm 为 `84.17%` [78.89,89.17]；paired delta 为
+> `+2.78 pp [-2.50,+8.89]`，timeout delta 为 `-1.94 pp [-8.06,+3.33]`，但最大
+> exhaustion streak 从 `93` 增加到 `198`，超过 `24` 步 gate，因此本阶段 **No-Go**，
+> 不进入 confirmation 或 locked-test。完整 predictor/planner/QDR-or-tube/safety/
+> total 的 p50/p95/p99 已报告；local CBF 仍只称经验过滤器，robust CBF-QP/R-CLBF-QP
+> 不宣称安全证明。详见 `docs/PHASE64_QDR_LIVENESS_REPAIR_REPORT.md`。
+
+> 下一阶段不再扫描 soft fallback 权重；优先做 prefix/suffix/terminal 三段式可行性
+> 审计与有限恢复步数诊断，再在至少 300 个新增场景、更多 delay/noise 条件上进行
+> 新 calibration。confirmation/locked-test 继续封存，TensorBoard 继续作为配置和
+> 延迟证据的必备记录。
+
 > Phase 60 重新设计计划已冻结在 `docs/PHASE60_QDR_REVALIDATION_TODOLIST.md`：
 > 目标是新增至少 360 episodes / 180 mirror groups，补齐 strong delayed-MPC、
 > fixed/queue-aware tube-MPC、同步/异步分布式基线，完成 QDR 时间索引与不重复

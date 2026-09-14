@@ -44,6 +44,8 @@ from .execution_dynamics import (
 
 CommunicationMode = Literal["none", "ideal", "delayed", "dropout", "asynchronous"]
 _COMMUNICATION_MODES = {"none", "ideal", "delayed", "dropout", "asynchronous"}
+QDRExhaustionPolicy = Literal["hard_min_violation", "normalized_soft_progress"]
+_QDR_EXHAUSTION_POLICIES = {"hard_min_violation", "normalized_soft_progress"}
 
 
 def _qdr_execution_aware(observation: dict[str, Any]) -> bool:
@@ -217,6 +219,13 @@ class DistributedDNMPCConfig:
     # Optional QDR optimization.  It is deliberately off by default until
     # action-selection equivalence has been checked against the full scorer.
     qdr_feasibility_first: bool = False
+    # When every finite candidate violates the full QDR suffix gate, the
+    # historical policy selected only the minimum geometry violation.  The
+    # normalized soft-progress policy is an explicit liveness diagnostic: it
+    # ranks candidates by equal-range normalized task cost and QDR violation.
+    # It never changes a non-exhausted feasible selection and does not alter
+    # the immutable execution queue or provide a safety certificate.
+    qdr_exhaustion_policy: QDRExhaustionPolicy = "hard_min_violation"
     # Optional empirical execution-error tube for the controllable suffix.
     # This is a calibrated diagnostic margin, not a formal safety certificate.
     qdr_execution_tube_enabled: bool = False
@@ -251,6 +260,11 @@ class DistributedDNMPCConfig:
             raise ValueError("message_dropout_probability must lie in [0, 1].")
         if not str(self.fallback_policy).strip():
             raise ValueError("fallback_policy must be non-empty.")
+        if self.qdr_exhaustion_policy not in _QDR_EXHAUSTION_POLICIES:
+            raise ValueError(
+                "qdr_exhaustion_policy must be one of "
+                f"{sorted(_QDR_EXHAUSTION_POLICIES)}"
+            )
         if (
             not np.isfinite(float(self.qdr_execution_tube_multiplier))
             or float(self.qdr_execution_tube_multiplier) < 1.0
@@ -298,6 +312,8 @@ class DistributedDNMPCDiagnostics:
     qdr_suffix_gate_active: bool = False
     qdr_suffix_gate_exhausted: bool = False
     qdr_suffix_gate_rejected_candidates: int = 0
+    qdr_exhaustion_policy: str = "hard_min_violation"
+    qdr_exhaustion_soft_fallback_count: int = 0
     qdr_execution_tube_enabled: bool = False
     qdr_execution_tube_multiplier: float = 1.0
     qdr_execution_tube_active_steps: int = 0
@@ -353,6 +369,8 @@ class DistributedDNMPCDiagnostics:
             "qdr_suffix_gate_active": self.qdr_suffix_gate_active,
             "qdr_suffix_gate_exhausted": self.qdr_suffix_gate_exhausted,
             "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
+            "qdr_exhaustion_policy": self.qdr_exhaustion_policy,
+            "qdr_exhaustion_soft_fallback_count": self.qdr_exhaustion_soft_fallback_count,
             "qdr_execution_tube_enabled": self.qdr_execution_tube_enabled,
             "qdr_execution_tube_multiplier": self.qdr_execution_tube_multiplier,
             "qdr_execution_tube_active_steps": self.qdr_execution_tube_active_steps,
@@ -506,6 +524,7 @@ class DistributedMinimaxDNMPC:
             "qdr_suffix_gate_checks": 0,
             "qdr_suffix_gate_exhausted": 0,
             "qdr_suffix_gate_rejected_candidates": 0,
+            "qdr_exhaustion_soft_fallback_count": 0,
         }
         self._fc_dbf_last_metrics = None
         self._fc_dbf_last_gate_exhausted = False
@@ -657,6 +676,10 @@ class DistributedMinimaxDNMPC:
                 qdr_suffix_gate_exhausted=bool(self._stats["qdr_suffix_gate_exhausted"]),
                 qdr_suffix_gate_rejected_candidates=int(
                     self._stats["qdr_suffix_gate_rejected_candidates"]
+                ),
+                qdr_exhaustion_policy=self.distributed.qdr_exhaustion_policy,
+                qdr_exhaustion_soft_fallback_count=int(
+                    self._stats["qdr_exhaustion_soft_fallback_count"]
                 ),
                 **qdr_execution_tube_summary,
                 **escape_gap_summary,
@@ -1485,7 +1508,46 @@ class DistributedMinimaxDNMPC:
             else:
                 if record_qdr_stats:
                     self._stats["qdr_suffix_gate_exhausted"] += 1
-                result += 1.0e5 * qdr_candidate_violation[:, None]
+                if self.distributed.qdr_exhaustion_policy == "normalized_soft_progress":
+                    # All candidates are geometrically inadmissible over the
+                    # checked suffix.  At this point a pure violation
+                    # minimizer can repeatedly select a low-motion action and
+                    # turn a recoverable situation into a timeout.  Preserve
+                    # the full scorer's task and soft safety costs, normalize
+                    # both candidate rankings to [0, 1], and use their sum as
+                    # a deterministic liveness tie-break.  Immediate safety
+                    # is still handled by the downstream empirical local CBF;
+                    # this branch is not a safety certificate.
+                    base_objectives = _aggregate_local_objectives(
+                        result,
+                        weights,
+                        self.config,
+                    )
+                    base_min = float(np.min(base_objectives))
+                    base_span = float(np.max(base_objectives) - base_min)
+                    if base_span <= 1.0e-12:
+                        normalized_base = np.zeros_like(base_objectives)
+                    else:
+                        normalized_base = (base_objectives - base_min) / base_span
+                    violation_min = float(np.min(qdr_candidate_violation))
+                    violation_span = float(
+                        np.max(qdr_candidate_violation) - violation_min
+                    )
+                    if violation_span <= 1.0e-12:
+                        normalized_violation = np.zeros_like(qdr_candidate_violation)
+                    else:
+                        normalized_violation = (
+                            qdr_candidate_violation - violation_min
+                        ) / violation_span
+                    fallback_objective = normalized_base + normalized_violation
+                    result = np.broadcast_to(
+                        fallback_objective[:, None],
+                        result.shape,
+                    ).copy()
+                    if record_qdr_stats:
+                        self._stats["qdr_exhaustion_soft_fallback_count"] += 1
+                else:
+                    result += 1.0e5 * qdr_candidate_violation[:, None]
         if result.shape != (actions.shape[0], candidate_count) or not np.isfinite(result).all():
             raise FloatingPointError("local scenario cost contains non-finite values")
         return result
@@ -1818,6 +1880,8 @@ class DistributedMinimaxDNMPC:
         qdr_suffix_gate_active: bool = False,
         qdr_suffix_gate_exhausted: bool = False,
         qdr_suffix_gate_rejected_candidates: int = 0,
+        qdr_exhaustion_policy: str = "hard_min_violation",
+        qdr_exhaustion_soft_fallback_count: int = 0,
         qdr_execution_tube_enabled: bool = False,
         qdr_execution_tube_multiplier: float = 1.0,
         qdr_execution_tube_active_steps: int = 0,
@@ -1873,6 +1937,8 @@ class DistributedMinimaxDNMPC:
             qdr_suffix_gate_active=bool(qdr_suffix_gate_active),
             qdr_suffix_gate_exhausted=bool(qdr_suffix_gate_exhausted),
             qdr_suffix_gate_rejected_candidates=int(qdr_suffix_gate_rejected_candidates),
+            qdr_exhaustion_policy=str(qdr_exhaustion_policy),
+            qdr_exhaustion_soft_fallback_count=int(qdr_exhaustion_soft_fallback_count),
             qdr_execution_tube_enabled=bool(qdr_execution_tube_enabled),
             qdr_execution_tube_multiplier=float(qdr_execution_tube_multiplier),
             qdr_execution_tube_active_steps=int(qdr_execution_tube_active_steps),
@@ -1936,6 +2002,7 @@ class DistributedMinimaxDNMPC:
 
 
 __all__ = [
+    "QDRExhaustionPolicy",
     "DistributedDNMPCConfig",
     "DistributedDNMPCDiagnostics",
     "DistributedDNMPCPlan",
