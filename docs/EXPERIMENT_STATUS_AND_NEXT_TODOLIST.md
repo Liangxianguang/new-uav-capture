@@ -41,6 +41,14 @@
 > 见 `docs/PHASE61_QDR_RECOVERY_AUTHORITY_REPORT.md`；local CBF 仍只称经验过滤器，
 > robust CBF-QP/R-CLBF-QP 不宣称安全证明。
 
+> Phase 62 queue-token/ACK transition audit 已完成：新建 opt-in 的队列版本合同
+> `τ=(generation, issued_step, pending_length)`，覆盖 queue length `0/1/2/4/8`
+> 和三种 authority 的 55 个确定性用例，55/55 通过；25 个 mutable stale/missing
+> token negative probes 全部拒绝，bounded override 和 single-pop commit 均通过。
+> 该阶段只证明执行队列合同和时间推进语义，不证明 QDR 几何安全；下一步才是在
+> 全新 calibration manifest 上接入闭环并重新报告五类延迟分位数。详见
+> `docs/PHASE62_QUEUE_TOKEN_TRANSITION_AUDIT_REPORT.md`。
+
 > Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
 > `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
 > Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线
@@ -623,6 +631,25 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 
 详细结果见 `docs/PHASE61_QDR_RECOVERY_AUTHORITY_REPORT.md`。
 
+### Phase 62：Queue-token / ACK transition audit（完成，implementation Go）
+
+- [x] 实现 opt-in `QueueToken`、token freshness check、`QueueAuthorityAck`、
+  bounded override 和单步 command commit；默认旧 authority helper 保持兼容；
+- [x] 在 queue length `0/1/2/4/8`、三种 authority 上完成 55 个确定性用例；
+- [x] stale token、mutable missing token 和 queue-length mismatch 均在不改变
+  队列的前提下拒绝；immutable 不修改队列；replace/flush 均遵守覆盖上限；
+- [x] 验证每步只 pop 一个到期动作，并在 commit 后生成新 token；
+- [x] 将 YAML 配置、claim boundary、逐用例结果和 authority 统计写入
+  TensorBoard，并保存 summary/config snapshot；
+- [x] 完整回归测试通过；
+- [ ] 以 opt-in 方式接入 environment/evaluator，保持旧实验默认 immutable
+  路径不变；
+- [ ] 用全新 calibration manifest 比较 immutable reference、token-matched
+  bounded replacement 和 stale-token rejection diagnostic；只有 liveness 与
+  non-inferiority gates 通过才打开 confirmation。
+
+详细结果与边界见 `docs/PHASE62_QUEUE_TOKEN_TRANSITION_AUDIT_REPORT.md`。
+
 ### P32：Phase 57 因果因素校准与运行时公平性（开发集完成，promotion No-Go）
 
 - [x] 新建并冻结 Phase57 场景矩阵：4 个 block、360 episodes、180 mirror
@@ -744,6 +771,7 @@ P24 EGC-MPC No-Go freeze
   -> P32 Phase57 causal-factor calibration (development complete; ID/async promotion No-Go)
   -> P32a isolated runtime benchmark + B2/B3/B7 causal matrix (precondition for any new confirmation)
   -> Phase61 QDR recovery-authority ablation (completed; queue-consistency/liveness No-Go)
+  -> Phase62 queue-token/ACK transition audit (completed; implementation Go, closed-loop pending)
   -> Full confirmation remains closed until a new pre-registered calibration promotes a primary method
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料

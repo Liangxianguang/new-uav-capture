@@ -18,6 +18,77 @@ _COMMAND_AUTHORITY_MODES = frozenset({"immutable", "replace_nonexecuting", "flus
 
 
 @dataclass(frozen=True)
+class QueueToken:
+    """Versioned identity of a pending-command queue snapshot.
+
+    The token is an execution-contract identifier, not a safety certificate.
+    A recovery request may mutate a queue only when its token still matches
+    the queue observed by the requester.  ``issued_step`` is retained for
+    auditability; authority mutation itself does not advance simulation time.
+    """
+
+    generation: int
+    issued_step: int
+    pending_length: int
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("generation", self.generation),
+            ("issued_step", self.issued_step),
+            ("pending_length", self.pending_length),
+        ):
+            if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+                raise TypeError(f"{name} must be an integer")
+        if int(self.generation) < 0:
+            raise ValueError("generation must be non-negative")
+        if int(self.pending_length) < 0:
+            raise ValueError("pending_length must be non-negative")
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "generation": int(self.generation),
+            "issued_step": int(self.issued_step),
+            "pending_length": int(self.pending_length),
+        }
+
+    @classmethod
+    def from_value(cls, value: Any) -> "QueueToken":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, Mapping):
+            return cls(
+                generation=int(value["generation"]),
+                issued_step=int(value["issued_step"]),
+                pending_length=int(value["pending_length"]),
+            )
+        if isinstance(value, (tuple, list)) and len(value) == 3:
+            return cls(generation=int(value[0]), issued_step=int(value[1]), pending_length=int(value[2]))
+        raise TypeError("queue token must be QueueToken, mapping, or a three-item sequence")
+
+
+@dataclass(frozen=True)
+class QueueAuthorityAck:
+    """Auditable response for a token-checked queue recovery request."""
+
+    accepted: bool
+    applied: bool
+    reason: str
+    overridden_slots: int
+    before_token: QueueToken
+    after_token: QueueToken
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "accepted": bool(self.accepted),
+            "applied": bool(self.applied),
+            "reason": str(self.reason),
+            "overridden_slots": int(self.overridden_slots),
+            "before_token": self.before_token.as_dict(),
+            "after_token": self.after_token.as_dict(),
+        }
+
+
+@dataclass(frozen=True)
 class CommandAuthorityDirective:
     """Supervisor authority over commands that are already in the delay queue.
 
@@ -31,9 +102,20 @@ class CommandAuthorityDirective:
 
     mode: str
     emergency_brake: bool = False
+    expected_queue_token: QueueToken | None = None
+    max_override_slots: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {"mode": self.mode, "emergency_brake": bool(self.emergency_brake)}
+        return {
+            "mode": self.mode,
+            "emergency_brake": bool(self.emergency_brake),
+            "expected_queue_token": (
+                None if self.expected_queue_token is None else self.expected_queue_token.as_dict()
+            ),
+            "max_override_slots": (
+                None if self.max_override_slots is None else int(self.max_override_slots)
+            ),
+        }
 
 
 def validate_command_authority_mode(value: Any) -> str:
@@ -67,14 +149,28 @@ def command_authority_directive(
     elif isinstance(value, Mapping):
         requested_mode = value.get("mode", permitted)
         emergency_brake = value.get("emergency_brake", False)
+        raw_token = value.get("expected_queue_token")
+        expected_queue_token = None if raw_token is None else QueueToken.from_value(raw_token)
+        raw_limit = value.get("max_override_slots")
+        max_override_slots = None if raw_limit is None else int(raw_limit)
     else:
         raise ValueError("command authority directive must be a mapping or CommandAuthorityDirective")
+    if isinstance(value, CommandAuthorityDirective):
+        expected_queue_token = value.expected_queue_token
+        max_override_slots = value.max_override_slots
     requested = validate_command_authority_mode(requested_mode)
     if requested != permitted:
         raise ValueError(
             f"command authority escalation is not permitted: requested={requested}, allowed={permitted}"
         )
-    return CommandAuthorityDirective(mode=permitted, emergency_brake=bool(emergency_brake))
+    if max_override_slots is not None and (max_override_slots < 0 or isinstance(max_override_slots, bool)):
+        raise ValueError("max_override_slots must be a non-negative integer or None")
+    return CommandAuthorityDirective(
+        mode=permitted,
+        emergency_brake=bool(emergency_brake),
+        expected_queue_token=expected_queue_token,
+        max_override_slots=max_override_slots,
+    )
 
 
 def apply_command_authority(
@@ -100,6 +196,137 @@ def apply_command_authority(
         queue[index].fill(0.0)
         overridden += 1
     return queue, resolved, overridden
+
+
+def apply_command_authority_with_token(
+    action_queue: list[np.ndarray] | tuple[np.ndarray, ...],
+    directive: CommandAuthorityDirective | Mapping[str, Any] | None,
+    *,
+    allowed_mode: str,
+    current_token: QueueToken,
+) -> tuple[list[np.ndarray], QueueToken, QueueAuthorityAck]:
+    """Apply a bounded recovery only when the observed queue token is current.
+
+    This opt-in contract is intentionally separate from the historical helper
+    above so existing benchmarks remain bitwise-compatible.  A recovery
+    request for a mutable authority must carry the exact queue token observed
+    by the requester.  Missing or stale tokens are rejected without mutation.
+    ``replace_nonexecuting`` may change slots starting at index one, while
+    ``flush_pending`` may change from index zero; both are capped by
+    ``max_override_slots``.  The returned token generation increments only
+    when at least one slot is changed.
+    """
+
+    queue = [np.asarray(item, dtype=np.float64).copy() for item in action_queue]
+    before = QueueToken.from_value(current_token)
+    if before.pending_length != len(queue):
+        ack = QueueAuthorityAck(
+            accepted=False,
+            applied=False,
+            reason="queue_length_mismatch",
+            overridden_slots=0,
+            before_token=before,
+            after_token=before,
+        )
+        return queue, before, ack
+    resolved = command_authority_directive(directive, allowed_mode=allowed_mode)
+    requested = resolved.expected_queue_token
+    if requested is None and resolved.emergency_brake and resolved.mode != "immutable":
+        ack = QueueAuthorityAck(
+            accepted=False,
+            applied=False,
+            reason="missing_queue_token",
+            overridden_slots=0,
+            before_token=before,
+            after_token=before,
+        )
+        return queue, before, ack
+    if requested is not None and requested != before:
+        ack = QueueAuthorityAck(
+            accepted=False,
+            applied=False,
+            reason="stale_queue_token",
+            overridden_slots=0,
+            before_token=before,
+            after_token=before,
+        )
+        return queue, before, ack
+    if not resolved.emergency_brake or resolved.mode == "immutable":
+        ack = QueueAuthorityAck(
+            accepted=True,
+            applied=False,
+            reason="no_mutation_requested",
+            overridden_slots=0,
+            before_token=before,
+            after_token=before,
+        )
+        return queue, before, ack
+
+    start = 0 if resolved.mode == "flush_pending" else 1
+    available = max(len(queue) - start, 0)
+    limit = available if resolved.max_override_slots is None else min(available, resolved.max_override_slots)
+    for index in range(start, start + limit):
+        queue[index].fill(0.0)
+    after = QueueToken(
+        generation=int(before.generation) + (1 if limit > 0 else 0),
+        issued_step=int(before.issued_step),
+        pending_length=len(queue),
+    )
+    reason = "bounded_recovery_applied" if limit > 0 else "no_mutable_pending_slots"
+    ack = QueueAuthorityAck(
+        accepted=True,
+        applied=bool(limit > 0),
+        reason=reason,
+        overridden_slots=int(limit),
+        before_token=before,
+        after_token=after,
+    )
+    return queue, after, ack
+
+
+def commit_delayed_command(
+    action_queue: list[np.ndarray] | tuple[np.ndarray, ...],
+    new_action: np.ndarray,
+) -> tuple[list[np.ndarray], np.ndarray]:
+    """Append one command and pop at most one due command.
+
+    This is the explicit single-pop transition used by the Phase 62 audit.
+    It mirrors the legacy environment transition but makes the queue-length
+    and no-double-delay invariants directly testable.
+    """
+
+    queue = [np.asarray(item, dtype=np.float64).copy() for item in action_queue]
+    action = np.asarray(new_action, dtype=np.float64).copy()
+    if action.ndim != 2 or action.shape[-1] != 3 or not np.isfinite(action).all():
+        raise ValueError("new_action must have finite shape [defenders, 3]")
+    if queue:
+        queue.append(action)
+        due = queue.pop(0)
+    else:
+        due = action.copy()
+    return queue, due
+
+
+def commit_delayed_command_with_token(
+    action_queue: list[np.ndarray] | tuple[np.ndarray, ...],
+    new_action: np.ndarray,
+    current_token: QueueToken,
+    *,
+    next_step: int,
+) -> tuple[list[np.ndarray], np.ndarray, QueueToken]:
+    """Commit one delayed command and issue the next queue token."""
+
+    queue = [np.asarray(item, dtype=np.float64).copy() for item in action_queue]
+    before = QueueToken.from_value(current_token)
+    if before.pending_length != len(queue):
+        raise ValueError("current queue token does not match the queue length")
+    next_queue, due = commit_delayed_command(queue, new_action)
+    next_token = QueueToken(
+        generation=int(before.generation) + 1,
+        issued_step=int(next_step),
+        pending_length=len(next_queue),
+    )
+    return next_queue, due, next_token
 
 
 def clip_rows(values: np.ndarray, max_norm: float) -> np.ndarray:
@@ -638,9 +865,14 @@ def resolve_reachable_tube_multiplier(
 
 __all__ = [
     "CommandAuthorityDirective",
+    "QueueAuthorityAck",
+    "QueueToken",
     "ExecutionParameters",
     "ExecutionStep",
     "apply_command_authority",
+    "apply_command_authority_with_token",
+    "commit_delayed_command",
+    "commit_delayed_command_with_token",
     "advance_execution",
     "clip_rows",
     "command_authority_directive",

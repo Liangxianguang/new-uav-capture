@@ -1,0 +1,27 @@
+experiment_name: phase62_queue_token_transition_audit
+purpose: opt_in_queue_authority_contract_audit
+
+audit:
+  defenders: 4
+  queue_lengths: [0, 1, 2, 4, 8]
+  generation: 17
+  issued_step: 42
+  max_override_slots: 2
+
+authority_modes:
+  - immutable
+  - replace_nonexecuting
+  - flush_pending
+
+checks:
+  stale_token_must_be_rejected: true
+  missing_token_must_be_rejected_for_mutable_authority: true
+  immutable_queue_must_not_mutate: true
+  replacement_must_be_bounded: true
+  single_pop_per_step: true
+
+reporting:
+  tensorboard_required: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  claim_boundary: queue_contract_only_not_safety_proof
