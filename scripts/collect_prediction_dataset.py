@@ -40,6 +40,7 @@ TARGET_MOTION_MODES = (
     "boundary_escape",
     "adaptive_adversarial",
     "adaptive_branching",
+    "adaptive_maneuvering",
 )
 
 

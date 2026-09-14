@@ -108,6 +108,20 @@ def parse_args() -> argparse.Namespace:
         help="Showcase-only sensor range; preserves partial observations while making opposite-side starts observable.",
     )
     parser.add_argument("--target-speed-scale", type=float, default=0.55)
+    parser.add_argument(
+        "--target-motion-mode",
+        choices=(
+            "flee_persistence",
+            "s_curve",
+            "random_turn",
+            "burst",
+            "boundary_escape",
+            "adaptive_adversarial",
+            "adaptive_branching",
+            "adaptive_maneuvering",
+        ),
+        help="Optional showcase-only target behavior override; never use to retune a locked test.",
+    )
     parser.add_argument("--use-cbf", action="store_true")
     parser.add_argument(
         "--recurrent-reset-interval",
@@ -128,6 +142,7 @@ def build_config(
     target_crossing_required: bool = False,
     protocol: CentralCaptureProtocol | None = None,
     obstacle_count: int = 3,
+    target_motion_mode: str | None = None,
 ) -> dict[str, Any]:
     if detection_range <= 0.0 or target_speed_scale <= 0.0:
         raise ValueError("detection-range and target-speed-scale must be positive.")
@@ -158,6 +173,8 @@ def build_config(
         # This is a controlled capture task, not a claim that an adversary
         # voluntarily drives toward a defender in the open world.
         config["task"]["pursuit"].update(target_crossing_pursuit_overrides())
+    if target_motion_mode is not None:
+        config["task"]["pursuit"]["target_motion_mode"] = str(target_motion_mode)
     config["experiments"] = [
         {
             "name": "central_mixed_obstacles",
@@ -252,13 +269,16 @@ def rollout_showcase(
     transit_override: dict[str, Any] | None = None,
     validate_scenario: bool = True,
     recurrent_reset_interval: int | None = None,
+    target_speed_scale: float | None = None,
 ) -> tuple[dict[str, Any], CaptureRadiusPursuit3DEnv]:
     if recurrent_reset_interval is not None and recurrent_reset_interval <= 0:
         raise ValueError("recurrent_reset_interval must be positive when provided.")
     env = CaptureRadiusPursuit3DEnv(
         config,
         obstacle_count=len(scenario.obstacles),
-        target_speed_scale=float(config["experiments"][0]["target_speed_scale"]),
+        target_speed_scale=float(
+            config["experiments"][0]["target_speed_scale"] if target_speed_scale is None else target_speed_scale
+        ),
     )
     observation = prepare_showcase_episode(
         env, scenario, seed=seed, record_history=True, validate_scenario=validate_scenario
@@ -339,6 +359,13 @@ def rollout_showcase(
         "total_defender_path_length_m": float(np.sum(path_lengths)),
         "mean_cbf_action_correction_norm": float(np.mean(cbf_corrections)) if cbf_corrections else 0.0,
         "max_cbf_action_correction_norm": float(max(cbf_corrections)) if cbf_corrections else 0.0,
+        "target_maneuver_mode": str(final_info.get("target_maneuver_mode", "not_applicable")),
+        "target_maneuver_switch_count": int(final_info.get("target_maneuver_switch_count", 0)),
+        "target_maneuver_estimated_capture_time_seconds": float(
+            final_info.get("target_maneuver_estimated_capture_time_seconds", 0.0)
+        ),
+        "target_maneuver_escape_gap_rad": float(final_info.get("target_maneuver_escape_gap_rad", 0.0)),
+        "target_maneuver_mode_counts": dict(final_info.get("target_maneuver_mode_counts", {})),
         "use_cbf": bool(use_cbf),
         "recurrent_reset_interval_steps": recurrent_reset_interval,
         "recurrent_hidden_resets": recurrent_hidden_resets,
@@ -361,12 +388,15 @@ def rollout_showcase_expert(
     use_cbf: bool,
     transit_override: dict[str, Any] | None = None,
     validate_scenario: bool = True,
+    target_speed_scale: float | None = None,
 ) -> tuple[dict[str, Any], CaptureRadiusPursuit3DEnv]:
     """Replay the local-information rule expert on the same showcase task."""
     env = CaptureRadiusPursuit3DEnv(
         config,
         obstacle_count=len(scenario.obstacles),
-        target_speed_scale=float(config["experiments"][0]["target_speed_scale"]),
+        target_speed_scale=float(
+            config["experiments"][0]["target_speed_scale"] if target_speed_scale is None else target_speed_scale
+        ),
     )
     observation = prepare_showcase_episode(
         env, scenario, seed=seed, record_history=True, validate_scenario=validate_scenario
@@ -421,6 +451,13 @@ def rollout_showcase_expert(
         "total_defender_path_length_m": float(np.sum(path_lengths)),
         "mean_cbf_action_correction_norm": float(np.mean(cbf_corrections)) if cbf_corrections else 0.0,
         "max_cbf_action_correction_norm": float(max(cbf_corrections)) if cbf_corrections else 0.0,
+        "target_maneuver_mode": str(final_info.get("target_maneuver_mode", "not_applicable")),
+        "target_maneuver_switch_count": int(final_info.get("target_maneuver_switch_count", 0)),
+        "target_maneuver_estimated_capture_time_seconds": float(
+            final_info.get("target_maneuver_estimated_capture_time_seconds", 0.0)
+        ),
+        "target_maneuver_escape_gap_rad": float(final_info.get("target_maneuver_escape_gap_rad", 0.0)),
+        "target_maneuver_mode_counts": dict(final_info.get("target_maneuver_mode_counts", {})),
         "use_cbf": bool(use_cbf),
     }
     return _finalize_showcase_row(
@@ -457,6 +494,7 @@ def main() -> None:
         target_crossing_required=bool(scenario.target_crossing_required),
         protocol=protocol,
         obstacle_count=len(scenario.obstacles),
+        target_motion_mode=args.target_motion_mode,
     )
     device = select_device(args.device)
     prototype = CaptureRadiusPursuit3DEnv(

@@ -107,6 +107,27 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_adaptive_boundary_weight": 2.00,
     "target_adaptive_defender_weight": 1.00,
     "target_adaptive_lookahead_steps": 8,
+    # Maneuvering Adversary v2.  These settings control a hidden, physically
+    # constrained target controller.  It observes delayed/noisy defender
+    # tracks rather than simulator truth; ``adaptive_adversarial`` remains the
+    # explicit oracle stress-test mode.
+    "target_maneuver_observation_delay_steps": 2,
+    "target_maneuver_observation_noise_std": 0.12,
+    "target_maneuver_observation_dropout_probability": 0.10,
+    "target_maneuver_replan_interval_steps": 8,
+    "target_maneuver_min_hold_steps": 6,
+    "target_maneuver_horizon_steps": 12,
+    "target_maneuver_max_turn_rate_rad_s": 1.05,
+    "target_maneuver_max_jerk_mps3": 12.0,
+    "target_maneuver_route_margin_m": 1.00,
+    "target_maneuver_distance_weight": 1.00,
+    "target_maneuver_terminal_weight": 1.50,
+    "target_maneuver_clearance_weight": 2.50,
+    "target_maneuver_boundary_weight": 1.50,
+    "target_maneuver_gap_weight": 0.75,
+    "target_maneuver_smoothness_weight": 0.25,
+    "target_maneuver_switch_bonus": 0.08,
+    "target_maneuver_burst_speed_scale": 1.15,
     # S4 uses a committed, geometry-aware exit selection. The selected exit
     # is simulator-private: it is never included in ``observe``.
     "target_branch_decision_x": -3.20,
@@ -166,6 +187,15 @@ _TARGET_MOTION_MODES = {
     "boundary_escape",
     "adaptive_adversarial",
     "adaptive_branching",
+    "adaptive_maneuvering",
+}
+_MANEUVER_MODES = {
+    "straight_flee",
+    "lateral_jink",
+    "obstacle_bypass",
+    "reverse_lane_change",
+    "vertical_escape",
+    "speed_burst",
 }
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
@@ -262,6 +292,36 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
     if int(settings["target_adaptive_lookahead_steps"]) <= 0:
         raise ValueError("task.pursuit.target_adaptive_lookahead_steps must be positive.")
+    if int(settings["target_maneuver_observation_delay_steps"]) < 0:
+        raise ValueError("task.pursuit.target_maneuver_observation_delay_steps must be non-negative.")
+    if not 0.0 <= float(settings["target_maneuver_observation_dropout_probability"]) < 1.0:
+        raise ValueError("task.pursuit.target_maneuver_observation_dropout_probability must be in [0, 1).")
+    if int(settings["target_maneuver_replan_interval_steps"]) not in range(6, 11):
+        raise ValueError("task.pursuit.target_maneuver_replan_interval_steps must be in [6, 10].")
+    if int(settings["target_maneuver_min_hold_steps"]) < 1:
+        raise ValueError("task.pursuit.target_maneuver_min_hold_steps must be positive.")
+    if not 8 <= int(settings["target_maneuver_horizon_steps"]) <= 16:
+        raise ValueError("task.pursuit.target_maneuver_horizon_steps must be in [8, 16].")
+    if float(settings["target_maneuver_max_turn_rate_rad_s"]) <= 0.0:
+        raise ValueError("task.pursuit.target_maneuver_max_turn_rate_rad_s must be positive.")
+    if float(settings["target_maneuver_max_jerk_mps3"]) <= 0.0:
+        raise ValueError("task.pursuit.target_maneuver_max_jerk_mps3 must be positive.")
+    for name in (
+        "target_maneuver_observation_noise_std",
+        "target_maneuver_route_margin_m",
+        "target_maneuver_distance_weight",
+        "target_maneuver_terminal_weight",
+        "target_maneuver_clearance_weight",
+        "target_maneuver_boundary_weight",
+        "target_maneuver_gap_weight",
+        "target_maneuver_smoothness_weight",
+        "target_maneuver_switch_bonus",
+        "target_maneuver_burst_speed_scale",
+    ):
+        if float(settings[name]) < 0.0:
+            raise ValueError(f"task.pursuit.{name} must be non-negative.")
+    if float(settings["target_maneuver_burst_speed_scale"]) <= 0.0:
+        raise ValueError("task.pursuit.target_maneuver_burst_speed_scale must be positive.")
     if float(settings["target_branch_exit_offset_y"]) <= 0.0:
         raise ValueError("task.pursuit.target_branch_exit_offset_y must be positive.")
     if float(settings["target_branch_waypoint_x"]) <= 0.0:
@@ -423,10 +483,26 @@ class CaptureRadiusPursuit3DEnv:
         self.defender_velocities = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_position = np.zeros(3, dtype=np.float64)
         self.target_velocity = np.zeros(3, dtype=np.float64)
+        self.target_acceleration = np.zeros(3, dtype=np.float64)
         self.target_escape_direction = np.array([1.0, 0.0, 0.0], dtype=np.float64)
         self.target_branch_sign: int | None = None
         self.target_branch_decision_step: int | None = None
         self.target_branch_scores = np.full(2, np.nan, dtype=np.float64)
+        self.target_maneuver_mode = "straight_flee"
+        self.target_maneuver_mode_start_step = 0
+        self.target_maneuver_last_replan_step = -1
+        self.target_maneuver_direction = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        self.target_maneuver_speed_scale = 1.0
+        self.target_maneuver_route = "direct"
+        self.target_maneuver_switch_count = 0
+        self.target_maneuver_estimated_capture_time_seconds = 0.0
+        self.target_maneuver_escape_gap_rad = float(2.0 * np.pi)
+        self.target_maneuver_decision_scores: dict[str, float] = {}
+        self.target_maneuver_mode_counts: dict[str, int] = {mode: 0 for mode in sorted(_MANEUVER_MODES)}
+        self.target_maneuver_observation_queue: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+        self.target_maneuver_observed_positions = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.target_maneuver_observed_velocities = np.zeros((self.n_defenders, 3), dtype=np.float64)
+        self.target_maneuver_observation_ages = np.zeros(self.n_defenders, dtype=np.int64)
         self.target_belief_positions = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_belief_velocities = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_visible = np.zeros(self.n_defenders, dtype=bool)
@@ -443,7 +519,7 @@ class CaptureRadiusPursuit3DEnv:
         self.min_clearance = float("inf")
         self.capture_time_seconds: float | None = None
         self.capturing_defender_id: int | None = None
-        self.history: list[dict[str, np.ndarray | float | int]] = []
+        self.history: list[dict[str, np.ndarray | float | int | str]] = []
 
     def reset(self, seed: int, record_history: bool = False) -> dict[str, Any]:
         self.rng = np.random.default_rng(seed)
@@ -501,6 +577,7 @@ class CaptureRadiusPursuit3DEnv:
             dtype=np.float64,
         )
         self.target_velocity.fill(0.0)
+        self.target_acceleration.fill(0.0)
         self.target_escape_direction = _unit(
             self.rng.normal(0.0, 1.0, size=3),
             fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64),
@@ -508,6 +585,17 @@ class CaptureRadiusPursuit3DEnv:
         self.target_branch_sign = None
         self.target_branch_decision_step = None
         self.target_branch_scores.fill(np.nan)
+        self.target_maneuver_mode = "straight_flee"
+        self.target_maneuver_mode_start_step = 0
+        self.target_maneuver_last_replan_step = -1
+        self.target_maneuver_direction = self.target_escape_direction.copy()
+        self.target_maneuver_speed_scale = 1.0
+        self.target_maneuver_route = "direct"
+        self.target_maneuver_switch_count = 0
+        self.target_maneuver_estimated_capture_time_seconds = 0.0
+        self.target_maneuver_escape_gap_rad = float(2.0 * np.pi)
+        self.target_maneuver_decision_scores = {}
+        self.target_maneuver_mode_counts = {mode: 0 for mode in sorted(_MANEUVER_MODES)}
         self.defender_positions = self.target_position + TETRAHEDRON_DIRECTIONS * float(self.pursuit["spawn_distance"])
         self.defender_positions += self.rng.normal(0.0, 0.20, size=self.defender_positions.shape)
         self.defender_positions = np.clip(self.defender_positions, self.lower + 0.6, self.upper - 0.6)
@@ -520,6 +608,16 @@ class CaptureRadiusPursuit3DEnv:
             self.rng = map_rng
         else:
             self.obstacles = self._sample_obstacles()
+
+        if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
+            self._reset_target_maneuver_observation()
+        else:
+            # Do not consume RNG draws or alter historical target behavior for
+            # the existing motion modes, including locked-test modes.
+            self.target_maneuver_observation_queue = []
+            self.target_maneuver_observed_positions = self.defender_positions.copy()
+            self.target_maneuver_observed_velocities = self.defender_velocities.copy()
+            self.target_maneuver_observation_ages.fill(0)
 
         self.target_belief_positions[:] = 0.0
         self.target_belief_velocities[:] = 0.0
@@ -744,7 +842,10 @@ class CaptureRadiusPursuit3DEnv:
         actions = self._clip_rows(actions, float(self.agents["defender_max_speed"]))
         self._apply_defender_actions(actions, command_authority=command_authority)
 
+        previous_target_velocity = self.target_velocity.copy()
         target_action = self._target_action()
+        if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
+            target_action = self._constrain_target_command(target_action)
         self.target_velocity = self._move_toward_velocity(
             self.target_velocity[None, :],
             target_action[None, :],
@@ -754,6 +855,7 @@ class CaptureRadiusPursuit3DEnv:
             self.target_velocity[None, :],
             float(self.agents["target_max_speed"]),
         )[0]
+        self.target_acceleration = (self.target_velocity - previous_target_velocity) / max(self.dt, 1e-9)
         self.target_position += self.target_velocity * self.dt
         self._enforce_world_bounds(self.target_position[None, :], self.target_velocity[None, :])
 
@@ -832,6 +934,30 @@ class CaptureRadiusPursuit3DEnv:
             "target_branch_sign": self.target_branch_sign,
             "target_branch_decision_step": self.target_branch_decision_step,
             "target_branch_scores_seconds": self.target_branch_scores.tolist(),
+            "target_maneuver_mode": self.target_maneuver_mode,
+            "target_maneuver_mode_start_step": int(self.target_maneuver_mode_start_step),
+            "target_maneuver_last_replan_step": int(self.target_maneuver_last_replan_step),
+            "target_maneuver_speed_scale": float(self.target_maneuver_speed_scale),
+            "target_maneuver_route": self.target_maneuver_route,
+            "target_maneuver_switch_count": int(self.target_maneuver_switch_count),
+            "target_maneuver_estimated_capture_time_seconds": float(
+                self.target_maneuver_estimated_capture_time_seconds
+            ),
+            "target_maneuver_escape_gap_rad": float(self.target_maneuver_escape_gap_rad),
+            "target_maneuver_decision_scores": {
+                str(key): float(value) for key, value in self.target_maneuver_decision_scores.items()
+            },
+            "target_maneuver_mode_counts": {
+                str(key): int(value) for key, value in self.target_maneuver_mode_counts.items()
+            },
+            "target_maneuver_observation_age_steps": self.target_maneuver_observation_ages.tolist(),
+            "target_maneuver_observation_delay_steps": int(
+                self.pursuit["target_maneuver_observation_delay_steps"]
+            ),
+            "target_maneuver_max_turn_rate_rad_s": float(
+                self.pursuit["target_maneuver_max_turn_rate_rad_s"]
+            ),
+            "target_maneuver_max_jerk_mps3": float(self.pursuit["target_maneuver_max_jerk_mps3"]),
             "capture_radius": float(self.pursuit["capture_radius"]),
             "execution_enabled": bool(self.execution["enabled"]),
             "action_execution_error_norm": float(self.action_execution_error_norm),
@@ -938,6 +1064,8 @@ class CaptureRadiusPursuit3DEnv:
         self._enforce_world_bounds(self.defender_positions, self.defender_velocities)
 
     def _target_action(self) -> np.ndarray:
+        if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
+            return self._adaptive_maneuvering_target_action()
         if str(self.pursuit["target_motion_mode"]) == "adaptive_adversarial":
             return self._adaptive_adversarial_target_action()
         if str(self.pursuit["target_motion_mode"]) == "adaptive_branching":
@@ -1014,6 +1142,465 @@ class CaptureRadiusPursuit3DEnv:
             if self.step_count % burst_period < burst_duration:
                 speed_scale *= float(self.pursuit["target_burst_speed_scale"])
         return direction * float(self.agents["target_max_speed"]) * speed_scale
+
+    def _reset_target_maneuver_observation(self) -> None:
+        """Initialize the target's private delayed/noisy defender sensor."""
+
+        delay = int(self.pursuit["target_maneuver_observation_delay_steps"])
+        noise_std = float(self.pursuit["target_maneuver_observation_noise_std"])
+        positions = self.defender_positions + self.rng.normal(
+            0.0,
+            noise_std,
+            size=self.defender_positions.shape,
+        )
+        velocities = self.defender_velocities + self.rng.normal(
+            0.0,
+            2.0 * noise_std,
+            size=self.defender_velocities.shape,
+        )
+        valid = np.ones(self.n_defenders, dtype=bool)
+        snapshot = (positions.copy(), velocities.copy(), valid.copy())
+        # The target has an initial track, but it is delayed by the configured
+        # amount.  Filling the queue with the same initial packet avoids an
+        # artificial zero-information transient at reset.
+        self.target_maneuver_observation_queue = [
+            (snapshot[0].copy(), snapshot[1].copy(), snapshot[2].copy())
+            for _ in range(delay + 1)
+        ]
+        self.target_maneuver_observed_positions = positions.copy()
+        self.target_maneuver_observed_velocities = velocities.copy()
+        self.target_maneuver_observation_ages = np.full(self.n_defenders, delay, dtype=np.int64)
+
+    def _observe_defenders_for_maneuver(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return delayed/noisy defender tracks for the non-oracle adversary.
+
+        This routine is deliberately separate from ``observe``.  It models the
+        target's own imperfect sensor and never returns simulator truth to the
+        maneuver selector.  Missing packets are propagated with the previous
+        estimated velocity, so a dropout cannot silently reveal a fresh true
+        position.
+        """
+
+        noise_std = float(self.pursuit["target_maneuver_observation_noise_std"])
+        positions = self.defender_positions + self.rng.normal(
+            0.0,
+            noise_std,
+            size=self.defender_positions.shape,
+        )
+        velocities = self.defender_velocities + self.rng.normal(
+            0.0,
+            2.0 * noise_std,
+            size=self.defender_velocities.shape,
+        )
+        valid = self.rng.random(self.n_defenders) >= float(
+            self.pursuit["target_maneuver_observation_dropout_probability"]
+        )
+        self.target_maneuver_observation_queue.append(
+            (positions.copy(), velocities.copy(), valid.copy())
+        )
+        delay = int(self.pursuit["target_maneuver_observation_delay_steps"])
+        delayed_positions, delayed_velocities, delayed_valid = self.target_maneuver_observation_queue.pop(0)
+
+        for index in range(self.n_defenders):
+            if bool(delayed_valid[index]):
+                self.target_maneuver_observed_positions[index] = delayed_positions[index]
+                self.target_maneuver_observed_velocities[index] = delayed_velocities[index]
+                self.target_maneuver_observation_ages[index] = delay
+            else:
+                self.target_maneuver_observed_positions[index] += (
+                    self.target_maneuver_observed_velocities[index] * self.dt
+                )
+                self.target_maneuver_observed_velocities[index] *= 0.90
+                self.target_maneuver_observation_ages[index] += 1
+        return (
+            self.target_maneuver_observed_positions.copy(),
+            self.target_maneuver_observed_velocities.copy(),
+        )
+
+    @staticmethod
+    def _rotate_unit_vector_toward(
+        current: np.ndarray,
+        desired: np.ndarray,
+        max_angle_rad: float,
+    ) -> np.ndarray:
+        """Rotate ``current`` toward ``desired`` by at most ``max_angle_rad``."""
+
+        current_unit = _unit(np.asarray(current, dtype=np.float64))
+        desired_unit = _unit(np.asarray(desired, dtype=np.float64), fallback=current_unit)
+        if float(np.linalg.norm(current_unit)) <= 1e-9:
+            return desired_unit
+        cosine = float(np.clip(np.dot(current_unit, desired_unit), -1.0, 1.0))
+        angle = float(np.arccos(cosine))
+        if angle <= max_angle_rad:
+            return desired_unit
+        axis = np.cross(current_unit, desired_unit)
+        axis_norm = float(np.linalg.norm(axis))
+        if axis_norm <= 1e-9:
+            basis_index = int(np.argmin(np.abs(current_unit)))
+            basis = np.zeros(3, dtype=np.float64)
+            basis[basis_index] = 1.0
+            axis = np.cross(current_unit, basis)
+            axis_norm = float(np.linalg.norm(axis))
+        axis /= max(axis_norm, 1e-9)
+        theta = min(float(max_angle_rad), angle)
+        rotated = (
+            current_unit * np.cos(theta)
+            + np.cross(axis, current_unit) * np.sin(theta)
+            + axis * float(np.dot(axis, current_unit)) * (1.0 - np.cos(theta))
+        )
+        return _unit(rotated, fallback=current_unit)
+
+    def _limit_target_command(
+        self,
+        current_velocity: np.ndarray,
+        current_acceleration: np.ndarray,
+        desired_velocity: np.ndarray,
+    ) -> np.ndarray:
+        """Apply target speed, turn-rate, acceleration, and jerk limits."""
+
+        max_speed = float(self.agents["target_max_speed"])
+        max_acceleration = float(self.agents["target_max_acceleration"])
+        desired = self._clip_rows(np.asarray(desired_velocity, dtype=np.float64)[None, :], max_speed)[0]
+        current = np.asarray(current_velocity, dtype=np.float64)
+        acceleration = np.asarray(current_acceleration, dtype=np.float64)
+        current_speed = float(np.linalg.norm(current))
+        desired_speed = float(np.linalg.norm(desired))
+        if current_speed > 1e-9 and desired_speed > 1e-9:
+            desired_direction = self._rotate_unit_vector_toward(
+                current,
+                desired,
+                float(self.pursuit["target_maneuver_max_turn_rate_rad_s"]) * self.dt,
+            )
+            desired = desired_direction * desired_speed
+
+        desired_acceleration = (desired - current) / max(self.dt, 1e-9)
+        desired_acceleration = self._clip_rows(
+            desired_acceleration[None, :],
+            max_acceleration,
+        )[0]
+        acceleration_delta = desired_acceleration - acceleration
+        max_jerk_delta = float(self.pursuit["target_maneuver_max_jerk_mps3"]) * self.dt
+        acceleration_delta = self._clip_rows(
+            acceleration_delta[None, :],
+            max_jerk_delta,
+        )[0]
+        limited_acceleration = self._clip_rows(
+            (acceleration + acceleration_delta)[None, :],
+            max_acceleration,
+        )[0]
+        proposed = self._clip_rows(
+            (current + limited_acceleration * self.dt)[None, :],
+            max_speed,
+        )[0]
+        # Jerk limiting can tilt the acceleration away from the desired
+        # velocity, while turn-rate projection can in turn change the
+        # implied acceleration.  Alternate the two convex-like projections a
+        # few times so the returned command satisfies both constraints, not
+        # merely the direction constraint in isolation.
+        max_turn_angle = float(self.pursuit["target_maneuver_max_turn_rate_rad_s"]) * self.dt
+        max_jerk_delta = float(self.pursuit["target_maneuver_max_jerk_mps3"]) * self.dt
+        for _ in range(6):
+            proposed_speed = float(np.linalg.norm(proposed))
+            if current_speed > 1e-9 and proposed_speed > 1e-9:
+                proposed_direction = self._rotate_unit_vector_toward(
+                    current,
+                    proposed,
+                    max_turn_angle,
+                )
+                proposed = proposed_direction * proposed_speed
+            proposed_acceleration = (proposed - current) / max(self.dt, 1e-9)
+            proposed_acceleration = self._clip_rows(
+                proposed_acceleration[None, :],
+                max_acceleration,
+            )[0]
+            acceleration_delta = self._clip_rows(
+                (proposed_acceleration - acceleration)[None, :],
+                max_jerk_delta,
+            )[0]
+            proposed = current + (acceleration + acceleration_delta) * self.dt
+            proposed = self._clip_rows(proposed[None, :], max_speed)[0]
+        return proposed
+
+    def _target_maneuver_escape_gap(
+        self,
+        direction: np.ndarray,
+        defender_positions: np.ndarray,
+    ) -> float:
+        """Return the angular escape gap containing a candidate direction."""
+
+        relative = np.asarray(defender_positions, dtype=np.float64) - self.target_position[None, :]
+        horizontal_norm = np.linalg.norm(relative[:, :2], axis=1)
+        angles = np.mod(np.arctan2(relative[:, 1], relative[:, 0]), 2.0 * np.pi)
+        angles = np.sort(angles[horizontal_norm > 1e-9])
+        if angles.size == 0:
+            return float(2.0 * np.pi)
+        gaps = np.diff(np.concatenate([angles, angles[:1] + 2.0 * np.pi]))
+        candidate_angle = float(np.mod(np.arctan2(direction[1], direction[0]), 2.0 * np.pi))
+        for index, gap in enumerate(gaps):
+            start = float(angles[index])
+            if candidate_angle >= start and candidate_angle <= start + float(gap):
+                return float(gap)
+        return float(np.max(gaps))
+
+    def _target_maneuver_route_candidates(
+        self,
+        forward: np.ndarray,
+        lateral: np.ndarray,
+    ) -> list[tuple[str, np.ndarray]]:
+        """Build left/right/top obstacle-bypass directions from known geometry."""
+
+        margin = float(self.pursuit["target_maneuver_route_margin_m"])
+        routes: list[tuple[str, np.ndarray]] = []
+        for obstacle_index, obstacle in enumerate(self.obstacles):
+            half = (
+                np.array([obstacle.radius, obstacle.radius], dtype=np.float64)
+                if obstacle.half_extents_xy is None
+                else np.asarray(obstacle.half_extents_xy, dtype=np.float64)
+            )
+            forward_extent = float(np.abs(forward[:2]) @ half)
+            lateral_extent = float(np.abs(lateral[:2]) @ half)
+            center = np.array(
+                [obstacle.center_xy[0], obstacle.center_xy[1], self.target_position[2]],
+                dtype=np.float64,
+            )
+            for sign, label in ((-1.0, "left"), (1.0, "right")):
+                waypoint = center + forward * (forward_extent + margin)
+                waypoint += lateral * sign * (lateral_extent + margin)
+                waypoint[2] = float(np.clip(waypoint[2], self.lower[2] + 0.5, self.upper[2] - 0.5))
+                routes.append((f"obstacle_{obstacle_index}_{label}", _unit(waypoint - self.target_position)))
+            top = center.copy()
+            top[2] = min(float(obstacle.height) + margin, self.upper[2] - 0.5)
+            routes.append((f"obstacle_{obstacle_index}_top", _unit(top - self.target_position)))
+        return routes
+
+    def _target_maneuver_candidates(
+        self,
+        defender_positions: np.ndarray,
+        defender_velocities: np.ndarray,
+    ) -> list[dict[str, Any]]:
+        """Return physically plausible maneuver candidates from private tracks."""
+
+        del defender_velocities  # The rollout evaluator uses them directly.
+        centroid = np.mean(defender_positions, axis=0)
+        away = _unit(self.target_position - centroid, fallback=self.target_escape_direction)
+        forward = _unit(self.target_velocity, fallback=self.target_escape_direction)
+        horizontal_forward = _unit(
+            np.array([forward[0], forward[1], 0.0], dtype=np.float64),
+            fallback=np.array([1.0, 0.0, 0.0]),
+        )
+        lateral = _unit(
+            np.array([-horizontal_forward[1], horizontal_forward[0], 0.0], dtype=np.float64),
+            fallback=np.array([0.0, 1.0, 0.0]),
+        )
+        candidates: list[dict[str, Any]] = [
+            {"mode": "straight_flee", "direction": away, "speed_scale": 1.0, "route": "direct"},
+            {
+                "mode": "lateral_jink",
+                "direction": _unit(0.55 * away + 0.84 * lateral),
+                "speed_scale": 1.0,
+                "route": "lateral_positive",
+            },
+            {
+                "mode": "lateral_jink",
+                "direction": _unit(0.55 * away - 0.84 * lateral),
+                "speed_scale": 1.0,
+                "route": "lateral_negative",
+            },
+            {
+                "mode": "reverse_lane_change",
+                "direction": _unit(-0.20 * forward + 0.98 * lateral),
+                "speed_scale": 1.0,
+                "route": "lane_change_positive",
+            },
+            {
+                "mode": "reverse_lane_change",
+                "direction": _unit(-0.20 * forward - 0.98 * lateral),
+                "speed_scale": 1.0,
+                "route": "lane_change_negative",
+            },
+            {
+                "mode": "vertical_escape",
+                "direction": _unit(0.78 * away + 0.63 * np.array([0.0, 0.0, 1.0])),
+                "speed_scale": 1.0,
+                "route": "climb",
+            },
+            {
+                "mode": "vertical_escape",
+                "direction": _unit(0.78 * away - 0.63 * np.array([0.0, 0.0, 1.0])),
+                "speed_scale": 1.0,
+                "route": "descend",
+            },
+            {
+                "mode": "speed_burst",
+                "direction": away,
+                "speed_scale": float(self.pursuit["target_maneuver_burst_speed_scale"]),
+                "route": "burst",
+            },
+        ]
+        for route, direction in self._target_maneuver_route_candidates(horizontal_forward, lateral):
+            candidates.append(
+                {
+                    "mode": "obstacle_bypass",
+                    "direction": direction,
+                    "speed_scale": 1.0,
+                    "route": route,
+                }
+            )
+        return candidates
+
+    def _evaluate_target_maneuver_candidate(
+        self,
+        candidate: dict[str, Any],
+        defender_positions: np.ndarray,
+        defender_velocities: np.ndarray,
+    ) -> dict[str, Any]:
+        """Roll out one candidate and return survival-oriented diagnostics."""
+
+        horizon = int(self.pursuit["target_maneuver_horizon_steps"])
+        max_speed = float(self.agents["target_max_speed"])
+        target_speed = min(
+            max_speed,
+            max_speed * float(self.target_speed_scale) * float(candidate["speed_scale"]),
+        )
+        target_position = self.target_position.copy()
+        target_velocity = self.target_velocity.copy()
+        target_acceleration = self.target_acceleration.copy()
+        min_distance = float("inf")
+        terminal_distance = float("inf")
+        min_clearance = float("inf")
+        min_boundary = float("inf")
+        for timestep in range(horizon):
+            desired_velocity = np.asarray(candidate["direction"], dtype=np.float64) * target_speed
+            command = self._limit_target_command(
+                target_velocity,
+                target_acceleration,
+                desired_velocity,
+            )
+            next_velocity = self._move_toward_velocity(
+                target_velocity[None, :],
+                command[None, :],
+                max_delta=float(self.agents["target_max_acceleration"]) * self.dt,
+            )[0]
+            next_acceleration = (next_velocity - target_velocity) / max(self.dt, 1e-9)
+            target_position = target_position + next_velocity * self.dt
+            target_velocity = next_velocity
+            target_acceleration = next_acceleration
+            predicted_defenders = defender_positions + defender_velocities * ((timestep + 1) * self.dt)
+            distances = np.linalg.norm(predicted_defenders - target_position[None, :], axis=1)
+            min_distance = min(min_distance, float(np.min(distances)))
+            terminal_distance = float(np.min(distances))
+            for obstacle in self.obstacles:
+                min_clearance = min(min_clearance, self._obstacle_clearance(target_position, obstacle))
+            min_boundary = min(
+                min_boundary,
+                float(np.min(target_position - self.lower)),
+                float(np.min(self.upper - target_position)),
+            )
+        estimated_capture_time = max(
+            (min_distance - float(self.pursuit["capture_radius"]))
+            / max(float(self.agents["defender_max_speed"]) - target_speed, 0.25),
+            0.0,
+        )
+        escape_gap = self._target_maneuver_escape_gap(candidate["direction"], defender_positions)
+        direction_change = 1.0 - float(
+            np.clip(
+                np.dot(
+                    _unit(self.target_velocity, fallback=self.target_escape_direction),
+                    _unit(candidate["direction"], fallback=self.target_escape_direction),
+                ),
+                -1.0,
+                1.0,
+            )
+        )
+        score = (
+            float(self.pursuit["target_maneuver_distance_weight"]) * min_distance
+            + float(self.pursuit["target_maneuver_terminal_weight"]) * terminal_distance
+            + float(self.pursuit["target_maneuver_clearance_weight"]) * min_clearance
+            + float(self.pursuit["target_maneuver_boundary_weight"]) * min_boundary
+            + float(self.pursuit["target_maneuver_gap_weight"]) * escape_gap
+            + float(self.pursuit["target_maneuver_smoothness_weight"]) * estimated_capture_time
+            - float(self.pursuit["target_maneuver_smoothness_weight"]) * direction_change
+        )
+        if min_clearance < 0.0 or min_boundary < 0.0:
+            score -= 1.0e3 + 1.0e2 * max(-min_clearance, -min_boundary)
+        return {
+            **candidate,
+            "score": float(score),
+            "min_distance": float(min_distance),
+            "terminal_distance": float(terminal_distance),
+            "min_clearance": float(min_clearance),
+            "min_boundary": float(min_boundary),
+            "estimated_capture_time_seconds": float(estimated_capture_time),
+            "escape_gap_rad": float(escape_gap),
+        }
+
+    def _adaptive_maneuvering_target_action(self) -> np.ndarray:
+        """Choose a hidden, delayed-state, finite-horizon evasion maneuver."""
+
+        defender_positions, defender_velocities = self._observe_defenders_for_maneuver()
+        interval = int(self.pursuit["target_maneuver_replan_interval_steps"])
+        should_replan = (
+            self.target_maneuver_last_replan_step < 0
+            or self.step_count - self.target_maneuver_last_replan_step >= interval
+        )
+        if should_replan:
+            candidates = self._target_maneuver_candidates(defender_positions, defender_velocities)
+            evaluated = [
+                self._evaluate_target_maneuver_candidate(item, defender_positions, defender_velocities)
+                for item in candidates
+            ]
+            self.target_maneuver_decision_scores = {
+                mode: max(
+                    float(item["score"])
+                    for item in evaluated
+                    if item["mode"] == mode
+                )
+                for mode in sorted(_MANEUVER_MODES)
+                if any(item["mode"] == mode for item in evaluated)
+            }
+            hold_steps = self.step_count - int(self.target_maneuver_mode_start_step)
+            eligible = evaluated
+            if hold_steps < int(self.pursuit["target_maneuver_min_hold_steps"]):
+                eligible = [item for item in evaluated if item["mode"] == self.target_maneuver_mode]
+                if not eligible:
+                    eligible = evaluated
+            current_mode = self.target_maneuver_mode
+            for item in eligible:
+                if item["mode"] != current_mode:
+                    item["score"] += float(self.pursuit["target_maneuver_switch_bonus"])
+            selected = max(eligible, key=lambda item: (float(item["score"]), str(item["route"])))
+            if selected["mode"] != self.target_maneuver_mode:
+                self.target_maneuver_switch_count += 1
+                self.target_maneuver_mode_start_step = int(self.step_count)
+            self.target_maneuver_mode = str(selected["mode"])
+            self.target_maneuver_mode_counts[self.target_maneuver_mode] += 1
+            self.target_maneuver_direction = _unit(
+                np.asarray(selected["direction"], dtype=np.float64),
+                fallback=self.target_escape_direction,
+            )
+            self.target_maneuver_speed_scale = float(selected["speed_scale"])
+            self.target_maneuver_route = str(selected["route"])
+            self.target_maneuver_last_replan_step = int(self.step_count)
+            self.target_maneuver_estimated_capture_time_seconds = float(
+                selected["estimated_capture_time_seconds"]
+            )
+            self.target_maneuver_escape_gap_rad = float(selected["escape_gap_rad"])
+        self.target_escape_direction = self.target_maneuver_direction.copy()
+        return (
+            self.target_maneuver_direction
+            * float(self.agents["target_max_speed"])
+            * float(self.target_speed_scale)
+            * float(self.target_maneuver_speed_scale)
+        )
+
+    def _constrain_target_command(self, target_action: np.ndarray) -> np.ndarray:
+        """Constrain the selected target command before the environment update."""
+
+        return self._limit_target_command(
+            self.target_velocity,
+            self.target_acceleration,
+            target_action,
+        )
 
     def _adaptive_branching_target_action(self) -> np.ndarray:
         """Commit to the less interceptable S4 wall exit using simulator state.
@@ -1648,10 +2235,14 @@ class CaptureRadiusPursuit3DEnv:
             {
                 "defender_positions": self.defender_positions.copy(),
                 "target_position": self.target_position.copy(),
+                "target_velocity": self.target_velocity.copy(),
+                "target_acceleration": self.target_acceleration.copy(),
                 "belief_positions": self.target_belief_positions.copy(),
                 "capture_radius": float(self.pursuit["capture_radius"]),
                 "target_branch_sign": self.target_branch_sign,
                 "target_branch_decision_step": self.target_branch_decision_step,
+                "target_maneuver_mode": self.target_maneuver_mode,
+                "target_maneuver_route": self.target_maneuver_route,
                 "step": int(self.step_count),
             }
         )

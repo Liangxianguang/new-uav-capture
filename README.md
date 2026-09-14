@@ -240,6 +240,14 @@ the target and the four defenders start on opposite sides of the central mixed
 obstacle field, with MP4/GIF/PNG copies under
 [docs/media/phase69_opposite_side_showcase](docs/media/phase69_opposite_side_showcase/).
 
+The development-only `Maneuvering Adversary v2` implementation and its
+validation protocol are documented in
+[docs/PHASE70_MANEUVERING_ADVERSARY_V2.md](docs/PHASE70_MANEUVERING_ADVERSARY_V2.md),
+with configuration in
+[configs/phase70_maneuvering_adversary_v2.yaml](configs/phase70_maneuvering_adversary_v2.yaml)
+and
+[configs/phase70_maneuvering_adversary_v2_protocol.yaml](configs/phase70_maneuvering_adversary_v2_protocol.yaml).
+
 ## Train A New Candidate From Scratch
 
 The historical V4/V5 expert archives and three frozen V4 checkpoints are not

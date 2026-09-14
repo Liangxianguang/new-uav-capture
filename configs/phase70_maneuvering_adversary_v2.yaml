@@ -1,0 +1,124 @@
+experiment_name: phase70_maneuvering_adversary_v2_development
+not_a_locked_test: true
+research_task:
+  name: maneuvering_adversary_v2_for_partial_observable_capture
+  primary_scope: hidden_delayed_observation_finite_horizon_target_maneuvering
+  excluded_scope: formal_safety_certificate_and_real_flight_control
+seed: 670101
+world:
+  half_extent_xy: 10.0
+  height: 10.0
+  minimum_altitude: 0.5
+  dt: 0.1
+  max_steps: 250
+agents:
+  defenders: 4
+  defender_max_speed: 5.0
+  defender_max_acceleration: 6.0
+  target_max_speed: 3.6
+  target_max_acceleration: 5.0
+  drone_radius: 0.25
+dynamics:
+  backend: kinematic
+  execution:
+    enabled: false
+    random_seed_offset: 104729
+    action_delay_steps: 0
+    pending_command_authority: immutable
+    command_noise_std: 0.0
+    command_noise_bound_sigma: 3.0
+    clip_command_noise: true
+    velocity_time_constant_seconds: 0.0
+    drag_coefficient: 0.0
+    max_speed_scale: 1.0
+    max_acceleration_scale: 1.0
+    mass_scale: 1.0
+    randomize_per_episode: false
+    max_speed_scale_range: [1.0, 1.0]
+    max_acceleration_scale_range: [1.0, 1.0]
+    mass_scale_range: [1.0, 1.0]
+    drag_coefficient_range: [0.0, 0.0]
+task:
+  slot_tracking_gain: 2.5
+  cbf_gamma: 0.25
+  policy_obstacle_geometry: shape_extents_and_type
+  pursuit:
+    capture_radius: 0.80
+    spawn_distance: 4.80
+    detection_range: 14.0
+    visibility_cosine_threshold: -1.0
+    detection_dropout_probability: 0.15
+    observation_noise_std: 0.03
+    message_delay_steps: 2
+    message_dropout_probability: 0.05
+    maximum_message_age_steps: 60
+    belief_update_mode: time_aligned
+    belief_stale_velocity_decay: 0.80
+    belief_velocity_decay_start_age_steps: 3
+    include_prediction_features: false
+    include_uncertainty_features: true
+    prediction_horizon_seconds: 0.55
+    prediction_uncertainty_base: 0.08
+    target_motion_mode: adaptive_maneuvering
+    target_defender_avoidance_distance: 3.50
+    target_defender_avoidance_gain: 5.00
+    target_obstacle_avoidance_distance: 2.80
+    target_obstacle_avoidance_gain: 3.00
+    target_boundary_margin: 1.20
+    target_boundary_gain: 7.00
+    target_heading_persistence: 0.25
+    target_flee_gain: 1.80
+    target_vertical_gain: 0.60
+    target_maneuver_observation_delay_steps: 2
+    target_maneuver_observation_noise_std: 0.12
+    target_maneuver_observation_dropout_probability: 0.10
+    target_maneuver_replan_interval_steps: 8
+    target_maneuver_min_hold_steps: 6
+    target_maneuver_horizon_steps: 12
+    target_maneuver_max_turn_rate_rad_s: 1.05
+    target_maneuver_max_jerk_mps3: 12.0
+    target_maneuver_route_margin_m: 1.00
+    target_maneuver_distance_weight: 1.00
+    target_maneuver_terminal_weight: 1.50
+    target_maneuver_clearance_weight: 2.50
+    target_maneuver_boundary_weight: 1.50
+    target_maneuver_gap_weight: 0.75
+    target_maneuver_smoothness_weight: 0.25
+    target_maneuver_switch_bonus: 0.08
+    target_maneuver_burst_speed_scale: 1.15
+    controller_obstacle_avoidance_distance: 2.00
+    controller_obstacle_avoidance_gain: 2.80
+    controller_inter_agent_distance: 1.50
+    controller_inter_agent_gain: 2.50
+    safety_margin: 0.35
+    capture_bonus: 25.00
+    collision_penalty: 15.00
+    progress_reward_weight: 3.00
+    distance_reward_weight: 0.12
+    coverage_reward_weight: 0.15
+    max_observation_obstacles: 3
+    obstacle_profile: mixed
+experiments:
+  - name: phase70_maneuvering_adversary_v2
+    episodes: 60
+    obstacle_count: 3
+    target_speed_scale: 0.65
+evaluation:
+  split: validation
+  target_speed_scales: [0.55, 0.65, 0.75]
+  target_motion_modes: [flee_persistence, adaptive_maneuvering, adaptive_adversarial]
+  observation_conditions: [nominal, delayed_noisy]
+  baseline_comparison_required: true
+  locked_test_tuning_forbidden: true
+  tensorboard_required: true
+  report_metrics:
+    - safe_capture_rate
+    - collision_rate
+    - timeout_rate
+    - target_turn_rate_p50_p95_p99
+    - target_acceleration_p50_p95_p99
+    - target_jerk_p50_p95_p99
+    - maneuver_switch_count
+    - obstacle_bypass_rate
+    - escape_gap_rad
+    - estimated_capture_time_seconds

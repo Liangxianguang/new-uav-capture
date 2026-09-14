@@ -20,6 +20,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -247,6 +248,31 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "max_cbf_action_correction_norm": float(
                 max(float(row.get("max_cbf_action_correction_norm", 0.0)) for row in subset)
             ),
+            "mean_target_maneuver_switch_count": float(
+                np.mean([float(row.get("target_maneuver_switch_count", 0.0)) for row in subset])
+            ),
+            "mean_target_maneuver_estimated_capture_time_seconds": float(
+                np.mean(
+                    [
+                        float(row.get("target_maneuver_estimated_capture_time_seconds", 0.0))
+                        for row in subset
+                    ]
+                )
+            ),
+            "mean_target_maneuver_escape_gap_rad": float(
+                np.mean([float(row.get("target_maneuver_escape_gap_rad", 0.0)) for row in subset])
+            ),
+            "target_maneuver_obstacle_bypass_selection_rate": float(
+                np.mean(
+                    [
+                        bool(
+                            isinstance(row.get("target_maneuver_mode_counts"), dict)
+                            and int(row["target_maneuver_mode_counts"].get("obstacle_bypass", 0)) > 0
+                        )
+                        for row in subset
+                    ]
+                )
+            ),
             "termination_reasons": dict(sorted(Counter(str(row["termination_reason"]) for row in subset).items())),
         }
 
@@ -257,6 +283,56 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             buckets[str(row[field])].append(row)
         grouped[f"by_{field}"] = {key: metrics(value) for key, value in sorted(buckets.items())}
     return {"overall": metrics(rows), **grouped}
+
+
+def write_tensorboard(
+    output_dir: Path,
+    rows: list[dict[str, Any]],
+    protocol_text: str,
+    environment_config_text: str | None,
+) -> None:
+    """Persist per-episode target-maneuver diagnostics for reproducibility."""
+
+    tensorboard_dir = output_dir / "tensorboard"
+    tensorboard_dir.mkdir(parents=True, exist_ok=True)
+    scalar_keys = (
+        "safe_capture_success",
+        "capture_event",
+        "collision",
+        "world_violation_steps",
+        "min_clearance_m",
+        "target_maneuver_switch_count",
+        "target_maneuver_estimated_capture_time_seconds",
+        "target_maneuver_escape_gap_rad",
+    )
+    with SummaryWriter(log_dir=str(tensorboard_dir), flush_secs=5) as writer:
+        writer.add_text("Evaluation/protocol", protocol_text, 0)
+        if environment_config_text is not None:
+            writer.add_text("Evaluation/environment_config", environment_config_text, 0)
+        for episode_index, row in enumerate(rows):
+            for key in scalar_keys:
+                value = row.get(key)
+                if value is None:
+                    continue
+                numeric = float(value)
+                if np.isfinite(numeric):
+                    writer.add_scalar(f"episode/{key}", numeric, episode_index)
+            writer.add_text(
+                "episode/target_maneuver_mode",
+                str(row.get("target_maneuver_mode", "not_applicable")),
+                episode_index,
+            )
+            writer.add_text(
+                "episode/target_maneuver_route",
+                str(row.get("target_maneuver_route", "not_applicable")),
+                episode_index,
+            )
+            writer.add_text(
+                "episode/target_maneuver_mode_counts",
+                json.dumps(row.get("target_maneuver_mode_counts", {}), sort_keys=True),
+                episode_index,
+            )
+        writer.flush()
 
 
 def main() -> None:
@@ -360,6 +436,7 @@ def main() -> None:
                 use_cbf=bool(args.use_cbf),
                 transit_override=transit_override,
                 validate_scenario=validate_scenario,
+                target_speed_scale=float(spec["target_speed_scale"]),
             )
         else:
             assert action_scale is not None
@@ -374,6 +451,7 @@ def main() -> None:
                 transit_override=transit_override,
                 validate_scenario=validate_scenario,
                 recurrent_reset_interval=recurrent_reset_interval,
+                target_speed_scale=float(spec["target_speed_scale"]),
             )
         metadata = scenario_metadata(scenario)
         row.update(
@@ -433,6 +511,15 @@ def main() -> None:
     )
     output_dir.joinpath("summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     output_dir.joinpath("protocol.yaml").write_text(protocol_path.read_text(encoding="utf-8"), encoding="utf-8")
+    environment_config_text = (
+        environment_config.read_text(encoding="utf-8") if environment_config is not None else None
+    )
+    write_tensorboard(
+        output_dir,
+        rows,
+        protocol_path.read_text(encoding="utf-8"),
+        environment_config_text,
+    )
     output_dir.joinpath("evaluation_metadata.json").write_text(
         json.dumps(
             {
@@ -453,6 +540,7 @@ def main() -> None:
                 "use_cbf": bool(args.use_cbf),
                 "recurrent_reset_interval_steps": recurrent_reset_interval,
                 "device": str(device),
+                "tensorboard_dir": str(output_dir / "tensorboard"),
                 "separate_episode_and_layout_seeds": True,
                 "condition_table_size": int(scenes[0]["spec"]["condition_table_size"]),
                 "wall_orientation_contract": "axis_aligned_0_or_90_degrees",

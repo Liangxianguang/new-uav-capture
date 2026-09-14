@@ -478,6 +478,89 @@ def test_unseen_adaptive_adversary_is_deterministic_and_physical() -> None:
         assert first.world_violation_steps == 0
 
 
+def test_maneuvering_adversary_is_deterministic_and_replans_from_private_tracks() -> None:
+    config = load_config()
+    config["task"]["pursuit"].update(
+        {
+            "target_motion_mode": "adaptive_maneuvering",
+            "obstacle_profile": "mixed",
+            "map_seed_offset": 100000,
+            "target_maneuver_observation_delay_steps": 2,
+            "target_maneuver_observation_dropout_probability": 0.15,
+        }
+    )
+    first = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.75)
+    second = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.75)
+    first_observation = first.reset(seed=520131)
+    second_observation = second.reset(seed=520131)
+    assert "target_position" not in first_observation
+    for _ in range(40):
+        first_observation, _first_reward, first_terminated, first_truncated, first_info = first.step(np.zeros((4, 3)))
+        second_observation, _second_reward, second_terminated, second_truncated, second_info = second.step(
+            np.zeros((4, 3))
+        )
+        np.testing.assert_allclose(first.target_position, second.target_position)
+        np.testing.assert_allclose(first.target_velocity, second.target_velocity)
+        assert first_info["target_maneuver_observation_delay_steps"] == 2
+        assert first_info["target_maneuver_last_replan_step"] >= 0
+        assert first_info["target_maneuver_mode"] in {
+            "straight_flee",
+            "lateral_jink",
+            "obstacle_bypass",
+            "reverse_lane_change",
+            "vertical_escape",
+            "speed_burst",
+        }
+        assert first_info["target_maneuver_mode"] == second_info["target_maneuver_mode"]
+        assert first_info["target_maneuver_route"] == second_info["target_maneuver_route"]
+        if first_terminated or first_truncated or second_terminated or second_truncated:
+            break
+
+
+def test_maneuvering_adversary_has_route_candidates_and_physical_command_limits() -> None:
+    config = load_config()
+    config["task"]["pursuit"].update(
+        {
+            "target_motion_mode": "adaptive_maneuvering",
+            "obstacle_profile": "mixed",
+            "map_seed_offset": 100000,
+            "target_maneuver_observation_dropout_probability": 0.0,
+        }
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=3, target_speed_scale=0.75)
+    env.reset(seed=520132)
+    positions, velocities = env._observe_defenders_for_maneuver()
+    candidates = env._target_maneuver_candidates(positions, velocities)
+    modes = {str(candidate["mode"]) for candidate in candidates}
+    assert modes == {
+        "straight_flee",
+        "lateral_jink",
+        "obstacle_bypass",
+        "reverse_lane_change",
+        "vertical_escape",
+        "speed_burst",
+    }
+    assert any(str(candidate["route"]).startswith("obstacle_") for candidate in candidates)
+
+    current_velocity = np.array([1.0, 0.0, 0.0])
+    current_acceleration = np.zeros(3, dtype=np.float64)
+    desired_velocity = np.array([0.0, 2.0, 0.0])
+    command = env._limit_target_command(current_velocity, current_acceleration, desired_velocity)
+    command_angle = np.arccos(
+        np.clip(
+            np.dot(current_velocity, command)
+            / (np.linalg.norm(current_velocity) * np.linalg.norm(command)),
+            -1.0,
+            1.0,
+        )
+    )
+    assert command_angle <= float(env.pursuit["target_maneuver_max_turn_rate_rad_s"]) * env.dt + 1e-9
+    command_acceleration = (command - current_velocity) / env.dt
+    assert np.linalg.norm(command_acceleration - current_acceleration) <= (
+        float(env.pursuit["target_maneuver_max_jerk_mps3"]) * env.dt + 1e-9
+    )
+
+
 def test_execution_randomness_does_not_change_scene_reset() -> None:
     base = load_config()
     mild = copy.deepcopy(base)
