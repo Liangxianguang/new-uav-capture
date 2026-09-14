@@ -30,6 +30,17 @@
 > `77/90`，说明主要瓶颈是 immutable prefix 后的 liveness/recovery，而不是未解释
 > solver fallback。详见 `docs/PHASE60_FAILURE_TAXONOMY_REPORT.md`；仍不构成安全证明。
 
+> Phase 61 QDR recovery-authority 消融已完成：在 Phase 60 calibration selection
+> 的 `120 episodes / 60 mirror groups` 上，三个 Diagonal-SSM seeds 共完成三种
+> authority 的 `1,080` 次 episode。immutable / replace_nonexecuting /
+> flush_pending 的 safe capture 为 `86.67% / 78.33% / 81.39%`，timeout 为
+> `12.22% / 19.72% / 16.94%`，最大 exhaustion streak 为 `93 / 285 / 290`；
+> 后两者 recovery apply rate 为 `11.30% / 10.04%`，但没有改善 suffix exhaustion，
+> 反而引入队列一致性代价。三组均未通过 `5% timeout` 与 `24-step streak`
+> gate，冻结为负消融，不进入 confirmation 或 locked-test。完整五类延迟分位数
+> 见 `docs/PHASE61_QDR_RECOVERY_AUTHORITY_REPORT.md`；local CBF 仍只称经验过滤器，
+> robust CBF-QP/R-CLBF-QP 不宣称安全证明。
+
 > Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
 > `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
 > Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线
@@ -57,7 +68,7 @@
 
 > 更新时间：2026-09-14
 > 仓库：[Liangxianguang/new-uav-capture](https://github.com/Liangxianguang/new-uav-capture)
-> 当前总判定：**Conditional Go**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，完整方法尚未完成。
+> 当前总判定：**Conditional Go（模块化证据）**。预测与 DN-MPC 已形成可复现的模块化证据；robust CBF-QP 只通过了冻结条件下的一步安全 gate；三者直接端到端组合失败，QDR recovery-authority 也未通过 liveness gate，完整方法尚未完成。
 
 > 新的三创新点总计划已整理在 `docs/THREE_INNOVATIONS_MASTER_TODOLIST.md`。该计划以现有 QDR/UAKR/RNIC 的 No-Go 证据为约束，要求先做单模块修复、独立 confirmation 和预注册 gate，再决定是否重新开放 Full 组合。
 
@@ -588,6 +599,30 @@ P4 使用每 20 个控制步刷新预测并缓存候选。三 checkpoint 聚合�
 详细执行合同、场景矩阵、公式、gate、TensorBoard 标签和六周交付物见
 `docs/PHASE56_STRONG_BASELINES_AND_QDR_FORMALIZATION_TODOLIST.md`。
 
+### Phase 61：QDR prefix-recovery authority 单变量消融（完成，No-Go）
+
+- [x] 冻结 `immutable / replace_nonexecuting / flush_pending` 三种 authority，
+  保持 predictor checkpoint、fixed `K=1`、planner、delay/noise、队列感知 rollout、
+  local CBF、线程数和 seed 全部不变；配置见
+  `configs/phase61_qdr_recovery_authority_ablation.yaml`；
+- [x] 在 Phase 60 calibration selection 上完成三种 authority × 三个 predictor
+  seeds，每个运行 `120 episodes / 60 mirror groups`，三组总计 `1,080` episode；
+- [x] 保存 root/method config、source hashes、episode/step JSONL、summary 和
+  TensorBoard event files，并用 mirror group 做配对 bootstrap；
+- [x] 统一报告 predictor/planner/QDR-or-tube/safety/total 的 p50/p95/p99；
+- [x] 确认 replace/flush recovery 在实现层面触发，但 safe capture 分别相对
+  immutable 下降 `8.33 pp [-12.22,-4.72]` 和 `5.28 pp [-10.83,-0.56]`，
+  timeout 分别增加 `7.50 pp [3.61,11.94]` 和 `4.72 pp [-0.28,10.83]`；
+- [x] 确认最大 exhaustion streak 为 `93/285/290`，均超过预注册 `24` 步；
+  三种 authority 均未通过 liveness gate；
+- [x] 将 Phase 61 冻结为“队列恢复 authority 的负消融”，不把 recovery apply
+  误写成 QDR liveness 修复，不开放 confirmation 或 locked-test；
+- [ ] 若要继续，只能在新 calibration manifest 上设计带 queue token/执行器 ACK
+  的 bounded replacement，并增加 prefix-recoverable → suffix-admissible 的逐步
+  transition audit；不得在当前 manifest 上扫描阈值或事后选择 authority。
+
+详细结果见 `docs/PHASE61_QDR_RECOVERY_AUTHORITY_REPORT.md`。
+
 ### P32：Phase 57 因果因素校准与运行时公平性（开发集完成，promotion No-Go）
 
 - [x] 新建并冻结 Phase57 场景矩阵：4 个 block、360 episodes、180 mirror
@@ -708,6 +743,7 @@ P24 EGC-MPC No-Go freeze
   -> P31 Phase56 strong baselines + QDR formalization (development complete; B1/async promotion No-Go)
   -> P32 Phase57 causal-factor calibration (development complete; ID/async promotion No-Go)
   -> P32a isolated runtime benchmark + B2/B3/B7 causal matrix (precondition for any new confirmation)
+  -> Phase61 QDR recovery-authority ablation (completed; queue-consistency/liveness No-Go)
   -> Full confirmation remains closed until a new pre-registered calibration promotes a primary method
   -> P11 可选 R-CLBF-QP 与形式化证明
   -> P12 最终统计、复现和论文材料
