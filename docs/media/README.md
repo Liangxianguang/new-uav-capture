@@ -46,3 +46,17 @@ The replay manifest and raw trajectory files remain in the local ignored
 Regenerate the media with the two commands in the repository README. The
 checkpoint SHA-256 is
 `535098773be05687e147043435649378532362d479bdc0375842970370ba40ba`.
+
+## Phase 69：Opposite-side obstacle-bypass showcase
+
+These two controlled development replays explicitly initialize the target
+and the four-defender cluster on opposite sides of the central mixed obstacle
+field. All four defenders cross the obstacle zone before the safe capture in
+both directions. They are visual evidence rather than additional benchmark
+statistics; see [`docs/PHASE69_OPPOSITE_SIDE_OBSTACLE_BYPASS_SHOWCASE.md`](../PHASE69_OPPOSITE_SIDE_OBSTACLE_BYPASS_SHOWCASE.md)
+for metrics and reproduction commands.
+
+| Condition | MP4 | GIF | Final frame |
+| --- | --- | --- | --- |
+| Defenders left → target right | [`MP4`](phase69_opposite_side_showcase/v5_opposite_side_mixed_episode.mp4) | [`GIF`](phase69_opposite_side_showcase/v5_opposite_side_mixed_episode.gif) | [`PNG`](phase69_opposite_side_showcase/v5_opposite_side_mixed_episode_final.png) |
+| Defenders right → target left | [`MP4`](phase69_opposite_side_showcase/v5_opposite_side_mirror_episode.mp4) | [`GIF`](phase69_opposite_side_showcase/v5_opposite_side_mirror_episode.gif) | [`PNG`](phase69_opposite_side_showcase/v5_opposite_side_mirror_episode_final.png) |

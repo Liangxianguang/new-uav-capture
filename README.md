@@ -234,6 +234,12 @@ The latest four-condition Official S4 replay showcase is documented in
 with MP4/GIF/PNG copies under
 [docs/media/phase68_interception_showcase](docs/media/phase68_interception_showcase/).
 
+For a direct obstacle-bypass demonstration, see the Phase 69
+[opposite-side showcase](docs/PHASE69_OPPOSITE_SIDE_OBSTACLE_BYPASS_SHOWCASE.md):
+the target and the four defenders start on opposite sides of the central mixed
+obstacle field, with MP4/GIF/PNG copies under
+[docs/media/phase69_opposite_side_showcase](docs/media/phase69_opposite_side_showcase/).
+
 ## Train A New Candidate From Scratch
 
 The historical V4/V5 expert archives and three frozen V4 checkpoints are not
