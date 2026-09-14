@@ -76,7 +76,10 @@ from encirclement3d.pursuit_controllers import (  # noqa: E402
 )
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.reachability_interception import planned_rnic_diagnostics  # noqa: E402
-from encirclement3d.execution_dynamics import parameters_from_observation  # noqa: E402
+from encirclement3d.execution_dynamics import (  # noqa: E402
+    parameters_from_observation,
+    rollout_action_sequence,
+)
 from encirclement3d.delay_aware_conformal_tube import (  # noqa: E402
     DelayAwareConformalReachableTube,
 )
@@ -88,6 +91,7 @@ from encirclement3d.queue_aware_rollout import (  # noqa: E402
 )
 from encirclement3d.qdr_precondition import (  # noqa: E402
     audit_qdr_precondition,
+    audit_qdr_segment_liveness,
     queue_prefix_risk_score,
 )
 from encirclement3d.safety_certificate import check_one_step_safety  # noqa: E402
@@ -873,6 +877,7 @@ def run_episode(
     queue_aware_safety_projection: bool = False,
     known_delay_compensation: bool = False,
     qdr_prefix_recovery_authority: str | None = None,
+    qdr_segment_progress_tolerance_m: float = 1.0e-9,
     adaptive_prediction_config: dict[str, Any] | None = None,
     reachable_tube: DelayAwareConformalReachableTube | None = None,
     fixed_tube_radius_m: float | None = None,
@@ -1058,6 +1063,18 @@ def run_episode(
         qdr_suffix_admissible = float("nan")
         qdr_precondition_recovery_recommended = 0.0
         qdr_precondition_reason = "not_applicable"
+        qdr_segment_status = "not_applicable"
+        qdr_terminal_any_candidate_feasible = float("nan")
+        qdr_terminal_all_candidate_feasible = float("nan")
+        qdr_segment_earliest_any_capture_step = float("nan")
+        qdr_segment_earliest_all_capture_step = float("nan")
+        qdr_segment_best_terminal_distance_m = float("nan")
+        qdr_segment_worst_terminal_distance_m = float("nan")
+        qdr_segment_best_progress_m = float("nan")
+        qdr_segment_worst_progress_m = float("nan")
+        qdr_segment_finite_progress = float("nan")
+        qdr_segment_horizon_steps = float("nan")
+        qdr_segment_candidate_count = float("nan")
         qdr_prefix_diagnostics_for_audit: dict[str, Any] | None = None
         qdr_state_for_audit: Any | None = None
         adaptive_enabled = False
@@ -1335,6 +1352,52 @@ def run_episode(
                     1.0 if qdr_assessment["recovery_recommended"] else 0.0
                 )
                 qdr_precondition_reason = str(qdr_assessment["reason"])
+                suffix_positions_path, _suffix_velocities_path, _suffix_steps = rollout_action_sequence(
+                    np.asarray(planning_observation["defender_positions"], dtype=np.float64),
+                    np.asarray(planning_observation["defender_velocities"], dtype=np.float64),
+                    np.asarray(plan.action_sequence, dtype=np.float64),
+                    parameters_from_observation(
+                        planning_observation,
+                        float(planner_config.dt_seconds),
+                    ),
+                )
+                segment_audit = audit_qdr_segment_liveness(
+                    prefix_diagnostics=qdr_prefix_diagnostics_for_audit,
+                    suffix_diagnostics=qdr_audit["suffix"],
+                    defender_positions_path=suffix_positions_path,
+                    candidate_target_paths=np.asarray(
+                        planning_scenarios.trajectories,
+                        dtype=np.float64,
+                    ),
+                    capture_radius_m=float(planner_config.capture_radius_m),
+                    progress_tolerance_m=float(qdr_segment_progress_tolerance_m),
+                )["assessment"]
+                qdr_segment_status = str(segment_audit["status"])
+                qdr_terminal_any_candidate_feasible = (
+                    1.0 if segment_audit["terminal_any_candidate_feasible"] else 0.0
+                )
+                qdr_terminal_all_candidate_feasible = (
+                    1.0 if segment_audit["terminal_all_candidate_feasible"] else 0.0
+                )
+                qdr_segment_earliest_any_capture_step = float(
+                    segment_audit["earliest_any_candidate_capture_step"]
+                )
+                qdr_segment_earliest_all_capture_step = float(
+                    segment_audit["earliest_all_candidate_capture_step"]
+                )
+                qdr_segment_best_terminal_distance_m = float(
+                    segment_audit["best_terminal_distance_m"]
+                )
+                qdr_segment_worst_terminal_distance_m = float(
+                    segment_audit["worst_terminal_distance_m"]
+                )
+                qdr_segment_best_progress_m = float(segment_audit["best_progress_m"])
+                qdr_segment_worst_progress_m = float(segment_audit["worst_progress_m"])
+                qdr_segment_finite_progress = (
+                    1.0 if segment_audit["finite_progress_available"] else 0.0
+                )
+                qdr_segment_horizon_steps = float(segment_audit["horizon_steps"])
+                qdr_segment_candidate_count = float(segment_audit["candidate_count"])
             previous_planned_sequence = _shift_warm_start_sequence(plan.action_sequence)
             nominal_actions = plan.actions
             planner_diagnostics = plan.diagnostics
@@ -1605,6 +1668,30 @@ def run_episode(
                     qdr_precondition_recovery_recommended
                 ),
                 "qdr_precondition_reason": qdr_precondition_reason,
+                "qdr_segment_status": qdr_segment_status,
+                "qdr_terminal_any_candidate_feasible": float(
+                    qdr_terminal_any_candidate_feasible
+                ),
+                "qdr_terminal_all_candidate_feasible": float(
+                    qdr_terminal_all_candidate_feasible
+                ),
+                "qdr_segment_earliest_any_capture_step": float(
+                    qdr_segment_earliest_any_capture_step
+                ),
+                "qdr_segment_earliest_all_capture_step": float(
+                    qdr_segment_earliest_all_capture_step
+                ),
+                "qdr_segment_best_terminal_distance_m": float(
+                    qdr_segment_best_terminal_distance_m
+                ),
+                "qdr_segment_worst_terminal_distance_m": float(
+                    qdr_segment_worst_terminal_distance_m
+                ),
+                "qdr_segment_best_progress_m": float(qdr_segment_best_progress_m),
+                "qdr_segment_worst_progress_m": float(qdr_segment_worst_progress_m),
+                "qdr_segment_finite_progress": float(qdr_segment_finite_progress),
+                "qdr_segment_horizon_steps": float(qdr_segment_horizon_steps),
+                "qdr_segment_candidate_count": float(qdr_segment_candidate_count),
                 "qdr_endpoint_position_error_mean_m": float(qdr_endpoint_position_error_mean_m),
                 "qdr_endpoint_position_error_max_m": float(qdr_endpoint_position_error_max_m),
                 "qdr_endpoint_velocity_error_mean_mps": float(qdr_endpoint_velocity_error_mean_mps),
@@ -2039,6 +2126,42 @@ def run_episode(
         ),
         "qdr_precondition_status_counts": _diagnostic_category_counts(
             step_rows, "qdr_precondition_status"
+        ),
+        "qdr_segment_status_counts": _diagnostic_category_counts(
+            step_rows, "qdr_segment_status"
+        ),
+        "qdr_terminal_any_candidate_feasible_rate": _diagnostic_rate(
+            step_rows, "qdr_terminal_any_candidate_feasible"
+        ),
+        "qdr_terminal_all_candidate_feasible_rate": _diagnostic_rate(
+            step_rows, "qdr_terminal_all_candidate_feasible"
+        ),
+        "qdr_segment_earliest_any_capture_step": _diagnostic_positive_min(
+            step_rows, "qdr_segment_earliest_any_capture_step"
+        ),
+        "qdr_segment_earliest_all_capture_step": _diagnostic_positive_min(
+            step_rows, "qdr_segment_earliest_all_capture_step"
+        ),
+        "qdr_segment_best_terminal_distance_m": _diagnostic_min(
+            step_rows, "qdr_segment_best_terminal_distance_m"
+        ),
+        "qdr_segment_worst_terminal_distance_m": _diagnostic_max(
+            step_rows, "qdr_segment_worst_terminal_distance_m"
+        ),
+        "qdr_segment_best_progress_m": _diagnostic_mean(
+            step_rows, "qdr_segment_best_progress_m"
+        ),
+        "qdr_segment_worst_progress_m": _diagnostic_mean(
+            step_rows, "qdr_segment_worst_progress_m"
+        ),
+        "qdr_segment_finite_progress_rate": _diagnostic_rate(
+            step_rows, "qdr_segment_finite_progress"
+        ),
+        "qdr_segment_horizon_steps": _diagnostic_mean(
+            step_rows, "qdr_segment_horizon_steps"
+        ),
+        "qdr_segment_candidate_count": _diagnostic_mean(
+            step_rows, "qdr_segment_candidate_count"
         ),
         "qdr_endpoint_position_error_mean_m": _diagnostic_mean(
             step_rows, "qdr_endpoint_position_error_mean_m"
@@ -2556,6 +2679,42 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_precondition_status_counts": _merge_category_counts(
             [row["qdr_precondition_status_counts"] for row in rows]
+        ),
+        "qdr_segment_status_counts": _merge_category_counts(
+            [row["qdr_segment_status_counts"] for row in rows]
+        ),
+        "qdr_terminal_any_candidate_feasible_rate": finite_mean(
+            [row["qdr_terminal_any_candidate_feasible_rate"] for row in rows]
+        ),
+        "qdr_terminal_all_candidate_feasible_rate": finite_mean(
+            [row["qdr_terminal_all_candidate_feasible_rate"] for row in rows]
+        ),
+        "qdr_segment_earliest_any_capture_step": finite_min(
+            [row["qdr_segment_earliest_any_capture_step"] for row in rows]
+        ),
+        "qdr_segment_earliest_all_capture_step": finite_min(
+            [row["qdr_segment_earliest_all_capture_step"] for row in rows]
+        ),
+        "qdr_segment_best_terminal_distance_m": finite_min(
+            [row["qdr_segment_best_terminal_distance_m"] for row in rows]
+        ),
+        "qdr_segment_worst_terminal_distance_m": finite_max(
+            [row["qdr_segment_worst_terminal_distance_m"] for row in rows]
+        ),
+        "qdr_segment_best_progress_m": finite_mean(
+            [row["qdr_segment_best_progress_m"] for row in rows]
+        ),
+        "qdr_segment_worst_progress_m": finite_mean(
+            [row["qdr_segment_worst_progress_m"] for row in rows]
+        ),
+        "qdr_segment_finite_progress_rate": finite_mean(
+            [row["qdr_segment_finite_progress_rate"] for row in rows]
+        ),
+        "qdr_segment_horizon_steps": finite_mean(
+            [row["qdr_segment_horizon_steps"] for row in rows]
+        ),
+        "qdr_segment_candidate_count": finite_mean(
+            [row["qdr_segment_candidate_count"] for row in rows]
         ),
         "qdr_endpoint_position_error_mean_m": finite_mean(
             [row["qdr_endpoint_position_error_mean_m"] for row in rows]
@@ -3158,6 +3317,17 @@ def main() -> None:
                     "qdr_suffix_minimum_barrier_m",
                     "qdr_suffix_admissible_rate",
                     "qdr_precondition_recovery_recommended_rate",
+                    "qdr_terminal_any_candidate_feasible_rate",
+                    "qdr_terminal_all_candidate_feasible_rate",
+                    "qdr_segment_earliest_any_capture_step",
+                    "qdr_segment_earliest_all_capture_step",
+                    "qdr_segment_best_terminal_distance_m",
+                    "qdr_segment_worst_terminal_distance_m",
+                    "qdr_segment_best_progress_m",
+                    "qdr_segment_worst_progress_m",
+                    "qdr_segment_finite_progress_rate",
+                    "qdr_segment_horizon_steps",
+                    "qdr_segment_candidate_count",
                     "qdr_endpoint_position_error_mean_m",
                     "qdr_endpoint_position_error_max_m",
                     "qdr_endpoint_velocity_error_mean_mps",
@@ -3234,6 +3404,11 @@ def main() -> None:
             writer.add_text(
                 "Summary/QDR/PreconditionStatusCounts",
                 json.dumps(summary.get("qdr_precondition_status_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/SegmentStatusCounts",
+                json.dumps(summary.get("qdr_segment_status_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar("Summary/PlannerLatency/p50_ms", summary["planner_latency_ms"]["p50"], 0)

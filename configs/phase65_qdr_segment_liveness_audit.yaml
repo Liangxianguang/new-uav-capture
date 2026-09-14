@@ -1,0 +1,115 @@
+experiment_name: phase65_qdr_segment_liveness_audit
+stage: fresh_development_calibration_only
+purpose: prefix_suffix_terminal_public_candidate_liveness_audit
+
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+planner:
+  implementation: finite_shooting_scenario_mpc
+  dt_seconds: 0.1
+  horizon_steps: 8
+  control_horizon_steps: 3
+  max_speed_mps: 5.0
+  capture_radius_m: 0.80
+  drone_radius_m: 0.25
+  safety_margin_m: 0.35
+  minimum_inter_agent_distance_m: 1.00
+  risk_mode: worst_case
+  cvar_alpha: 0.75
+  role_perimeter_m: 1.40
+  slot_gain: 2.5
+  target_velocity_gain: 1.0
+  weight_distance: 1.0
+  weight_terminal_distance: 3.0
+  weight_capture_hinge: 1.5
+  weight_formation: 0.25
+  weight_control: 0.015
+  weight_control_change: 0.02
+  weight_obstacle: 25.0
+  weight_boundary: 25.0
+  weight_inter_agent: 25.0
+  weight_relative_speed: 0.02
+  max_role_variants: 4
+  perimeter_scales: [0.75, 1.0]
+
+prediction:
+  candidate_source: checkpoint
+  candidate_status_required: projected
+  num_samples: 1
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+
+distributed:
+  max_iterations: 3
+  convergence_tolerance_mps: 0.15
+  communication_interval_steps: 1
+  message_delay_steps: 0
+  message_dropout_probability: 0.0
+  max_message_age_steps: 8
+  local_timeout_ms: 50.0
+  max_local_candidate_paths: 4
+  local_obstacle_range_m: 8.0
+  bytes_per_float: 8
+  fallback_policy: fallback_actions_then_previous_sequence
+  qdr_feasibility_first: false
+  qdr_exhaustion_policy: hard_min_violation
+  qdr_execution_tube_enabled: false
+
+qdr_segment_audit:
+  enabled: true
+  progress_tolerance_m: 1.0e-9
+  terminal_capture_definition: any_projected_candidate_within_capture_radius
+  robust_terminal_definition: all_projected_candidates_within_capture_radius
+  target_truth_input: forbidden
+  queue_mutation: forbidden
+  safety_certificate: forbidden
+
+methods:
+  - id: M0_current_state_delayed_mpc
+    role: strong_delayed_reference
+    qdr_segment_audit: not_applicable
+  - id: M6_qdr_synchronous_mpc
+    role: immutable_qdr_segment_audit
+    qdr_segment_audit: enabled
+
+dataset:
+  canonical_episodes: 360
+  canonical_mirror_groups: 180
+  calibration_episodes: 120
+  calibration_mirror_groups: 60
+  blocks: [id_reference, execution_tail, communication_tail, joint_tail_transfer]
+  action_delay_levels: [0, 4, 6, 8, 10, 12]
+  command_noise_levels: [0.00, 0.08, 0.12, 0.16, 0.20]
+  message_delay_levels: [2, 4, 6, 8]
+  message_dropout_levels: [0.05, 0.20, 0.30, 0.40]
+  tracking_levels: [0.0, 0.10, 0.20, 0.30]
+  drag_levels: [0.0, 0.05, 0.10]
+
+evaluation:
+  split: development_calibration
+  episodes: 120
+  target_motion_mode: adaptive_branching
+  use_local_cbf: true
+  decision: validation_selection
+  predictor_seeds: [727201, 727202, 727203]
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  latency_components: [predictor, planner, qdr_or_tube, safety, total_control]
+  latency_percentiles: [50, 95, 99]
+  segment_status_counts_required: true
+  public_candidate_terminal_metrics_required: true
+
+claim_boundary:
+  stage: development_calibration_only
+  segment_audit: diagnostic_public_candidate_space_only
+  local_cbf: empirical_filter_only
+  robust_cbf_qp: diagnostic_no_go
+  no_safety_proof: true
+  no_locked_test_promotion: true

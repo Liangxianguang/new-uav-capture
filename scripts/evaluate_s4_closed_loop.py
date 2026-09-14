@@ -658,6 +658,15 @@ def main() -> None:
         else args.rnic
     )
     planner_mapping = dict(mpc_document.get("planner", {}))
+    qdr_segment_audit_mapping = dict(mpc_document.get("qdr_segment_audit", {}))
+    qdr_segment_progress_tolerance_m = float(
+        qdr_segment_audit_mapping.get("progress_tolerance_m", 1.0e-9)
+    )
+    if (
+        not np.isfinite(qdr_segment_progress_tolerance_m)
+        or qdr_segment_progress_tolerance_m < 0.0
+    ):
+        raise ValueError("qdr_segment_audit.progress_tolerance_m must be finite and non-negative")
     planner_mapping["reachability_normalized_cost_enabled"] = rnic
     if args.rnic_activation_slack_s is not None:
         if not np.isfinite(float(args.rnic_activation_slack_s)):
@@ -917,6 +926,10 @@ def main() -> None:
         "queue_aware_rollout": queue_aware_rollout,
         "queue_aware_safety_projection": queue_aware_safety_projection,
         "qdr_prefix_recovery_authority": qdr_prefix_recovery_authority,
+        "qdr_segment_audit": {
+            **qdr_segment_audit_mapping,
+            "progress_tolerance_m": qdr_segment_progress_tolerance_m,
+        },
         "queue_token_contract": args.queue_token_contract,
         "queue_token_max_override_slots": args.queue_token_max_override_slots,
         "adaptive_k": adaptive_k,
@@ -1067,6 +1080,7 @@ def main() -> None:
                     queue_aware_rollout=bool(method_contract["queue_aware_rollout"]),
                     queue_aware_safety_projection=bool(method_contract["queue_aware_safety_projection"]),
                     known_delay_compensation=bool(method_contract["known_delay_compensation"]),
+                    qdr_segment_progress_tolerance_m=qdr_segment_progress_tolerance_m,
                     qdr_prefix_recovery_authority=(
                         qdr_prefix_recovery_authority
                         if bool(method_contract["queue_aware_rollout"])
@@ -1177,6 +1191,17 @@ def main() -> None:
                     "qdr_suffix_minimum_clearance_m",
                     "qdr_suffix_minimum_barrier_m",
                     "qdr_suffix_admissible_rate",
+                    "qdr_terminal_any_candidate_feasible_rate",
+                    "qdr_terminal_all_candidate_feasible_rate",
+                    "qdr_segment_earliest_any_capture_step",
+                    "qdr_segment_earliest_all_capture_step",
+                    "qdr_segment_best_terminal_distance_m",
+                    "qdr_segment_worst_terminal_distance_m",
+                    "qdr_segment_best_progress_m",
+                    "qdr_segment_worst_progress_m",
+                    "qdr_segment_finite_progress_rate",
+                    "qdr_segment_horizon_steps",
+                    "qdr_segment_candidate_count",
                     "qdr_suffix_gate_exhausted_once",
                     "qdr_suffix_gate_first_exhaustion_step",
                     "qdr_suffix_gate_max_exhaustion_streak_steps",
@@ -1344,6 +1369,11 @@ def main() -> None:
             writer.add_text(
                 "Summary/QDR/precondition_status_counts",
                 json.dumps(overall.get("qdr_precondition_status_counts", {}), sort_keys=True),
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/segment_status_counts",
+                json.dumps(overall.get("qdr_segment_status_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar("Summary/QDR/prefix_recovery_request_rate", overall["qdr_prefix_recovery_request_rate"], 0)

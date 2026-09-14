@@ -6,6 +6,7 @@ import pytest
 from encirclement3d.execution_dynamics import ExecutionParameters
 from encirclement3d.qdr_precondition import (
     audit_qdr_precondition,
+    audit_qdr_segment_liveness,
     classify_qdr_precondition,
     queue_prefix_risk_score,
     rollout_suffix_state,
@@ -153,4 +154,57 @@ def test_queue_prefix_risk_rejects_invalid_diagnostic_values() -> None:
             {"minimum_clearance_m": 0.2},
             safety_margin_m=0.35,
             scale_m=0.0,
+        )
+
+
+def test_segment_liveness_audit_distinguishes_prefix_suffix_and_terminal() -> None:
+    defenders = np.asarray(
+        [
+            [[0.0, 0.0, 0.0]],
+            [[0.4, 0.0, 0.0]],
+            [[0.8, 0.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+    targets = np.asarray(
+        [
+            [[1.2, 0.0, 0.0], [0.8, 0.0, 0.0], [0.8, 0.0, 0.0]],
+            [[2.0, 0.0, 0.0], [1.6, 0.0, 0.0], [1.2, 0.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+    result = audit_qdr_segment_liveness(
+        prefix_diagnostics=_diagnostic(0.2),
+        suffix_diagnostics=_diagnostic(0.1),
+        defender_positions_path=defenders,
+        candidate_target_paths=targets,
+        capture_radius_m=0.05,
+    )
+    assert result["assessment"]["status"] == "terminal_candidate_feasible"
+    assert result["assessment"]["earliest_any_candidate_capture_step"] == 3
+    assert result["assessment"]["terminal_any_candidate_feasible"] is True
+    assert result["assessment"]["terminal_all_candidate_feasible"] is False
+    assert result["assessment"]["finite_progress_available"] is True
+
+
+def test_segment_liveness_audit_prioritizes_prefix_failure_without_truth() -> None:
+    result = audit_qdr_segment_liveness(
+        prefix_diagnostics=_diagnostic(-0.1),
+        suffix_diagnostics=_diagnostic(0.1),
+        defender_positions_path=np.zeros((2, 1, 3), dtype=np.float64),
+        candidate_target_paths=np.ones((1, 2, 3), dtype=np.float64),
+        capture_radius_m=0.1,
+    )
+    assert result["assessment"]["status"] == "prefix_infeasible"
+    assert result["assessment"]["prefix_feasible"] is False
+
+
+def test_segment_liveness_audit_rejects_mismatched_horizon() -> None:
+    with pytest.raises(ValueError, match="candidate_target_paths"):
+        audit_qdr_segment_liveness(
+            prefix_diagnostics=_diagnostic(0.1),
+            suffix_diagnostics=_diagnostic(0.1),
+            defender_positions_path=np.zeros((2, 1, 3), dtype=np.float64),
+            candidate_target_paths=np.zeros((1, 3, 3), dtype=np.float64),
+            capture_radius_m=0.1,
         )

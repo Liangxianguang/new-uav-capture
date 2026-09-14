@@ -26,6 +26,16 @@ QDRPreconditionStatus = Literal[
 ]
 
 
+QDRSegmentStatus = Literal[
+    "prefix_infeasible",
+    "suffix_infeasible",
+    "terminal_all_candidates_feasible",
+    "terminal_candidate_feasible",
+    "terminal_progress_only",
+    "terminal_not_feasible",
+]
+
+
 @dataclass(frozen=True)
 class QDRPreconditionAssessment:
     """Classification of the queued prefix and newly planned suffix."""
@@ -51,6 +61,50 @@ class QDRPreconditionAssessment:
             "recovery_allowed": bool(self.recovery_allowed),
             "recovery_recommended": bool(self.recovery_recommended),
             "reason": str(self.reason),
+        }
+
+
+@dataclass(frozen=True)
+class QDRSegmentLivenessAssessment:
+    """Public-belief prefix/suffix/terminal liveness diagnostics.
+
+    The terminal quantities are computed against the projected candidate set,
+    not the simulator target.  ``terminal_candidate_feasible`` is therefore an
+    optimistic candidate-space diagnostic; it is not a robust reachability
+    guarantee and it does not change command authority.
+    """
+
+    status: QDRSegmentStatus
+    prefix_feasible: bool
+    suffix_feasible: bool
+    terminal_any_candidate_feasible: bool
+    terminal_all_candidate_feasible: bool
+    earliest_any_candidate_capture_step: int
+    earliest_all_candidate_capture_step: int
+    best_terminal_distance_m: float
+    worst_terminal_distance_m: float
+    best_progress_m: float
+    worst_progress_m: float
+    finite_progress_available: bool
+    horizon_steps: int
+    candidate_count: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": str(self.status),
+            "prefix_feasible": bool(self.prefix_feasible),
+            "suffix_feasible": bool(self.suffix_feasible),
+            "terminal_any_candidate_feasible": bool(self.terminal_any_candidate_feasible),
+            "terminal_all_candidate_feasible": bool(self.terminal_all_candidate_feasible),
+            "earliest_any_candidate_capture_step": int(self.earliest_any_candidate_capture_step),
+            "earliest_all_candidate_capture_step": int(self.earliest_all_candidate_capture_step),
+            "best_terminal_distance_m": float(self.best_terminal_distance_m),
+            "worst_terminal_distance_m": float(self.worst_terminal_distance_m),
+            "best_progress_m": float(self.best_progress_m),
+            "worst_progress_m": float(self.worst_progress_m),
+            "finite_progress_available": bool(self.finite_progress_available),
+            "horizon_steps": int(self.horizon_steps),
+            "candidate_count": int(self.candidate_count),
         }
 
 
@@ -153,6 +207,109 @@ def queue_prefix_risk_score(
     return float(np.clip(max(near_margin_gap, violation) / scale, 0.0, 1.0))
 
 
+def audit_qdr_segment_liveness(
+    *,
+    prefix_diagnostics: Mapping[str, Any],
+    suffix_diagnostics: Mapping[str, Any],
+    defender_positions_path: np.ndarray,
+    candidate_target_paths: np.ndarray,
+    capture_radius_m: float,
+    progress_tolerance_m: float = 1.0e-9,
+) -> dict[str, Any]:
+    """Audit prefix, suffix, and terminal progress in public candidate space.
+
+    ``defender_positions_path`` has shape ``[H, defenders, 3]`` and
+    ``candidate_target_paths`` has shape ``[K, H, 3]``.  The first candidate
+    capture step is the earliest step for which *any* projected target
+    candidate is within ``capture_radius_m`` of one defender.  The all-candidate
+    step uses the maximum over candidates and is a stricter diagnostic.  The
+    function deliberately does not read simulator truth or mutate a queue.
+    """
+
+    defenders = np.asarray(defender_positions_path, dtype=np.float64)
+    targets = np.asarray(candidate_target_paths, dtype=np.float64)
+    radius = float(capture_radius_m)
+    tolerance = float(progress_tolerance_m)
+    if (
+        defenders.ndim != 3
+        or defenders.shape[-1] != 3
+        or defenders.shape[0] <= 0
+        or defenders.shape[1] <= 0
+    ):
+        raise ValueError("defender_positions_path must have shape [horizon, defenders, 3]")
+    if (
+        targets.ndim != 3
+        or targets.shape[-1] != 3
+        or targets.shape[0] <= 0
+        or targets.shape[1] != defenders.shape[0]
+    ):
+        raise ValueError("candidate_target_paths must have shape [candidates, horizon, 3]")
+    if not np.isfinite(defenders).all() or not np.isfinite(targets).all():
+        raise ValueError("segment audit paths must be finite")
+    if not np.isfinite(radius) or radius < 0.0:
+        raise ValueError("capture_radius_m must be finite and non-negative")
+    if not np.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("progress_tolerance_m must be finite and non-negative")
+
+    # [H, K, defenders] nearest-defender distance for every public target
+    # candidate.  The selected plan and candidate set are the only inputs.
+    distances = np.linalg.norm(
+        defenders[:, None, :, :] - targets.transpose(1, 0, 2)[:, :, None, :],
+        axis=-1,
+    )
+    nearest = np.min(distances, axis=2)
+    any_capture = np.min(nearest, axis=1) <= radius
+    all_capture = np.max(nearest, axis=1) <= radius
+    any_steps = np.flatnonzero(any_capture)
+    all_steps = np.flatnonzero(all_capture)
+    earliest_any = int(any_steps[0] + 1) if any_steps.size else -1
+    earliest_all = int(all_steps[0] + 1) if all_steps.size else -1
+    initial_by_candidate = nearest[0]
+    terminal_by_candidate = nearest[-1]
+    candidate_progress = initial_by_candidate - terminal_by_candidate
+    best_progress = float(np.max(candidate_progress))
+    worst_progress = float(np.min(candidate_progress))
+    prefix_barrier = float(prefix_diagnostics.get("minimum_prefix_barrier_m", float("nan")))
+    suffix_barrier = float(suffix_diagnostics.get("minimum_prefix_barrier_m", float("nan")))
+    if not np.isfinite(prefix_barrier) and not np.isinf(prefix_barrier):
+        raise ValueError("prefix_diagnostics minimum_prefix_barrier_m must be finite or infinity")
+    if not np.isfinite(suffix_barrier) and not np.isinf(suffix_barrier):
+        raise ValueError("suffix_diagnostics minimum_prefix_barrier_m must be finite or infinity")
+    prefix_feasible = prefix_barrier >= -tolerance
+    suffix_feasible = suffix_barrier >= -tolerance
+    terminal_any = bool(np.any(terminal_by_candidate <= radius))
+    terminal_all = bool(np.all(terminal_by_candidate <= radius))
+    if not prefix_feasible:
+        status: QDRSegmentStatus = "prefix_infeasible"
+    elif not suffix_feasible:
+        status = "suffix_infeasible"
+    elif terminal_all:
+        status = "terminal_all_candidates_feasible"
+    elif terminal_any:
+        status = "terminal_candidate_feasible"
+    elif best_progress > tolerance:
+        status = "terminal_progress_only"
+    else:
+        status = "terminal_not_feasible"
+    assessment = QDRSegmentLivenessAssessment(
+        status=status,
+        prefix_feasible=bool(prefix_feasible),
+        suffix_feasible=bool(suffix_feasible),
+        terminal_any_candidate_feasible=terminal_any,
+        terminal_all_candidate_feasible=terminal_all,
+        earliest_any_candidate_capture_step=earliest_any,
+        earliest_all_candidate_capture_step=earliest_all,
+        best_terminal_distance_m=float(np.min(terminal_by_candidate)),
+        worst_terminal_distance_m=float(np.max(terminal_by_candidate)),
+        best_progress_m=best_progress,
+        worst_progress_m=worst_progress,
+        finite_progress_available=bool(earliest_any > 0 or best_progress > tolerance),
+        horizon_steps=int(defenders.shape[0]),
+        candidate_count=int(targets.shape[0]),
+    )
+    return {"assessment": assessment.as_dict()}
+
+
 def rollout_suffix_state(
     positions: np.ndarray,
     velocities: np.ndarray,
@@ -248,7 +405,10 @@ def audit_qdr_precondition(
 __all__ = [
     "QDRPreconditionAssessment",
     "QDRPreconditionStatus",
+    "QDRSegmentLivenessAssessment",
+    "QDRSegmentStatus",
     "audit_qdr_precondition",
+    "audit_qdr_segment_liveness",
     "classify_qdr_precondition",
     "queue_prefix_risk_score",
     "rollout_suffix_state",

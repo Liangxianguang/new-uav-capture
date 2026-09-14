@@ -55,6 +55,18 @@ EPISODE_AGGREGATE_FIELDS = (
     "candidate_budget_realized_max",
     "candidate_budget_realized_rate",
     "candidate_budget_mismatch_steps",
+    "qdr_segment_status_counts",
+    "qdr_terminal_any_candidate_feasible_rate",
+    "qdr_terminal_all_candidate_feasible_rate",
+    "qdr_segment_earliest_any_capture_step",
+    "qdr_segment_earliest_all_capture_step",
+    "qdr_segment_best_terminal_distance_m",
+    "qdr_segment_worst_terminal_distance_m",
+    "qdr_segment_best_progress_m",
+    "qdr_segment_worst_progress_m",
+    "qdr_segment_finite_progress_rate",
+    "qdr_segment_horizon_steps",
+    "qdr_segment_candidate_count",
 )
 STEP_AGGREGATE_FIELDS = (
     "episode_index",

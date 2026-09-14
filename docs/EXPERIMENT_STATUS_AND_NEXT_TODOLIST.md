@@ -1,5 +1,24 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 65 QDR prefix/suffix/terminal liveness audit 已完成：全新 tail-stress manifest 为
+> `360 episodes / 180 mirror groups`，包含 `id_reference`、`execution_tail`、
+> `communication_tail` 和 `joint_tail_transfer` 四个压力 block；development calibration
+> 使用 `120 episodes / 60 mirror groups`、三个 Diagonal-SSM seeds。immutable QDR 将 safe
+> capture 从 strong delayed-MPC 的 `36.39%` 提升到 `70.28%`，collision 从 `63.61%` 降至
+> `0.83%`，但 timeout 为 `28.89%`；joint tail-transfer 的 finite public-candidate
+> progress 只有 `38.88%`，最大 exhaustion streak 为 `153`。因此安全轴有明显收益，活性轴
+> 仍失败，本阶段为 **diagnostic No-Go**，不进入 confirmation/locked-test。五类
+> predictor/planner/QDR-or-tube/safety/total 的 p50/p95/p99 已记录到报告和 TensorBoard；
+> local CBF 仍只称经验过滤器，robust CBF-QP/R-CLBF-QP 不宣称安全证明。详见
+> `docs/PHASE65_QDR_SEGMENT_LIVENESS_AUDIT_REPORT.md`。
+
+> 下一阶段不再只比较 QDR fallback 权重：优先构造“受限恢复预算 + 公共候选可达性”的
+> 预注册 planner repair，在 execution-tail、communication-tail、joint-tail-transfer
+> 三个 block 上分别验证；仍需保持一次只改变一个压力因素，并在新 calibration 上完成
+> 预测器、规划器、QDR/tube、安全层和总时延的 p50/p95/p99 报告。只有 timeout、最大
+> exhaustion streak、safe capture 与碰撞率同时达到门槛，才允许 confirmation；locked-test
+> 继续封存。
+
 > Phase 64 QDR exhausted-candidate liveness repair 已完成 development calibration：
 > 全新 manifest 为 `360 episodes / 180 mirror groups`，本阶段使用 `120 episodes /
 > 60 mirror groups`、三个 Diagonal-SSM seeds，并比较 strong delayed-MPC、immutable
