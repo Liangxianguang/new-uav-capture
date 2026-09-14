@@ -16,11 +16,14 @@ import numpy as np
 
 from encirclement3d.execution_dynamics import (
     apply_command_authority,
+    apply_command_authority_with_token,
     advance_execution,
     clip_rows,
     command_authority_directive,
+    commit_delayed_command_with_token,
     move_toward_velocity,
     parameters_from_observation,
+    QueueToken,
     validate_command_authority_mode,
 )
 
@@ -138,6 +141,8 @@ _EXECUTION_DEFAULTS: dict[str, Any] = {
     "random_seed_offset": 104729,
     "action_delay_steps": 0,
     "pending_command_authority": "immutable",
+    "queue_token_contract_enabled": False,
+    "queue_token_max_override_slots": None,
     "command_noise_std": 0.0,
     "command_noise_bound_sigma": 3.0,
     "clip_command_noise": True,
@@ -300,6 +305,15 @@ def execution_settings(dynamics: dict[str, Any]) -> dict[str, Any]:
     settings["pending_command_authority"] = validate_command_authority_mode(
         settings["pending_command_authority"]
     )
+    if not isinstance(settings["queue_token_contract_enabled"], (bool, np.bool_)):
+        raise ValueError("dynamics.execution.queue_token_contract_enabled must be boolean.")
+    override_limit = settings["queue_token_max_override_slots"]
+    if override_limit is not None:
+        if isinstance(override_limit, bool) or int(override_limit) != float(override_limit) or int(override_limit) < 0:
+            raise ValueError(
+                "dynamics.execution.queue_token_max_override_slots must be a non-negative integer or null."
+            )
+        settings["queue_token_max_override_slots"] = int(override_limit)
     for name in (
         "command_noise_std",
         "command_noise_bound_sigma",
@@ -388,6 +402,7 @@ class CaptureRadiusPursuit3DEnv:
         self.execution_rng = np.random.default_rng()
 
         self.execution_action_queue: list[np.ndarray] = []
+        self.execution_queue_token = QueueToken(generation=0, issued_step=0, pending_length=0)
         self.execution_max_speed = float(self.agents["defender_max_speed"])
         self.execution_max_acceleration = float(self.agents["defender_max_acceleration"])
         self.execution_mass_scale = 1.0
@@ -398,6 +413,7 @@ class CaptureRadiusPursuit3DEnv:
         self.last_command_authority_mode = str(self.execution["pending_command_authority"])
         self.last_emergency_brake_requested = False
         self.last_queue_override_slots = 0
+        self.last_queue_authority_ack: dict[str, Any] | None = None
         self.action_execution_error_norm = 0.0
         self.action_execution_error_sum = 0.0
         self.action_execution_steps = 0
@@ -448,6 +464,7 @@ class CaptureRadiusPursuit3DEnv:
         self.last_command_authority_mode = str(self.execution["pending_command_authority"])
         self.last_emergency_brake_requested = False
         self.last_queue_override_slots = 0
+        self.last_queue_authority_ack = None
         self.action_execution_error_norm = 0.0
         self.action_execution_error_sum = 0.0
         self.action_execution_steps = 0
@@ -469,6 +486,11 @@ class CaptureRadiusPursuit3DEnv:
             np.zeros((self.n_defenders, 3), dtype=np.float64)
             for _ in range(int(self.execution["action_delay_steps"]))
         ]
+        self.execution_queue_token = QueueToken(
+            generation=0,
+            issued_step=0,
+            pending_length=len(self.execution_action_queue),
+        )
 
         self.target_position = np.array(
             [
@@ -551,6 +573,9 @@ class CaptureRadiusPursuit3DEnv:
                 "enabled": bool(self.execution["enabled"]),
                 "action_delay_steps": int(self.execution["action_delay_steps"]),
                 "action_queue": [item.copy() for item in self.execution_action_queue],
+                "queue_token": self.execution_queue_token.as_dict(),
+                "queue_token_contract_enabled": bool(self.execution["queue_token_contract_enabled"]),
+                "queue_token_max_override_slots": self.execution["queue_token_max_override_slots"],
                 "pending_command_authority": str(self.execution["pending_command_authority"]),
                 "last_command_authority_mode": str(self.last_command_authority_mode),
                 "last_emergency_brake_requested": bool(self.last_emergency_brake_requested),
@@ -819,6 +844,7 @@ class CaptureRadiusPursuit3DEnv:
             "command_authority_mode": str(self.last_command_authority_mode),
             "emergency_brake_requested": bool(self.last_emergency_brake_requested),
             "queue_override_slots": int(self.last_queue_override_slots),
+            "queue_authority_ack": self.last_queue_authority_ack,
         }
         return self.observe(), reward, terminated, truncated, info
 
@@ -840,22 +866,54 @@ class CaptureRadiusPursuit3DEnv:
         self.last_command_authority_mode = directive.mode
         self.last_emergency_brake_requested = bool(directive.emergency_brake)
         self.last_queue_override_slots = 0
+        self.last_queue_authority_ack = None
         if not bool(self.execution["enabled"]):
             # Preserve the historical ideal velocity-level benchmark exactly
             # unless the experimental execution model is explicitly enabled.
             delayed = desired
             executed = desired.copy()
         else:
-            self.execution_action_queue, _resolved, self.last_queue_override_slots = apply_command_authority(
-                self.execution_action_queue,
-                directive,
-                allowed_mode=str(self.execution["pending_command_authority"]),
-            )
-            if self.execution_action_queue:
-                self.execution_action_queue.append(desired.copy())
-                delayed = self.execution_action_queue.pop(0)
+            if bool(self.execution["queue_token_contract_enabled"]):
+                token_directive: Any = directive
+                configured_override_limit = self.execution["queue_token_max_override_slots"]
+                if configured_override_limit is not None and directive.max_override_slots is None:
+                    token_directive = {
+                        **directive.as_dict(),
+                        "max_override_slots": int(configured_override_limit),
+                    }
+                (
+                    self.execution_action_queue,
+                    self.execution_queue_token,
+                    authority_ack,
+                ) = apply_command_authority_with_token(
+                    self.execution_action_queue,
+                    token_directive,
+                    allowed_mode=str(self.execution["pending_command_authority"]),
+                    current_token=self.execution_queue_token,
+                )
+                self.last_queue_authority_ack = authority_ack.as_dict()
+                self.last_queue_override_slots = int(authority_ack.overridden_slots)
+                (
+                    self.execution_action_queue,
+                    delayed,
+                    self.execution_queue_token,
+                ) = commit_delayed_command_with_token(
+                    self.execution_action_queue,
+                    desired,
+                    self.execution_queue_token,
+                    next_step=self.step_count + 1,
+                )
             else:
-                delayed = desired
+                self.execution_action_queue, _resolved, self.last_queue_override_slots = apply_command_authority(
+                    self.execution_action_queue,
+                    directive,
+                    allowed_mode=str(self.execution["pending_command_authority"]),
+                )
+                if self.execution_action_queue:
+                    self.execution_action_queue.append(desired.copy())
+                    delayed = self.execution_action_queue.pop(0)
+                else:
+                    delayed = desired
             self.last_delayed_actions = delayed.copy()
             parameters = parameters_from_observation(self.observe(), self.dt)
             noise = self.execution_rng.normal(

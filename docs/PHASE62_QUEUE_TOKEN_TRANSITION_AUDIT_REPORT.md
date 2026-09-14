@@ -79,8 +79,9 @@ length `0/1/2/4/8`、三种 authority、最大覆盖槽位 `2`，共 55 个用�
 - [x] 实现 QueueToken、token freshness check、bounded override 和 ACK；
 - [x] 审计 immutable 不变、mutable 上限、stale/missing rejection 和单 pop；
 - [x] 运行 TensorBoard-backed deterministic audit，55/55 通过；
-- [ ] 将 token 合同以 opt-in 方式接入 environment/evaluator，默认路径保持
-  Phase 60/61 的 immutable 行为不变；
+- [x] 将 token 合同以 opt-in 方式接入 environment/evaluator，默认路径保持
+  Phase 60/61 的 immutable 行为不变；完成 8-episode integration smoke，详见
+  `docs/PHASE62_QUEUE_TOKEN_CLOSED_LOOP_SMOKE_REPORT.md`；
 - [ ] 在全新 calibration manifest 上运行三 seed：immutable reference、
   token-matched bounded replacement、故意 stale-token rejection diagnostic；
 - [ ] 逐步记录 prefix-recoverable → suffix-admissible 的转移、ACK 原因、
@@ -89,4 +90,3 @@ length `0/1/2/4/8`、三种 authority、最大覆盖槽位 `2`，共 55 个用�
   和未解释 planner failure gate，才考虑 confirmation；否则冻结为负结果；
 - [ ] local CBF 继续标注为 empirical filter，robust CBF-QP/R-CLBF-QP 继续
   保持 diagnostic No-Go。
-

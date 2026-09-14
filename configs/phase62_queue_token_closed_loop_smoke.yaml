@@ -1,0 +1,36 @@
+experiment_name: phase62_queue_token_closed_loop_smoke
+purpose: opt_in_queue_token_ack_closed_loop_integration_only
+
+protocol:
+  scene_manifest: results/phase60_calibration_selection/scenes.jsonl
+  scene_manifest_role: reused_validation_selection_smoke_only
+  episodes: 8
+  predictor_seeds: [727201]
+  method: M6_qdr_synchronous_mpc
+  candidate_source: checkpoint
+  num_samples: 1
+  sampling_steps: 8
+  sampling_seed: 745102
+  prediction_refresh_interval_steps: 1
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+
+execution_contract:
+  action_delay_steps: inherited_from_scene_contract
+  pending_command_authority: replace_nonexecuting
+  queue_token_contract_enabled: true
+  queue_token_max_override_slots: 1
+  token_fields: [generation, issued_step, pending_length]
+  ack_fields: [accepted, applied, reason, overridden_slots, before_token, after_token]
+
+logging:
+  tensorboard_required: true
+  latency_quantiles_ms: [p50, p95, p99]
+  latency_components: [predictor, planner, qdr, safety, total]
+
+claim_boundary:
+  status: implementation_smoke_only
+  no_promotion: true
+  no_safety_proof: true
+  local_cbf_interpretation: empirical_filter_only
+  robust_cbf_qp_interpretation: diagnostic_no_go

@@ -150,6 +150,25 @@ def parse_args() -> argparse.Namespace:
         choices=("immutable", "replace_nonexecuting", "flush_pending"),
         help="When a public-geometry QDR prefix is unsafe, request the configured emergency-brake authority.",
     )
+    queue_token_group = parser.add_mutually_exclusive_group()
+    queue_token_group.add_argument(
+        "--queue-token-contract",
+        dest="queue_token_contract",
+        action="store_true",
+        help="Enable token-checked queue authority and ACK logging for a validation diagnostic.",
+    )
+    queue_token_group.add_argument(
+        "--no-queue-token-contract",
+        dest="queue_token_contract",
+        action="store_false",
+        help="Disable the opt-in queue-token contract.",
+    )
+    parser.set_defaults(queue_token_contract=None)
+    parser.add_argument(
+        "--queue-token-max-override-slots",
+        type=int,
+        help="Optional non-negative cap on queue slots changed by token-checked recovery.",
+    )
     parser.add_argument(
         "--qdr-execution-tube-multiplier",
         type=float,
@@ -388,7 +407,23 @@ def apply_phase17_execution_mapping(
 ) -> None:
     """Apply defaults without overwriting a frozen scene execution contract."""
 
-    if not phase17_execution_mapping or "execution_overrides" in frozen_scene_record:
+    if not phase17_execution_mapping:
+        return
+    if "execution_overrides" in frozen_scene_record:
+        # Frozen scene contracts own the physical delay/noise factors.  The
+        # opt-in queue-token contract is a bookkeeping/authority layer and
+        # may still be enabled without rewriting those physical factors.
+        token_keys = {
+            "queue_token_contract_enabled",
+            "queue_token_max_override_slots",
+        }
+        token_mapping = {
+            key: copy.deepcopy(value)
+            for key, value in phase17_execution_mapping.items()
+            if key in token_keys
+        }
+        if token_mapping:
+            config.setdefault("dynamics", {}).setdefault("execution", {}).update(token_mapping)
         return
     config.setdefault("dynamics", {}).setdefault("execution", {}).update(
         copy.deepcopy(phase17_execution_mapping)
@@ -677,6 +712,11 @@ def main() -> None:
         )
     if qdr_prefix_recovery_authority is not None and not queue_aware_rollout:
         raise ValueError("qdr prefix recovery authority requires queue-aware-rollout")
+    if args.queue_token_max_override_slots is not None:
+        if int(args.queue_token_max_override_slots) < 0:
+            raise ValueError("queue-token-max-override-slots must be non-negative")
+        if int(args.queue_token_max_override_slots) != args.queue_token_max_override_slots:
+            raise ValueError("queue-token-max-override-slots must be an integer")
     adaptive_k = bool(
         phase17_mapping.get("adaptive_k", False)
         if args.adaptive_k is None
@@ -862,6 +902,8 @@ def main() -> None:
         "queue_aware_rollout": queue_aware_rollout,
         "queue_aware_safety_projection": queue_aware_safety_projection,
         "qdr_prefix_recovery_authority": qdr_prefix_recovery_authority,
+        "queue_token_contract": args.queue_token_contract,
+        "queue_token_max_override_slots": args.queue_token_max_override_slots,
         "adaptive_k": adaptive_k,
         "adaptive_budget": adaptive_budget_mapping,
         "adaptive_risk_calibration": (
@@ -942,6 +984,14 @@ def main() -> None:
                     config.setdefault("dynamics", {}).setdefault("execution", {})[
                         "pending_command_authority"
                     ] = qdr_prefix_recovery_authority
+                if args.queue_token_contract is not None:
+                    config.setdefault("dynamics", {}).setdefault("execution", {})[
+                        "queue_token_contract_enabled"
+                    ] = bool(args.queue_token_contract)
+                if args.queue_token_max_override_slots is not None:
+                    config.setdefault("dynamics", {}).setdefault("execution", {})[
+                        "queue_token_max_override_slots"
+                    ] = int(args.queue_token_max_override_slots)
                 distributed_config = None
                 canonical_method = str(method_contract["canonical_method"])
                 if canonical_method in distributed_modes:
@@ -1070,6 +1120,9 @@ def main() -> None:
                     "qdr_prefix_recovery_requested",
                     "qdr_prefix_recovery_applied",
                     "qdr_prefix_recovery_override_slots",
+                    "qdr_prefix_recovery_token_present_rate",
+                    "qdr_prefix_recovery_ack_accept_rate",
+                    "qdr_prefix_recovery_ack_apply_rate",
                     "qdr_suffix_minimum_clearance_m",
                     "qdr_suffix_minimum_barrier_m",
                     "qdr_suffix_admissible_rate",
@@ -1238,6 +1291,26 @@ def main() -> None:
             )
             writer.add_scalar("Summary/QDR/prefix_recovery_request_rate", overall["qdr_prefix_recovery_request_rate"], 0)
             writer.add_scalar("Summary/QDR/prefix_recovery_apply_rate", overall["qdr_prefix_recovery_apply_rate"], 0)
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_token_present_rate",
+                overall.get("qdr_prefix_recovery_token_present_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_ack_accept_rate",
+                overall.get("qdr_prefix_recovery_ack_accept_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_ack_apply_rate",
+                overall.get("qdr_prefix_recovery_ack_apply_rate", float("nan")),
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/prefix_recovery_ack_reason_counts",
+                json.dumps(overall.get("qdr_prefix_recovery_ack_reason_counts", {}), sort_keys=True),
+                0,
+            )
             writer.add_scalar(
                 "Summary/QDR/endpoint_position_error_mean_m",
                 overall["qdr_endpoint_position_error_mean_m"],

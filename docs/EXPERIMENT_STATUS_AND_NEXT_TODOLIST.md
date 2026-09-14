@@ -49,6 +49,14 @@
 > 全新 calibration manifest 上接入闭环并重新报告五类延迟分位数。详见
 > `docs/PHASE62_QUEUE_TOKEN_TRANSITION_AUDIT_REPORT.md`。
 
+> Phase 62b QueueToken/ACK 闭环接入 smoke 已完成：在复用的 8-episode
+> validation-selection 小块上，valid token 请求 ACK accepted rate 为 `100%`，
+> applied rate 为 `10.5%`，collision/boundary 均为 `0%`，并已统一记录
+> predictor/planner/QDR/safety/total 的 p50/p95/p99。该结果只证明实现已接通，
+> 不是 fresh calibration、捕获率提升、liveness 通过或安全证明。下一步必须在
+> 全新 calibration manifest 上进行三 seed authority 对比。详见
+> `docs/PHASE62_QUEUE_TOKEN_CLOSED_LOOP_SMOKE_REPORT.md`。
+
 > Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
 > `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
 > Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线

@@ -1037,6 +1037,10 @@ def run_episode(
         qdr_prefix_violation_step_count = float("nan")
         qdr_prefix_violation_step_ratio = float("nan")
         qdr_prefix_recovery_requested = 0.0
+        qdr_prefix_recovery_token_present = 0.0
+        qdr_prefix_recovery_ack_accepted = 0.0
+        qdr_prefix_recovery_ack_applied = 0.0
+        qdr_prefix_recovery_ack_reason = "not_applicable"
         qdr_authority_mode = "none"
         qdr_precondition_status = "not_applicable"
         qdr_suffix_minimum_clearance_m = float("nan")
@@ -1488,12 +1492,26 @@ def run_episode(
                 "mode": qdr_prefix_recovery_authority,
                 "emergency_brake": True,
             }
+            if bool(env.execution.get("queue_token_contract_enabled", False)):
+                expected_queue_token = observation.get("execution", {}).get("queue_token")
+                if expected_queue_token is None:
+                    raise RuntimeError("queue-token contract is enabled but observation has no queue token")
+                command_authority["expected_queue_token"] = expected_queue_token
+                configured_override_limit = env.execution.get("queue_token_max_override_slots")
+                if configured_override_limit is not None:
+                    command_authority["max_override_slots"] = int(configured_override_limit)
+                qdr_prefix_recovery_token_present = 1.0
             qdr_prefix_recovery_requested = 1.0
         observation, _reward, terminated, truncated, final_info = env.step(
             safe_actions,
             record_history=record_history,
             command_authority=command_authority,
         )
+        authority_ack = final_info.get("queue_authority_ack")
+        if isinstance(authority_ack, dict):
+            qdr_prefix_recovery_ack_accepted = 1.0 if authority_ack.get("accepted", False) else 0.0
+            qdr_prefix_recovery_ack_applied = 1.0 if authority_ack.get("applied", False) else 0.0
+            qdr_prefix_recovery_ack_reason = str(authority_ack.get("reason", "unknown"))
         if (
             rnic_enabled
             and planned_rnic_observation is not None
@@ -1561,9 +1579,13 @@ def run_episode(
                 "qdr_prefix_violation_step_ratio": float(qdr_prefix_violation_step_ratio),
                 "qdr_prefix_recovery_requested": float(qdr_prefix_recovery_requested),
                 "qdr_prefix_recovery_applied": float(
-                    bool(final_info.get("emergency_brake_requested", False))
+                    float(final_info.get("queue_override_slots", 0)) > 0.0
                 ),
                 "qdr_prefix_recovery_override_slots": float(final_info.get("queue_override_slots", 0)),
+                "qdr_prefix_recovery_token_present": float(qdr_prefix_recovery_token_present),
+                "qdr_prefix_recovery_ack_accepted": float(qdr_prefix_recovery_ack_accepted),
+                "qdr_prefix_recovery_ack_applied": float(qdr_prefix_recovery_ack_applied),
+                "qdr_prefix_recovery_ack_reason": qdr_prefix_recovery_ack_reason,
                 "qdr_authority_mode": qdr_authority_mode,
                 "qdr_precondition_status": qdr_precondition_status,
                 "qdr_suffix_minimum_clearance_m": float(qdr_suffix_minimum_clearance_m),
@@ -1944,6 +1966,18 @@ def run_episode(
         ),
         "qdr_prefix_recovery_apply_rate": _diagnostic_rate(
             step_rows, "qdr_prefix_recovery_applied"
+        ),
+        "qdr_prefix_recovery_token_present_rate": _diagnostic_rate(
+            step_rows, "qdr_prefix_recovery_token_present"
+        ),
+        "qdr_prefix_recovery_ack_accept_rate": _diagnostic_rate(
+            step_rows, "qdr_prefix_recovery_ack_accepted"
+        ),
+        "qdr_prefix_recovery_ack_apply_rate": _diagnostic_rate(
+            step_rows, "qdr_prefix_recovery_ack_applied"
+        ),
+        "qdr_prefix_recovery_ack_reason_counts": _diagnostic_category_counts(
+            step_rows, "qdr_prefix_recovery_ack_reason"
         ),
         "qdr_prefix_recovery_override_slots": _diagnostic_mean(
             step_rows, "qdr_prefix_recovery_override_slots"
@@ -2446,6 +2480,18 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_prefix_recovery_apply_rate": finite_mean(
             [row["qdr_prefix_recovery_apply_rate"] for row in rows]
+        ),
+        "qdr_prefix_recovery_token_present_rate": finite_mean(
+            [row.get("qdr_prefix_recovery_token_present_rate", float("nan")) for row in rows]
+        ),
+        "qdr_prefix_recovery_ack_accept_rate": finite_mean(
+            [row.get("qdr_prefix_recovery_ack_accept_rate", float("nan")) for row in rows]
+        ),
+        "qdr_prefix_recovery_ack_apply_rate": finite_mean(
+            [row.get("qdr_prefix_recovery_ack_apply_rate", float("nan")) for row in rows]
+        ),
+        "qdr_prefix_recovery_ack_reason_counts": _merge_category_counts(
+            [row.get("qdr_prefix_recovery_ack_reason_counts", {}) for row in rows]
         ),
         "qdr_prefix_recovery_override_slots": finite_mean(
             [row["qdr_prefix_recovery_override_slots"] for row in rows]
@@ -3078,6 +3124,9 @@ def main() -> None:
                     "qdr_prefix_recovery_requested",
                     "qdr_prefix_recovery_applied",
                     "qdr_prefix_recovery_override_slots",
+                    "qdr_prefix_recovery_token_present_rate",
+                    "qdr_prefix_recovery_ack_accept_rate",
+                    "qdr_prefix_recovery_ack_apply_rate",
                     "qdr_suffix_minimum_clearance_m",
                     "qdr_suffix_minimum_barrier_m",
                     "qdr_suffix_admissible_rate",
@@ -3216,6 +3265,26 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/prefix_recovery_apply_rate",
                 summary["qdr_prefix_recovery_apply_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_token_present_rate",
+                summary["qdr_prefix_recovery_token_present_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_ack_accept_rate",
+                summary["qdr_prefix_recovery_ack_accept_rate"],
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/prefix_recovery_ack_apply_rate",
+                summary["qdr_prefix_recovery_ack_apply_rate"],
+                0,
+            )
+            writer.add_text(
+                "Summary/QDR/prefix_recovery_ack_reason_counts",
+                json.dumps(summary.get("qdr_prefix_recovery_ack_reason_counts", {}), sort_keys=True),
                 0,
             )
             writer.add_scalar(
