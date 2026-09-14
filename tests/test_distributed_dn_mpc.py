@@ -273,6 +273,47 @@ def test_qdr_exhaustion_soft_progress_policy_is_explicit_and_auditable() -> None
     assert np.isfinite(soft_plan.action_sequence).all()
 
 
+def test_qdr_bounded_progress_recovery_expires_after_configured_budget() -> None:
+    observation = _observation()
+    observation["execution"] = {
+        "enabled": True,
+        "action_delay_steps": 0,
+        "max_speed_mps": 5.0,
+        "max_acceleration_mps2": 6.0,
+        "command_noise_std_mps": 0.0,
+        "velocity_time_constant_seconds": 0.0,
+        "drag_coefficient": 0.0,
+    }
+    observation["qdr"] = {"execution_aware_action_rollout": True}
+    observation["obstacles"] = [
+        {
+            "center_xy": np.array([-2.0, 0.0]),
+            "radius": 20.0,
+            "height": 20.0,
+            "shape": "cylinder",
+        }
+    ]
+    planner = _planner(
+        "ideal",
+        qdr_exhaustion_policy="bounded_progress_recovery",
+        qdr_exhaustion_recovery_budget_steps=2,
+        qdr_exhaustion_recovery_horizon_steps=2,
+    )
+
+    first = planner.plan(observation, _scenarios(), step_index=0)
+    second = planner.plan(observation, _scenarios(), step_index=1)
+    third = planner.plan(observation, _scenarios(), step_index=2)
+
+    assert first.diagnostics.qdr_exhaustion_recovery_active is True
+    assert first.diagnostics.qdr_exhaustion_recovery_steps == 1
+    assert first.diagnostics.qdr_exhaustion_recovery_count > 0
+    assert second.diagnostics.qdr_exhaustion_recovery_active is True
+    assert second.diagnostics.qdr_exhaustion_recovery_steps == 2
+    assert third.diagnostics.qdr_exhaustion_recovery_active is False
+    assert third.diagnostics.qdr_exhaustion_recovery_steps == 3
+    assert third.diagnostics.qdr_exhaustion_recovery_count == 0
+
+
 def test_no_communication_does_not_create_peer_messages() -> None:
     planner = _planner("none")
     first = planner.plan(_observation(), _scenarios(), step_index=0)

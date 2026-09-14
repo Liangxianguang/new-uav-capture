@@ -67,6 +67,11 @@ EPISODE_AGGREGATE_FIELDS = (
     "qdr_segment_finite_progress_rate",
     "qdr_segment_horizon_steps",
     "qdr_segment_candidate_count",
+    "qdr_exhaustion_recovery_active_rate",
+    "qdr_exhaustion_recovery_count",
+    "qdr_exhaustion_recovery_budget_steps",
+    "qdr_exhaustion_recovery_horizon_steps",
+    "qdr_exhaustion_recovery_steps",
 )
 STEP_AGGREGATE_FIELDS = (
     "episode_index",

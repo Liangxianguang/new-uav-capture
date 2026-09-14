@@ -1,5 +1,20 @@
 # 当前实验状态与后续 TodoList
 
+> 实验停止说明（2026-09-14）：Phase 67 bounded public-prefix recovery 已完成
+> development calibration，结果没有在 execution-tail、communication-tail 或
+> joint-tail-transfer 上形成统计稳定的综合收益。因此按“停止继续堆叠同类恢复规则”的
+> 决策冻结当前实验线：不再为提升数字继续扫描阈值、不再访问 locked-test，也不把当前
+> local CBF/QDR 结果表述为形式化安全证明。后续若继续研究，应另立新问题与预注册协议。
+
+> Phase 67 已在全新 `360 episodes / 180 mirror groups` manifest 上生成四个 block，
+> development calibration 使用 `120 episodes / 60 mirror groups`、三个 Diagonal-SSM
+> seeds，真实 candidate budget 为 `K=8`。M9 bounded recovery 相对 M6 hard-QDR：
+> execution-tail safe capture `+7.78 pp [-3.33,+18.89]`（CI 跨零），
+> communication-tail `-3.33 pp [-8.89,0.00]`，joint-tail-transfer
+> `-1.11 pp [-16.67,+14.44]`，timeout 还增加 `+2.22 pp`。因此本阶段为
+> **diagnostic No-Go，当前实验线停止**。完整 outcome 与 predictor/planner/QDR-or-tube/
+> safety/total 的 p50、p95、p99 见 `docs/PHASE67_BOUNDED_PROGRESS_RECOVERY_REPORT.md`。
+
 > Phase 66 baseline stress calibration 已完成：在 Phase 65 fresh manifest 的
 > `development_calibration` 子集（120 episodes / 60 mirror groups、4 个 scene block）上，
 > 使用三个 Diagonal-SSM seeds 对 M0 current-state delayed、M1 known-delay delayed、

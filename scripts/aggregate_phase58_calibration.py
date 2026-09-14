@@ -48,6 +48,7 @@ METHODS = (
     "M6_qdr_synchronous_mpc",
     "M7_qdr_asynchronous_mpc",
     "M8_fixed_k8_qdr",
+    "M9_qdr_bounded_recovery",
 )
 
 
@@ -235,6 +236,7 @@ def main() -> None:
         "M5_vs_M4": ("M5_asynchronous_distributed_mpc", "M4_synchronous_distributed_mpc"),
         "M3_vs_M2": ("M3_queue_aware_tube_mpc", "M2_fixed_tube_mpc"),
         "M8_vs_M6": ("M8_fixed_k8_qdr", "M6_qdr_synchronous_mpc"),
+        "M9_vs_M6": ("M9_qdr_bounded_recovery", "M6_qdr_synchronous_mpc"),
     }
     for block, episode_ids in blocks.items():
         block_methods = {

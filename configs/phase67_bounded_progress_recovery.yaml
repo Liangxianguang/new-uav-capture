@@ -1,0 +1,123 @@
+experiment_name: phase67_bounded_progress_recovery
+stage: fresh_development_calibration_only
+purpose: bounded_public_prefix_recovery_for_qdr_exhaustion
+
+environment_config: capture_radius_pursuit_central_v4_flee.yaml
+
+planner:
+  implementation: finite_shooting_scenario_mpc
+  dt_seconds: 0.1
+  horizon_steps: 8
+  control_horizon_steps: 3
+  max_speed_mps: 5.0
+  capture_radius_m: 0.80
+  drone_radius_m: 0.25
+  safety_margin_m: 0.35
+  minimum_inter_agent_distance_m: 1.00
+  risk_mode: worst_case
+  cvar_alpha: 0.75
+  role_perimeter_m: 1.40
+  slot_gain: 2.5
+  target_velocity_gain: 1.0
+  weight_distance: 1.0
+  weight_terminal_distance: 3.0
+  weight_capture_hinge: 1.5
+  weight_formation: 0.25
+  weight_control: 0.015
+  weight_control_change: 0.02
+  weight_obstacle: 25.0
+  weight_boundary: 25.0
+  weight_inter_agent: 25.0
+  weight_relative_speed: 0.02
+  max_role_variants: 4
+  perimeter_scales: [0.75, 1.0]
+
+distributed:
+  communication_mode: delayed
+  max_iterations: 3
+  convergence_tolerance_mps: 0.15
+  communication_interval_steps: 1
+  message_delay_steps: 0
+  message_dropout_probability: 0.0
+  max_message_age_steps: 8
+  local_timeout_ms: 50.0
+  max_local_candidate_paths: 4
+  local_obstacle_range_m: 8.0
+  bytes_per_float: 8
+  fallback_policy: fallback_actions_then_previous_sequence
+  qdr_feasibility_first: false
+  qdr_exhaustion_policy: hard_min_violation
+  qdr_exhaustion_recovery_budget_steps: 6
+  qdr_exhaustion_recovery_horizon_steps: 3
+  qdr_execution_tube_enabled: false
+
+qdr_segment_audit:
+  enabled: true
+  progress_tolerance_m: 1.0e-9
+  target_truth_input: forbidden
+  claim: bounded_public_prefix_liveness_diagnostic_only
+
+methods:
+  - id: M6_qdr_synchronous_mpc
+    role: immutable_qdr_hard_reference
+    candidate_budget: 8
+    qdr_exhaustion_policy: hard_min_violation
+  - id: M9_qdr_bounded_recovery
+    role: bounded_public_prefix_recovery
+    candidate_budget: 8
+    qdr_exhaustion_policy: bounded_progress_recovery
+    recovery_budget_steps: 6
+    recovery_horizon_steps: 3
+
+dataset:
+  source_manifest: results/phase67_bounded_recovery_matrix/manifest.json
+  evaluation_manifest: results/phase67_bounded_recovery_matrix/development_calibration/scenes.jsonl
+  canonical_episodes: 360
+  calibration_episodes: 120
+  calibration_mirror_groups: 60
+  blocks: [id_reference, execution_tail, communication_tail, joint_tail_transfer]
+  split_policy: mirror_group_disjoint
+
+evaluation:
+  split: development_calibration
+  episodes: 120
+  predictor_condition: both
+  candidate_budget_requested: 8
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+  prediction_refresh_interval_steps: 1
+  use_local_cbf: true
+  decision: validation_selection
+
+fairness:
+  same_checkpoint_seeds: [727201, 727202, 727203]
+  same_scene_manifest: true
+  same_torch_threads: [1, 1]
+  same_candidate_budget: true
+  queue_authority: immutable
+  recovery_policy_is_the_only_intervention: true
+
+reporting:
+  tensorboard_required: true
+  jsonl_required: true
+  preserve_config_snapshot: true
+  latency_components: [predictor, planner, qdr_or_tube, safety, total_control]
+  latency_percentiles: [50, 95, 99]
+  recovery_metrics_required:
+    - qdr_exhaustion_recovery_active_rate
+    - qdr_exhaustion_recovery_count
+    - qdr_exhaustion_recovery_budget_steps
+    - qdr_exhaustion_recovery_horizon_steps
+    - qdr_suffix_gate_max_exhaustion_streak_steps
+  local_cbf_claim: empirical_filter_only
+  robust_cbf_qp: diagnostic_no_go
+  qdr_claim: no_safety_proof
+
+gates:
+  no_locked_test_tuning: true
+  safe_capture_noninferiority_lower_bound: -0.02
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  recovery_budget_steps: 6
+  recovery_horizon_steps: 3

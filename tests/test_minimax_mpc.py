@@ -47,6 +47,11 @@ def test_qdr_gate_exhaustion_annotation_tracks_streaks_and_recovery() -> None:
         "qdr_suffix_gate_max_exhaustion_streak_steps": 2.0,
         "qdr_suffix_gate_recovery_count": 1.0,
         "qdr_exhaustion_soft_fallback_count": 0.0,
+        "qdr_exhaustion_recovery_active_rate": 0.0,
+        "qdr_exhaustion_recovery_count": 1.0,
+        "qdr_exhaustion_recovery_budget_steps": 0.0,
+        "qdr_exhaustion_recovery_horizon_steps": 0.0,
+        "qdr_exhaustion_recovery_steps": 0.0,
         "qdr_exhaustion_policy": "mixed",
     }
     assert [row["qdr_suffix_gate_exhaustion_streak_steps"] for row in rows] == [0.0, 1.0, 2.0, 0.0, 1.0]

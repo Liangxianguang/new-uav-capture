@@ -27,6 +27,7 @@ confirmation before it can support the main QDR/UAKR/RNIC claim.
 
 | Phase | Evidence | Status | Authoritative report |
 | --- | --- | --- | --- |
+| Phase 67 | Bounded public-prefix recovery for QDR exhaustion | On a fresh 360-episode/180-mirror-group matrix, three Diagonal-SSM seeds compare M6 hard-QDR with M9 bounded recovery at real K=8. M9 gives an execution-tail safe-capture delta of `+7.78 pp [-3.33,+18.89]`, but communication-tail delta `-3.33 pp [-8.89,0.00]`, joint-tail-transfer delta `-1.11 pp [-16.67,+14.44]`, and joint timeout delta `+2.22 pp [-16.67,+21.11]`; no interval establishes a stable gain. Full predictor/planner/QDR-or-tube/safety/total p50/p95/p99 and recovery diagnostics are recorded. Freeze as diagnostic No-Go; stop stacking same-family recovery rules. local CBF is empirical only; no robust CBF-QP/R-CLBF-QP safety proof is claimed. | `PHASE67_BOUNDED_PROGRESS_RECOVERY_REPORT.md`, `configs/phase67_bounded_progress_recovery.yaml`, `scripts/render_phase67_bounded_recovery_report.py` |
 | Phase 2 | Portable SSM + conditional diffusion prediction | Conditional Go | `PHASE2_FORMAL_ANALYSIS_REPORT.md`, `PHASE2_ADAPTIVE_GENERALIZATION_AUDIT_REPORT.md` |
 | Phase 3 | Centralized scenario MPC | Pass for the frozen validation gate | `PHASE3_S3_VALIDATION_REPORT.md` |
 | Phase 4 | Distributed DN-MPC and unseen adaptive-target locked test | Pass for modular planning | `PHASE4_DN_MPC_VALIDATION_REPORT.md`, `PHASE4_UNSEEN_ADAPTIVE_VALIDATION_REPORT.md` |

@@ -44,8 +44,16 @@ from .execution_dynamics import (
 
 CommunicationMode = Literal["none", "ideal", "delayed", "dropout", "asynchronous"]
 _COMMUNICATION_MODES = {"none", "ideal", "delayed", "dropout", "asynchronous"}
-QDRExhaustionPolicy = Literal["hard_min_violation", "normalized_soft_progress"]
-_QDR_EXHAUSTION_POLICIES = {"hard_min_violation", "normalized_soft_progress"}
+QDRExhaustionPolicy = Literal[
+    "hard_min_violation",
+    "normalized_soft_progress",
+    "bounded_progress_recovery",
+]
+_QDR_EXHAUSTION_POLICIES = {
+    "hard_min_violation",
+    "normalized_soft_progress",
+    "bounded_progress_recovery",
+}
 
 
 def _qdr_execution_aware(observation: dict[str, Any]) -> bool:
@@ -226,6 +234,12 @@ class DistributedDNMPCConfig:
     # It never changes a non-exhausted feasible selection and does not alter
     # the immutable execution queue or provide a safety certificate.
     qdr_exhaustion_policy: QDRExhaustionPolicy = "hard_min_violation"
+    # Bounded recovery temporarily ranks exhausted candidates using a short,
+    # public prefix feasibility check.  After this many consecutive exhausted
+    # planning steps it returns to hard violation minimization.  This is an
+    # empirical liveness intervention, never a safety certificate.
+    qdr_exhaustion_recovery_budget_steps: int = 0
+    qdr_exhaustion_recovery_horizon_steps: int = 3
     # Optional empirical execution-error tube for the controllable suffix.
     # This is a calibrated diagnostic margin, not a formal safety certificate.
     qdr_execution_tube_enabled: bool = False
@@ -264,6 +278,17 @@ class DistributedDNMPCConfig:
             raise ValueError(
                 "qdr_exhaustion_policy must be one of "
                 f"{sorted(_QDR_EXHAUSTION_POLICIES)}"
+            )
+        if int(self.qdr_exhaustion_recovery_budget_steps) < 0:
+            raise ValueError("qdr_exhaustion_recovery_budget_steps must be non-negative.")
+        if int(self.qdr_exhaustion_recovery_horizon_steps) <= 0:
+            raise ValueError("qdr_exhaustion_recovery_horizon_steps must be positive.")
+        if (
+            self.qdr_exhaustion_policy == "bounded_progress_recovery"
+            and int(self.qdr_exhaustion_recovery_budget_steps) <= 0
+        ):
+            raise ValueError(
+                "bounded_progress_recovery requires a positive qdr_exhaustion_recovery_budget_steps."
             )
         if (
             not np.isfinite(float(self.qdr_execution_tube_multiplier))
@@ -314,6 +339,11 @@ class DistributedDNMPCDiagnostics:
     qdr_suffix_gate_rejected_candidates: int = 0
     qdr_exhaustion_policy: str = "hard_min_violation"
     qdr_exhaustion_soft_fallback_count: int = 0
+    qdr_exhaustion_recovery_active: bool = False
+    qdr_exhaustion_recovery_steps: int = 0
+    qdr_exhaustion_recovery_budget_steps: int = 0
+    qdr_exhaustion_recovery_horizon_steps: int = 0
+    qdr_exhaustion_recovery_count: int = 0
     qdr_execution_tube_enabled: bool = False
     qdr_execution_tube_multiplier: float = 1.0
     qdr_execution_tube_active_steps: int = 0
@@ -371,6 +401,11 @@ class DistributedDNMPCDiagnostics:
             "qdr_suffix_gate_rejected_candidates": self.qdr_suffix_gate_rejected_candidates,
             "qdr_exhaustion_policy": self.qdr_exhaustion_policy,
             "qdr_exhaustion_soft_fallback_count": self.qdr_exhaustion_soft_fallback_count,
+            "qdr_exhaustion_recovery_active": self.qdr_exhaustion_recovery_active,
+            "qdr_exhaustion_recovery_steps": self.qdr_exhaustion_recovery_steps,
+            "qdr_exhaustion_recovery_budget_steps": self.qdr_exhaustion_recovery_budget_steps,
+            "qdr_exhaustion_recovery_horizon_steps": self.qdr_exhaustion_recovery_horizon_steps,
+            "qdr_exhaustion_recovery_count": self.qdr_exhaustion_recovery_count,
             "qdr_execution_tube_enabled": self.qdr_execution_tube_enabled,
             "qdr_execution_tube_multiplier": self.qdr_execution_tube_multiplier,
             "qdr_execution_tube_active_steps": self.qdr_execution_tube_active_steps,
@@ -483,6 +518,8 @@ class DistributedMinimaxDNMPC:
         self._fc_dbf_last_gate_exhausted = False
         self._qdr_rollout_cache: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray]] = {}
         self._qdr_execution_tube_radii: np.ndarray | None = None
+        self._qdr_exhaustion_streak = 0
+        self._qdr_recovery_current_plan_exhausted = False
 
     def plan(
         self,
@@ -525,7 +562,10 @@ class DistributedMinimaxDNMPC:
             "qdr_suffix_gate_exhausted": 0,
             "qdr_suffix_gate_rejected_candidates": 0,
             "qdr_exhaustion_soft_fallback_count": 0,
+            "qdr_exhaustion_recovery_active": False,
+            "qdr_exhaustion_recovery_count": 0,
         }
+        self._qdr_recovery_current_plan_exhausted = False
         self._fc_dbf_last_metrics = None
         self._fc_dbf_last_gate_exhausted = False
         if scenarios.dynamics_status != "projected":
@@ -608,6 +648,10 @@ class DistributedMinimaxDNMPC:
 
             if not np.isfinite(sequences).all():
                 raise FloatingPointError("distributed action sequence contains non-finite values")
+            if self._qdr_recovery_current_plan_exhausted:
+                self._qdr_exhaustion_streak += 1
+            else:
+                self._qdr_exhaustion_streak = 0
             scenario_costs = self._team_scenario_costs(observation, candidates, sequences, int(step_index))
             expected = aggregate_scenario_costs(
                 scenario_costs,
@@ -680,6 +724,22 @@ class DistributedMinimaxDNMPC:
                 qdr_exhaustion_policy=self.distributed.qdr_exhaustion_policy,
                 qdr_exhaustion_soft_fallback_count=int(
                     self._stats["qdr_exhaustion_soft_fallback_count"]
+                ),
+                qdr_exhaustion_recovery_active=bool(
+                    self._stats["qdr_exhaustion_recovery_active"]
+                ),
+                qdr_exhaustion_recovery_steps=int(self._qdr_exhaustion_streak),
+                qdr_exhaustion_recovery_budget_steps=int(
+                    self.distributed.qdr_exhaustion_recovery_budget_steps
+                ),
+                qdr_exhaustion_recovery_horizon_steps=int(
+                    min(
+                        self.distributed.qdr_exhaustion_recovery_horizon_steps,
+                        self.config.horizon_steps,
+                    )
+                ),
+                qdr_exhaustion_recovery_count=int(
+                    self._stats["qdr_exhaustion_recovery_count"]
                 ),
                 **qdr_execution_tube_summary,
                 **escape_gap_summary,
@@ -966,6 +1026,7 @@ class DistributedMinimaxDNMPC:
         upper: np.ndarray,
         known: dict[int, _PlannerMessage],
         peer_sequences: dict[int, np.ndarray],
+        horizon_steps: int | None = None,
     ) -> np.ndarray:
         """Return the cheap public-geometry QDR violation for each candidate.
 
@@ -976,6 +1037,13 @@ class DistributedMinimaxDNMPC:
         equivalent to the current suffix-gate feasibility test.
         """
 
+        current = np.asarray(current, dtype=np.float64)
+        if current.ndim != 3 or current.shape[-1] != 3:
+            raise ValueError("current must have shape [candidates, horizon, 3].")
+        horizon = current.shape[1] if horizon_steps is None else int(horizon_steps)
+        if horizon <= 0 or horizon > current.shape[1]:
+            raise ValueError("horizon_steps must lie in [1, current.shape[1]].")
+        current = current[:, :horizon, :]
         tube_radii = (
             np.asarray(self._qdr_execution_tube_radii, dtype=np.float64)
             if self._qdr_execution_tube_radii is not None
@@ -989,6 +1057,7 @@ class DistributedMinimaxDNMPC:
         )
         if tube_radii.shape[0] != self.config.horizon_steps:
             raise ValueError("QDR execution tube must have one row per horizon step.")
+        tube_radii = tube_radii[:horizon]
         own_tube = tube_radii[:, int(agent_id)][None, :]
         qdr_candidate_violation = np.zeros(current.shape[0], dtype=np.float64)
         for peer, message in known.items():
@@ -1002,6 +1071,7 @@ class DistributedMinimaxDNMPC:
                 self.config.max_speed_mps,
                 cache=self._qdr_rollout_cache,
             )
+            peer_positions = peer_positions[:horizon]
             inter_agent = np.maximum(
                 self.config.minimum_inter_agent_distance_m
                 + own_tube
@@ -1508,7 +1578,69 @@ class DistributedMinimaxDNMPC:
             else:
                 if record_qdr_stats:
                     self._stats["qdr_suffix_gate_exhausted"] += 1
-                if self.distributed.qdr_exhaustion_policy == "normalized_soft_progress":
+                self._qdr_recovery_current_plan_exhausted = True
+                if (
+                    self.distributed.qdr_exhaustion_policy == "bounded_progress_recovery"
+                    and self._qdr_exhaustion_streak
+                    < int(self.distributed.qdr_exhaustion_recovery_budget_steps)
+                ):
+                    # A full-horizon gate can be exhausted even when the
+                    # first few queued-controllable steps admit a recoverable
+                    # candidate.  Use that short public prefix only for a
+                    # bounded number of consecutive exhausted planning steps.
+                    # The downstream local CBF remains the empirical safety
+                    # filter; this branch is intentionally not a certificate.
+                    recovery_horizon = min(
+                        int(self.distributed.qdr_exhaustion_recovery_horizon_steps),
+                        int(self.config.horizon_steps),
+                    )
+                    short_violation = self._qdr_candidate_violation(
+                        observation,
+                        current,
+                        agent_id,
+                        obstacles,
+                        lower,
+                        upper,
+                        known,
+                        peer_sequences,
+                        horizon_steps=recovery_horizon,
+                    )
+
+                    def _normalize(values: np.ndarray) -> np.ndarray:
+                        minimum = float(np.min(values))
+                        span = float(np.max(values) - minimum)
+                        if span <= 1.0e-12:
+                            return np.zeros_like(values)
+                        return (values - minimum) / span
+
+                    base_objectives = _aggregate_local_objectives(
+                        result,
+                        weights,
+                        self.config,
+                    )
+                    normalized_base = _normalize(base_objectives)
+                    normalized_short = _normalize(short_violation)
+                    normalized_full = _normalize(qdr_candidate_violation)
+                    if np.any(short_violation <= 1.0e-9):
+                        # Immediate-prefix feasibility is primary; retaining
+                        # a bounded share of task cost and full-horizon
+                        # violation avoids repeatedly selecting a stationary
+                        # candidate when several prefixes are admissible.
+                        fallback_objective = (
+                            normalized_short
+                            + 0.25 * normalized_full
+                            + 0.25 * normalized_base
+                        )
+                    else:
+                        fallback_objective = normalized_full + normalized_base
+                    result = np.broadcast_to(
+                        fallback_objective[:, None],
+                        result.shape,
+                    ).copy()
+                    if record_qdr_stats:
+                        self._stats["qdr_exhaustion_recovery_active"] = True
+                        self._stats["qdr_exhaustion_recovery_count"] += 1
+                elif self.distributed.qdr_exhaustion_policy == "normalized_soft_progress":
                     # All candidates are geometrically inadmissible over the
                     # checked suffix.  At this point a pure violation
                     # minimizer can repeatedly select a low-motion action and
@@ -1882,6 +2014,11 @@ class DistributedMinimaxDNMPC:
         qdr_suffix_gate_rejected_candidates: int = 0,
         qdr_exhaustion_policy: str = "hard_min_violation",
         qdr_exhaustion_soft_fallback_count: int = 0,
+        qdr_exhaustion_recovery_active: bool = False,
+        qdr_exhaustion_recovery_steps: int = 0,
+        qdr_exhaustion_recovery_budget_steps: int = 0,
+        qdr_exhaustion_recovery_horizon_steps: int = 0,
+        qdr_exhaustion_recovery_count: int = 0,
         qdr_execution_tube_enabled: bool = False,
         qdr_execution_tube_multiplier: float = 1.0,
         qdr_execution_tube_active_steps: int = 0,
@@ -1939,6 +2076,11 @@ class DistributedMinimaxDNMPC:
             qdr_suffix_gate_rejected_candidates=int(qdr_suffix_gate_rejected_candidates),
             qdr_exhaustion_policy=str(qdr_exhaustion_policy),
             qdr_exhaustion_soft_fallback_count=int(qdr_exhaustion_soft_fallback_count),
+            qdr_exhaustion_recovery_active=bool(qdr_exhaustion_recovery_active),
+            qdr_exhaustion_recovery_steps=int(qdr_exhaustion_recovery_steps),
+            qdr_exhaustion_recovery_budget_steps=int(qdr_exhaustion_recovery_budget_steps),
+            qdr_exhaustion_recovery_horizon_steps=int(qdr_exhaustion_recovery_horizon_steps),
+            qdr_exhaustion_recovery_count=int(qdr_exhaustion_recovery_count),
             qdr_execution_tube_enabled=bool(qdr_execution_tube_enabled),
             qdr_execution_tube_multiplier=float(qdr_execution_tube_multiplier),
             qdr_execution_tube_active_steps=int(qdr_execution_tube_active_steps),

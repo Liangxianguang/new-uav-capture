@@ -815,12 +815,31 @@ def _annotate_qdr_gate_exhaustion(step_rows: list[dict[str, Any]]) -> dict[str, 
     recovery_count = 0
     exhausted_once = False
     soft_fallback_count = 0.0
+    recovery_active_steps = 0
+    recovery_count = 0.0
+    recovery_budget_steps = 0.0
+    recovery_horizon_steps = 0.0
+    recovery_max_steps = 0.0
     exhaustion_policies: set[str] = set()
     for row in step_rows:
         policy = row.get("qdr_exhaustion_policy")
         if policy is not None:
             exhaustion_policies.add(str(policy))
         soft_fallback_count += float(row.get("qdr_exhaustion_soft_fallback_count", 0.0) or 0.0)
+        recovery_active_steps += int(bool(row.get("qdr_exhaustion_recovery_active", False)))
+        recovery_count += float(row.get("qdr_exhaustion_recovery_count", 0.0) or 0.0)
+        recovery_budget_steps = max(
+            recovery_budget_steps,
+            float(row.get("qdr_exhaustion_recovery_budget_steps", 0.0) or 0.0),
+        )
+        recovery_horizon_steps = max(
+            recovery_horizon_steps,
+            float(row.get("qdr_exhaustion_recovery_horizon_steps", 0.0) or 0.0),
+        )
+        recovery_max_steps = max(
+            recovery_max_steps,
+            float(row.get("qdr_exhaustion_recovery_steps", 0.0) or 0.0),
+        )
         exhausted = bool(row.get("qdr_suffix_gate_exhausted", False))
         recovered = False
         if exhausted:
@@ -850,6 +869,13 @@ def _annotate_qdr_gate_exhaustion(step_rows: list[dict[str, Any]]) -> dict[str, 
         "qdr_suffix_gate_max_exhaustion_streak_steps": float(maximum_streak),
         "qdr_suffix_gate_recovery_count": float(recovery_count),
         "qdr_exhaustion_soft_fallback_count": float(soft_fallback_count),
+        "qdr_exhaustion_recovery_active_rate": float(
+            recovery_active_steps / max(len(step_rows), 1)
+        ),
+        "qdr_exhaustion_recovery_count": float(recovery_count),
+        "qdr_exhaustion_recovery_budget_steps": float(recovery_budget_steps),
+        "qdr_exhaustion_recovery_horizon_steps": float(recovery_horizon_steps),
+        "qdr_exhaustion_recovery_steps": float(recovery_max_steps),
         "qdr_exhaustion_policy": (
             next(iter(exhaustion_policies)) if len(exhaustion_policies) == 1 else "mixed"
         ),
@@ -1778,6 +1804,21 @@ def run_episode(
                 "qdr_exhaustion_soft_fallback_count": float(
                     getattr(planner_diagnostics, "qdr_exhaustion_soft_fallback_count", 0)
                 ),
+                "qdr_exhaustion_recovery_active": bool(
+                    getattr(planner_diagnostics, "qdr_exhaustion_recovery_active", False)
+                ),
+                "qdr_exhaustion_recovery_steps": float(
+                    getattr(planner_diagnostics, "qdr_exhaustion_recovery_steps", 0)
+                ),
+                "qdr_exhaustion_recovery_budget_steps": float(
+                    getattr(planner_diagnostics, "qdr_exhaustion_recovery_budget_steps", 0)
+                ),
+                "qdr_exhaustion_recovery_horizon_steps": float(
+                    getattr(planner_diagnostics, "qdr_exhaustion_recovery_horizon_steps", 0)
+                ),
+                "qdr_exhaustion_recovery_count": float(
+                    getattr(planner_diagnostics, "qdr_exhaustion_recovery_count", 0)
+                ),
                 "qdr_execution_tube_enabled": bool(
                     getattr(planner_diagnostics, "qdr_execution_tube_enabled", False)
                 ),
@@ -2546,6 +2587,21 @@ def summarize_rows(rows: list[dict[str, Any]], step_rows: list[dict[str, Any]]) 
         ),
         "qdr_exhaustion_soft_fallback_count": finite_mean(
             [row.get("qdr_exhaustion_soft_fallback_count", float("nan")) for row in rows]
+        ),
+        "qdr_exhaustion_recovery_active_rate": finite_mean(
+            [row.get("qdr_exhaustion_recovery_active_rate", float("nan")) for row in rows]
+        ),
+        "qdr_exhaustion_recovery_count": finite_mean(
+            [row.get("qdr_exhaustion_recovery_count", float("nan")) for row in rows]
+        ),
+        "qdr_exhaustion_recovery_budget_steps": finite_max(
+            [row.get("qdr_exhaustion_recovery_budget_steps", float("nan")) for row in rows]
+        ),
+        "qdr_exhaustion_recovery_horizon_steps": finite_max(
+            [row.get("qdr_exhaustion_recovery_horizon_steps", float("nan")) for row in rows]
+        ),
+        "qdr_exhaustion_recovery_steps": finite_max(
+            [row.get("qdr_exhaustion_recovery_steps", float("nan")) for row in rows]
         ),
         "qdr_exhaustion_policy": next(
             (

@@ -22,6 +22,7 @@ METHOD_LABELS = {
     "M5_asynchronous_distributed_mpc": "M5 asynchronous distributed",
     "M6_qdr_synchronous_mpc": "M6 synchronous QDR",
     "M7_qdr_asynchronous_mpc": "M7 asynchronous QDR",
+    "M9_qdr_bounded_recovery": "M9 bounded recovery",
 }
 OUTCOME_COLUMNS = (
     ("safe_capture_success", "Safe capture", True),

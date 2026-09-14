@@ -81,6 +81,7 @@ METHODS = (
     "M6_qdr_normalized_soft_progress",
     "M7_qdr_asynchronous_mpc",
     "M8_fixed_k8_qdr",
+    "M9_qdr_bounded_recovery",
     # Phase 59 repair-calibration variants.  They all retain immutable queue
     # authority; the suffix indicates only the pre-registered intervention.
     "R0_phase59_qdr_baseline",
@@ -153,10 +154,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--qdr-exhaustion-policy",
-        choices=("hard_min_violation", "normalized_soft_progress"),
+        choices=("hard_min_violation", "normalized_soft_progress", "bounded_progress_recovery"),
         help=(
             "QDR candidate selection when every candidate fails the suffix gate; "
-            "the soft policy is a development liveness diagnostic only."
+            "soft and bounded policies are development liveness diagnostics only."
         ),
     )
     queue_token_group = parser.add_mutually_exclusive_group()
@@ -532,6 +533,7 @@ def phase56_method_contract(
         "M6_qdr_normalized_soft_progress": "qdr_synchronous_mpc",
         "M7_qdr_asynchronous_mpc": "qdr_asynchronous_mpc",
         "M8_fixed_k8_qdr": "fixed_k8_qdr",
+        "M9_qdr_bounded_recovery": "qdr_synchronous_mpc",
     }
     requested_method = method
     method = alias.get(method, method)
@@ -624,6 +626,8 @@ def phase56_method_contract(
         )
     elif requested_method == "M6_qdr_normalized_soft_progress":
         contract["qdr_exhaustion_policy"] = "normalized_soft_progress"
+    elif requested_method == "M9_qdr_bounded_recovery":
+        contract["qdr_exhaustion_policy"] = "bounded_progress_recovery"
     if contract["queue_aware_safety_projection"] and not contract["queue_aware_rollout"]:
         contract["queue_aware_safety_projection"] = False
     # Keep the requested budget synchronized with alias-specific overrides.
@@ -1207,6 +1211,11 @@ def main() -> None:
                     "qdr_suffix_gate_max_exhaustion_streak_steps",
                     "qdr_suffix_gate_recovery_count",
                     "qdr_exhaustion_soft_fallback_count",
+                    "qdr_exhaustion_recovery_active_rate",
+                    "qdr_exhaustion_recovery_count",
+                    "qdr_exhaustion_recovery_budget_steps",
+                    "qdr_exhaustion_recovery_horizon_steps",
+                    "qdr_exhaustion_recovery_steps",
                     "qdr_execution_tube_enabled",
                     "qdr_execution_tube_multiplier",
                     "qdr_execution_tube_active_steps",
@@ -1354,6 +1363,31 @@ def main() -> None:
             writer.add_scalar(
                 "Summary/QDR/exhaustion_soft_fallback_count",
                 overall.get("qdr_exhaustion_soft_fallback_count", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_recovery_active_rate",
+                overall.get("qdr_exhaustion_recovery_active_rate", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_recovery_count",
+                overall.get("qdr_exhaustion_recovery_count", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_recovery_budget_steps",
+                overall.get("qdr_exhaustion_recovery_budget_steps", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_recovery_horizon_steps",
+                overall.get("qdr_exhaustion_recovery_horizon_steps", float("nan")),
+                0,
+            )
+            writer.add_scalar(
+                "Summary/QDR/exhaustion_recovery_steps",
+                overall.get("qdr_exhaustion_recovery_steps", float("nan")),
                 0,
             )
             writer.add_scalar(
