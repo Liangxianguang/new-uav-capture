@@ -229,6 +229,11 @@ One reviewed successful development replay is available in
 
 ![V5 capture frame](docs/media/v5_development_s3_episode0_capture_3d.png)
 
+The latest four-condition Official S4 replay showcase is documented in
+[docs/PHASE68_INTERCEPTION_VIDEO_SHOWCASE.md](docs/PHASE68_INTERCEPTION_VIDEO_SHOWCASE.md),
+with MP4/GIF/PNG copies under
+[docs/media/phase68_interception_showcase](docs/media/phase68_interception_showcase/).
+
 ## Train A New Candidate From Scratch
 
 The historical V4/V5 expert archives and three frozen V4 checkpoints are not

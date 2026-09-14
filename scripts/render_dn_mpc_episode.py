@@ -1,4 +1,4 @@
-"""Replay locked DN-MPC episodes and render them as MP4/GIF media.
+"""Replay frozen S4 DN-MPC episodes and render them as MP4/GIF media.
 
 This command reuses the frozen scene record, prediction checkpoint, planner
 configuration, and sampling settings from an existing S3 evaluation output.
@@ -27,10 +27,13 @@ from evaluate_minimax_mpc import (  # noqa: E402
     run_episode,
     select_device,
 )
-from evaluate_minimax_mpc_s3 import (  # noqa: E402
-    config_for_spec,
-    load_protocol,
-    load_scene_records,
+from evaluate_s4_branching import (  # noqa: E402
+    config_for_spec as s4_config_for_spec,
+    load_protocol as load_s4_protocol,
+)
+from evaluate_s4_closed_loop import (  # noqa: E402
+    protocol_for_frozen_scenes,
+    read_scenes,
 )
 from render_3d_capture_animation import render_animation  # noqa: E402
 
@@ -61,6 +64,15 @@ def _path(value: str | Path) -> Path:
     return Path(value).expanduser().resolve()
 
 
+def spec_from_scene_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Normalize nested and flat frozen S4 scene records for replay."""
+
+    spec = dict(record.get("spec", record))
+    spec.setdefault("target_motion_mode", "adaptive_branching")
+    spec.setdefault("obstacle_count", len(record.get("scenario", {}).get("obstacles", [])))
+    return spec
+
+
 def main() -> None:
     args = parse_args()
     if args.fps <= 0 or args.frame_stride <= 0 or args.tail_length < 0 or args.freeze_seconds < 0:
@@ -80,13 +92,9 @@ def main() -> None:
     if not scene_path.is_file():
         scene_path = _path(evaluation["scene_records"])
 
-    protocol = load_protocol(protocol_path)
-    records = load_scene_records(
-        scene_path,
-        protocol=protocol,
-        split=str(evaluation["split"]),
-        episodes=int(evaluation["episodes"]),
-    )
+    protocol = load_s4_protocol(protocol_path)
+    records = read_scenes(scene_path, limit=int(evaluation["episodes"]))
+    protocol = protocol_for_frozen_scenes(protocol_path, records)
     indices = sorted(set(int(index) for index in args.episode_indices))
     if not indices or min(indices) < 0 or max(indices) >= len(records):
         raise ValueError(f"episode indices must be in [0, {len(records) - 1}]")
@@ -103,11 +111,14 @@ def main() -> None:
 
     for episode_index in indices:
         record = records[episode_index]
-        spec = record["spec"]
+        # S4 closed-loop outputs store the frozen spec as a flat scene record,
+        # while older replay artifacts used a nested ``spec`` mapping.  Keep
+        # both layouts replayable without changing the formal statistics.
+        spec = spec_from_scene_record(record)
         episode_dir = output_dir / f"episode_{episode_index:03d}"
         episode_dir.mkdir(parents=True, exist_ok=False)
         trajectory_path = episode_dir / "trajectory.npz"
-        config = config_for_spec(environment_path, spec, max_steps=None)
+        config = s4_config_for_spec(environment_path, protocol, spec, max_steps=None)
         distributed_config = DistributedDNMPCConfig.from_mapping(
             {**distributed_mapping, "communication_mode": scenario_mode}
         )
@@ -134,11 +145,14 @@ def main() -> None:
         row.update(
             {
                 "episode_index": episode_index,
+                "source_episode_index": int(record.get("episode_index", episode_index)),
                 "episode_seed": int(spec["episode_seed"]),
                 "layout_seed": int(spec["layout_seed"]),
+                "mirror_group_id": int(record.get("mirror_group_id", -1)),
+                "target_speed_scale": float(spec.get("target_speed_scale", float("nan"))),
                 "observation_condition": str(spec["observation_condition"]),
                 "target_motion_mode": str(spec["target_motion_mode"]),
-                "defender_side": str(spec["defender_side"]),
+                "defender_side": str(spec.get("defender_side", spec.get("defender_bias", "unknown"))),
                 "obstacle_count": int(spec["obstacle_count"]),
                 "render_source": str(evaluation_dir),
                 "render_replay_only": True,
