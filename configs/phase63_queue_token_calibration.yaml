@@ -56,6 +56,12 @@ methods:
     queue_authority: replace_nonexecuting
     token_contract: true
     max_override_slots: 1
+  - id: M8_fixed_k8_qdr
+    role: fixed_multimodal_candidate_reference
+    queue_aware_rollout: true
+    queue_authority: immutable
+    token_contract: true
+    candidate_count: 8
 
 predictor:
   architecture: diagonal_ssm

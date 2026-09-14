@@ -67,6 +67,13 @@
 > 不进入 confirmation/locked-test。详见
 > `docs/PHASE63_QUEUE_TOKEN_CALIBRATION_REPORT.md`。
 
+> Phase 63 fixed-K=8 补充实验已完成：真实 8-candidate Diagonal-SSM QDR 在同一
+> calibration split 上 safe capture `85.00%`、collision `5.28%`、timeout
+> `9.72%`、最大 exhaustion streak `78`，total p50/p95/p99 为
+> `64.59/80.74/91.57 ms`。相对 immutable K=1，safe-capture delta 为
+> `-2.78 pp [-9.44,+3.06]`，collision 增加 `+5.00 pp`，因此 fixed-K=8 未通过
+> liveness/promotion gate，adaptive-K 暂不继续扫描阈值。详见同一 Phase 63 聚合报告。
+
 > Phase 60 calibration 已完成：新矩阵共 `360 episodes / 180 mirror groups`，其中
 > `development_calibration` 使用 `120 episodes / 60 mirror groups`，3 个
 > Diagonal-SSM seeds、M0--M8 共执行 `3,240` 个闭环 episode。场景/镜像组/路线

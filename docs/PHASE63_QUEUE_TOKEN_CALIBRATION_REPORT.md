@@ -25,6 +25,8 @@
 - 所有运行均使用相同场景、相同 predictor seeds、local CBF、每步刷新预测和
   1/1 Torch 线程；
 - 所有实验均保留 config snapshot、episode/step JSONL 和 TensorBoard event。
+- fixed-K=8 arm 使用真正的 Diagonal-SSM sample set，不将重复的单均值轨迹计作
+  多模态候选。
 
 ## 3. 主要结果
 
@@ -35,6 +37,7 @@
 | Strong delayed-MPC | 57.78% [50.83, 64.44] | 42.22% [35.56, 48.89] | 10.00% [5.83, 14.44] | 0.00% | 18.505 / 24.168 / 27.687 |
 | Immutable QDR + token | 87.78% [82.50, 92.50] | 0.28% [0.00, 1.11] | 0.28% [0.00, 1.11] | 11.94% [6.94, 17.50] | 31.264 / 42.647 / 61.948 |
 | Bounded replace + token | 74.17% [67.50, 80.28] | 1.11% [0.00, 3.61] | 0.56% [0.00, 1.94] | 24.72% [19.44, 30.56] | 31.443 / 41.430 / 48.113 |
+| Fixed-K=8 immutable QDR + token | 85.00% [80.56, 89.17] | 5.28% [2.78, 8.06] | 3.89% [1.67, 6.67] | 9.72% [6.11, 13.61] | 64.591 / 80.739 / 91.569 |
 
 相对 strong delayed-MPC，immutable QDR 的 paired safe-capture delta 为
 `+30.00 pp [+23.33, +37.22]`，collision delta 为
@@ -47,6 +50,12 @@
 `+12.78 pp [+8.06, +18.06]`，最大 exhaustion streak 从 113 增加到 192。
 因此，当前 recovery authority 不通过 promotion gate。
 
+fixed-K=8 相对 immutable K=1 QDR 的 paired safe-capture delta 为
+`-2.78 pp [-9.44, +3.06]`，collision delta 为
+`+5.00 pp [+2.50, +7.78]`，timeout delta 为
+`-2.22 pp [-8.06, +4.17]`；最大 exhaustion streak 为 78。候选数增加因此
+没有在本 calibration 上带来可确认的安全或 liveness 增益，且计算代价显著增加。
+
 ## 4. QueueToken / ACK 结果
 
 | 方法 | Recovery request | Token present | ACK accepted | ACK applied | 最大 exhaustion streak |
@@ -54,6 +63,7 @@
 | Strong delayed-MPC | 0.00% | 0.00% | 0.00% | 0.00% | 0 |
 | Immutable QDR + token | 0.00% | 0.00% | 100.00% | 0.00% | 113 |
 | Bounded replace + token | 14.26% | 14.26% | 100.00% | 14.26% | 192 |
+| Fixed-K=8 immutable QDR + token | 0.00% | 0.00% | 100.00% | 0.00% | 78 |
 
 所有需要 mutable recovery 的请求都携带了当前 token，并获得 accepted ACK；
 因此 QueueToken freshness 合同在真实闭环中没有出现 stale/missing-token
@@ -69,6 +79,7 @@
 | Strong delayed-MPC | 10.847 / 14.789 / 17.374 | 5.462 / 7.699 / 9.506 | 0 / 0 / 0 | 0.834 / 1.419 / 1.766 | 18.505 / 24.168 / 27.687 |
 | Immutable QDR + token | 10.025 / 15.005 / 24.104 | 16.215 / 23.112 / 30.698 | 1.174 / 2.046 / 3.074 | 0.789 / 1.362 / 1.893 | 31.264 / 42.647 / 61.948 |
 | Bounded replace + token | 10.077 / 14.565 / 17.555 | 16.265 / 22.761 / 27.278 | 1.113 / 1.811 / 2.479 | 0.798 / 1.305 / 1.718 | 31.443 / 41.430 / 48.113 |
+| Fixed-K=8 immutable QDR + token | 10.412 / 14.545 / 17.277 | 49.121 / 61.191 / 69.447 | 1.394 / 2.101 / 2.890 | 0.795 / 1.215 / 1.616 | 64.591 / 80.739 / 91.569 |
 
 100 ms 仍是描述性参考而非硬门槛；同时保留 p99，不用 p50 单独宣称实时部署。
 
@@ -78,8 +89,8 @@
 - immutable QDR 相对 strong delayed-MPC 的 ID safe-capture 非劣方向：通过；
 - timeout `<=5%`：immutable 和 bounded replacement 均失败；
 - timeout delta `<=5 pp`：两种 QDR arm 均失败；
-- maximum exhaustion streak `<=24`：immutable 113、bounded replacement 192，
-  均失败；
+- maximum exhaustion streak `<=24`：immutable 113、bounded replacement 192、
+  fixed-K=8 78，均失败；
 - promotion：**No-Go**；
 - confirmation / locked-test：不开启。
 
@@ -100,6 +111,7 @@ No-Go，不宣称安全证明。
 - 三组运行目录：
   `results/phase63_strong_delayed_seed*`、
   `results/phase63_qdr_token_immutable_seed*`、
-  `results/phase63_qdr_token_replace_seed*`；
+  `results/phase63_qdr_token_replace_seed*`、
+  `results/phase63_qdr_fixed_k8_seed*`；
 - `results/` 依照仓库约定被 Git 忽略，但本地结果、配置快照和 TensorBoard
   event 保留。

@@ -27,6 +27,7 @@ GROUP_METHODS = {
     "strong_delayed": "M0_current_state_delayed_mpc",
     "qdr_immutable": "M6_qdr_synchronous_mpc",
     "qdr_bounded_replace": "M6_qdr_synchronous_mpc",
+    "fixed_k8": "M8_fixed_k8_qdr",
 }
 REPORT_ORDER = tuple(GROUP_METHODS)
 LATENCY_ORDER = (
@@ -182,6 +183,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
             f"strong_delayed={args.strong_pattern}",
             f"qdr_immutable={args.immutable_pattern}",
             f"qdr_bounded_replace={args.replace_pattern}",
+            f"fixed_k8={args.fixed_pattern}",
         ]
     )
     rng = np.random.default_rng(args.bootstrap_seed)
@@ -201,6 +203,14 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
         "bounded_replace_minus_immutable": _comparison(
             groups, "qdr_immutable", GROUP_METHODS["qdr_immutable"],
             "qdr_bounded_replace", GROUP_METHODS["qdr_bounded_replace"], rng, args.bootstrap_samples,
+        ),
+        "fixed_k8_minus_strong": _comparison(
+            groups, "strong_delayed", GROUP_METHODS["strong_delayed"],
+            "fixed_k8", GROUP_METHODS["fixed_k8"], rng, args.bootstrap_samples,
+        ),
+        "fixed_k8_minus_immutable": _comparison(
+            groups, "qdr_immutable", GROUP_METHODS["qdr_immutable"],
+            "fixed_k8", GROUP_METHODS["fixed_k8"], rng, args.bootstrap_samples,
         ),
     }
     diagnostics = {
@@ -233,6 +243,7 @@ def main() -> None:
     parser.add_argument("--strong-pattern", required=True)
     parser.add_argument("--immutable-pattern", required=True)
     parser.add_argument("--replace-pattern", required=True)
+    parser.add_argument("--fixed-pattern", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
     parser.add_argument("--bootstrap-seed", type=int, default=20260914)
