@@ -1,0 +1,51 @@
+experiment_name: phase61_qdr_recovery_authority_ablation
+source_protocol: configs/phase60_qdr_revalidation_protocol.yaml
+scene_manifest: results/phase60_calibration_selection/scenes.jsonl
+analysis_split: development_calibration
+episodes: 120
+mirror_groups: 60
+training_seeds: [727201, 727202, 727203]
+
+method_contract:
+  method: M6_qdr_synchronous_mpc
+  candidate_budget: 1
+  queue_aware_rollout: true
+  queue_aware_safety_projection: true
+  adaptive_k: false
+  predictor: Diagonal-SSM
+  local_cbf: empirical_filter_only
+
+authority_modes:
+  - immutable
+  - replace_nonexecuting
+  - flush_pending
+
+frozen_factors:
+  action_delay_steps: 4
+  command_noise_std_mps: 0.08
+  command_noise_bound_sigma: 3.0
+  message_delay_steps: 2
+  message_dropout_probability: 0.05
+  torch_num_threads: 1
+  torch_num_interop_threads: 1
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+
+gates:
+  timeout_rate_upper_bound: 0.05
+  timeout_delta_upper_bound: 0.05
+  maximum_exhaustion_streak_steps: 24
+  unexplained_planner_failure_rate: 0.01
+  locked_test_access: forbidden
+
+reporting:
+  tensorboard_required: true
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_summary_json: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  latency_percentiles: [50, 95, 99]
+  local_cbf_claim: empirical_filter_only
+  robust_clbf_qp_proof: not_claimed
