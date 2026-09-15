@@ -9,6 +9,10 @@ mpc_config: innovation_mpc.yaml
 # change; smooth motion initially moves away from the nearest obstacle.
 training_scene_file: ../results/phase78_oracle_calibration_nominal/accepted_calibration_scenes.jsonl
 evaluation_scene_file: ../results/phase78_oracle_calibration_nominal/accepted_calibration_scenes.jsonl
+bootstrap_expert_datasets:
+  - ../results/phase78_nominal_training_seed782501/expert_sequence_dataset.npz
+  - ../results/phase78_nominal_training_seed782502/expert_sequence_dataset.npz
+  - ../results/phase78_nominal_training_seed782503/expert_sequence_dataset.npz
 
 environment_overrides:
   dynamics:
@@ -31,7 +35,9 @@ experiment:
   seed: 791501
   demo_episodes: 192
   dagger_rounds: 2
-  episodes_per_round: 24
+  # Two closed-loop rounds with 12 episodes each; initial demonstrations
+  # remain fixed at 192, while this keeps CPU recovery labeling tractable.
+  episodes_per_round: 12
   hidden_dim: 128
   residual_scale_mps: 2.5
   learning_rate: 0.0005
