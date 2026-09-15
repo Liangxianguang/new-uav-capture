@@ -21,8 +21,8 @@ actor 学习受限 residual；随后在 actor 自己访问到的状态上执行 
 
 ## 训练流程
 
-1. 轮次 0：收集至少 `192` 条 DN-MPC teacher demonstrations。DN-MPC 每 4 步重新
-   规划，队列和延迟信息进入 public planning observation；每步保存 base action、
+1. 轮次 0：收集至少 `192` 条 DN-MPC teacher demonstrations。DN-MPC 每 8 步重新
+   规划，使用 4 个 public-belief candidates 和 2 次局部 best-response 迭代；队列和延迟信息进入 public planning observation；每步保存 base action、
    teacher action、route features 和 planner status。
 2. 训练 recurrent residual actor：输出相对于 route base action 的有界 residual，
    residual scale 为 `2.5 m/s`，最终动作受 `5.0 m/s` 上限约束。

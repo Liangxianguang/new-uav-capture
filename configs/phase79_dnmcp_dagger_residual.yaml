@@ -43,9 +43,11 @@ experiment:
   teacher_min_hold_steps: 6
   teacher_grid_step_m: 0.75
   teacher_route_margin_m: 0.85
-  dnmpc_candidate_count: 8
-  dnmpc_replan_interval_steps: 4
-  dnmpc_max_iterations: 3
+  # The teacher remains distributed DN-MPC, but its public plan is refreshed
+  # every 8 control steps so 192 demonstrations are practical on CPU.
+  dnmpc_candidate_count: 4
+  dnmpc_replan_interval_steps: 8
+  dnmpc_max_iterations: 2
   dnmpc_communication_interval_steps: 1
   dnmpc_message_delay_steps: 1
   dnmpc_max_message_age_steps: 8
