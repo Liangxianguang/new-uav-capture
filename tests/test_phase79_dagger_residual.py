@@ -37,3 +37,4 @@ def test_phase79_requires_192_demos_and_keeps_phase78_contract() -> None:
     assert payload["experiment"]["episodes_per_round"] > 0
     assert payload["environment_overrides"]["task"]["pursuit"]["target_maneuver_crossing_gain"] == 0.0
     assert payload["environment_overrides"]["task"]["pursuit"]["target_maneuver_enable_reverse_lane_change"] is False
+    assert payload["experiment"]["filtered_route_base"] is True

@@ -209,7 +209,7 @@ class DNMPCTeacher:
 
     def output(self, observation: dict[str, Any]) -> TeacherOutput:
         route_features = self.route.route_features(observation)
-        base_action = self.route.act(observation)
+        base_action = _route_base_action(self.route, self.safety, observation, self.settings)
         replan_interval = int(self.settings.get("dnmpc_replan_interval_steps", 4))
         should_replan = self.cached_sequence is None or self.env.step_count % replan_interval == 0
         planner_status = "held_previous_plan"
@@ -271,8 +271,29 @@ class DNMPCTeacher:
         """Return the cheap public-belief route base without invoking DN-MPC."""
 
         route_features = self.route.route_features(observation)
-        base_action = self.route.act(observation)
+        base_action = _route_base_action(self.route, self.safety, observation, self.settings)
         return np.asarray(base_action, dtype=np.float32), np.asarray(route_features, dtype=np.float32)
+
+
+def _route_base_action(
+    route: PublicBeliefRouteIntentController,
+    safety: PursuitCBFSafetyFilter,
+    observation: dict[str, Any],
+    settings: dict[str, Any],
+) -> np.ndarray:
+    """Return the exact route-base contract used by training and deployment.
+
+    Phase78 bootstrap actions were produced after the local safety projection.
+    A residual actor must therefore receive the same projected base during
+    DAgger and evaluation; otherwise a zero residual is trained against one
+    action distribution and deployed on another one.
+    """
+
+    raw_action = route.act(observation)
+    if not bool(settings.get("filtered_route_base", True)):
+        return np.asarray(raw_action, dtype=np.float32)
+    filtered_action, _diagnostics = safety.filter(raw_action, observation)
+    return np.asarray(filtered_action, dtype=np.float32)
 
 
 def actor_action(
@@ -533,7 +554,7 @@ def evaluate_policy(
         while True:
             route_started = time.perf_counter()
             route_features = route.route_features(observation)
-            base_action = route.act(observation)
+            base_action = _route_base_action(route, safety, observation, settings)
             route_ms = (time.perf_counter() - route_started) * 1000.0
             local = np.concatenate(
                 [policy_observations(env, observation), route_features], axis=1

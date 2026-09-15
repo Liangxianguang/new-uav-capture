@@ -59,6 +59,9 @@ experiment:
   dnmpc_message_delay_steps: 1
   dnmpc_max_message_age_steps: 8
   dnmpc_local_timeout_ms: 50.0
+  # Bootstrap actions are safety-filtered; keep the residual base contract
+  # identical in DAgger and deployed evaluation.
+  filtered_route_base: true
   recovery_action_gap_m: 0.35
   recovery_cbf_correction_mps: 0.20
   dt_seconds: 0.1
