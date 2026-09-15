@@ -1047,12 +1047,18 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 
 - [x] 新增有界 recurrent residual actor；
 - [x] 新增只使用 public belief/障碍物/执行队列的 DN-MPC teacher；
-- [x] 新增至少 192 条初始示范、两轮 DAgger/recovery 的可复现实验入口；
+- [x] 新增至少 192 条初始示范、两轮 DAgger/recovery 的可复现实验入口；正式 run
+  合并已保留的 Phase78 `64+64+64=192` 条接受示范，并用 DN-MPC 做闭环 recovery
+  标注，避免重复生成同一批轨迹；
 - [x] smoke 通过，teacher、队列延迟、安全过滤和 residual 输出接口已验证；
-- [ ] 正式收集 192 条 DN-MPC demonstrations；
-- [ ] 完成两轮闭环 DAgger/recovery 训练并保存三 seed checkpoint；
-- [ ] 在固定有效 Nominal 集上完成三 seed promotion 复核；
+- [x] 完成正式 192 条 bootstrap 示范、两轮闭环 DAgger/recovery 训练，并保存
+  `951` 个 recovery 帧；
+- [x] 在固定有效 Nominal 集上完成单 seed、250 步复核：safe capture `34.52%`、
+  collision `65.48%`、boundary `9.52%`、timeout `0%`；promotion gate No-Go；
+- [ ] 修复 raw route base 与 safety-filtered bootstrap base 的合同不一致；
+- [ ] 修复后再进行三 seed Nominal promotion 复核；
 - [ ] Nominal gate 通过后才开放 Hard/Stress，最后才考虑 locked-test diagnostic；
 - [x] 不改变 Phase78 目标合同，不将 local CBF 描述为形式安全证明。
 
-详细协议见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`。
+详细协议和失败归因见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`、
+`docs/PHASE79_DNMPC_DAGGER_RESIDUAL_REPORT.md`。

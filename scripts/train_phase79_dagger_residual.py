@@ -267,6 +267,13 @@ class DNMPCTeacher:
             planner_latency_ms=float(planner_latency_ms),
         )
 
+    def base_output(self, observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+        """Return the cheap public-belief route base without invoking DN-MPC."""
+
+        route_features = self.route.route_features(observation)
+        base_action = self.route.act(observation)
+        return np.asarray(base_action, dtype=np.float32), np.asarray(route_features, dtype=np.float32)
+
 
 def actor_action(
     actor: RecurrentResidualActor,
@@ -403,6 +410,46 @@ def build_sequences(
     )
 
 
+def load_bootstrap_trajectories(paths: list[Path]) -> tuple[list[Trajectory], int]:
+    """Reuse retained Phase78 accepted demonstrations as one 192-demo pool."""
+
+    trajectories: list[Trajectory] = []
+    accepted_episode_count = 0
+    for path in paths:
+        with np.load(path.resolve()) as archive:
+            required = {"local_observations", "actions"}
+            missing = sorted(required.difference(archive.files))
+            if missing:
+                raise ValueError(f"Bootstrap dataset is missing: {', '.join(missing)}: {path}")
+            local = np.asarray(archive["local_observations"], dtype=np.float32)
+            actions = np.asarray(archive["actions"], dtype=np.float32)
+        if local.ndim != 4 or actions.shape != (*local.shape[:3], 3):
+            raise ValueError(f"Bootstrap dataset has incompatible shapes: {path}")
+        manifest_path = path.with_name("expert_dataset_manifest.json")
+        if manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            accepted_episode_count += int(manifest.get("accepted_episodes", len(local)))
+        else:
+            accepted_episode_count += int(local.shape[0])
+        for sequence_local, sequence_actions in zip(local, actions, strict=True):
+            length = int(sequence_local.shape[0])
+            trajectories.append(
+                Trajectory(
+                    local=sequence_local.copy(),
+                    base=sequence_actions.copy(),
+                    target=sequence_actions.copy(),
+                    recovery=np.zeros(length, dtype=bool),
+                    metadata={"source": str(path.resolve()), "bootstrap": True},
+                )
+            )
+    if accepted_episode_count < 192:
+        raise ValueError(
+            "Bootstrap demonstrations must contain at least 192 accepted episodes; "
+            f"found {accepted_episode_count}."
+        )
+    return trajectories, accepted_episode_count
+
+
 def train_actor(
     actor: RecurrentResidualActor,
     trajectories: list[Trajectory],
@@ -473,21 +520,29 @@ def evaluate_policy(
         evaluation_record = copy.deepcopy(record)
         evaluation_record["episode_seed"] = int(record["episode_seed"]) + 910_000 + index
         env, observation, _scenario = build_environment(environment_config, evaluation_record, max_steps=max_steps)
-        teacher = DNMPCTeacher(env, planner, settings)
+        route = PublicBeliefRouteIntentController(
+            env,
+            horizon_seconds=float(settings.get("teacher_horizon_seconds", 0.75)),
+            replan_interval_steps=int(settings.get("teacher_replan_interval_steps", 8)),
+            min_hold_steps=int(settings.get("teacher_min_hold_steps", 6)),
+            grid_step=float(settings.get("teacher_grid_step_m", 0.75)),
+            route_margin=float(settings.get("teacher_route_margin_m", 0.85)),
+        )
         safety = PursuitCBFSafetyFilter(env)
         hidden = actor.initial_hidden(env.n_defenders, device=device)
         while True:
             route_started = time.perf_counter()
-            teacher_output = teacher.output(observation)
+            route_features = route.route_features(observation)
+            base_action = route.act(observation)
             route_ms = (time.perf_counter() - route_started) * 1000.0
             local = np.concatenate(
-                [policy_observations(env, observation), teacher_output.route_features], axis=1
+                [policy_observations(env, observation), route_features], axis=1
             ).astype(np.float32)
             actor_started = time.perf_counter()
             action, hidden = actor_action(
                 actor,
                 local,
-                teacher_output.base_action,
+                base_action,
                 hidden,
                 float(env.agents["defender_max_speed"]),
                 device,
@@ -580,6 +635,7 @@ def main() -> None:
     settings["training_scene_file"] = document["training_scene_file"]
     settings["evaluation_scene_file"] = document["evaluation_scene_file"]
     settings["mpc_config"] = document["mpc_config"]
+    settings["bootstrap_expert_datasets"] = document.get("bootstrap_expert_datasets", [])
     device = select_device(args.device)
     if args.mode == "evaluate":
         if args.checkpoint is None:
@@ -640,23 +696,40 @@ def main() -> None:
         hidden_dim=int(settings.get("hidden_dim", 128)),
         residual_scale=float(settings.get("residual_scale_mps", 2.5)),
     ).to(device)
-    for index in range(demo_episodes):
-        record = records[index % len(records)]
-        trajectory, episode_meta = rollout(
-            environment,
-            record,
-            planner,
-            settings,
-            actor=None,
-            device=device,
-            max_steps=args.max_steps,
-            use_actor=False,
-            episode_seed=seed + index,
+    bootstrap_paths = [resolve_config_path(value, args.config) for value in settings["bootstrap_expert_datasets"]]
+    if bootstrap_paths:
+        trajectories, bootstrap_count = load_bootstrap_trajectories(bootstrap_paths)
+        if bootstrap_count < demo_episodes:
+            raise ValueError(
+                f"Bootstrap pool has {bootstrap_count} accepted demonstrations, below requested {demo_episodes}."
+            )
+        metadata["initial_demo_source"] = "retained_phase78_accepted_expert_datasets"
+        metadata["initial_demo_episodes"] = int(bootstrap_count)
+        metadata["bootstrap_dataset_paths"] = [str(path) for path in bootstrap_paths]
+        metadata["rounds"].append(
+            {"name": "initial_retained_phase78_demonstrations", "episodes": int(bootstrap_count)}
         )
-        trajectories.append(trajectory)
-        if (index + 1) % 24 == 0 or index + 1 == demo_episodes:
-            print(json.dumps({"phase": "initial_demos", "completed": index + 1, "last": episode_meta}), flush=True)
-    metadata["rounds"].append({"name": "initial_dnmpc_teacher", "episodes": demo_episodes})
+        print(json.dumps({"phase": "initial_demos", "source": "retained", "completed": bootstrap_count}), flush=True)
+    else:
+        for index in range(demo_episodes):
+            record = records[index % len(records)]
+            trajectory, episode_meta = rollout(
+                environment,
+                record,
+                planner,
+                settings,
+                actor=None,
+                device=device,
+                max_steps=args.max_steps,
+                use_actor=False,
+                episode_seed=seed + index,
+            )
+            trajectories.append(trajectory)
+            if (index + 1) % 24 == 0 or index + 1 == demo_episodes:
+                print(json.dumps({"phase": "initial_demos", "completed": index + 1, "last": episode_meta}), flush=True)
+        metadata["initial_demo_source"] = "new_dnmpc_teacher_rollouts"
+        metadata["initial_demo_episodes"] = demo_episodes
+        metadata["rounds"].append({"name": "initial_dnmpc_teacher", "episodes": demo_episodes})
     training_history: list[dict[str, Any]] = []
     for round_index in range(dagger_rounds):
         history = train_actor(actor, trajectories, settings, device, action_scale)
@@ -690,7 +763,17 @@ def main() -> None:
         )
         print(json.dumps({"phase": "dagger_round", "round": round_index + 1, "completed": episodes_per_round, "summary": metadata["rounds"][-1]}), flush=True)
     final_history = train_actor(actor, trajectories, settings, device, action_scale)
-    metadata["total_trajectory_episodes"] = len(trajectories)
+    # Bootstrap archives are stored as padded 32-step chunks, so
+    # ``len(trajectories)`` is a chunk count rather than a conceptual episode
+    # count.  Keep the manifest episode statistic interpretable and reproducible.
+    metadata["total_trajectory_episodes"] = int(
+        metadata["initial_demo_episodes"]
+        + sum(
+            int(item["episodes"])
+            for item in metadata["rounds"]
+            if str(item.get("name", "")).startswith("dagger_")
+        )
+    )
     metadata["total_frames"] = int(sum(trajectory.local.shape[0] for trajectory in trajectories))
     metadata["total_recovery_frames"] = int(sum(np.sum(trajectory.recovery) for trajectory in trajectories))
     output.joinpath("manifest.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
