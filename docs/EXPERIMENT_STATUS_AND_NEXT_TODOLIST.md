@@ -1068,5 +1068,22 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 - [ ] Hard/Stress 通过后才考虑 locked-test diagnostic；
 - [x] 不改变 Phase78 目标合同，不将 local CBF 描述为形式安全证明。
 
+### Phase 80：渐进 Hard 校准与 teacher 可行性诊断
+
+- [x] 新增 Hard-Lite v1：300 场景、150 个镜像组，初始外逃证书 100%；oracle
+  接受 `71/100` Hard 场景，低于 80% promotion gate，未训练；
+- [x] 新增 Hard-v2 独立训练/holdout 池：各 300 个 Hard 场景、150 个镜像组，
+  oracle 分别接受 `213/300` 与 `210/300`，两池哈希隔离，均保持 obstacle-
+  avoidance-first 合同；
+- [x] 尝试收集 Hard-v2 的 192 条 DN-MPC teacher 示范；在训练开始前发现 public-
+  belief teacher 早期 safety failure 较多，主动停止且不生成 checkpoint，不计入
+  模型结果；
+- [x] 完成 nominal-speed delay-only calibration：300 场中 oracle 接受 `227/300`
+  (`75.67%`)，仍低于 80% gate；该结果确认 2-step 延迟和 `0.04 m/s` 噪声本身
+  已构成主要失败轴；
+- [ ] 先完成 1-step/低噪声过渡 calibration 和 teacher 质量门控，再决定是否重新
+  开放 Hard-v2 训练；
+- [ ] Hard 通过前不运行 Stress 或 locked-test。
+
 详细协议和失败归因见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`、
 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_REPORT.md`。

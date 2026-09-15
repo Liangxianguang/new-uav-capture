@@ -51,3 +51,34 @@ def test_phase78_protocol_declares_obstacle_avoidance_first() -> None:
         and profile["pursuit_overrides"]["target_maneuver_enable_reverse_lane_change"] is False
         for profile in payload["difficulty_profiles"].values()
     )
+
+
+def test_phase78_seed_offset_creates_independent_reproducible_pool(tmp_path: Path) -> None:
+    first = phase78.generate(
+        ROOT / "configs" / "phase80_progressive_hard_v2.yaml",
+        ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml",
+        tmp_path / "pool_a",
+        episodes_per_difficulty=2,
+        allow_small=True,
+        seed_offset=0,
+    )
+    second = phase78.generate(
+        ROOT / "configs" / "phase80_progressive_hard_v2.yaml",
+        ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml",
+        tmp_path / "pool_b",
+        episodes_per_difficulty=2,
+        allow_small=True,
+        seed_offset=1_000_000,
+    )
+    repeat = phase78.generate(
+        ROOT / "configs" / "phase80_progressive_hard_v2.yaml",
+        ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml",
+        tmp_path / "pool_c",
+        episodes_per_difficulty=2,
+        allow_small=True,
+        seed_offset=1_000_000,
+    )
+    assert first["seed_offset"] == 0
+    assert second["seed_offset"] == 1_000_000
+    assert second["scene_file_sha256"] != first["scene_file_sha256"]
+    assert repeat["scene_file_sha256"] == second["scene_file_sha256"]

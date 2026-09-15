@@ -1,0 +1,58 @@
+experiment_name: phase80_dnmcp_teacher_dagger_residual_hard_v2
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: phase70_maneuvering_adversary_v2.yaml
+mpc_config: innovation_mpc.yaml
+
+# The two accepted-scene files come from independent Hard-v2 calibration
+# pools.  The oracle is used only to remove physically infeasible episodes;
+# deployment remains public-belief and does not read target truth.
+training_scene_file: ../results/phase80_oracle_calibration_hard_v2/accepted_calibration_scenes.jsonl
+evaluation_scene_file: ../results/phase80_oracle_calibration_hard_v2_holdout/accepted_calibration_scenes.jsonl
+bootstrap_expert_datasets: []
+
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: true
+      action_delay_steps: 2
+      command_noise_std: 0.04
+  task:
+    pursuit:
+      target_motion_mode: adaptive_maneuvering
+      target_maneuver_replan_interval_steps: 8
+      target_maneuver_min_hold_steps: 6
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+      target_maneuver_obstacle_avoidance_gain: 5.0
+      target_maneuver_crossing_gain: 0.0
+      target_maneuver_enable_reverse_lane_change: false
+      safety_margin: 1.0
+
+experiment:
+  seed: 803601
+  demo_episodes: 192
+  dagger_rounds: 2
+  episodes_per_round: 12
+  hidden_dim: 128
+  residual_scale_mps: 0.5
+  learning_rate: 0.0005
+  epochs: 20
+  sequence_length: 32
+  sequence_batch_size: 16
+  teacher_horizon_seconds: 0.75
+  teacher_replan_interval_steps: 8
+  teacher_min_hold_steps: 6
+  teacher_grid_step_m: 0.75
+  teacher_route_margin_m: 0.85
+  dnmpc_candidate_count: 2
+  dnmpc_replan_interval_steps: 16
+  dnmpc_max_iterations: 1
+  dnmpc_communication_interval_steps: 1
+  dnmpc_message_delay_steps: 2
+  dnmpc_max_message_age_steps: 8
+  dnmpc_local_timeout_ms: 50.0
+  filtered_route_base: true
+  recovery_action_gap_m: 0.20
+  recovery_cbf_correction_mps: 0.15
+  dt_seconds: 0.1

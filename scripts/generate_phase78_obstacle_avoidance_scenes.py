@@ -305,6 +305,7 @@ def generate(
     episodes_per_difficulty: int | None = None,
     *,
     allow_small: bool = False,
+    seed_offset: int = 0,
 ) -> dict[str, Any]:
     protocol = _load(protocol_path)
     environment_payload = _load(environment_path)
@@ -328,7 +329,7 @@ def generate(
         profile = profiles[profile_name]
         settings = protocol.get("common", {})
         profile_records: list[dict[str, Any]] = []
-        block_seed = int(protocol["seed_blocks"][profile_name])
+        block_seed = int(protocol["seed_blocks"][profile_name]) + int(seed_offset)
         assignment_rng = np.random.default_rng(block_seed + 3_000_000)
         attempts_total = 0
         distances = np.asarray(profile["initial_side_distances"], dtype=np.float64)
@@ -406,6 +407,7 @@ def generate(
         "initial_escape_clearance_certified_rate": float(np.mean([item["avoidance_certificate"]["initial_escape_clearance_certified"] for item in records])),
         "initial_escape_away_alignment_mean": float(np.mean([item["avoidance_certificate"]["initial_escape_away_alignment"] for item in records])),
         "sampling_attempts_by_profile": attempts_by_profile,
+        "seed_offset": int(seed_offset),
         "scene_file": str(scene_path.resolve()),
         "scene_file_sha256": _sha256(scene_path),
         "protocol": str(protocol_path.resolve()),
@@ -438,8 +440,28 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--episodes-per-difficulty", type=int, default=None)
     parser.add_argument("--allow-small", action="store_true")
+    parser.add_argument(
+        "--seed-offset",
+        type=int,
+        default=0,
+        help="Deterministically offset every profile seed for an independent calibration pool.",
+    )
     args = parser.parse_args()
-    print(json.dumps(generate(args.protocol, args.environment_config, args.output_dir, args.episodes_per_difficulty, allow_small=args.allow_small), ensure_ascii=False, indent=2), flush=True)
+    print(
+        json.dumps(
+            generate(
+                args.protocol,
+                args.environment_config,
+                args.output_dir,
+                args.episodes_per_difficulty,
+                allow_small=args.allow_small,
+                seed_offset=args.seed_offset,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        ),
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
