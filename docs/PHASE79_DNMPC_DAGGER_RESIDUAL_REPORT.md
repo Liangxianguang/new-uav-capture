@@ -38,6 +38,45 @@ results/phase79_dnmcp_dagger_residual_seed791501_final/
 results/phase79_dnmcp_dagger_residual_nominal_full_seed791501/
 ```
 
+## Conservative candidate：三 seed Nominal 复核
+
+为修复 Phase79 的 safety-filtered base 合同问题，并在 delayed/noisy execution 下保留
+安全裕度，新增独立配置
+`configs/phase79_dnmcp_dagger_residual_conservative.yaml`，只改变 validation 配置
+中的经验 `safety_margin=1.0` 和 `residual_scale_mps=0.5`；Phase78 目标合同、192 条
+bootstrap 示范和两轮 DAgger 流程保持不变。三个 seed 均使用 84 个固定有效 Nominal
+场景和完整 250 步复核：
+
+| seed | safe capture | collision | boundary | timeout | mean min clearance (m) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 791601 | 94.05% | 3.57% | 3.57% | 2.38% | 0.785 |
+| 791602 | 94.05% | 3.57% | 3.57% | 2.38% | 0.768 |
+| 791603 | 94.05% | 4.76% | 4.76% | 1.19% | 0.786 |
+| **合计（252 episodes）** | **94.05%** | **3.97%** | **3.97%** | **1.98%** | **0.780** |
+
+三个 seed 均通过 Nominal gate（safe capture ≥70%、collision ≤5%、boundary ≤5%、
+timeout ≤10%）。这证明了当前 conservative Phase79 candidate 在 Nominal
+development validation 上具有稳定拦截能力，但不等于 Hard、Stress 或 locked-test
+已经通过。
+
+三 seed 的完整聚合结果保存在：
+
+```text
+results/phase79_dnmcp_dagger_residual_conservative_nominal_aggregate.json
+```
+
+统一延迟报告（各 seed 分位数的均值，CPU 诊断）为：
+
+| 模块 | p50 (ms) | p95 (ms) | p99 (ms) |
+| --- | ---: | ---: | ---: |
+| route intent | 2.40 | 147.69 | 216.04 |
+| actor | 0.53 | 1.17 | 1.75 |
+| local CBF | 1.75 | 3.85 | 4.24 |
+| total | 4.78 | 150.65 | 218.95 |
+
+这组结果仍只使用 local CBF 经验过滤器，不构成 R-CLBF-QP 或 robust CBF-QP
+安全证明。
+
 ## 为什么看起来比之前差很多
 
 ### 1. 初次结果被 `--max-steps 60` 截断
@@ -109,4 +148,3 @@ Phase79 只有 seed `791501` 的正式 checkpoint。三 seed 复核尚未开始�
 5. 修复后至少完成三个 seed 的 Nominal gate：safe capture ≥70%、collision ≤5%、
    boundary ≤5%、timeout ≤10%，并完整报告 route/predictor/planner/QDR/safety/total
    的 p50/p95/p99；Nominal 未通过前不运行 Hard、Stress 或 locked-test。
-

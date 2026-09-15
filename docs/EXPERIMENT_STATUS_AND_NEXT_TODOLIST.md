@@ -1056,8 +1056,13 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 - [x] 在固定有效 Nominal 集上完成单 seed、250 步复核：safe capture `34.52%`、
   collision `65.48%`、boundary `9.52%`、timeout `0%`；promotion gate No-Go；
 - [ ] 修复 raw route base 与 safety-filtered bootstrap base 的合同不一致；
-- [ ] 修复后再进行三 seed Nominal promotion 复核；
-- [ ] Nominal gate 通过后才开放 Hard/Stress，最后才考虑 locked-test diagnostic；
+- [x] 统一 raw route base 与 safety-filtered bootstrap base，并固化 conservative
+  validation candidate（safety margin `1.0`、residual scale `0.5`）；
+- [x] 修复后完成 `791601/791602/791603` 三 seed、250 步 Nominal promotion 复核；
+  pooled `252` episodes 的 safe capture/collision/boundary/timeout 为
+  `94.05%/3.97%/3.97%/1.98%`，三个 seed 均通过；
+- [ ] 在相同 conservative 配置下完成 Hard/Stress calibration/validation；
+- [ ] Hard/Stress 通过后才考虑 locked-test diagnostic；
 - [x] 不改变 Phase78 目标合同，不将 local CBF 描述为形式安全证明。
 
 详细协议和失败归因见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`、

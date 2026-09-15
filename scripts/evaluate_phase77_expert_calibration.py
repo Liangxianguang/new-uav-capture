@@ -69,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         help="Experiment label written to the summary artifact.",
     )
     parser.add_argument("--no-local-cbf", action="store_true")
+    parser.add_argument(
+        "--safety-margin",
+        type=float,
+        help="Optional calibration-only local-CBF margin override in metres.",
+    )
     return parser.parse_args()
 
 
@@ -112,7 +117,11 @@ def _boundary_contact_flags(env: CaptureRadiusPursuit3DEnv) -> tuple[bool, bool]
     return target_contact, defender_contact
 
 
-def _config_for_record(environment_config: Path, record: dict[str, Any]) -> dict[str, Any]:
+def _config_for_record(
+    environment_config: Path,
+    record: dict[str, Any],
+    safety_margin: float | None,
+) -> dict[str, Any]:
     config = config_for_phase73_spec(environment_config.resolve(), record, None)
     execution = config.setdefault("dynamics", {}).setdefault("execution", {})
     execution_profile = record.get("execution", {})
@@ -125,6 +134,10 @@ def _config_for_record(environment_config: Path, record: dict[str, Any]) -> dict
             "command_noise_std": float(execution_profile.get("command_noise_std_mps", 0.0)),
         }
     )
+    if safety_margin is not None:
+        if safety_margin < 0.0:
+            raise ValueError("safety-margin must be non-negative")
+        config.setdefault("task", {}).setdefault("pursuit", {})["safety_margin"] = float(safety_margin)
     return config
 
 
@@ -133,8 +146,9 @@ def _rollout(
     environment_config: Path,
     use_local_cbf: bool,
     controller_name: str,
+    safety_margin: float | None,
 ) -> dict[str, Any]:
-    config = _config_for_record(environment_config, record)
+    config = _config_for_record(environment_config, record, safety_margin)
     scenario = scenario_from_metadata(record["scenario"])
     env = CaptureRadiusPursuit3DEnv(
         config,
@@ -316,6 +330,7 @@ def main() -> None:
                 args.environment_config.resolve(),
                 not args.no_local_cbf,
                 args.controller,
+                args.safety_margin,
             )
         )
         if index % 10 == 0 or index == len(records):
@@ -353,6 +368,7 @@ def main() -> None:
         "source_scene_file_sha256": str(manifest.get("scene_file_sha256", "unknown")),
         "controller": f"{args.controller}_route_intent_v1",
         "controller_mode": str(args.controller),
+        "safety_margin_override_m": args.safety_margin,
         "local_cbf_is_empirical_filter_only": not args.no_local_cbf,
         "formal_robust_cbf_qp_claim": False,
         "expert_acceptance_contract": {
