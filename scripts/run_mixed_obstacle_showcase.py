@@ -72,6 +72,30 @@ TRANSIT_FLOAT_FIELDS = (
 )
 
 
+def boundary_contact_flags(env: CaptureRadiusPursuit3DEnv) -> tuple[bool, bool]:
+    """Return whether the post-step state was clamped to a world boundary.
+
+    The environment historically exposed one aggregate ``world_violation``
+    counter.  Keeping target and defender contacts separate makes validation
+    failure attribution possible without changing the safety contract or the
+    simulator dynamics.
+    """
+
+    lower = np.asarray(env.lower, dtype=np.float64)
+    upper = np.asarray(env.upper, dtype=np.float64)
+    target_position = np.asarray(env.target_position, dtype=np.float64)
+    defender_positions = np.asarray(env.defender_positions, dtype=np.float64)
+    target_contact = bool(
+        np.any(np.isclose(target_position, lower, atol=1.0e-9, rtol=0.0))
+        or np.any(np.isclose(target_position, upper, atol=1.0e-9, rtol=0.0))
+    )
+    defender_contact = bool(
+        np.any(np.isclose(defender_positions, lower[None, :], atol=1.0e-9, rtol=0.0))
+        or np.any(np.isclose(defender_positions, upper[None, :], atol=1.0e-9, rtol=0.0))
+    )
+    return target_contact, defender_contact
+
+
 def transit_metrics_from_episode_row(row: dict[str, Any]) -> dict[str, Any]:
     """Restore typed, policy-independent Transit evidence from an episode CSV row."""
 
@@ -299,6 +323,10 @@ def rollout_showcase(
     previous_positions = env.defender_positions.copy()
     final_info: dict[str, Any] = {}
     target_collision = False
+    target_boundary_violation = False
+    defender_boundary_violation = False
+    target_boundary_violation_steps = 0
+    defender_boundary_violation_steps = 0
     with torch.no_grad():
         while True:
             if (
@@ -321,6 +349,11 @@ def rollout_showcase(
             else:
                 cbf_corrections.append(0.0)
             observation, _reward, terminated, truncated, final_info = env.step(action, record_history=True)
+            target_at_boundary, defenders_at_boundary = boundary_contact_flags(env)
+            target_boundary_violation |= target_at_boundary
+            defender_boundary_violation |= defenders_at_boundary
+            target_boundary_violation_steps += int(target_at_boundary)
+            defender_boundary_violation_steps += int(defenders_at_boundary)
             path_lengths += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
             previous_positions = env.defender_positions.copy()
             visible_fractions.append(float(final_info["target_visible_fraction"]))
@@ -343,7 +376,13 @@ def rollout_showcase(
         "safe_capture_success": safe_capture,
         "capture_event": bool(final_info.get("capture_event", False)),
         "collision": bool(final_info.get("collision", False) or target_collision),
+        "physical_collision": bool(int(final_info.get("collision_steps", 0)) > 0),
+        "physical_collision_steps": int(final_info.get("collision_steps", 0)),
         "target_obstacle_collision": target_collision,
+        "target_boundary_violation": target_boundary_violation,
+        "defender_boundary_violation": defender_boundary_violation,
+        "target_boundary_violation_steps": target_boundary_violation_steps,
+        "defender_boundary_violation_steps": defender_boundary_violation_steps,
         "capture_time_seconds": final_info.get("capture_time_seconds"),
         "capturing_defender_id": final_info.get("capturing_defender_id"),
         "steps": int(env.step_count),
@@ -411,11 +450,20 @@ def rollout_showcase_expert(
     previous_positions = env.defender_positions.copy()
     final_info: dict[str, Any] = {}
     target_collision = False
+    target_boundary_violation = False
+    defender_boundary_violation = False
+    target_boundary_violation_steps = 0
+    defender_boundary_violation_steps = 0
     while True:
         action = controller.act(observation)
         diagnostics = getattr(controller, "last_diagnostics", None)
         cbf_corrections.append(float(diagnostics.action_correction_norm) if diagnostics is not None else 0.0)
         observation, _reward, terminated, truncated, final_info = env.step(action, record_history=True)
+        target_at_boundary, defenders_at_boundary = boundary_contact_flags(env)
+        target_boundary_violation |= target_at_boundary
+        defender_boundary_violation |= defenders_at_boundary
+        target_boundary_violation_steps += int(target_at_boundary)
+        defender_boundary_violation_steps += int(defenders_at_boundary)
         path_lengths += np.linalg.norm(env.defender_positions - previous_positions, axis=1)
         previous_positions = env.defender_positions.copy()
         visible_fractions.append(float(final_info["target_visible_fraction"]))
@@ -435,7 +483,13 @@ def rollout_showcase_expert(
         "safe_capture_success": bool(final_info.get("safe_capture_success", False)) and not target_collision,
         "capture_event": bool(final_info.get("capture_event", False)),
         "collision": bool(final_info.get("collision", False) or target_collision),
+        "physical_collision": bool(int(final_info.get("collision_steps", 0)) > 0),
+        "physical_collision_steps": int(final_info.get("collision_steps", 0)),
         "target_obstacle_collision": target_collision,
+        "target_boundary_violation": target_boundary_violation,
+        "defender_boundary_violation": defender_boundary_violation,
+        "target_boundary_violation_steps": target_boundary_violation_steps,
+        "defender_boundary_violation_steps": defender_boundary_violation_steps,
         "capture_time_seconds": final_info.get("capture_time_seconds"),
         "capturing_defender_id": final_info.get("capturing_defender_id"),
         "steps": int(env.step_count),

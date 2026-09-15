@@ -2,13 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
+from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.showcase import load_central_capture_protocol
 from scripts.evaluate_mixed_obstacle_showcase import load_locked_test_contract
-from scripts.run_mixed_obstacle_showcase import build_showcase_scenario, transit_metrics_from_episode_row
+from scripts.run_mixed_obstacle_showcase import (
+    boundary_contact_flags,
+    build_showcase_scenario,
+    transit_metrics_from_episode_row,
+)
 from encirclement3d.showcase import scenario_from_metadata, scenario_metadata
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_config() -> dict:
+    return yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
 
 
 def test_s1_cross_is_the_main_opposite_side_encounter_task() -> None:
@@ -92,3 +107,16 @@ def test_frozen_s3_scene_round_trips_without_resampling() -> None:
     ))
     restored = scenario_from_metadata(scenario_metadata(original))
     assert scenario_metadata(restored) == scenario_metadata(original)
+
+
+def test_boundary_contact_flags_separate_target_and_defender_contacts() -> None:
+    config = load_config()
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.55)
+    env.reset(seed=642004)
+    assert boundary_contact_flags(env) == (False, False)
+
+    env.target_position[0] = env.upper[0]
+    assert boundary_contact_flags(env) == (True, False)
+
+    env.defender_positions[0, 1] = env.lower[1]
+    assert boundary_contact_flags(env) == (True, True)

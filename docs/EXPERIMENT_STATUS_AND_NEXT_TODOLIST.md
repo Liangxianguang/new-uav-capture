@@ -907,3 +907,29 @@ Phase 71 的详细结果与下一步计划见
 顺序为：先实现场景 route cache 和逐尝试持久化，再按 easy-to-hard curriculum
 收集安全、协同的 expert 轨迹；只有新的 checkpoint 在三 seed validation 上
 超过 V5 reference，才允许继续新的确认实验。locked-test 继续关闭。
+
+### Phase 72：同场景失败归因矩阵（P1 已完成，修复方向已确定）
+
+- [x] 在三个 Phase 71 validation scene cache 上完成 V5/rule expert 与
+  local CBF on/off 四臂对照，共 240 个 episode，不修改 locked-test；
+- [x] 完成 V5 无 CBF 对照：pooled safe capture `1.67%`、collision
+  `98.33%`、mean minimum clearance `-0.028 m`；
+- [x] 完成 rule expert CBF on/off 对照：`5.00%/0%` safe capture，
+  `95.00%/100%` collision；
+- [x] 在 CBF-enabled replay 中增加并验证 `physical_collision`、
+  `target_boundary_violation` 和 `defender_boundary_violation` 字段；
+- [x] 归因结果显示：目标边界接触 `56/60`，无人机边界接触 `0/60`，
+  目标障碍物碰撞 `0/60`；主要瓶颈是目标世界边界/场景合同，而不是关闭
+  CBF 即可解决的过滤器问题；
+- [x] 保留所有 Phase 71 结果和 checkpoint；Phase 72 新结果使用独立目录；
+- [ ] 不在当前失败混合数据上继续无门控微调；
+- [ ] 建立 `target_crossing_required=true` 的单墙、多绕行路线 validation
+  curriculum，并加入有限时域目标边界证书；
+- [ ] 使用 route-aware teacher 只收集安全、协同示范；
+- [ ] 新 checkpoint 产生后，再重复三 seed CBF on/off 矩阵；
+- [ ] validation 未达到预设门槛前，继续关闭 locked-test。
+
+Phase 72 的完整结果见
+`docs/PHASE72_FAILURE_ATTRIBUTION_MATRIX_REPORT.md`。当前不应把 Phase 71/72
+的低 safe-capture 结果解释为模型已经能够有效拦截 Maneuvering Adversary v2；
+local CBF 仍然只是经验过滤器，不构成 R-CLBF-QP 安全证明。
