@@ -1,0 +1,162 @@
+experiment_name: phase75_public_belief_route_intent_defender_retraining
+status: design_only_until_route_intent_teacher_v1_is_implemented
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+
+# Phase 75 addresses the Phase 74 failure by changing the supervision and
+# policy interface, not by scanning another prediction backbone.  The files
+# below are protocol targets; no locked-test data may be copied into them.
+scene_protocol:
+  training_scenes: results/phase75_defender_training_scenes/scenes.jsonl
+  calibration_scenes: results/phase75_defender_training_scenes/blocks/development_calibration.jsonl
+  validation_scenes: results/phase75_defender_training_scenes/blocks/development_validation.jsonl
+  expected_training_scenes: 1200
+  expected_calibration_scenes: 300
+  expected_validation_scenes: 300
+  mirror_groups_disjoint_across_blocks: true
+  target_crossing_rate: 1.0
+  direct_route_blocked_rate: 1.0
+  external_holdout_reserved: true
+  locked_test_reserved: true
+
+teacher:
+  name: public_belief_route_role_expert_v1
+  implementation_required_before_training: true
+  target_truth_online: false
+  input_contract:
+    defender_state: public_local_observation
+    target_state: delayed_noisy_public_belief
+    obstacle_state: observed_shape_aware_geometry
+    execution_state: queue_length_pending_commands_and_last_command
+  route_candidates: [left_bypass, right_bypass, upper_bypass]
+  route_planner: conservative_grid_a_star_with_clearance
+  route_replan_interval_steps: 8
+  route_min_hold_steps: 6
+  role_set: [interceptor, left_gate, right_gate, recovery]
+  role_reassignment_interval_steps: 8
+  route_score:
+    interception_time_weight: 1.0
+    target_escape_margin_weight: 1.5
+    route_clearance_weight: 2.0
+    defender_arrival_time_weight: 1.0
+    role_switch_penalty: 0.25
+    control_smoothness_weight: 0.15
+  action_limits:
+    max_speed_mps: 5.0
+    max_acceleration_mps2: 6.0
+    max_jerk_mps3: 12.0
+    max_turn_rate_rad_s: 1.05
+  rejected_demo_contract:
+    require_safe_capture: true
+    require_minimum_defender_zone_entries: 2
+    reject_collision_or_boundary: true
+    maximum_rejection_rate: 0.40
+  oracle_teacher:
+    enabled: false
+    purpose_if_enabled: diagnostic_upper_bound_only
+
+demonstration_dataset:
+  fresh_scene_generation_required: true
+  requested_episodes: 1200
+  mirror_augmentation: true
+  route_balance: equal_left_right_upper_within_tolerance
+  target_modes: [adaptive_maneuvering, adaptive_adversarial, s_curve, flee_persistence]
+  target_speed_scales: [0.45, 0.55, 0.65, 0.75]
+  execution_delay_steps: [0, 2, 4]
+  command_noise_std_mps: [0.0, 0.04, 0.08]
+  obstacle_counts: [3, 4, 5]
+  required_logged_labels:
+    - public_route_intent
+    - role_assignment
+    - selected_waypoint
+    - queue_length
+    - action_execution_error
+    - target_crossing_status
+    - termination_reason
+
+curriculum:
+  stage_0_warmup:
+    fraction: 0.15
+    obstacle_counts: [3]
+    target_speed_scales: [0.45, 0.55]
+    crossing_probability: 0.50
+    execution_delay_steps: [0]
+    command_noise_std_mps: [0.0]
+  stage_1_route_learning:
+    fraction: 0.30
+    obstacle_counts: [3, 4]
+    target_speed_scales: [0.45, 0.55, 0.65]
+    crossing_probability: 1.0
+    execution_delay_steps: [0, 2]
+    command_noise_std_mps: [0.0, 0.04]
+  stage_2_delayed_execution:
+    fraction: 0.35
+    obstacle_counts: [3, 4, 5]
+    target_speed_scales: [0.55, 0.65]
+    crossing_probability: 1.0
+    execution_delay_steps: [2, 4]
+    command_noise_std_mps: [0.04, 0.08]
+  stage_3_adversarial_transfer:
+    fraction: 0.20
+    obstacle_counts: [3, 4, 5]
+    target_speed_scales: [0.55, 0.65, 0.75]
+    crossing_probability: 1.0
+    execution_delay_steps: [4]
+    command_noise_std_mps: [0.08]
+
+policy:
+  initialization: models/v5_development_exact_reactive_seed661606.pt
+  temporal_backbone: gru_recurrent_shared_actor
+  high_level_route_head: categorical_left_right_upper
+  high_level_update_interval_steps: 8
+  low_level_inputs:
+    - public_policy_observation
+    - route_intent_embedding
+    - role_embedding
+    - selected_waypoint_vector
+    - pending_action_queue_summary
+  loss:
+    low_level_action_huber: 1.0
+    route_intent_cross_entropy: 0.50
+    role_assignment_cross_entropy: 0.25
+    waypoint_regression: 0.25
+    action_smoothness: 0.05
+  sequence_length: 32
+  sequence_batch_size: 32
+  learning_rate: 0.00001
+  epochs: 32
+  recurrent_reset_interval_steps: 1
+
+dagger:
+  enabled_after_behavior_cloning: true
+  rounds: 3
+  policy_rollout_episodes_per_round: 200
+  expert_query_interval_steps: 1
+  expert_policy_mix: [0.75, 0.50, 0.25]
+  keep_failed_rollouts_as_diagnostics: true
+  do_not_use_failed_actions_as_positive_labels: true
+
+evaluation_gates:
+  calibration:
+    minimum_safe_capture_rate: 0.50
+    maximum_collision_rate: 0.15
+    maximum_timeout_rate: 0.20
+    minimum_target_crossing_rate: 0.90
+  validation_confirmation:
+    minimum_safe_capture_rate: 0.70
+    maximum_collision_rate: 0.05
+    maximum_boundary_violation_rate: 0.05
+    maximum_timeout_rate: 0.10
+    minimum_target_crossing_rate: 0.95
+    maximum_route_intent_flip_rate: 0.20
+  latency:
+    report_percentiles: [50, 95, 99]
+    hard_100ms_gate: false
+
+reporting:
+  bootstrap_unit: mirror_group
+  preserve_episode_and_step_jsonl: true
+  preserve_teacher_labels: true
+  report_predictor_planner_qdr_safety_total_latency: true
+  local_cbf_is_empirical_filter_only: true
+  robust_cbf_qp_formal_safety_claim: false

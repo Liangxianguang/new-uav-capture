@@ -1,5 +1,16 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 75 重训方案已重新设计：Phase 74 证明继续更换 GRU/SSM/S4 不能解决
+> “目标主动绕障 + 执行队列延迟”的失败，因此下一轮不再直接克隆
+> `DynamicEncirclementController`。新方案改为 public-belief route-intent cooperative
+> defender：每 6--10 步从左绕/右绕/上绕候选中选路线，同时分配 interceptor/gate/recovery
+> 角色，再由低层 GRU 跟踪 waypoint，并把 pending queue 纳入输入；教师和策略在线均不使用
+> target truth。先生成训练 `1200`、calibration `300`、validation `300` 个镜像互斥场景，
+> 做质量门控示范与三轮 DAgger，再按 safe capture≥70%、collision/boundary≤5%、timeout≤10%、
+> target crossing≥95% 进行 validation promotion；这些是门槛而不是已取得结果。
+> 方案见 `docs/PHASE75_DEFENDER_RETRAINING_DESIGN.md` 与
+> `configs/phase75_defender_retraining.yaml`，当前尚未声称已有 Phase75 checkpoint。
+
 > Phase 74 验证已完成（2026-09-15，仍为 validation-only）：在 Phase 73 的
 > `development_validation` block（200 场景 / 100 镜像组）上，GRU、Diagonal SSM、
 > 官方 S4 各三 seed 的名义执行诊断 safe capture 约为 `10.83% / 10.67% / 10.83%`，
