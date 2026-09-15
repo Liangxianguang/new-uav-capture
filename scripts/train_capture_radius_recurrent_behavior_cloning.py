@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import hashlib
 import json
@@ -23,7 +24,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from encirclement3d.learning import RecurrentCentralizedSharedActorCritic
 from encirclement3d.observation_encoding import policy_observations
 from encirclement3d.prediction import HistoryTargetPredictor, LearnedPredictionObserver
-from encirclement3d.pursuit_controllers import DynamicEncirclementController, SafetyFilteredPursuitController
+from encirclement3d.pursuit_controllers import (
+    DynamicEncirclementController,
+    PublicBeliefRouteIntentController,
+    SafetyFilteredPursuitController,
+)
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv
 from encirclement3d.showcase import sample_training_episode
 
@@ -34,6 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"))
+    parser.add_argument("--epochs", type=int, help="Optional reproducibility-preserving epoch override.")
+    parser.add_argument("--validation-interval", type=int, help="Validate every N epochs; the final epoch is always validated.")
     parser.add_argument("--sequence-length", type=int, default=32)
     parser.add_argument("--sequence-batch-size", type=int, default=16)
     parser.add_argument(
@@ -65,8 +72,21 @@ def load_configuration(args: argparse.Namespace) -> tuple[dict[str, Any], dict[s
     if not environment_path.is_absolute():
         environment_path = args.config.parent / environment_path
     environment = yaml.safe_load(environment_path.read_text(encoding="utf-8"))
+    overrides = document.get("environment_overrides", {})
+    if overrides:
+        if not isinstance(overrides, dict):
+            raise ValueError("environment_overrides must be a mapping when provided.")
+
+        def merge(base: dict[str, Any], update: dict[str, Any]) -> None:
+            for key, value in update.items():
+                if isinstance(value, dict) and isinstance(base.get(key), dict):
+                    merge(base[key], value)
+                else:
+                    base[key] = copy.deepcopy(value)
+
+        merge(environment, overrides)
     settings = dict(document["imitation"])
-    for name in ("seed", "device"):
+    for name in ("seed", "device", "epochs", "validation_interval"):
         value = getattr(args, name)
         if value is not None:
             settings[name] = value
@@ -141,10 +161,15 @@ def observe(
     observer: LearnedPredictionObserver | None,
     observation: dict[str, Any],
     reset: bool = False,
+    route_helper: PublicBeliefRouteIntentController | None = None,
 ) -> np.ndarray:
     if observer is None:
-        return policy_observations(env, observation)
-    return observer.reset(observation) if reset else observer.observe(observation)
+        values = policy_observations(env, observation)
+    else:
+        values = observer.reset(observation) if reset else observer.observe(observation)
+    if route_helper is not None:
+        values = np.concatenate([values, route_helper.route_features(observation)], axis=1)
+    return values.astype(np.float32, copy=False)
 
 
 def expert_episode_quality(
@@ -185,6 +210,36 @@ def expert_episode_quality(
         "required_defender_zone_entries": required_entries,
         "cooperative_requirement_met": cooperative_requirement_met,
     }
+
+
+def build_expert_controller(
+    env: CaptureRadiusPursuit3DEnv,
+    settings: dict[str, Any],
+) -> SafetyFilteredPursuitController:
+    """Build the configured demonstration teacher without changing its scope.
+
+    ``dynamic_encirclement`` is retained for historical protocols.  The new
+    route teacher is selected explicitly in YAML so an old experiment cannot
+    silently change its expert or its checkpoint semantics.
+    """
+    name = str(settings.get("expert_controller", "dynamic_encirclement"))
+    if name == "dynamic_encirclement":
+        controller: Any = DynamicEncirclementController(env)
+    elif name == "public_belief_route_intent_v1":
+        controller = PublicBeliefRouteIntentController(
+            env,
+            horizon_seconds=float(settings.get("teacher_horizon_seconds", 0.75)),
+            replan_interval_steps=int(settings.get("teacher_replan_interval_steps", 8)),
+            min_hold_steps=int(settings.get("teacher_min_hold_steps", 6)),
+            grid_step=float(settings.get("teacher_grid_step_m", 0.75)),
+            route_margin=float(settings.get("teacher_route_margin_m", 0.85)),
+        )
+    else:
+        raise ValueError(
+            "imitation.expert_controller must be 'dynamic_encirclement' or "
+            "'public_belief_route_intent_v1'."
+        )
+    return SafetyFilteredPursuitController(controller)
 
 
 def collection_checkpoint_paths(output: Path) -> tuple[Path, Path]:
@@ -364,7 +419,13 @@ def collect_expert_dataset(
                 seed=rollout_seed,
                 progress=accepted_episodes / max(requested_episodes - 1, 1),
             )
-            controller = SafetyFilteredPursuitController(DynamicEncirclementController(env))
+            controller = build_expert_controller(env, settings)
+            route_helper = (
+                controller.controller
+                if bool(settings.get("route_intent_features", False))
+                and isinstance(controller.controller, PublicBeliefRouteIntentController)
+                else None
+            )
             observer = (
                 LearnedPredictionObserver(
                     env,
@@ -376,7 +437,7 @@ def collect_expert_dataset(
                 if prediction_model is not None
                 else None
             )
-            local = observe(env, observer, observation, reset=True)
+            local = observe(env, observer, observation, reset=True, route_helper=route_helper)
             if centralized_state_dim is None:
                 centralized_state_dim = int(env.centralized_state().shape[-1])
             rollout_local_frames: list[np.ndarray] = []
@@ -418,7 +479,7 @@ def collect_expert_dataset(
                     else:
                         rejected_rows.append(row)
                     break
-                local = observe(env, observer, observation)
+                local = observe(env, observer, observation, route_helper=route_helper)
             accepted_this_attempt = bool(quality["accepted"])
             total_attempts += 1
             attempt_committed = True
@@ -513,6 +574,8 @@ def load_reused_expert_dataset(
     prototype.reset(seed=int(settings["seed"]))
     centralized_state_dim = int(prototype.centralized_state().shape[-1])
     expected_local_dim = int(policy_observations(prototype).shape[-1])
+    if bool(settings.get("route_intent_features", False)):
+        expected_local_dim += int(PublicBeliefRouteIntentController(prototype).route_features(prototype.observe()).shape[-1])
     if local_sequences.shape[-1] != expected_local_dim:
         raise ValueError(
             "Reused expert dataset observation dimension does not match the selected environment configuration."
@@ -640,6 +703,7 @@ def evaluate_actor(
     prediction_model: HistoryTargetPredictor | None,
     prediction_history_length: int,
     prediction_horizon_index: int,
+    route_intent_features: bool = False,
 ) -> dict[str, float]:
     outcomes: list[dict[str, float | bool]] = []
     policy.eval()
@@ -663,7 +727,12 @@ def evaluate_actor(
                     if prediction_model is not None
                     else None
                 )
-                local = observe(env, observer, observation, reset=True)
+                route_helper = (
+                    PublicBeliefRouteIntentController(env)
+                    if route_intent_features
+                    else None
+                )
+                local = observe(env, observer, observation, reset=True, route_helper=route_helper)
                 hidden = policy.initial_actor_hidden(env.n_defenders, device=device)
                 while True:
                     distribution, hidden = policy.distribution_step(
@@ -684,7 +753,7 @@ def evaluate_actor(
                             }
                         )
                         break
-                    local = observe(env, observer, observation)
+                    local = observe(env, observer, observation, route_helper=route_helper)
     return {
         "safe_capture_rate": float(np.mean([row["safe_capture"] for row in outcomes])),
         "capture_rate": float(np.mean([row["capture"] for row in outcomes])),
@@ -770,6 +839,9 @@ def main() -> None:
     recurrent_reset_interval = int(settings.get("recurrent_reset_interval_steps", 1))
     if recurrent_reset_interval <= 0:
         raise ValueError("imitation.recurrent_reset_interval_steps must be positive.")
+    validation_interval = int(settings.get("validation_interval", 1))
+    if validation_interval <= 0:
+        raise ValueError("imitation.validation_interval must be positive.")
     configured_datasets = settings.get("expert_datasets")
     if args.expert_dataset is not None and configured_datasets is not None:
         raise ValueError("Use either --expert-dataset or imitation.expert_datasets, not both.")
@@ -893,6 +965,12 @@ def main() -> None:
     writer.add_text("Config/effective_imitation", yaml.safe_dump(settings, sort_keys=False), 0)
     history: list[dict[str, float | int]] = []
     rng = np.random.default_rng(int(settings["seed"]))
+    last_evaluation = {
+        "safe_capture_rate": float("nan"),
+        "capture_rate": float("nan"),
+        "collision_rate": float("nan"),
+        "mean_capture_time_seconds": float("nan"),
+    }
     try:
         for epoch in range(int(settings["epochs"])):
             policy.train()
@@ -919,17 +997,20 @@ def main() -> None:
                 torch.nn.utils.clip_grad_norm_(policy.actor_parameters(), 0.5)
                 optimizer.step()
                 losses.append(float(loss.detach()))
-            evaluation = evaluate_actor(
-                policy,
-                config,
-                int(settings["validation_episodes"]),
-                880_000,
-                device,
-                action_scale,
-                prediction_model,
-                args.prediction_history_length,
-                args.prediction_horizon_index,
-            )
+            if (epoch + 1) % validation_interval == 0 or epoch + 1 == int(settings["epochs"]):
+                last_evaluation = evaluate_actor(
+                    policy,
+                    config,
+                    int(settings["validation_episodes"]),
+                    880_000,
+                    device,
+                    action_scale,
+                    prediction_model,
+                    args.prediction_history_length,
+                    args.prediction_horizon_index,
+                    bool(settings.get("route_intent_features", False)),
+                )
+            evaluation = dict(last_evaluation)
             record = {"epoch": epoch + 1, "action_mse": float(np.mean(losses)), **evaluation}
             history.append(record)
             for key, value in record.items():
@@ -952,6 +1033,7 @@ def main() -> None:
         prediction_model,
         args.prediction_history_length,
         args.prediction_horizon_index,
+        bool(settings.get("route_intent_features", False)),
     )
     output.joinpath("evaluation.json").write_text(json.dumps(final_evaluation, indent=2), encoding="utf-8")
     torch.save(
@@ -962,7 +1044,7 @@ def main() -> None:
             "action_scale": float(action_scale),
             "action_scale_mode": str(settings.get("action_scale_mode", "per_axis_safe")),
             "seed": int(settings["seed"]),
-            "algorithm": "behavior_cloning_recurrent_local_rule_expert",
+            "algorithm": f"behavior_cloning_recurrent_{settings.get('expert_controller', 'dynamic_encirclement')}",
             "actor_recurrent": True,
             "recurrent_hidden_dim": int(settings["hidden_dim"]),
             "recurrent_reset_interval_steps": recurrent_reset_interval,

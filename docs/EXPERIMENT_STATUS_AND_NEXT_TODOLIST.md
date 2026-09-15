@@ -1,5 +1,18 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 76 路线感知重训练 pilot 已完成但为 **No-Go**：实现了仅使用 public belief 和公开
+> 障碍几何的左绕/右绕/上绕路线教师，并将下一航点、路线 one-hot 和 belief-blind 标志
+> 作为 7 维条件输入加入低层 GRU。48 个合格示范经 40 epoch、`5e-4` 从零训练后，离线
+> action MSE 为 `0.1978`；但在未参与训练的 development-validation `200` 场景 / `100`
+> mirror groups 上，2-step execution delay、`0.04 m/s` command noise、local CBF 下只有
+> `0.5%` safe capture，collision `95.5%`、boundary `90.0%`、timeout `1.5%`。total
+> latency p50/p95/p99 为 `2.509/90.344/135.241 ms`，route-intent 阶段为
+> `0.103/87.496/131.945 ms`。这说明纯 route-conditioned BC 仍被闭环 covariate shift
+> 击穿，当前 checkpoint 不可用于正向论文结论；下一步应实施真正的 calibration-scene
+> DAgger、recovery supervision 和路线缓存。详细结果见 `docs/PHASE76_ROUTE_AWARE_RETRAINING_REPORT.md`。
+> 本阶段仅使用 development-validation，external holdout 与 locked-test 均未使用；local
+> CBF 仍是经验过滤器，不宣称 R-CLBF-QP/robust CBF-QP 安全证明。
+
 > Phase 75 重训方案已重新设计：Phase 74 证明继续更换 GRU/SSM/S4 不能解决
 > “目标主动绕障 + 执行队列延迟”的失败，因此下一轮不再直接克隆
 > `DynamicEncirclementController`。新方案改为 public-belief route-intent cooperative

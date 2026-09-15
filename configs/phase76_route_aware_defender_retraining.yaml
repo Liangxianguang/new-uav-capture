@@ -1,0 +1,94 @@
+experiment_name: phase76_route_aware_public_belief_retraining
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+research_task:
+  name: route_aware_retraining_for_maneuvering_adversary_crossing
+  primary_scope: public_belief_route_intent_curriculum_behavior_cloning
+  excluded_scope: locked_test_selection_and_formal_safety_certificate
+environment_config: phase70_maneuvering_adversary_v2.yaml
+
+# The base Phase 70 task is reused, but the training distribution explicitly
+# includes command delay and noise.  The override is applied only by the BC
+# training entry point and is recorded in the resulting artifact.
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: true
+      action_delay_steps: 2
+      command_noise_std: 0.04
+      command_noise_bound_sigma: 3.0
+  task:
+    pursuit:
+      target_motion_mode: flee_persistence
+
+imitation:
+  seed: 761201
+  device: cpu
+  expert_controller: public_belief_route_intent_v1
+  route_intent_features: true
+  teacher_horizon_seconds: 0.75
+  teacher_replan_interval_steps: 8
+  teacher_min_hold_steps: 6
+  teacher_grid_step_m: 0.75
+  teacher_route_margin_m: 0.85
+  episodes: 48
+  expert_max_attempts_per_episode: 8
+  expert_max_rejection_rate: 0.85
+  expert_collection_checkpoint_every_accepted_episodes: 8
+  expert_require_safe_capture: true
+  expert_require_cooperative_safe_capture: true
+  training_obstacle_counts: [3, 4, 5]
+  training_target_speed_scales: [0.45, 0.55, 0.65]
+  training_target_motion_modes: [flee_persistence, s_curve, adaptive_maneuvering]
+  training_required_defender_zone_entries: 1
+  training_showcase_stages:
+    - until_progress: 0.25
+      showcase_probability: 1.0
+      randomized_central_probability: 0.0
+      layouts: [cylinder_box, mixed]
+      initial_side_distances: [6.0, 7.0]
+      defender_sides: [left, right]
+      target_speed_scales: [0.45, 0.55]
+      target_motion_modes: [flee_persistence, s_curve]
+      target_crossing_probability: 0.50
+      target_crossing_speed_scales: [0.45, 0.55]
+      required_defender_zone_entries: 1
+    - until_progress: 0.65
+      showcase_probability: 1.0
+      randomized_central_probability: 0.35
+      randomized_obstacle_count_range: [3, 4]
+      layouts: [cylinder_box, mixed, wall]
+      initial_side_distances: [6.0, 7.0, 8.0]
+      defender_sides: [left, right]
+      target_speed_scales: [0.45, 0.55, 0.65]
+      target_motion_modes: [flee_persistence, s_curve, adaptive_maneuvering]
+      target_crossing_probability: 0.80
+      target_crossing_speed_scales: [0.45, 0.55]
+      required_defender_zone_entries: 1
+    - until_progress: 1.0
+      showcase_probability: 1.0
+      randomized_central_probability: 0.65
+      randomized_obstacle_count_range: [3, 5]
+      layouts: [mixed, cylinder_box, wall]
+      initial_side_distances: [6.0, 7.0, 8.0]
+      defender_sides: [left, right]
+      target_speed_scales: [0.55, 0.65]
+      target_motion_modes: [flee_persistence, s_curve, adaptive_maneuvering]
+      target_crossing_probability: 1.0
+      target_crossing_speed_scales: [0.45, 0.55]
+      required_defender_zone_entries: 1
+  # From-scratch route-conditioned BC needs a larger step than the historical
+  # 1e-5 retained-checkpoint fine-tunes; the actor is not warm-started here.
+  learning_rate: 0.0005
+  action_scale_mode: full_range
+  hidden_dim: 128
+  epochs: 12
+  validation_episodes: 4
+  recurrent_reset_interval_steps: 1
+
+evaluation:
+  split: development_only
+  locked_test_tuning_forbidden: true
+  report_latency_percentiles: [50, 95, 99]
+  local_cbf_is_empirical_filter_only: true
+  validation_scene_source: results/phase73_crossing_scene_dataset/blocks/development_validation.jsonl
