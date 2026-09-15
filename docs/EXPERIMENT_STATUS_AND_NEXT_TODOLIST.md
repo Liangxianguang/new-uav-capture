@@ -1,5 +1,20 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 73 场景库已完成：新增独立的 `600` 场景 / `300` 镜像组数据集，分为
+> `development_calibration`、`development_validation`、`external_holdout` 三个各
+> `200` 场景 block。所有场景均设置 `target_crossing_required=true`，直达目标路径
+> 被中央高障碍物阻断，并通过至少两条正/负 `y` 横向绕行路线与独立防守方通路证书。
+> 这是针对 Phase 72 “目标与无人机同侧、体现不出绕障”问题的场景契约修复，尚未
+> 运行任何模型，因此不代表捕获率提升；现有 locked-test、模型和历史结果均未修改。
+> 主文件 SHA-256 为 `10c7ac7f67f55bf077d7b1218229e26afacf28e855762e7efdd6f513a3160f02`。
+> 详见 `docs/PHASE73_CROSSING_SCENE_DATASET.md`。
+
+> Phase 73 下一步：先在 `development_validation` 上用相同场景做 released V5/local
+> CBF、规则规划基线和后续模型的多 seed 对比；冻结模型/规划器/安全层后再打开
+> `external_holdout`。每次评估都要保存 manifest hash，并报告 safe capture、collision、
+> boundary、timeout、target crossing、minimum clearance 及 predictor/planner/QDR-or-tube/
+> safety/total 的 p50、p95、p99。local CBF 仍是经验过滤器，不写成 R-CLBF-QP 安全证明。
+
 > 实验停止说明（2026-09-14）：Phase 67 bounded public-prefix recovery 已完成
 > development calibration，结果没有在 execution-tail、communication-tail 或
 > joint-tail-transfer 上形成统计稳定的综合收益。因此按“停止继续堆叠同类恢复规则”的

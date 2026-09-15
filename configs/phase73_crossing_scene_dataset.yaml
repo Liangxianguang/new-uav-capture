@@ -1,0 +1,60 @@
+dataset_name: phase73_target_crossing_obstacle_bypass_600
+phase: development_validation_only
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+purpose: fixed_scene_pool_for_cross_model_obstacle_bypass_evaluation
+total_scenes: 600
+mirror_groups: 300
+scenes_per_block: 200
+groups_per_block: 100
+block_order:
+  - development_calibration
+  - development_validation
+  - external_holdout
+seed_blocks:
+  development_calibration: 731201
+  development_validation: 731202
+  external_holdout: 731203
+world:
+  half_extent_xy: 10.0
+  height: 10.0
+  minimum_altitude: 0.5
+obstacle_zone_x: [-3.0, 3.0]
+obstacle_count_range: [3, 5]
+initial_side_distances: [6.0, 6.5, 7.0, 7.5]
+target_speed_scales: [0.55, 0.65, 0.75]
+target_motion_modes:
+  - adaptive_maneuvering
+observation_conditions:
+  - name: nominal
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.15
+      observation_noise_std: 0.03
+      message_delay_steps: 2
+      message_dropout_probability: 0.05
+  - name: delayed_noisy
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.22
+      observation_noise_std: 0.06
+      message_delay_steps: 4
+      message_dropout_probability: 0.10
+route_certificate:
+  target_crossing_required: true
+  require_target_zone_entry: true
+  direct_path_must_be_blocked: true
+  minimum_bypass_routes: 2
+  bypass_route_labels:
+    - positive_y
+    - negative_y
+  target_waypoint_y_abs_m: 7.0
+  target_waypoint_x_abs_m: 4.5
+  clearance_limit_m: 0.60
+  estimated_transit_time_limit_seconds: 20.0
+generation:
+  max_sampling_attempts_per_group: 500
+  obstacle_center_y_abs_limit_m: 3.6
+  obstacle_min_horizontal_separation_m: 0.70
+  mirror_pairs_share_layout: true
+  output_contains_block_files: true
