@@ -1039,3 +1039,20 @@ recovery；可行候选存在时不再选择已知越界或穿障碍候选。
   或 robust CBF-QP 安全证明。
 
 Phase 78 的详细合同与命令见 `docs/PHASE78_OBSTACLE_AVOIDANCE_FIRST_REPORT.md`。
+
+### Phase 79：DN-MPC Teacher + DAgger Recovery Residual Actor（进行中）
+
+Phase78 的目标合同保持不变。当前新增 delayed distributed DN-MPC public-belief
+teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据收集：
+
+- [x] 新增有界 recurrent residual actor；
+- [x] 新增只使用 public belief/障碍物/执行队列的 DN-MPC teacher；
+- [x] 新增至少 192 条初始示范、两轮 DAgger/recovery 的可复现实验入口；
+- [x] smoke 通过，teacher、队列延迟、安全过滤和 residual 输出接口已验证；
+- [ ] 正式收集 192 条 DN-MPC demonstrations；
+- [ ] 完成两轮闭环 DAgger/recovery 训练并保存三 seed checkpoint；
+- [ ] 在固定有效 Nominal 集上完成三 seed promotion 复核；
+- [ ] Nominal gate 通过后才开放 Hard/Stress，最后才考虑 locked-test diagnostic；
+- [x] 不改变 Phase78 目标合同，不将 local CBF 描述为形式安全证明。
+
+详细协议见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`。
