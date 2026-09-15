@@ -8,6 +8,7 @@ import numpy as np
 from scripts.aggregate_closed_loop_seed_results import (
     RunArtifact,
     grouped_metric_matrix,
+    json_safe,
     paired_comparison,
     paired_method_comparison,
     summarize_group,
@@ -142,3 +143,8 @@ def test_paired_method_comparison_uses_same_mirror_units(tmp_path: Path) -> None
         [artifact], [artifact], "B0", "B1", np.random.default_rng(3), bootstrap_samples=20, bootstrap_unit="mirror_group"
     )
     assert result["episode_metrics"]["safe_capture_success"]["mean_delta_candidate_minus_reference"] == 1.0
+
+
+def test_json_safe_preserves_undefined_metrics_as_null() -> None:
+    payload = json_safe({"capture_time_seconds": float("nan"), "latency": [1.0, float("inf")]})
+    assert payload == {"capture_time_seconds": None, "latency": [1.0, None]}

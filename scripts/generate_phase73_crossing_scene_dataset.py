@@ -497,6 +497,20 @@ def generate_records(settings: dict[str, Any], environment_config: Path, total: 
                     {
                         "dataset_index": global_index,
                         "episode_index": global_index,
+                        "episode_seed": int(episode_seed),
+                        "layout_seed": int(layout_seed),
+                        "target_speed_scale": float(target_speed_scale),
+                        "defender_side": str(scenario.defender_side),
+                        "initial_side_distance": float(abs(scenario.target_position[0])),
+                        "target_motion_mode": "adaptive_maneuvering",
+                        "target_crossing_required": True,
+                        "observation_condition": str(condition["name"]),
+                        "pursuit_overrides": copy.deepcopy(condition["pursuit_overrides"]),
+                        # The closed-loop S4 evaluator requires a branch-label
+                        # field for legacy protocol adaptation.  Phase 73 does
+                        # not use branch geometry; this is only a schema
+                        # compatibility label and is never passed to control.
+                        "defender_bias": "upper" if member_name == "left" else "lower",
                         "spec": spec,
                         "scenario": scenario_metadata(scenario),
                         "route_certificate": record_certificate,

@@ -23,7 +23,10 @@ from encirclement3d.minimax_mpc import MinimaxMPCConfig  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
 from encirclement3d.safety_qp import RobustCBFQPConfig  # noqa: E402
 from encirclement3d.delay_aware_conformal_tube import DelayAwareConformalReachableTube  # noqa: E402
-from encirclement3d.showcase import scenario_from_metadata  # noqa: E402
+from encirclement3d.showcase import (  # noqa: E402
+    scenario_from_metadata,
+    target_crossing_pursuit_overrides,
+)
 from evaluate_minimax_mpc import (  # noqa: E402
     DEFAULT_ENVIRONMENT_CONFIG,
     DEFAULT_MPC_CONFIG,
@@ -366,6 +369,36 @@ def read_scenes(path: Path, limit: int | None) -> list[dict[str, Any]]:
         records = records[:limit]
     if not records:
         raise ValueError("The frozen scene file contains no records.")
+    # Phase 73 stores the authoritative run specification under ``spec``
+    # while older closed-loop scene pools kept the same fields at the record
+    # root.  Normalize the nested form in memory only; the frozen JSONL is not
+    # rewritten and the legacy S4 schema remains accepted.
+    for record in records:
+        nested_spec = record.get("spec")
+        if isinstance(nested_spec, dict):
+            for key in (
+                "episode_seed",
+                "layout_seed",
+                "target_speed_scale",
+                "defender_side",
+                "initial_side_distance",
+                "target_motion_mode",
+                "target_crossing_required",
+                "observation_condition",
+                "pursuit_overrides",
+                "obstacle_count",
+                "mirror_group_id",
+                "mirror_pair_member",
+                "scene_block",
+            ):
+                if key not in record and key in nested_spec:
+                    record[key] = copy.deepcopy(nested_spec[key])
+            if "defender_bias" not in record:
+                record["defender_bias"] = (
+                    "upper"
+                    if str(nested_spec.get("mirror_pair_member", "left")) == "left"
+                    else "lower"
+                )
     required = {"episode_index", "episode_seed", "scenario", "target_speed_scale", "defender_bias", "pursuit_overrides"}
     missing = required.difference(records[0])
     if missing:
@@ -395,6 +428,42 @@ def protocol_for_frozen_scenes(protocol_path: Path, records: list[dict[str, Any]
         )
     protocol["s4"] = settings
     return protocol
+
+
+def config_for_phase73_spec(
+    environment_config: Path,
+    spec: dict[str, Any],
+    max_steps: int | None,
+) -> dict[str, Any]:
+    """Build an environment for the Phase 73 crossing scene contract.
+
+    The historical S4 evaluator hard-coded ``adaptive_branching`` in its
+    protocol adapter.  Phase 73 is a different, target-crossing task and must
+    preserve the frozen record's maneuvering target plus observation contract.
+    This branch is selected only when a scene carries the Phase 73 route
+    certificate; legacy S4 behavior remains unchanged.
+    """
+    config = copy.deepcopy(load_yaml(environment_config))
+    if not isinstance(config.get("task"), dict) or not isinstance(config["task"].get("pursuit"), dict):
+        raise ValueError("Phase 73 environment config must contain task.pursuit")
+    pursuit = config["task"]["pursuit"]
+    pursuit.update(copy.deepcopy(spec["pursuit_overrides"]))
+    pursuit["target_motion_mode"] = str(spec.get("target_motion_mode", "adaptive_maneuvering"))
+    if bool(spec.get("target_crossing_required", False)):
+        pursuit.update(target_crossing_pursuit_overrides())
+    config["experiments"] = [
+        {
+            "name": "phase73_target_crossing",
+            "episodes": 1,
+            "obstacle_count": int(spec.get("obstacle_count", len(spec.get("scenario", {}).get("obstacles", [])) or 3)),
+            "target_speed_scale": float(spec["target_speed_scale"]),
+        }
+    ]
+    configured_steps = int(config["world"].get("max_steps", 250))
+    config["world"]["max_steps"] = int(max_steps if max_steps is not None else configured_steps)
+    if int(config["world"]["max_steps"]) <= 0:
+        raise ValueError("max-steps must be positive")
+    return config
 
 
 def source_hashes_closed_loop(protocol: Path, scenes: Path, mpc: Path) -> dict[str, str]:
@@ -653,6 +722,7 @@ def main() -> None:
         raise ValueError("prediction sampling and refresh settings must be positive.")
 
     records = read_scenes(args.scenes, args.episodes)
+    phase73_scene_pool = bool(records and "route_certificate" in records[0])
     protocol = protocol_for_frozen_scenes(args.protocol.resolve(), records)
     mpc_document = load_yaml(args.mpc_config)
     phase17_mapping = dict(mpc_document.get("phase17", {}))
@@ -865,7 +935,11 @@ def main() -> None:
         safety_document = load_yaml(args.safety_config)
         safety_mapping = dict(safety_document.get("safety", {}))
         probe_spec = records[0]
-        probe_config = config_for_spec(args.environment_config, protocol, probe_spec, args.max_steps)
+        probe_config = (
+            config_for_phase73_spec(args.environment_config, probe_spec, args.max_steps)
+            if phase73_scene_pool
+            else config_for_spec(args.environment_config, protocol, probe_spec, args.max_steps)
+        )
         probe_env = CaptureRadiusPursuit3DEnv(
             probe_config,
             obstacle_count=1,
@@ -958,6 +1032,12 @@ def main() -> None:
         **torch_thread_settings,
         "safety_layer": args.safety_layer,
         "decision": args.decision,
+        "scene_pool": (
+            "phase73_target_crossing_obstacle_bypass"
+            if phase73_scene_pool
+            else "legacy_s4_scene_pool"
+        ),
+        "phase73_route_certificate_reused": bool(phase73_scene_pool),
         "source_hashes": hashes,
     }
     output.joinpath("config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False), encoding="utf-8")
@@ -1012,7 +1092,11 @@ def main() -> None:
         with method_output.joinpath("episodes.jsonl").open("w", encoding="utf-8") as episode_file, method_output.joinpath("steps.jsonl").open("w", encoding="utf-8") as step_file:
             for record in records:
                 spec = dict(record)
-                config = config_for_spec(args.environment_config, protocol, spec, args.max_steps)
+                config = (
+                    config_for_phase73_spec(args.environment_config, spec, args.max_steps)
+                    if phase73_scene_pool
+                    else config_for_spec(args.environment_config, protocol, spec, args.max_steps)
+                )
                 apply_phase17_execution_mapping(
                     config,
                     phase17_execution_mapping,

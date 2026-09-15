@@ -1,5 +1,22 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 74 验证已完成（2026-09-15，仍为 validation-only）：在 Phase 73 的
+> `development_validation` block（200 场景 / 100 镜像组）上，GRU、Diagonal SSM、
+> 官方 S4 各三 seed 的名义执行诊断 safe capture 约为 `10.83% / 10.67% / 10.83%`，
+> collision 约为 `89.17% / 89.33% / 89.17%`；三者没有统计稳定的骨干差异。
+> 明确开启 4-step 执行延迟与 `0.08 m/s` 命令噪声后，三种骨干均为 `0%` safe capture、
+> `100%` collision。QDR 在严格条件下达到 `7.00%` safe capture、`93.00%` collision，
+> UAKR/RNIC 均为 `0%/100%`，因此当前链路还不能声称有效拦截。local CBF 仅为经验
+> 过滤器，未形成 R-CLBF-QP/robust-CBF-QP 安全证明；`external_holdout` 与 locked-test
+> 均未打开。完整 stage latency p50/p95/p99、模块诊断与基线结果见
+> `docs/PHASE74_PHASE73_VALIDATION_REPORT.md`，可复现实验矩阵见
+> `configs/phase74_phase73_validation_matrix.yaml`。
+
+> Phase 74 下一步：不得根据该失败结果调高难度或访问 holdout；先在
+> `development_calibration` 做失败归因（接触对象、绕行侧、队列状态、首个不安全指令），
+> 再用穿越场景微调防守方并复跑同一 validation matrix。只有 collision、timeout、
+> queue-liveness 与 safe capture 同时通过预注册门槛，才允许进行一次 holdout confirmation。
+
 > Phase 73 场景库已完成：新增独立的 `600` 场景 / `300` 镜像组数据集，分为
 > `development_calibration`、`development_validation`、`external_holdout` 三个各
 > `200` 场景 block。所有场景均设置 `target_crossing_required=true`，直达目标路径

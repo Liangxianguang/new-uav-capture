@@ -11,6 +11,7 @@ import argparse
 import glob
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -262,7 +263,24 @@ def mirror_group_ids(artifact: RunArtifact, episode_ids: list[int]) -> list[int]
     """Return the manifest mirror-group id for each aligned episode."""
 
     scenes = read_jsonl(artifact.path / "scenes.jsonl")
-    by_episode = {int(scene["episode_index"]): int(scene["mirror_group_id"]) for scene in scenes}
+    raw_group_ids = [str(scene["mirror_group_id"]) for scene in scenes]
+    # Older manifests used integer mirror IDs; Phase 73 uses readable stable
+    # labels such as ``phase73-development_validation-0000``.  Map labels to
+    # deterministic local integers so the bootstrap implementation can keep
+    # its numeric array contract without changing the pairing semantics.
+    numeric_groups: dict[str, int] = {}
+    next_group = 0
+    for raw_group_id in raw_group_ids:
+        if raw_group_id not in numeric_groups:
+            try:
+                numeric_groups[raw_group_id] = int(raw_group_id)
+            except ValueError:
+                numeric_groups[raw_group_id] = next_group
+                next_group += 1
+    by_episode = {
+        int(scene["episode_index"]): numeric_groups[str(scene["mirror_group_id"])]
+        for scene in scenes
+    }
     if len(by_episode) != len(scenes):
         raise ValueError(f"Duplicate episode indices in {artifact.path / 'scenes.jsonl'}")
     try:
@@ -482,12 +500,32 @@ def paired_method_comparison(
     }
 
 
-def render_interval(metric: dict[str, Any], percent: bool = False) -> str:
+def render_interval(metric: dict[str, Any] | None, percent: bool = False) -> str:
+    if not metric or metric.get("mean") is None:
+        return "n/a"
     value = float(metric["mean"])
     low, high = (float(part) for part in metric["bootstrap_95_ci"])
     if percent:
         return f"{value:.2%} [{low:.2%}, {high:.2%}]"
     return f"{value:.3f} [{low:.3f}, {high:.3f}]"
+
+
+def json_safe(value: Any) -> Any:
+    """Convert NaN/Inf statistics to JSON null for valid report artifacts.
+
+    All-collision or all-timeout subsets can legitimately have undefined
+    conditional metrics such as minimum clearance or capture time.  Keeping
+    those values as ``null`` preserves the distinction between undefined and
+    zero while allowing the aggregate report to remain machine-readable.
+    """
+
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    if isinstance(value, (float, np.floating)):
+        return float(value) if math.isfinite(float(value)) else None
+    return value
 
 
 def markdown_report(payload: dict[str, Any]) -> str:
@@ -581,6 +619,7 @@ def main() -> None:
     }
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    payload = json_safe(payload)
     output.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     output.with_suffix(".md").write_text(markdown_report(payload), encoding="utf-8")
     print(json.dumps(payload, indent=2, allow_nan=False))

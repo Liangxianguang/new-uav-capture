@@ -1,0 +1,92 @@
+experiment_name: phase74_phase73_validation_matrix
+not_a_locked_test: true
+
+# Phase 74 validates all released prediction backbones and the previously
+# implemented ablation modules on the same frozen target-crossing scenes.
+# The external_holdout block is deliberately not opened by this protocol.
+dataset:
+  generator_config: configs/phase73_crossing_scene_dataset.yaml
+  root: results/phase73_crossing_scene_dataset
+  development_validation: results/phase73_crossing_scene_dataset/blocks/development_validation.jsonl
+  external_holdout_reserved: true
+  expected_scenes: 200
+  expected_mirror_groups: 100
+  bootstrap_unit: mirror_group
+
+common:
+  protocol: configs/phase15_s4_branching_pilot.yaml
+  environment_config: configs/phase70_maneuvering_adversary_v2.yaml
+  sampling_steps: 8
+  sampling_seed: 745102
+  projection_iterations: 4
+  prediction_refresh_interval_steps: 1
+  decision: validation_selection
+  device: cpu
+  safety_layer: local_cbf
+  locked_test_tuning_forbidden: true
+  latency_percentiles: [50, 95, 99]
+
+backbones:
+  training_seeds: [727201, 727202, 727203]
+  candidate_source: checkpoint
+  method: distributed_delayed
+  checkpoints:
+    gru_both: results/phase16_gru_both_seed{seed}/checkpoint.pt
+    diagonal_ssm_both: results/phase16_diagonal_ssm_both_seed{seed}/checkpoint.pt
+    official_s4_both: results/phase16_official_s4_both_seed{seed}/checkpoint.pt
+  requested_num_samples:
+    gru_both: 1
+    diagonal_ssm_both: 8
+    official_s4_both: 8
+
+execution_factor_isolation:
+  nominal_diagnostic:
+    enabled: false
+    interpretation: communication-delay-and-obstacle-crossing-only
+  delayed_noisy_confirmation_candidate:
+    enabled: true
+    action_delay_steps: 4
+    command_noise_std_mps: 0.08
+    command_noise_bound_sigma: 3.0
+    interpretation: physical-execution-robustness-diagnostic
+
+ablations:
+  action_conditioning:
+    predictor_conditions: [none, history, future, both]
+    training_seed: 727201
+    physical_execution: nominal_diagnostic
+  safety_layer:
+    arms: [local_cbf, none]
+    training_seeds: [727201, 727202, 727203]
+    physical_execution: nominal_diagnostic
+  qdr_uakr_rnic:
+    backbone: diagonal_ssm_both
+    training_seeds: [727201, 727202, 727203]
+    physical_execution: delayed_noisy_confirmation_candidate
+    qdr: M6_qdr_synchronous_mpc
+    uakr: distributed_delayed_with_adaptive_k
+    rnic: distributed_delayed_with_rnic
+  planner_baselines:
+    backbone: diagonal_ssm_both
+    training_seed: 727201
+    methods:
+      - M0_current_state_delayed_mpc
+      - M2_fixed_tube_mpc
+      - M4_synchronous_distributed_mpc
+      - M5_asynchronous_distributed_mpc
+    physical_execution: nominal_diagnostic
+  rule_baselines:
+    candidate_source: belief
+    methods: [dynamic_encirclement, pure_pursuit]
+    physical_execution: nominal_diagnostic
+
+reporting:
+  preserve_episode_jsonl: true
+  preserve_step_jsonl: true
+  preserve_config_snapshot: true
+  preserve_source_hashes: true
+  report_safe_capture_collision_boundary_timeout: true
+  report_target_crossing_and_minimum_clearance: true
+  report_predictor_planner_qdr_or_tube_safety_total_latency: true
+  local_cbf_is_empirical_filter_only: true
+  robust_cbf_qp_formal_safety_claim: false
