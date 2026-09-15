@@ -53,6 +53,8 @@ experiment:
   dnmpc_max_message_age_steps: 8
   dnmpc_local_timeout_ms: 50.0
   filtered_route_base: true
+  quality_gate_initial_demos: true
+  max_initial_demo_attempts: 900
   recovery_action_gap_m: 0.20
   recovery_cbf_correction_mps: 0.15
   dt_seconds: 0.1

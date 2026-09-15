@@ -471,6 +471,17 @@ def load_bootstrap_trajectories(paths: list[Path]) -> tuple[list[Trajectory], in
     return trajectories, accepted_episode_count
 
 
+def teacher_demo_is_accepted(metadata: dict[str, Any]) -> bool:
+    """Return whether one teacher rollout is safe enough for bootstrap data."""
+
+    return bool(
+        metadata.get("safe_capture_success", False)
+        and not metadata.get("collision", False)
+        and not metadata.get("boundary_violation", False)
+        and not metadata.get("timeout", False)
+    )
+
+
 def train_actor(
     actor: RecurrentResidualActor,
     trajectories: list[Trajectory],
@@ -732,8 +743,23 @@ def main() -> None:
         )
         print(json.dumps({"phase": "initial_demos", "source": "retained", "completed": bootstrap_count}), flush=True)
     else:
-        for index in range(demo_episodes):
-            record = records[index % len(records)]
+        quality_gate = bool(settings.get("quality_gate_initial_demos", False))
+        max_attempts = int(
+            settings.get("max_initial_demo_attempts", max(demo_episodes, demo_episodes * 3))
+        )
+        if max_attempts < demo_episodes:
+            raise ValueError("max_initial_demo_attempts must cover demo_episodes")
+        attempts = 0
+        rejected = 0
+        rejection_reasons: dict[str, int] = {}
+        while len(trajectories) < demo_episodes:
+            if attempts >= max_attempts:
+                raise RuntimeError(
+                    "teacher quality gate could not collect the requested demonstrations: "
+                    f"accepted={len(trajectories)}, requested={demo_episodes}, attempts={attempts}, "
+                    f"max_attempts={max_attempts}"
+                )
+            record = records[attempts % len(records)]
             trajectory, episode_meta = rollout(
                 environment,
                 record,
@@ -743,14 +769,46 @@ def main() -> None:
                 device=device,
                 max_steps=args.max_steps,
                 use_actor=False,
-                episode_seed=seed + index,
+                episode_seed=seed + attempts,
             )
-            trajectories.append(trajectory)
-            if (index + 1) % 24 == 0 or index + 1 == demo_episodes:
-                print(json.dumps({"phase": "initial_demos", "completed": index + 1, "last": episode_meta}), flush=True)
+            attempts += 1
+            accepted = teacher_demo_is_accepted(episode_meta)
+            if accepted or not quality_gate:
+                trajectories.append(trajectory)
+            else:
+                rejected += 1
+                reason = str(episode_meta.get("termination_reason", "unknown"))
+                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            if attempts % 24 == 0 or len(trajectories) == demo_episodes:
+                print(
+                    json.dumps(
+                        {
+                            "phase": "initial_demos",
+                            "accepted": len(trajectories),
+                            "requested": demo_episodes,
+                            "attempts": attempts,
+                            "rejected": rejected,
+                            "quality_gate": quality_gate,
+                            "last": episode_meta,
+                        }
+                    ),
+                    flush=True,
+                )
+        metadata["initial_demo_attempts"] = int(attempts)
+        metadata["initial_demo_rejected"] = int(rejected)
+        metadata["initial_demo_rejection_reasons"] = dict(sorted(rejection_reasons.items()))
+        metadata["initial_demo_quality_gate"] = quality_gate
         metadata["initial_demo_source"] = "new_dnmpc_teacher_rollouts"
         metadata["initial_demo_episodes"] = demo_episodes
-        metadata["rounds"].append({"name": "initial_dnmpc_teacher", "episodes": demo_episodes})
+        metadata["rounds"].append(
+            {
+                "name": "initial_dnmpc_teacher",
+                "episodes": demo_episodes,
+                "attempts": int(attempts),
+                "rejected": int(rejected),
+                "quality_gate": quality_gate,
+            }
+        )
     training_history: list[dict[str, Any]] = []
     for round_index in range(dagger_rounds):
         history = train_actor(actor, trajectories, settings, device, action_scale)

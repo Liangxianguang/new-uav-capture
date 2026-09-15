@@ -1081,6 +1081,8 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 - [x] 完成 nominal-speed delay-only calibration：300 场中 oracle 接受 `227/300`
   (`75.67%`)，仍低于 80% gate；该结果确认 2-step 延迟和 `0.04 m/s` 噪声本身
   已构成主要失败轴；
+- [x] 完成 Delay-only public-belief route teacher 100 场质量诊断：接受 `69/100`；
+  训练器新增初始 teacher 质量门控，未收集满 192 条合格示范时拒绝生成 checkpoint；
 - [ ] 先完成 1-step/低噪声过渡 calibration 和 teacher 质量门控，再决定是否重新
   开放 Hard-v2 训练；
 - [ ] Hard 通过前不运行 Stress 或 locked-test。

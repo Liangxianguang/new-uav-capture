@@ -7,8 +7,10 @@ import torch
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from encirclement3d.residual_actor import RecurrentResidualActor  # noqa: E402
+from train_phase79_dagger_residual import teacher_demo_is_accepted  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,3 +52,30 @@ def test_phase79_conservative_candidate_is_validation_only_and_bounded() -> None
     assert pursuit["safety_margin"] == 1.0
     assert payload["experiment"]["residual_scale_mps"] == 0.5
     assert payload["experiment"]["demo_episodes"] >= 192
+
+
+def test_teacher_quality_gate_rejects_unsafe_rollouts() -> None:
+    assert teacher_demo_is_accepted(
+        {
+            "safe_capture_success": True,
+            "collision": False,
+            "boundary_violation": False,
+            "timeout": False,
+        }
+    )
+    assert not teacher_demo_is_accepted(
+        {
+            "safe_capture_success": False,
+            "collision": True,
+            "boundary_violation": False,
+            "timeout": False,
+        }
+    )
+    assert not teacher_demo_is_accepted(
+        {
+            "safe_capture_success": True,
+            "collision": False,
+            "boundary_violation": True,
+            "timeout": False,
+        }
+    )

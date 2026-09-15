@@ -53,6 +53,13 @@ Hard-v2 保留 3 个障碍物，仅提高目标速度和延迟/噪声，避免�
 checkpoint，也不计入模型性能结果；这样避免把 teacher 失败轨迹误当作正向示范
 污染 residual actor。
 
+在同一 Delay-only 池上，独立的 public-belief route teacher 100 场诊断也只有 69%
+接受率（collision 28%、timeout 3%）。这说明不能仅凭 oracle 接受率判断示范可用性。
+训练器现已加入可选的 `quality_gate_initial_demos`：开启后，初始示范必须满足 safe
+capture、无 collision、无 boundary violation 且非 timeout；若在
+`max_initial_demo_attempts` 内无法收集满 192 条，训练直接失败且不写 checkpoint。
+旧 Phase79 配置默认关闭该选项，因此旧结果仍可复现；新 Hard 配置默认开启。
+
 ## 当前结论
 
 1. Phase79 conservative Nominal 仍是当前有效 reference：三 seed、252 episodes
@@ -64,7 +71,9 @@ checkpoint，也不计入模型性能结果；这样避免把 teacher 失败轨�
 4. Delay-only 档将目标速度和障碍物数量保持为 Nominal，只增加 2-step 延迟和
    `0.04 m/s` 噪声；300 场中接受 `227` 场（75.67%），仍低于 80% gate，但已
    证明延迟/噪声本身就是主要失败轴。
-5. 下一步应做更温和的 1-step/低噪声过渡档并加入 teacher 质量门控；当前任何
+5. public-belief teacher 在 Delay-only 100 场诊断中仅接受 `69/100`，因此已加入
+   初始示范质量门控，避免低质量 teacher 轨迹污染 residual actor。
+6. 下一步应做更温和的 1-step/低噪声过渡档；当前任何
    Hard-v2/Hard-Lite/Delay-only 档都未取得 Hard promotion，Stress 或 locked-test
    继续关闭。
 
@@ -75,6 +84,7 @@ checkpoint，也不计入模型性能结果；这样避免把 teacher 失败轨�
 - `configs/phase80_progressive_delay_only.yaml`
 - `configs/phase80_dnmcp_dagger_residual_hard_v2.yaml`
 - `scripts/generate_phase78_obstacle_avoidance_scenes.py --seed-offset`
+- `scripts/train_phase79_dagger_residual.py`（通过配置启用 teacher quality gate）
 
 生成结果目录保留在本地 `results/`，不纳入 Git；其中 Hard-v2 holdout 使用
 `seed_offset=1000000`，与训练池隔离。
