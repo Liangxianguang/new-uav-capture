@@ -120,6 +120,7 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_maneuver_max_turn_rate_rad_s": 1.05,
     "target_maneuver_max_jerk_mps3": 12.0,
     "target_maneuver_route_margin_m": 1.00,
+    "target_maneuver_feasibility_margin_m": 0.60,
     "target_maneuver_distance_weight": 1.00,
     "target_maneuver_terminal_weight": 1.50,
     "target_maneuver_clearance_weight": 2.50,
@@ -128,6 +129,7 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_maneuver_smoothness_weight": 0.25,
     "target_maneuver_switch_bonus": 0.08,
     "target_maneuver_burst_speed_scale": 1.15,
+    "target_maneuver_crossing_gain": 0.0,
     # S4 uses a committed, geometry-aware exit selection. The selected exit
     # is simulator-private: it is never included in ``observe``.
     "target_branch_decision_x": -3.20,
@@ -196,6 +198,7 @@ _MANEUVER_MODES = {
     "reverse_lane_change",
     "vertical_escape",
     "speed_burst",
+    "boundary_recovery",
 }
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
@@ -309,6 +312,7 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
     for name in (
         "target_maneuver_observation_noise_std",
         "target_maneuver_route_margin_m",
+        "target_maneuver_feasibility_margin_m",
         "target_maneuver_distance_weight",
         "target_maneuver_terminal_weight",
         "target_maneuver_clearance_weight",
@@ -317,6 +321,7 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         "target_maneuver_smoothness_weight",
         "target_maneuver_switch_bonus",
         "target_maneuver_burst_speed_scale",
+        "target_maneuver_crossing_gain",
     ):
         if float(settings[name]) < 0.0:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
@@ -499,6 +504,10 @@ class CaptureRadiusPursuit3DEnv:
         self.target_maneuver_escape_gap_rad = float(2.0 * np.pi)
         self.target_maneuver_decision_scores: dict[str, float] = {}
         self.target_maneuver_mode_counts: dict[str, int] = {mode: 0 for mode in sorted(_MANEUVER_MODES)}
+        self.target_maneuver_feasible_candidate_count = 0
+        self.target_maneuver_rejected_candidate_count = 0
+        self.target_maneuver_fallback_count = 0
+        self.target_maneuver_last_feasibility_failure = "none"
         self.target_maneuver_observation_queue: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
         self.target_maneuver_observed_positions = np.zeros((self.n_defenders, 3), dtype=np.float64)
         self.target_maneuver_observed_velocities = np.zeros((self.n_defenders, 3), dtype=np.float64)
@@ -596,6 +605,10 @@ class CaptureRadiusPursuit3DEnv:
         self.target_maneuver_escape_gap_rad = float(2.0 * np.pi)
         self.target_maneuver_decision_scores = {}
         self.target_maneuver_mode_counts = {mode: 0 for mode in sorted(_MANEUVER_MODES)}
+        self.target_maneuver_feasible_candidate_count = 0
+        self.target_maneuver_rejected_candidate_count = 0
+        self.target_maneuver_fallback_count = 0
+        self.target_maneuver_last_feasibility_failure = "none"
         self.defender_positions = self.target_position + TETRAHEDRON_DIRECTIONS * float(self.pursuit["spawn_distance"])
         self.defender_positions += self.rng.normal(0.0, 0.20, size=self.defender_positions.shape)
         self.defender_positions = np.clip(self.defender_positions, self.lower + 0.6, self.upper - 0.6)
@@ -947,6 +960,10 @@ class CaptureRadiusPursuit3DEnv:
             "target_maneuver_decision_scores": {
                 str(key): float(value) for key, value in self.target_maneuver_decision_scores.items()
             },
+            "target_maneuver_feasible_candidate_count": int(self.target_maneuver_feasible_candidate_count),
+            "target_maneuver_rejected_candidate_count": int(self.target_maneuver_rejected_candidate_count),
+            "target_maneuver_fallback_count": int(self.target_maneuver_fallback_count),
+            "target_maneuver_last_feasibility_failure": str(self.target_maneuver_last_feasibility_failure),
             "target_maneuver_mode_counts": {
                 str(key): int(value) for key, value in self.target_maneuver_mode_counts.items()
             },
@@ -1446,6 +1463,27 @@ class CaptureRadiusPursuit3DEnv:
                     "route": route,
                 }
             )
+        boundary_direction = np.zeros(3, dtype=np.float64)
+        boundary_trigger = float(self.pursuit["target_boundary_margin"]) + max(
+            0.50,
+            float(np.linalg.norm(self.target_velocity)) * self.dt * 2.0,
+        )
+        for axis in range(3):
+            lower_distance = float(self.target_position[axis] - self.lower[axis])
+            upper_distance = float(self.upper[axis] - self.target_position[axis])
+            if lower_distance < boundary_trigger:
+                boundary_direction[axis] += 1.0
+            if upper_distance < boundary_trigger:
+                boundary_direction[axis] -= 1.0
+        if float(np.linalg.norm(boundary_direction)) > 1.0e-9:
+            candidates.append(
+                {
+                    "mode": "boundary_recovery",
+                    "direction": _unit(boundary_direction, fallback=away),
+                    "speed_scale": 0.75,
+                    "route": "boundary_recovery",
+                }
+            )
         return candidates
 
     def _evaluate_target_maneuver_candidate(
@@ -1469,7 +1507,16 @@ class CaptureRadiusPursuit3DEnv:
         terminal_distance = float("inf")
         min_clearance = float("inf")
         min_boundary = float("inf")
+        first_clearance = float("inf")
+        first_boundary = float("inf")
+        feasible_prefix_steps = 0
+        failure_reason = "none"
+        required_clearance = max(
+            float(self.pursuit["target_maneuver_feasibility_margin_m"]),
+            float(self.agents["drone_radius"]) + float(self.pursuit["safety_margin"]),
+        )
         for timestep in range(horizon):
+            previous_position = target_position.copy()
             desired_velocity = np.asarray(candidate["direction"], dtype=np.float64) * target_speed
             command = self._limit_target_command(
                 target_velocity,
@@ -1489,6 +1536,20 @@ class CaptureRadiusPursuit3DEnv:
             distances = np.linalg.norm(predicted_defenders - target_position[None, :], axis=1)
             min_distance = min(min_distance, float(np.min(distances)))
             terminal_distance = float(np.min(distances))
+            segment_clearance = float("inf")
+            for fraction in (0.0, 0.5, 1.0):
+                segment_position = previous_position + float(fraction) * (target_position - previous_position)
+                segment_clearance = min(
+                    segment_clearance,
+                    min(
+                        (
+                            float(self._obstacle_clearance(segment_position, obstacle))
+                            for obstacle in self.obstacles
+                        ),
+                        default=float("inf"),
+                    ),
+                )
+            min_clearance = min(min_clearance, segment_clearance)
             for obstacle in self.obstacles:
                 min_clearance = min(min_clearance, self._obstacle_clearance(target_position, obstacle))
             min_boundary = min(
@@ -1496,6 +1557,29 @@ class CaptureRadiusPursuit3DEnv:
                 float(np.min(target_position - self.lower)),
                 float(np.min(self.upper - target_position)),
             )
+            if timestep == 0:
+                first_clearance = float(segment_clearance)
+                first_boundary = float(
+                    min(
+                        np.min(target_position - self.lower),
+                        np.min(self.upper - target_position),
+                    )
+                )
+            step_clearance = float(segment_clearance)
+            step_boundary = float(
+                min(
+                    np.min(target_position - self.lower),
+                    np.min(self.upper - target_position),
+                )
+            )
+            if step_clearance >= required_clearance and step_boundary >= required_clearance:
+                feasible_prefix_steps += 1
+            elif failure_reason == "none":
+                failure_reason = (
+                    "obstacle_clearance"
+                    if step_clearance < required_clearance
+                    else "boundary_clearance"
+                )
         estimated_capture_time = max(
             (min_distance - float(self.pursuit["capture_radius"]))
             / max(float(self.agents["defender_max_speed"]) - target_speed, 0.25),
@@ -1512,6 +1596,12 @@ class CaptureRadiusPursuit3DEnv:
                 1.0,
             )
         )
+        crossing_alignment = float(
+            np.dot(
+                _unit(np.asarray(candidate["direction"], dtype=np.float64), fallback=self.target_escape_direction),
+                _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0])),
+            )
+        )
         score = (
             float(self.pursuit["target_maneuver_distance_weight"]) * min_distance
             + float(self.pursuit["target_maneuver_terminal_weight"]) * terminal_distance
@@ -1520,9 +1610,15 @@ class CaptureRadiusPursuit3DEnv:
             + float(self.pursuit["target_maneuver_gap_weight"]) * escape_gap
             + float(self.pursuit["target_maneuver_smoothness_weight"]) * estimated_capture_time
             - float(self.pursuit["target_maneuver_smoothness_weight"]) * direction_change
+            + float(self.pursuit["target_maneuver_crossing_gain"]) * crossing_alignment
         )
-        if min_clearance < 0.0 or min_boundary < 0.0:
-            score -= 1.0e3 + 1.0e2 * max(-min_clearance, -min_boundary)
+        feasible = bool(min_clearance >= required_clearance and min_boundary >= required_clearance)
+        if not feasible:
+            score -= 1.0e3 + 1.0e2 * max(
+                required_clearance - min_clearance if np.isfinite(min_clearance) else 0.0,
+                required_clearance - min_boundary,
+                0.0,
+            )
         return {
             **candidate,
             "score": float(score),
@@ -1530,8 +1626,15 @@ class CaptureRadiusPursuit3DEnv:
             "terminal_distance": float(terminal_distance),
             "min_clearance": float(min_clearance),
             "min_boundary": float(min_boundary),
+            "required_clearance": float(required_clearance),
+            "first_clearance": float(first_clearance),
+            "first_boundary": float(first_boundary),
+            "feasible_prefix_steps": int(feasible_prefix_steps),
+            "feasible": feasible,
+            "feasibility_failure": "none" if feasible else str(failure_reason),
             "estimated_capture_time_seconds": float(estimated_capture_time),
             "escape_gap_rad": float(escape_gap),
+            "crossing_alignment": float(crossing_alignment),
         }
 
     def _adaptive_maneuvering_target_action(self) -> np.ndarray:
@@ -1549,6 +1652,46 @@ class CaptureRadiusPursuit3DEnv:
                 self._evaluate_target_maneuver_candidate(item, defender_positions, defender_velocities)
                 for item in candidates
             ]
+            feasible_evaluated = [item for item in evaluated if bool(item["feasible"])]
+            self.target_maneuver_feasible_candidate_count = len(feasible_evaluated)
+            self.target_maneuver_rejected_candidate_count = len(evaluated) - len(feasible_evaluated)
+            if not feasible_evaluated:
+                self.target_maneuver_fallback_count += 1
+                required_clearance = max(
+                    float(self.pursuit["target_maneuver_feasibility_margin_m"]),
+                    float(self.agents["drone_radius"]) + float(self.pursuit["safety_margin"]),
+                )
+                immediate_safe = [
+                    item
+                    for item in evaluated
+                    if float(item["first_clearance"]) >= required_clearance
+                    and float(item["first_boundary"]) >= required_clearance
+                ]
+                fallback_pool = immediate_safe or evaluated
+                if immediate_safe:
+                    fallback = max(
+                        fallback_pool,
+                        key=lambda item: (
+                            int(item["feasible_prefix_steps"]),
+                            float(item["first_boundary"]),
+                            float(item["first_clearance"]),
+                            float(item["score"]),
+                        ),
+                    )
+                else:
+                    fallback = max(
+                        fallback_pool,
+                        key=lambda item: (
+                            float(item["first_boundary"]),
+                            float(item["first_clearance"]),
+                            int(item["feasible_prefix_steps"]),
+                            float(item["score"]),
+                        ),
+                    )
+                self.target_maneuver_last_feasibility_failure = str(fallback["feasibility_failure"])
+            else:
+                fallback = None
+                self.target_maneuver_last_feasibility_failure = "none"
             self.target_maneuver_decision_scores = {
                 mode: max(
                     float(item["score"])
@@ -1559,11 +1702,13 @@ class CaptureRadiusPursuit3DEnv:
                 if any(item["mode"] == mode for item in evaluated)
             }
             hold_steps = self.step_count - int(self.target_maneuver_mode_start_step)
-            eligible = evaluated
+            eligible = feasible_evaluated if feasible_evaluated else [fallback]
             if hold_steps < int(self.pursuit["target_maneuver_min_hold_steps"]):
-                eligible = [item for item in evaluated if item["mode"] == self.target_maneuver_mode]
-                if not eligible:
-                    eligible = evaluated
+                if feasible_evaluated:
+                    held_feasible = [item for item in feasible_evaluated if item["mode"] == self.target_maneuver_mode]
+                    eligible = held_feasible or feasible_evaluated
+                elif fallback is not None and fallback["mode"] == self.target_maneuver_mode:
+                    eligible = [fallback]
             current_mode = self.target_maneuver_mode
             for item in eligible:
                 if item["mode"] != current_mode:

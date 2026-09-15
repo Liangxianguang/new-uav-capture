@@ -174,6 +174,10 @@ def target_crossing_pursuit_overrides() -> dict[str, float]:
         "target_flee_gain": 0.05,
         "target_defender_avoidance_distance": 4.0,
         "target_defender_avoidance_gain": 8.0,
+        # Crossing-required adaptive targets retain finite-horizon evasion,
+        # but their candidate score must respect the declared transit intent.
+        # This is simulator-private and is not exposed to defenders.
+        "target_maneuver_crossing_gain": 12.0,
     }
 
 

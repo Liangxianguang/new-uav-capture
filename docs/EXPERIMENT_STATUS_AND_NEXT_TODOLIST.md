@@ -989,3 +989,28 @@ Phase 72 的完整结果见
 `docs/PHASE72_FAILURE_ATTRIBUTION_MATRIX_REPORT.md`。当前不应把 Phase 71/72
 的低 safe-capture 结果解释为模型已经能够有效拦截 Maneuvering Adversary v2；
 local CBF 仍然只是经验过滤器，不构成 R-CLBF-QP 安全证明。
+
+### Phase 77：候选轨迹可行性过滤与 Easy/Nominal/Hard 标定（进行中）
+
+本阶段执行新的 calibration-only 门控流程，详细记录见
+`docs/PHASE77_CALIBRATED_DIFFICULTY_REPORT.md`。已实现 adaptive maneuvering adversary
+的候选轨迹边界/障碍物有限时域可行性过滤：当前 horizon 为 16 步，逐段检查起点、
+中点和终点净空，阈值为 `0.60 m`，并记录拒绝原因、可行前缀和 fallback。候选集合
+包括直逃、横向转向、反向变道、爬升/下降、短时加速、左/右/上绕行和 boundary
+recovery；可行候选存在时不再选择已知越界或穿障碍候选。
+
+- [x] 生成 Easy/Nominal/Hard 各 100 个 calibration 场景，共 300 场景、150 个
+  mirror groups；所有场景均是 central-crossing、直达路径被障碍物阻挡且至少有两条旁路；
+- [x] 用仅限标定的 oracle-route expert 先做物理可行性筛选：Easy `100/100`，Nominal
+  `90/100`，因此 Nominal 超过预设 `80%` gate；route-exercise 指标另行报告，未与物理
+  可行率混淆；
+- [x] 固定 Nominal profile 后完成三个 seed（`771501/771502/771503`）的 route-aware
+  recurrent BC 训练和 checkpoint 保存；
+- [ ] 在固定 `blocks/nominal.jsonl` 的 100 场景上完成三 seed 闭环评估并作 promotion
+  判定；当前训练器内置小验证结果为 `0%/0%/50%` safe capture，不能作为最终结论；
+- [ ] Nominal 通过前不运行 Hard/Stress，不修改或访问 locked-test；
+- [x] local CBF 仍只作为经验过滤器，未宣称 R-CLBF-QP/robust CBF-QP 安全证明。
+
+当前推荐顺序：固定 Nominal block 三 seed 复核 → 只有通过才锁定 Nominal reference
+并评估 Hard → Hard 通过后再评估 Stress → 最后才考虑一次性 locked-test diagnostic。
+所有阈值和难度标定继续只使用 calibration/validation。

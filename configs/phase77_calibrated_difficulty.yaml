@@ -1,0 +1,108 @@
+experiment_name: phase77_calibrated_target_difficulty
+dataset_name: phase77_calibrated_crossing_calibration_300
+phase: development_calibration_only
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+total_scenes: 300
+scenes_per_difficulty: 100
+mirror_groups_per_difficulty: 50
+block_order: [easy, nominal, hard]
+seed_blocks:
+  easy: 771201
+  nominal: 771301
+  hard: 771401
+
+# This is a calibration pool, not a replacement for the frozen locked test.
+# Every difficulty has 50 horizontal mirror pairs and the same crossing
+# geometry contract.  Only the target behavior, sensing, execution, and
+# obstacle-count ranges change between profiles.
+common:
+  source_protocol: configs/phase73_crossing_scene_dataset.yaml
+  obstacle_zone_x: [-3.0, 3.0]
+  target_crossing_required: true
+  direct_path_must_be_blocked: true
+  minimum_bypass_routes: 2
+  route_clearance_limit_m: 0.60
+  max_sampling_attempts_per_group: 500
+  obstacle_center_y_abs_limit_m: 3.6
+  obstacle_min_horizontal_separation_m: 0.70
+
+difficulty_profiles:
+  easy:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.45, 0.55]
+    initial_side_distances: [6.0, 6.5]
+    obstacle_count_range: [3, 3]
+    observation_condition: easy_nominal
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.10
+      observation_noise_std: 0.02
+      message_delay_steps: 1
+      message_dropout_probability: 0.02
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.06
+      target_maneuver_observation_dropout_probability: 0.05
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+    execution:
+      action_delay_steps: 0
+      command_noise_std_mps: 0.00
+  nominal:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.50, 0.60]
+    initial_side_distances: [6.0, 6.5]
+    obstacle_count_range: [3, 3]
+    observation_condition: nominal
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.12
+      observation_noise_std: 0.025
+      message_delay_steps: 1
+      message_dropout_probability: 0.03
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.08
+      target_maneuver_observation_dropout_probability: 0.08
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+    execution:
+      action_delay_steps: 1
+      command_noise_std_mps: 0.02
+  hard:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.65, 0.75]
+    initial_side_distances: [7.0, 7.5]
+    obstacle_count_range: [4, 5]
+    observation_condition: hard_delayed_noisy
+    pursuit_overrides:
+      detection_range: 14.0
+      detection_dropout_probability: 0.22
+      observation_noise_std: 0.06
+      message_delay_steps: 4
+      message_dropout_probability: 0.10
+      target_maneuver_observation_delay_steps: 2
+      target_maneuver_observation_noise_std: 0.16
+      target_maneuver_observation_dropout_probability: 0.15
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+    execution:
+      action_delay_steps: 4
+      command_noise_std_mps: 0.08
+
+expert_calibration:
+  controller: public_belief_route_intent_v1
+  use_local_cbf: true
+  accepted_scene_requires:
+    - safe_capture_in_pursuit
+    - no_target_boundary_violation
+    - no_defender_boundary_violation
+    - no_defender_physical_collision
+  minimum_expert_rate_for_nominal_promotion: 0.80
+  minimum_expert_rate_for_easy_promotion: 0.90
+  hard_is_diagnostic_only_until_nominal_promotes: true
+
+evaluation:
+  locked_test_used: false
+  report_latency_percentiles: [50, 95, 99]
+  local_cbf_is_empirical_filter_only: true
+  formal_robust_cbf_qp_claim: false
