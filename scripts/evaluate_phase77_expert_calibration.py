@@ -63,6 +63,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--difficulty", choices=("all", "easy", "nominal", "hard"), default="all")
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--controller", choices=("oracle_route", "public_belief_route"), default="oracle_route")
+    parser.add_argument(
+        "--experiment-name",
+        default="phase77_public_belief_route_expert_calibration",
+        help="Experiment label written to the summary artifact.",
+    )
     parser.add_argument("--no-local-cbf", action="store_true")
     return parser.parse_args()
 
@@ -341,7 +346,7 @@ def main() -> None:
     )
     profile_summaries = {name: _summarize(profile_rows) for name, profile_rows in sorted(rows_by_profile.items())}
     summary = {
-        "experiment_name": "phase77_public_belief_route_expert_calibration",
+        "experiment_name": str(args.experiment_name),
         "evaluation_split": "development_calibration_only",
         "locked_test_used": False,
         "source_scene_manifest_sha256": hashlib.sha256((scenes.parent / "manifest.json").read_bytes()).hexdigest(),

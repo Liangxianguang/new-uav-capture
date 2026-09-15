@@ -1,0 +1,82 @@
+experiment_name: phase78_nominal_avoidance_first_retraining
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: phase70_maneuvering_adversary_v2.yaml
+
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: true
+      action_delay_steps: 1
+      command_noise_std: 0.02
+  task:
+    pursuit:
+      target_motion_mode: adaptive_maneuvering
+      detection_range: 14.0
+      detection_dropout_probability: 0.12
+      observation_noise_std: 0.025
+      message_delay_steps: 1
+      message_dropout_probability: 0.03
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.08
+      target_maneuver_observation_dropout_probability: 0.08
+      target_maneuver_replan_interval_steps: 8
+      target_maneuver_min_hold_steps: 6
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+      target_maneuver_obstacle_avoidance_gain: 5.0
+      target_maneuver_crossing_gain: 0.0
+      target_maneuver_enable_reverse_lane_change: false
+
+imitation:
+  seed: 782501
+  device: cpu
+  expert_controller: public_belief_route_intent_v1
+  route_intent_features: true
+  teacher_horizon_seconds: 0.75
+  teacher_replan_interval_steps: 8
+  teacher_min_hold_steps: 6
+  teacher_grid_step_m: 0.75
+  teacher_route_margin_m: 0.85
+  episodes: 64
+  expert_max_attempts_per_episode: 8
+  expert_max_rejection_rate: 0.85
+  expert_collection_checkpoint_every_accepted_episodes: 8
+  expert_require_safe_capture: true
+  expert_require_cooperative_safe_capture: false
+  training_obstacle_counts: [3]
+  training_target_speed_scales: [0.50, 0.60]
+  training_target_motion_modes: [adaptive_maneuvering]
+  training_required_defender_zone_entries: 1
+  training_showcase_stages:
+    - until_progress: 1.0
+      showcase_probability: 1.0
+      randomized_central_probability: 0.0
+      layouts: [cylinder_box, mixed]
+      initial_side_distances: [6.0, 6.5]
+      defender_sides: [left, right]
+      target_speed_scales: [0.50, 0.60]
+      target_motion_modes: [adaptive_maneuvering]
+      target_crossing_probability: 0.0
+      target_crossing_speed_scales: [0.50, 0.60]
+      required_defender_zone_entries: 1
+  learning_rate: 0.0005
+  action_scale_mode: full_range
+  hidden_dim: 128
+  epochs: 40
+  validation_interval: 10
+  validation_episodes: 4
+  recurrent_reset_interval_steps: 1
+
+evaluation:
+  split: development_calibration_only
+  locked_test_tuning_forbidden: true
+  report_latency_percentiles: [50, 95, 99]
+  local_cbf_is_empirical_filter_only: true
+  formal_robust_cbf_qp_claim: false
+  promotion_gate:
+    min_safe_capture_rate: 0.70
+    max_collision_rate: 0.05
+    max_boundary_violation_rate: 0.05
+    max_timeout_rate: 0.10
+    require_all_seeds: true

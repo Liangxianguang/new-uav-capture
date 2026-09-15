@@ -130,6 +130,8 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_maneuver_switch_bonus": 0.08,
     "target_maneuver_burst_speed_scale": 1.15,
     "target_maneuver_crossing_gain": 0.0,
+    "target_maneuver_obstacle_avoidance_gain": 0.0,
+    "target_maneuver_enable_reverse_lane_change": True,
     # S4 uses a committed, geometry-aware exit selection. The selected exit
     # is simulator-private: it is never included in ``observe``.
     "target_branch_decision_x": -3.20,
@@ -322,11 +324,14 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         "target_maneuver_switch_bonus",
         "target_maneuver_burst_speed_scale",
         "target_maneuver_crossing_gain",
+        "target_maneuver_obstacle_avoidance_gain",
     ):
         if float(settings[name]) < 0.0:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
     if float(settings["target_maneuver_burst_speed_scale"]) <= 0.0:
         raise ValueError("task.pursuit.target_maneuver_burst_speed_scale must be positive.")
+    if not isinstance(settings["target_maneuver_enable_reverse_lane_change"], bool):
+        raise ValueError("task.pursuit.target_maneuver_enable_reverse_lane_change must be boolean.")
     if float(settings["target_branch_exit_offset_y"]) <= 0.0:
         raise ValueError("task.pursuit.target_branch_exit_offset_y must be positive.")
     if float(settings["target_branch_waypoint_x"]) <= 0.0:
@@ -1390,6 +1395,29 @@ class CaptureRadiusPursuit3DEnv:
             routes.append((f"obstacle_{obstacle_index}_top", _unit(top - self.target_position)))
         return routes
 
+    def _target_obstacle_avoidance_direction(self) -> np.ndarray:
+        """Return the local direction pointing away from the nearest obstacle.
+
+        This prior is deliberately geometric and target-private.  It prevents
+        the adversary from selecting an evasive action that heads into the
+        obstacle field merely because that action creates a larger defender
+        escape gap.  If no obstacle is present, the nominal escape direction
+        remains the fallback.
+        """
+
+        if not self.obstacles:
+            return _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0]))
+        target_xy = np.asarray(self.target_position[:2], dtype=np.float64)
+        nearest = min(
+            self.obstacles,
+            key=lambda obstacle: float(np.linalg.norm(np.asarray(obstacle.center_xy, dtype=np.float64) - target_xy)),
+        )
+        away_xy = target_xy - np.asarray(nearest.center_xy, dtype=np.float64)
+        away = np.array([away_xy[0], away_xy[1], 0.0], dtype=np.float64)
+        if float(np.linalg.norm(away)) <= 1.0e-9:
+            return _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0]))
+        return _unit(away, fallback=self.target_escape_direction)
+
     def _target_maneuver_candidates(
         self,
         defender_positions: np.ndarray,
@@ -1454,6 +1482,8 @@ class CaptureRadiusPursuit3DEnv:
                 "route": "burst",
             },
         ]
+        if not bool(self.pursuit.get("target_maneuver_enable_reverse_lane_change", True)):
+            candidates = [item for item in candidates if item["mode"] != "reverse_lane_change"]
         for route, direction in self._target_maneuver_route_candidates(horizontal_forward, lateral):
             candidates.append(
                 {
@@ -1602,6 +1632,12 @@ class CaptureRadiusPursuit3DEnv:
                 _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0])),
             )
         )
+        obstacle_avoidance_alignment = float(
+            np.dot(
+                _unit(np.asarray(candidate["direction"], dtype=np.float64), fallback=self.target_escape_direction),
+                self._target_obstacle_avoidance_direction(),
+            )
+        )
         score = (
             float(self.pursuit["target_maneuver_distance_weight"]) * min_distance
             + float(self.pursuit["target_maneuver_terminal_weight"]) * terminal_distance
@@ -1611,6 +1647,7 @@ class CaptureRadiusPursuit3DEnv:
             + float(self.pursuit["target_maneuver_smoothness_weight"]) * estimated_capture_time
             - float(self.pursuit["target_maneuver_smoothness_weight"]) * direction_change
             + float(self.pursuit["target_maneuver_crossing_gain"]) * crossing_alignment
+            + float(self.pursuit["target_maneuver_obstacle_avoidance_gain"]) * obstacle_avoidance_alignment
         )
         feasible = bool(min_clearance >= required_clearance and min_boundary >= required_clearance)
         if not feasible:
@@ -1635,6 +1672,7 @@ class CaptureRadiusPursuit3DEnv:
             "estimated_capture_time_seconds": float(estimated_capture_time),
             "escape_gap_rad": float(escape_gap),
             "crossing_alignment": float(crossing_alignment),
+            "obstacle_avoidance_alignment": float(obstacle_avoidance_alignment),
         }
 
     def _adaptive_maneuvering_target_action(self) -> np.ndarray:

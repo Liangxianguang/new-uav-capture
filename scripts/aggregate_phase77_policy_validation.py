@@ -36,6 +36,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--summaries", type=Path, nargs="+", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--target-crossing-required",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require the Phase 77 target-crossing contract in the promotion gate.",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        default="phase77_nominal_policy_fixed_pool_aggregate",
+        help="Experiment label written to the aggregate artifact.",
+    )
     return parser.parse_args()
 
 
@@ -88,17 +99,21 @@ def main() -> None:
             and float(item["collision_rate"]) <= PROMOTION_GATE["max_collision_rate"]
             and float(item["boundary_violation_rate"]) <= PROMOTION_GATE["max_boundary_violation_rate"]
             and float(item["timeout_rate"]) <= PROMOTION_GATE["max_timeout_rate"]
-            and float(item["target_crossing_rate"]) >= PROMOTION_GATE["min_target_crossing_rate"]
+            and (
+                not bool(args.target_crossing_required)
+                or float(item["target_crossing_rate"]) >= PROMOTION_GATE["min_target_crossing_rate"]
+            )
         )
 
     output = {
-        "experiment_name": "phase77_nominal_policy_fixed_pool_aggregate",
+        "experiment_name": str(args.experiment_name),
         "evaluation_split": "development_validation_only",
         "locked_test_used": False,
         "source_summaries": [str(path.resolve()) for path in args.summaries],
         "per_seed": summaries,
         "aggregate": aggregate,
         "promotion_gate": PROMOTION_GATE,
+        "target_crossing_required": bool(args.target_crossing_required),
         "promotion_pass_by_seed": [passes_gate(item) for item in summaries],
         "promotion_pass_all_seeds": all(passes_gate(item) for item in summaries),
         "local_cbf_is_empirical_filter_only": all(

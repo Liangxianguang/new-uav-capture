@@ -1014,3 +1014,28 @@ recovery；可行候选存在时不再选择已知越界或穿障碍候选。
 当前推荐顺序：固定 Nominal block 三 seed 复核 → 只有通过才锁定 Nominal reference
 并评估 Hard → Hard 通过后再评估 Stress → 最后才考虑一次性 locked-test diagnostic。
 所有阈值和难度标定继续只使用 calibration/validation。
+
+### Phase 78：Obstacle-Avoidance-First 目标合同（进行中）
+
+针对“目标不需要主动变道，也不应为了逃逸钻入中心障碍物”的最新要求，Phase 78
+建立了独立场景和配置，不覆盖 Phase 77。目标在最近障碍物反方向上获得几何先验，
+关闭 intentional reverse lane change，保留 6--10 步重规划、平滑转向/加速度/jerk
+限制、有限 jink/burst 机动和边界/障碍物候选过滤。新数据池为
+`results/phase78_obstacle_avoidance_scenes_v2/`，共 300 场、150 个 mirror groups，
+每个 Easy/Nominal/Hard 各 100 场，target crossing requirement 为 0，初始外逃 4 步
+净空证书通过率为 100%。
+
+- [x] Phase78 目标行为与候选评分实现；
+- [x] Easy/Nominal/Hard 数据池生成并完成定向测试；
+- [x] Easy/Nominal oracle expert 标定及专家不可行场景筛选：Easy `97/100`、Nominal
+  `84/100` 物理可行；Easy safe capture-in-pursuit `97%`，Nominal `84%`；
+- [x] 仅在筛选后的 Nominal 上完成三 seed 示范收集与 checkpoint 训练；
+- [x] 在 84 场固定有效 Nominal 集上完成三 seed 闭环复核：加权 safe capture
+  `59.92%`、collision `18.25%`、boundary `6.35%`、timeout `21.83%`，
+  三个 seed 均未通过 promotion gate；total p50/p95/p99 为
+  `8.83/283.38/394.28 ms`；
+- [ ] Nominal 通过后才开放 Hard/Stress；
+- [x] locked-test 未读取、未修改；local CBF 仍只是经验过滤器，不构成 R-CLBF-QP
+  或 robust CBF-QP 安全证明。
+
+Phase 78 的详细合同与命令见 `docs/PHASE78_OBSTACLE_AVOIDANCE_FIRST_REPORT.md`。
