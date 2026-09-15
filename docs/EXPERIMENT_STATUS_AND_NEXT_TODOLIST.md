@@ -1061,7 +1061,10 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 - [x] 修复后完成 `791601/791602/791603` 三 seed、250 步 Nominal promotion 复核；
   pooled `252` episodes 的 safe capture/collision/boundary/timeout 为
   `94.05%/3.97%/3.97%/1.98%`，三个 seed 均通过；
-- [ ] 在相同 conservative 配置下完成 Hard/Stress calibration/validation；
+- [x] 完成 Hard 专家可行性筛选：原始 100 个 Hard 场景仅 `11` 个满足专家接受合同；
+  在这 11 个场景上三 seed、共 33 episodes 的 conservative actor 仅取得
+  `15.15%` safe capture、`84.85%` collision，Hard promotion 判定 No-Go；
+- [ ] 重新设计并重新标定 Hard 后再考虑 Stress calibration/validation；
 - [ ] Hard/Stress 通过后才考虑 locked-test diagnostic；
 - [x] 不改变 Phase78 目标合同，不将 local CBF 描述为形式安全证明。
 

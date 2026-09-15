@@ -2,17 +2,20 @@
 
 ## 结论
 
-Phase79 的正式 Nominal 复核没有通过 promotion gate，当前 checkpoint 不能替代
-Phase78 reference。完整 250 步验证得到：
+Phase79 的原始 raw-base candidate 是 No-Go，不能替代 Phase78 reference；修复
+base-action 合同后的 conservative candidate 已通过 Nominal development gate。
+完整 250 步验证得到：
 
 | 方法 | 场景数 | safe capture | collision | boundary | timeout |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Phase78 三 seed recurrent BC（加权合计） | 252 | 59.92% | 18.25% | 6.35% | 21.83% |
-| Phase79 residual actor（seed 791501） | 84 | 34.52% | 65.48% | 9.52% | 0% |
+| Phase79 raw-base residual actor（seed 791501） | 84 | 34.52% | 65.48% | 9.52% | 0% |
+| Phase79 conservative residual actor（3 seeds） | 252 | 94.05% | 3.97% | 3.97% | 1.98% |
 
-Phase79 的结果是单 seed，不能据此声称三 seed 的最终统计结论；但在同一批 84 个
-有效 Nominal 场景、相同 Phase78 目标合同下，碰撞已显著增加，方向上已经足以判定
-当前训练配置为 No-Go。旧 checkpoint 和结果目录均保留。
+上表中的 raw-base 结果是单 seed，不能据此声称三 seed 的最终统计结论；但在同一批
+84 个有效 Nominal 场景、相同 Phase78 目标合同下，碰撞已显著增加，方向上已经足以
+判定该 raw 配置为 No-Go。修复后的 conservative 三 seed 结果单独报告并保留旧
+checkpoint 和结果目录。
 
 ## 协议与数据
 
@@ -21,8 +24,9 @@ Phase79 的结果是单 seed，不能据此声称三 seed 的最终统计结论�
 - 训练和评估只使用 development calibration/validation，`locked_test_used=false`；
 - 初始示范复用已保留的 `64+64+64=192` 条 Phase78 接受示范；
 - 完成两轮闭环 DAgger，每轮 12 个 episode，共 24 个 actor-visited episode；
-- DAgger recovery 标注从第一轮的 537 个步骤降至第二轮的 414 个步骤；聚合数据共
-  16,247 帧，其中 recovery 标记 951 帧（5.85%）；
+- 原始候选的 DAgger recovery 标注从第一轮的 537 个步骤降至第二轮的 414 个步骤；
+  聚合数据共 16,247 帧，其中 recovery 标记 951 帧（5.85%）；conservative 三 seed
+  复核的每个训练产物另行保留 recovery manifest；
 - 当前 teacher 只用于 DAgger 标签，部署评估实际运行的是 public-belief route base
   + recurrent residual actor + local CBF，而不是 DN-MPC teacher 本身。
 
@@ -97,9 +101,9 @@ bootstrap loader 将这些动作同时作为 `base=target`，因此初始 residu
 学习的 base 分布与部署时输入的 base 分布不同；初始 192 条数据并没有真正告诉 actor
 如何修正当前部署 base。这是本次退化最重要的实现级原因。
 
-### 3. recovery 信号太稀疏且动作差距过大
+### 3. 原始候选的 recovery 信号太稀疏且动作差距过大
 
-24 个 DAgger episode 中，第一轮只有 2/12 safe capture，第二轮 5/12 safe capture；
+原始候选的 24 个 DAgger episode 中，第一轮只有 2/12 safe capture，第二轮 5/12 safe capture；
 其余主要在早期 safety failure 终止。有效 recovery 只有 951/16,247 帧，但
 teacher-base 的 recovery gap 平均约 3.11 m/s、最大约 8.03 m/s，而 actor 的
 residual scale 只有 2.5 m/s。当前数据更像少量大幅纠偏标签，不足以学习连续、可执行
@@ -112,14 +116,44 @@ Phase16 的 94.81% 结果是在闭环中直接运行 distributed delayed DN-MPC�
 actor 的结果解释为完整 DN-MPC 组合的结果。与 Phase78 比较时，Phase79 仍然退化，
 但与 Phase16 比较则属于不同部署路径。
 
-### 5. 当前只完成单 seed，不能用来宣称稳定性
+### 5. 原始候选只有单 seed；修复候选已完成三 seed
 
-Phase79 只有 seed `791501` 的正式 checkpoint。三 seed 复核尚未开始，且在 base 合同
-修复前没有继续打开 Hard、Stress 或 locked-test 的必要。
+原始 raw-base candidate 只有 seed `791501`，因此该失败结果不能作为稳定性结论。
+修复后的 conservative candidate 已完成 `791601/791602/791603` 三 seed Nominal
+复核并通过 Nominal gate；随后 Hard 可行子集诊断已完成，但未通过 Hard promotion。
+
+## Hard 可行子集诊断
+
+Nominal 通过后，使用 Phase78 Hard 原始池进行专家筛选。100 个 Hard 场景中只有
+11 个满足 safe capture、无目标/防守方越界和无物理碰撞的专家接受合同；原始池的
+防守方越界率为 59%，物理碰撞率为 30%。因此不能把完整 100 场直接作为学习模型
+的 Hard 性能分母。
+
+在这 11 个专家可行场景上，使用与 Nominal 相同的 conservative residual actor，
+但保留 Hard 的 4-step execution delay 和 0.08 m/s command noise，三个 seed 各
+运行 11 个 episode：
+
+| seed | episodes | safe capture | collision | boundary | timeout |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 791601 | 11 | 18.18% | 81.82% | 27.27% | 0% |
+| 791602 | 11 | 9.09% | 90.91% | 27.27% | 0% |
+| 791603 | 11 | 18.18% | 81.82% | 18.18% | 0% |
+| **合计** | **33** | **15.15% [3.03%, 27.27%]** | **84.85% [72.73%, 96.97%]** | **24.24% [9.09%, 39.39%]** | **0%** |
+
+Hard 结果是小样本、专家筛选后的诊断，不能作为完整 Hard 分布上的泛化结论；
+但三个 seed 的方向一致且远低于 Nominal gate，因此 Hard promotion 为 No-Go。
+这也说明当前瓶颈主要是高延迟/高噪声下的闭环协调与可恢复性，而不是目标是否
+主动变道。Stress 和 locked-test 在 Hard 通过前保持关闭。
+
+Hard 聚合机器可读结果为：
+
+```text
+results/phase79_dnmcp_dagger_residual_conservative_hard_aggregate.json
+```
 
 ## 当前性能与延迟
 
-完整 250 步 Phase79 复核的平均最小净空为 `0.0916 m`，平均捕获时间为 `4.739 s`；
+原始 raw-base candidate 的完整 250 步复核平均最小净空为 `0.0916 m`，平均捕获时间为 `4.739 s`；
 捕获时间偏小是因为 55 个 episode 很早以 safety failure 结束，不代表拦截速度更快。
 
 各模块延迟（CPU、开发验证诊断）为：
@@ -131,20 +165,22 @@ Phase79 只有 seed `791501` 的正式 checkpoint。三 seed 复核尚未开始�
 | local CBF | 1.66 | 3.66 | 4.02 |
 | total | 2.98 | 176.83 | 226.99 |
 
+修复后的 conservative Nominal 三 seed 聚合延迟为 route intent/actor/local CBF/total
+`2.40/0.53/1.75/4.78 ms`（p50）、`147.69/1.17/3.85/150.65 ms`（p95）和
+`216.04/1.75/4.24/218.95 ms`（p99）。Hard 可行子集的对应 total 分位数为
+`7.03/199.46/312.80 ms`；所有延迟均为 CPU 开发诊断，不作部署吞吐声明。
+
 100 ms 不是硬门槛；p95/p99 受 CPU 调度影响，不能直接作为部署吞吐声明。local CBF
 仍然只是经验过滤器，不构成 R-CLBF-QP 或 robust CBF-QP 安全证明。
 
 ## 后续修复顺序
 
-1. 先统一 base-action 合同：训练、DAgger 和部署均使用同一版本的
-   safety-filtered route base，或重新收集同时保存 raw-base/safe-base/teacher-action
-   三元组的 192 条示范；
-2. 将 recovery 样本按 episode 和失败前缀分层重采样，增加中后期队形恢复样本，避免
-   只学习早期碰撞前的巨大修正；
-3. 在 validation 上先做 residual scale `0.5/1.0/1.5` 的预注册小矩阵，并增加
-   residual smoothness/动作变化惩罚；不得查看或调参 locked-test；
-4. 分别报告 route-base residual、DN-MPC teacher、完整 DN-MPC deployment 三条路径，
-   不再把 teacher-label 训练结果与完整 planner 闭环混称；
-5. 修复后至少完成三个 seed 的 Nominal gate：safe capture ≥70%、collision ≤5%、
-   boundary ≤5%、timeout ≤10%，并完整报告 route/predictor/planner/QDR/safety/total
-   的 p50/p95/p99；Nominal 未通过前不运行 Hard、Stress 或 locked-test。
+1. 保持 Nominal conservative checkpoint 和 192 条示范合同不变，将 Hard 重新拆成
+   延迟、噪声、障碍物数量逐轴递增的 calibration blocks；先要求专家接受率达到可
+   解释的门槛，再训练学习策略；
+2. 将 Hard recovery 样本按失败前缀分层重采样，重点覆盖高延迟下的队形恢复与越界前
+   缓冲状态，而不是直接把专家无法完成的场景加入训练集；
+3. 对重新标定后的 Hard 运行至少三 seed，并同时报告 route/actor/safety/total 的
+   p50/p95/p99；不得查看或调参 locked-test；
+4. Hard 通过后再开放 Stress；在 Hard/Stress 都通过前，不运行 locked-test。local CBF
+   仍只作为经验过滤器，不宣称 R-CLBF-QP 或 robust CBF-QP 安全证明。
