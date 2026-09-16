@@ -3,13 +3,14 @@
 > Phase 82 Nominal-plus-1 困难场景标定已完成：新增 500 场景 / 250 个完整镜像组，
 > 分成 command-noise、action-delay、maneuver-frequency、obstacle-near 和
 > formation-tight 五个单因素 block，各 100 场景。所有场景的四步初始 outward-escape
-> certificate 通过；但 oracle/public-belief 专家接受率只有 `75.2%/62.4%`，public-belief
-> 五个 block 分别为 `69%/33%/68%/72%/70%`，均未达到预注册的 `80%` 训练门槛。
-> 因此不能把这批场景直接混入训练，也不应继续打开 Hard、Stress 或 locked-test；当前应
-> 先做较小幅度的 difficulty ramp 和失败归因。route-and-safety 专家诊断延迟总体
-> p50/p95/p99 为 `1.506/54.352/292.028 ms`，不是部署 runtime 结论。恢复/CBF 投影
-> 数据采集只用于诊断，local CBF 仍是经验过滤器，不宣称 R-CLBF-QP/robust CBF-QP
-> 安全证明。完整结果见 `docs/PHASE82_NOMINAL_PLUS1_CALIBRATION_REPORT.md`。
+> certificate 通过。使用与 Phase81 一致的 canonical `safety_margin=1.0 m` 重筛后，
+> oracle/public-belief 专家接受率为 `92.6%/87.0%`；public-belief 五个 block 为
+> `91%/78%/88%/88%/90%`，除 action-delay=2 外其余四个 block 达到 `80%` 训练门槛。
+> 已从四个合格 block 选出 357 个训练场景；action-delay=2 保留为诊断，不混入训练。
+> 独立 validation 池已生成，三 seed 学习策略验证尚未完成，因此 Hard、Stress 和
+> locked-test 仍关闭。route-and-safety 专家诊断延迟 p50/p95/p99 为 `1.407/35.192/52.527 ms`，
+> 不是部署 runtime 结论。恢复/CBF 投影数据只用于诊断，local CBF 仍是经验过滤器，不宣称
+> R-CLBF-QP/robust CBF-QP 安全证明。完整结果见 `docs/PHASE82_NOMINAL_PLUS1_CALIBRATION_REPORT.md`。
 
 > Phase 76 路线感知重训练 pilot 已完成但为 **No-Go**：实现了仅使用 public belief 和公开
 > 障碍几何的左绕/右绕/上绕路线教师，并将下一航点、路线 one-hot 和 belief-blind 标志
