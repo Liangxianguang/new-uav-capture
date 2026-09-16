@@ -103,7 +103,7 @@ def _record(
         "observation_condition": str(variant["observation_condition"]),
         "pursuit_overrides": copy.deepcopy(variant["pursuit_overrides"]),
         "obstacle_count": int(len(scenario.obstacles)),
-        "difficulty": "nominal_plus1",
+        "difficulty": str(variant.get("difficulty_label", "nominal_plus1")),
         "variant": str(variant_name),
         "single_factor": str(variant["single_factor"]),
         "single_factor_value": copy.deepcopy(variant.get("single_factor_value")),

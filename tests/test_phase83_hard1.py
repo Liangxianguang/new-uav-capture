@@ -41,6 +41,7 @@ def test_phase83_hard1_smoke_preserves_outward_target_contract(tmp_path: Path) -
         if line.strip()
     ]
     assert all(not item["target_crossing_required"] for item in records)
+    assert all(item["difficulty"] == "hard1" for item in records)
     assert all(
         not item["pursuit_overrides"]["target_maneuver_enable_reverse_lane_change"]
         for item in records

@@ -21,6 +21,7 @@ common:
 # the obstacle, does not require a central crossing, and never requests an
 # intentional reverse lane change.
 base_profile:
+  difficulty_label: hard1
   target_motion_mode: adaptive_maneuvering
   target_speed_scales: [0.50, 0.60]
   initial_side_distances: [6.0, 6.5]
