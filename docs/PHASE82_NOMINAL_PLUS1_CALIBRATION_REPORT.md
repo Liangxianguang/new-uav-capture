@@ -46,7 +46,40 @@
 
 总体 public-belief route-and-safety 延迟的 p50/p95/p99 为 `1.407/35.192/52.527 ms`。这些是专家 route controller 的诊断耗时，不是 predictor/planner/QDR/safety/total 的部署基准；正式 runtime 比较仍需受控单进程 benchmark。
 
-## 3. 已保存的复现实验产物
+## 3. 学习策略三 seed 独立 validation
+
+从四个通过 teacher 门槛的 block 中选择的 357 个训练场景用于 DAgger residual actor；独立
+validation pool 为 362 个场景、198 个 mirror groups，训练和 validation 的场景 hash 不同。
+三组实验均完成 192 个质量门控专家示范、两轮各 12 个 DAgger recovery rollout，并只在
+`development_validation_only` 上评估。锁定测试没有使用。
+
+| Seed | Episodes | Safe capture | Collision / boundary | Timeout | Mean capture time (s) | Total p50/p95/p99 (ms) | Gate |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
+| 824601 | 362 | 92.27% | 7.18% / 7.18% | 0.55% | 8.560 | 3.246 / 77.702 / 121.743 | Fail |
+| 824602 | 362 | 94.48% | 5.25% / 5.25% | 0.28% | 8.418 | 3.255 / 77.374 / 119.919 | Fail |
+| 824603 | 362 | 92.82% | 6.08% / 5.80% | 1.10% | 8.642 | 3.258 / 77.429 / 120.451 | Fail |
+| **Pooled** | **1,086** | **93.19%** | **6.17% / 6.08%** | **0.64%** | — | — | **Fail** |
+
+安全捕获的 pooled 95% Wilson 区间为 `[91.53%,94.54%]`。三 seed 的安全捕获都明显高于
+70% 下限，但没有一个同时满足 collision ≤5% 且 boundary ≤5%；因此预注册的
+`three_seed_gate_passed=false`，Hard、Stress 和 locked-test 不开放。
+
+对失败行进行的可观测归因显示：67 个 `safety_failure` 中有 66 个同时报告
+`world_violation_steps>0` 且 `min_clearance_m≥0`，只有 1 个出现负的障碍物/机间最小
+clearance。这表明当前主要问题是延迟/命令噪声与 residual action 共同造成的 world-boundary
+闭环失效；不能把它描述为“障碍物绕行失败”，也不能仅凭 `collision` 字段区分越界对象
+是 target 还是 defender。下一次 calibration 必须单独记录 target/defender boundary
+violation counters，并测试 execution-aware boundary projection 或更小 residual scale。
+
+当前 actor evaluator 可复现地报告 `route_intent/actor/safety/total` 的 p50/p95/p99；它没有
+单独保存 predictor、planner 和 QDR 的原始 stage latency，因此本阶段不虚构
+`predictor/planner/QDR` 分位数。后续若将 actor 作为完整 predictor--planner--QDR 链路的
+主模型，必须补充同一控制步的 stage-level raw latency logging。
+
+三 seed 汇总文件：`results/phase82_dagger_three_seed_validation_v1.json`；可复现汇总脚本：
+`scripts/aggregate_phase82_dagger_results.py`。
+
+## 4. 已保存的复现实验产物
 
 - 场景生成器：`scripts/generate_phase82_nominal_plus1_scenes.py`
 - 场景协议：`configs/phase82_nominal_plus1.yaml`
@@ -58,6 +91,11 @@
 - block 级聚合：`scripts/aggregate_phase82_expert_calibration.py`
 - 聚合结果：`results/phase82_expert_calibration_aggregate_v5_margin1.json`
 - 恢复/CBF 投影采集器：`scripts/collect_phase82_recovery_data.py`
+- 合格训练池：`results/phase82_eligible_training_pool_v2/`
+- 独立 validation 池：`results/phase82_eligible_validation_pool_v2/`
+- 三 seed residual actor 输出：`results/phase82_dnmcp_eligible_seed824601/`、
+  `results/phase82_dnmcp_eligible_seed824602/`、`results/phase82_dnmcp_eligible_seed824603/`
+- 三 seed 汇总：`results/phase82_dagger_three_seed_validation_v1.json`
 
 恢复数据采集只用于定位 teacher recovery、CBF projection、障碍物接近和编队紧约束触发帧，不会改变模型或锁定测试。
 
@@ -74,29 +112,32 @@ teacher recovery 在所有保留帧上均为 true，说明当前 residual/CBF re
 `13/500=2.6%`。它不是学习策略结果，也不能替代前面的专家 acceptance gate；local CBF
 仍然只是经验过滤器。
 
-## 4. 下一步决策计划
+## 5. 下一步决策计划
 
-### A. 先完成独立 validation 筛选
+### A. 先修复 Nominal-plus 闭环安全失败
 
-不继续盲目增加 Hard。当前四个 block 已达到 teacher 门槛，先在独立 seed-offset validation
-池上进行同契约筛选；action-delay=2 仍不训练。若 validation pool 的可行性明显低于
-calibration，则回退为更小的 ramp：
+当前不继续增加 Hard。先在 development calibration/validation 复现边界失败，并保持
+locked-test 不变。action-delay=2 仍不进入训练，除非 public-belief teacher 重新达到 80%
+acceptance；其余修复必须先经过单因素 calibration：
 
-- delay：`1 → 1.5` 不适用离散步长，因此保持 1，单独诊断 `2`；
-- command noise：先测试 `0.0275`，再决定是否保留 `0.030`；
-- maneuver interval：先保持 8，确认 interval 6 的失败是否来自重规划频率而不是 teacher route；
-- obstacle-near：保留 clearance `≤2.40 m`，优先修复绕行路线/队列恢复，而不是继续缩短初始距离；
-- formation-tight：先用 y-scale `0.80`，确认 `0.65` 的失败是否由编队碰撞而不是目标机动造成。
+- 增加 target/defender 分离的 boundary counters 和首个 violation step；
+- 固定 actor，只比较 execution-aware boundary projection、residual scale `0.25/0.35/0.50`；
+- 每个候选只在 calibration 上先做 100 场景筛选，记录 safe capture、boundary、timeout、
+  recovery rate 及 route/actor/safety/total p50/p95/p99；
+- 只有一个候选在 calibration 上同时达到 safe capture≥70%、collision/boundary≤5% 时，
+  才在同一独立 validation pool 上复跑三 seed。
 
 每个新 ramp 仍需至少 100 个 calibration episode、完整镜像组和独立 manifest。
 
-### B. 训练与三 seed validation
+### B. 重新训练与三 seed validation
 
 对每个 block 要求：oracle 与 public-belief 均 `≥80%`，且不存在明显的场景生成契约错误。当前
-四个 block 已满足，训练使用 357 个 accepted scenes；validation 使用独立 seed-offset 场景，
-不得使用训练场景或 locked-test。训练后要求 3 个 seed 的 safe capture `≥70%`、
-collision/boundary `≤5%`，通过后才允许进入 Hard。
+四个 block 已满足，但当前 residual actor 三 seed gate 未通过；validation 使用独立
+seed-offset 场景，不得使用训练场景或 locked-test。修复后仍要求 3 个 seed 的 safe capture
+`≥70%`、collision/boundary `≤5%`，通过后才允许进入 Hard。
 
 ### C. 失败归因与 runtime
 
-恢复数据采集完成后，按 `teacher_recovery`、`cbf_projection`、`obstacle_near`、`formation_spacing` 统计触发率，并报告 predictor/planner/QDR/safety/total 的 p50/p95/p99。local CBF 仍只作为经验过滤器，任何安全结论都必须限定为经验 outcome，不写成形式化证书。
+恢复数据采集完成后，按 `teacher_recovery`、`cbf_projection`、`obstacle_near`、`formation_spacing`
+统计触发率，并补齐 predictor/planner/QDR-or-tube/safety/total 的 p50、p95、p99。local CBF
+仍只作为经验过滤器，任何安全结论都必须限定为经验 outcome，不写成形式化证书。

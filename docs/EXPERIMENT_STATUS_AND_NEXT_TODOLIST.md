@@ -7,8 +7,14 @@
 > oracle/public-belief 专家接受率为 `92.6%/87.0%`；public-belief 五个 block 为
 > `91%/78%/88%/88%/90%`，除 action-delay=2 外其余四个 block 达到 `80%` 训练门槛。
 > 已从四个合格 block 选出 357 个训练场景；action-delay=2 保留为诊断，不混入训练。
-> 独立 validation 池已生成，三 seed 学习策略验证尚未完成，因此 Hard、Stress 和
-> locked-test 仍关闭。route-and-safety 专家诊断延迟 p50/p95/p99 为 `1.407/35.192/52.527 ms`，
+> 四个合格 block 形成 357 个训练场景，独立 validation 为 362 场景。三 seed residual actor
+> 已完成 validation：safe capture 为 `92.27%/94.48%/92.82%`，collision/boundary 为
+> `7.18%/7.18%`、`5.25%/5.25%`、`6.08%/5.80%`；pooled safe capture `93.19%`、
+> boundary `6.08%`，因此严格的三 seed gate **未通过**。67 个安全失败中 66 个是
+> world-boundary violation，主要瓶颈是执行延迟/噪声下的边界闭环，而非捕获能力不足。
+> Hard、Stress 和 locked-test 继续关闭。三 seed total p50/p95/p99 约为
+> `3.246/77.702/121.743`、`3.255/77.374/119.919`、`3.258/77.429/120.451 ms`；
+> 100 ms 不是硬门槛。route-and-safety 专家诊断延迟 p50/p95/p99 为 `1.407/35.192/52.527 ms`，
 > 不是部署 runtime 结论。恢复/CBF 投影数据只用于诊断，local CBF 仍是经验过滤器，不宣称
 > R-CLBF-QP/robust CBF-QP 安全证明。完整结果见 `docs/PHASE82_NOMINAL_PLUS1_CALIBRATION_REPORT.md`。
 
