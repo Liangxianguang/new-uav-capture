@@ -74,6 +74,16 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional calibration-only local-CBF margin override in metres.",
     )
+    parser.add_argument(
+        "--target-boundary-margin",
+        type=float,
+        help="Optional calibration-only target boundary trigger margin in metres.",
+    )
+    parser.add_argument(
+        "--target-boundary-weight",
+        type=float,
+        help="Optional calibration-only target maneuver boundary score weight.",
+    )
     return parser.parse_args()
 
 
@@ -121,6 +131,8 @@ def _config_for_record(
     environment_config: Path,
     record: dict[str, Any],
     safety_margin: float | None,
+    target_boundary_margin: float | None,
+    target_boundary_weight: float | None,
 ) -> dict[str, Any]:
     config = config_for_phase73_spec(environment_config.resolve(), record, None)
     execution = config.setdefault("dynamics", {}).setdefault("execution", {})
@@ -138,6 +150,15 @@ def _config_for_record(
         if safety_margin < 0.0:
             raise ValueError("safety-margin must be non-negative")
         config.setdefault("task", {}).setdefault("pursuit", {})["safety_margin"] = float(safety_margin)
+    pursuit = config.setdefault("task", {}).setdefault("pursuit", {})
+    if target_boundary_margin is not None:
+        if target_boundary_margin < 0.0:
+            raise ValueError("target-boundary-margin must be non-negative")
+        pursuit["target_boundary_margin"] = float(target_boundary_margin)
+    if target_boundary_weight is not None:
+        if target_boundary_weight < 0.0:
+            raise ValueError("target-boundary-weight must be non-negative")
+        pursuit["target_maneuver_boundary_weight"] = float(target_boundary_weight)
     return config
 
 
@@ -147,8 +168,16 @@ def _rollout(
     use_local_cbf: bool,
     controller_name: str,
     safety_margin: float | None,
+    target_boundary_margin: float | None,
+    target_boundary_weight: float | None,
 ) -> dict[str, Any]:
-    config = _config_for_record(environment_config, record, safety_margin)
+    config = _config_for_record(
+        environment_config,
+        record,
+        safety_margin,
+        target_boundary_margin,
+        target_boundary_weight,
+    )
     scenario = scenario_from_metadata(record["scenario"])
     env = CaptureRadiusPursuit3DEnv(
         config,
@@ -331,6 +360,8 @@ def main() -> None:
                 not args.no_local_cbf,
                 args.controller,
                 args.safety_margin,
+                args.target_boundary_margin,
+                args.target_boundary_weight,
             )
         )
         if index % 10 == 0 or index == len(records):
@@ -369,6 +400,8 @@ def main() -> None:
         "controller": f"{args.controller}_route_intent_v1",
         "controller_mode": str(args.controller),
         "safety_margin_override_m": args.safety_margin,
+        "target_boundary_margin_override_m": args.target_boundary_margin,
+        "target_maneuver_boundary_weight_override": args.target_boundary_weight,
         "local_cbf_is_empirical_filter_only": not args.no_local_cbf,
         "formal_robust_cbf_qp_claim": False,
         "expert_acceptance_contract": {

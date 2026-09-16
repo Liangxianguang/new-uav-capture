@@ -1,0 +1,38 @@
+experiment_name: phase82_dnmcp_dagger_residual_target_boundary_guard_diagnostic
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: phase70_maneuvering_adversary_v2.yaml
+mpc_config: innovation_mpc.yaml
+training_scene_file: ../results/phase82_eligible_training_pool_v2/scenes.jsonl
+evaluation_scene_file: ../results/phase82_eligible_validation_pool_v2/scenes.jsonl
+bootstrap_expert_datasets: []
+
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: true
+      action_delay_steps: 1
+      command_noise_std: 0.025
+  task:
+    pursuit:
+      target_motion_mode: adaptive_maneuvering
+      target_maneuver_replan_interval_steps: 8
+      target_maneuver_min_hold_steps: 6
+      target_maneuver_horizon_steps: 16
+      target_maneuver_feasibility_margin_m: 0.60
+      target_maneuver_obstacle_avoidance_gain: 5.0
+      target_maneuver_crossing_gain: 0.0
+      target_maneuver_enable_reverse_lane_change: false
+      target_boundary_margin: 2.0
+      target_maneuver_boundary_weight: 3.0
+      safety_margin: 1.0
+
+experiment:
+  seed: 824601
+  teacher_horizon_seconds: 0.75
+  teacher_replan_interval_steps: 8
+  teacher_min_hold_steps: 6
+  teacher_grid_step_m: 0.75
+  teacher_route_margin_m: 0.85
+  residual_scale_mps: 0.5
+  dt_seconds: 0.1

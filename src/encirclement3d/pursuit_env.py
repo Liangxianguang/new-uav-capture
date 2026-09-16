@@ -530,6 +530,10 @@ class CaptureRadiusPursuit3DEnv:
         self.step_count = 0
         self.collision_steps = 0
         self.world_violation_steps = 0
+        self.target_world_violation_steps = 0
+        self.defender_world_violation_steps = 0
+        self.first_target_boundary_violation_step: int | None = None
+        self.first_defender_boundary_violation_step: int | None = None
         self.min_clearance = float("inf")
         self.capture_time_seconds: float | None = None
         self.capturing_defender_id: int | None = None
@@ -543,6 +547,10 @@ class CaptureRadiusPursuit3DEnv:
         self.step_count = 0
         self.collision_steps = 0
         self.world_violation_steps = 0
+        self.target_world_violation_steps = 0
+        self.defender_world_violation_steps = 0
+        self.first_target_boundary_violation_step = None
+        self.first_defender_boundary_violation_step = None
         self.min_clearance = float("inf")
         self.capture_time_seconds = None
         self.capturing_defender_id = None
@@ -875,7 +883,11 @@ class CaptureRadiusPursuit3DEnv:
         )[0]
         self.target_acceleration = (self.target_velocity - previous_target_velocity) / max(self.dt, 1e-9)
         self.target_position += self.target_velocity * self.dt
-        self._enforce_world_bounds(self.target_position[None, :], self.target_velocity[None, :])
+        self._enforce_world_bounds(
+            self.target_position[None, :],
+            self.target_velocity[None, :],
+            entity="target",
+        )
 
         self.step_count += 1
         self._update_target_beliefs()
@@ -936,6 +948,10 @@ class CaptureRadiusPursuit3DEnv:
             "collision_steps": int(self.collision_steps),
             "physical_target_contact": bool(metrics.physical_target_contact),
             "world_violation_steps": int(self.world_violation_steps),
+            "target_world_violation_steps": int(self.target_world_violation_steps),
+            "defender_world_violation_steps": int(self.defender_world_violation_steps),
+            "first_target_boundary_violation_step": self.first_target_boundary_violation_step,
+            "first_defender_boundary_violation_step": self.first_defender_boundary_violation_step,
             "min_clearance": float(metrics.min_clearance),
             "min_clearance_so_far": float(self.min_clearance),
             "termination_reason": termination_reason,
@@ -1083,7 +1099,11 @@ class CaptureRadiusPursuit3DEnv:
         self.action_execution_steps += 1
         self.defender_velocities = executed
         self.defender_positions += self.defender_velocities * self.dt
-        self._enforce_world_bounds(self.defender_positions, self.defender_velocities)
+        self._enforce_world_bounds(
+            self.defender_positions,
+            self.defender_velocities,
+            entity="defender",
+        )
 
     def _target_action(self) -> np.ndarray:
         if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
@@ -2395,12 +2415,29 @@ class CaptureRadiusPursuit3DEnv:
         normal = _unit(radial_normal * radial_gap + np.array([0.0, 0.0, position[2] - nearest_z]))
         return clearance, normal
 
-    def _enforce_world_bounds(self, positions: np.ndarray, velocities: np.ndarray) -> None:
+    def _enforce_world_bounds(
+        self,
+        positions: np.ndarray,
+        velocities: np.ndarray,
+        *,
+        entity: str | None = None,
+    ) -> None:
+        if entity not in {None, "target", "defender"}:
+            raise ValueError(f"unknown world-bound entity: {entity}")
         for axis in range(3):
             below = positions[:, axis] < self.lower[axis]
             above = positions[:, axis] > self.upper[axis]
             if bool(np.any(below | above)):
-                self.world_violation_steps += int(np.count_nonzero(below | above))
+                count = int(np.count_nonzero(below | above))
+                self.world_violation_steps += count
+                if entity == "target":
+                    self.target_world_violation_steps += count
+                    if self.first_target_boundary_violation_step is None:
+                        self.first_target_boundary_violation_step = int(self.step_count + 1)
+                elif entity == "defender":
+                    self.defender_world_violation_steps += count
+                    if self.first_defender_boundary_violation_step is None:
+                        self.first_defender_boundary_violation_step = int(self.step_count + 1)
             positions[below, axis] = self.lower[axis]
             positions[above, axis] = self.upper[axis]
             velocities[below | above, axis] *= -0.4
