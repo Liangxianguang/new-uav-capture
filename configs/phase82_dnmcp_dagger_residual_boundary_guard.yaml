@@ -1,4 +1,4 @@
-experiment_name: phase82_dnmcp_dagger_residual_target_boundary_guard_diagnostic
+experiment_name: phase82_dnmcp_dagger_residual_target_boundary_guard_replan6_diagnostic
 not_a_locked_test: true
 locked_test_tuning_forbidden: true
 environment_config: phase70_maneuvering_adversary_v2.yaml
@@ -16,9 +16,14 @@ environment_overrides:
   task:
     pursuit:
       target_motion_mode: adaptive_maneuvering
-      target_maneuver_replan_interval_steps: 8
+      target_maneuver_replan_interval_steps: 6
       target_maneuver_min_hold_steps: 6
       target_maneuver_horizon_steps: 16
+      target_maneuver_route_boundary_buffer_m: 1.25
+      target_maneuver_predictive_boundary_recovery: true
+      target_maneuver_safety_first_fallback: true
+      target_maneuver_predictive_boundary_lookahead_steps: 48
+      target_maneuver_boundary_recovery_speed_scale: 0.35
       target_maneuver_feasibility_margin_m: 0.60
       target_maneuver_obstacle_avoidance_gain: 5.0
       target_maneuver_crossing_gain: 0.0

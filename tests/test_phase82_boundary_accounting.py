@@ -34,3 +34,25 @@ def test_world_boundary_accounting_separates_target_and_defender() -> None:
     assert env.target_world_violation_steps == 1
     assert env.defender_world_violation_steps == 1
     assert env.first_defender_boundary_violation_step == 1
+
+
+def test_predictive_target_boundary_direction_uses_braking_horizon() -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    config["task"]["pursuit"].update(
+        {
+            "target_motion_mode": "adaptive_maneuvering",
+            "target_maneuver_predictive_boundary_recovery": True,
+            "target_maneuver_predictive_boundary_lookahead_steps": 24,
+        }
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.65)
+    env.reset(seed=820102)
+    env.target_position = np.array([7.0, 0.0, 3.7], dtype=np.float64)
+    env.target_velocity = np.array([2.4, 0.0, -1.2], dtype=np.float64)
+    direction = env._target_maneuver_boundary_direction()
+    assert direction[0] < 0.0
+    assert direction[2] > 0.0

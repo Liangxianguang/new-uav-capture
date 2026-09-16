@@ -84,6 +84,31 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional calibration-only target maneuver boundary score weight.",
     )
+    parser.add_argument(
+        "--target-route-boundary-buffer",
+        type=float,
+        help="Optional calibration-only minimum altitude buffer for target bypass waypoints.",
+    )
+    parser.add_argument(
+        "--target-predictive-boundary-recovery",
+        action="store_true",
+        help="Enable calibration-only predictive target boundary recovery.",
+    )
+    parser.add_argument(
+        "--target-predictive-boundary-lookahead-steps",
+        type=int,
+        help="Optional calibration-only target boundary risk lookahead.",
+    )
+    parser.add_argument(
+        "--target-boundary-recovery-speed-scale",
+        type=float,
+        help="Optional calibration-only target boundary recovery speed scale.",
+    )
+    parser.add_argument(
+        "--target-safety-first-fallback",
+        action="store_true",
+        help="Prefer long-horizon boundary clearance in calibration fallback selection.",
+    )
     return parser.parse_args()
 
 
@@ -133,6 +158,11 @@ def _config_for_record(
     safety_margin: float | None,
     target_boundary_margin: float | None,
     target_boundary_weight: float | None,
+    target_route_boundary_buffer: float | None,
+    target_predictive_boundary_recovery: bool,
+    target_predictive_boundary_lookahead_steps: int | None,
+    target_boundary_recovery_speed_scale: float | None,
+    target_safety_first_fallback: bool,
 ) -> dict[str, Any]:
     config = config_for_phase73_spec(environment_config.resolve(), record, None)
     execution = config.setdefault("dynamics", {}).setdefault("execution", {})
@@ -159,6 +189,26 @@ def _config_for_record(
         if target_boundary_weight < 0.0:
             raise ValueError("target-boundary-weight must be non-negative")
         pursuit["target_maneuver_boundary_weight"] = float(target_boundary_weight)
+    if target_route_boundary_buffer is not None:
+        if target_route_boundary_buffer < 0.0:
+            raise ValueError("target-route-boundary-buffer must be non-negative")
+        pursuit["target_maneuver_route_boundary_buffer_m"] = float(target_route_boundary_buffer)
+    if target_predictive_boundary_recovery:
+        pursuit["target_maneuver_predictive_boundary_recovery"] = True
+    if target_predictive_boundary_lookahead_steps is not None:
+        if target_predictive_boundary_lookahead_steps <= 0:
+            raise ValueError("target-predictive-boundary-lookahead-steps must be positive")
+        pursuit["target_maneuver_predictive_boundary_lookahead_steps"] = int(
+            target_predictive_boundary_lookahead_steps
+        )
+    if target_boundary_recovery_speed_scale is not None:
+        if target_boundary_recovery_speed_scale <= 0.0:
+            raise ValueError("target-boundary-recovery-speed-scale must be positive")
+        pursuit["target_maneuver_boundary_recovery_speed_scale"] = float(
+            target_boundary_recovery_speed_scale
+        )
+    if target_safety_first_fallback:
+        pursuit["target_maneuver_safety_first_fallback"] = True
     return config
 
 
@@ -170,6 +220,11 @@ def _rollout(
     safety_margin: float | None,
     target_boundary_margin: float | None,
     target_boundary_weight: float | None,
+    target_route_boundary_buffer: float | None,
+    target_predictive_boundary_recovery: bool,
+    target_predictive_boundary_lookahead_steps: int | None,
+    target_boundary_recovery_speed_scale: float | None,
+    target_safety_first_fallback: bool,
 ) -> dict[str, Any]:
     config = _config_for_record(
         environment_config,
@@ -177,6 +232,11 @@ def _rollout(
         safety_margin,
         target_boundary_margin,
         target_boundary_weight,
+        target_route_boundary_buffer,
+        target_predictive_boundary_recovery,
+        target_predictive_boundary_lookahead_steps,
+        target_boundary_recovery_speed_scale,
+        target_safety_first_fallback,
     )
     scenario = scenario_from_metadata(record["scenario"])
     env = CaptureRadiusPursuit3DEnv(
@@ -362,6 +422,11 @@ def main() -> None:
                 args.safety_margin,
                 args.target_boundary_margin,
                 args.target_boundary_weight,
+                args.target_route_boundary_buffer,
+                args.target_predictive_boundary_recovery,
+                args.target_predictive_boundary_lookahead_steps,
+                args.target_boundary_recovery_speed_scale,
+                args.target_safety_first_fallback,
             )
         )
         if index % 10 == 0 or index == len(records):
@@ -402,6 +467,11 @@ def main() -> None:
         "safety_margin_override_m": args.safety_margin,
         "target_boundary_margin_override_m": args.target_boundary_margin,
         "target_maneuver_boundary_weight_override": args.target_boundary_weight,
+        "target_maneuver_route_boundary_buffer_override_m": args.target_route_boundary_buffer,
+        "target_maneuver_predictive_boundary_recovery_override": args.target_predictive_boundary_recovery,
+        "target_maneuver_predictive_boundary_lookahead_steps_override": args.target_predictive_boundary_lookahead_steps,
+        "target_maneuver_boundary_recovery_speed_scale_override": args.target_boundary_recovery_speed_scale,
+        "target_maneuver_safety_first_fallback_override": args.target_safety_first_fallback,
         "local_cbf_is_empirical_filter_only": not args.no_local_cbf,
         "formal_robust_cbf_qp_claim": False,
         "expert_acceptance_contract": {

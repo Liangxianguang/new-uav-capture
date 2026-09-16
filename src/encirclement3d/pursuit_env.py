@@ -120,6 +120,7 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_maneuver_max_turn_rate_rad_s": 1.05,
     "target_maneuver_max_jerk_mps3": 12.0,
     "target_maneuver_route_margin_m": 1.00,
+    "target_maneuver_route_boundary_buffer_m": 0.50,
     "target_maneuver_feasibility_margin_m": 0.60,
     "target_maneuver_distance_weight": 1.00,
     "target_maneuver_terminal_weight": 1.50,
@@ -129,6 +130,10 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "target_maneuver_smoothness_weight": 0.25,
     "target_maneuver_switch_bonus": 0.08,
     "target_maneuver_burst_speed_scale": 1.15,
+    "target_maneuver_boundary_recovery_speed_scale": 0.75,
+    "target_maneuver_predictive_boundary_recovery": False,
+    "target_maneuver_safety_first_fallback": False,
+    "target_maneuver_predictive_boundary_lookahead_steps": 12,
     "target_maneuver_crossing_gain": 0.0,
     "target_maneuver_obstacle_avoidance_gain": 0.0,
     "target_maneuver_enable_reverse_lane_change": True,
@@ -305,6 +310,8 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("task.pursuit.target_maneuver_replan_interval_steps must be in [6, 10].")
     if int(settings["target_maneuver_min_hold_steps"]) < 1:
         raise ValueError("task.pursuit.target_maneuver_min_hold_steps must be positive.")
+    if int(settings["target_maneuver_predictive_boundary_lookahead_steps"]) <= 0:
+        raise ValueError("task.pursuit.target_maneuver_predictive_boundary_lookahead_steps must be positive.")
     if not 8 <= int(settings["target_maneuver_horizon_steps"]) <= 16:
         raise ValueError("task.pursuit.target_maneuver_horizon_steps must be in [8, 16].")
     if float(settings["target_maneuver_max_turn_rate_rad_s"]) <= 0.0:
@@ -314,6 +321,7 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
     for name in (
         "target_maneuver_observation_noise_std",
         "target_maneuver_route_margin_m",
+        "target_maneuver_route_boundary_buffer_m",
         "target_maneuver_feasibility_margin_m",
         "target_maneuver_distance_weight",
         "target_maneuver_terminal_weight",
@@ -323,6 +331,7 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         "target_maneuver_smoothness_weight",
         "target_maneuver_switch_bonus",
         "target_maneuver_burst_speed_scale",
+        "target_maneuver_boundary_recovery_speed_scale",
         "target_maneuver_crossing_gain",
         "target_maneuver_obstacle_avoidance_gain",
     ):
@@ -330,8 +339,16 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"task.pursuit.{name} must be non-negative.")
     if float(settings["target_maneuver_burst_speed_scale"]) <= 0.0:
         raise ValueError("task.pursuit.target_maneuver_burst_speed_scale must be positive.")
+    if float(settings["target_maneuver_boundary_recovery_speed_scale"]) <= 0.0:
+        raise ValueError("task.pursuit.target_maneuver_boundary_recovery_speed_scale must be positive.")
     if not isinstance(settings["target_maneuver_enable_reverse_lane_change"], bool):
         raise ValueError("task.pursuit.target_maneuver_enable_reverse_lane_change must be boolean.")
+    for name in (
+        "target_maneuver_predictive_boundary_recovery",
+        "target_maneuver_safety_first_fallback",
+    ):
+        if not isinstance(settings[name], bool):
+            raise ValueError(f"task.pursuit.{name} must be boolean.")
     if float(settings["target_branch_exit_offset_y"]) <= 0.0:
         raise ValueError("task.pursuit.target_branch_exit_offset_y must be positive.")
     if float(settings["target_branch_waypoint_x"]) <= 0.0:
@@ -1392,6 +1409,14 @@ class CaptureRadiusPursuit3DEnv:
         """Build left/right/top obstacle-bypass directions from known geometry."""
 
         margin = float(self.pursuit["target_maneuver_route_margin_m"])
+        route_boundary_buffer = max(
+            0.0,
+            float(self.pursuit["target_maneuver_route_boundary_buffer_m"]),
+        )
+        route_boundary_buffer = min(
+            route_boundary_buffer,
+            0.49 * float(self.upper[2] - self.lower[2]),
+        )
         routes: list[tuple[str, np.ndarray]] = []
         for obstacle_index, obstacle in enumerate(self.obstacles):
             half = (
@@ -1412,6 +1437,13 @@ class CaptureRadiusPursuit3DEnv:
                 routes.append((f"obstacle_{obstacle_index}_{label}", _unit(waypoint - self.target_position)))
             top = center.copy()
             top[2] = min(float(obstacle.height) + margin, self.upper[2] - 0.5)
+            top[2] = float(
+                np.clip(
+                    top[2],
+                    self.lower[2] + route_boundary_buffer,
+                    self.upper[2] - route_boundary_buffer,
+                )
+            )
             routes.append((f"obstacle_{obstacle_index}_top", _unit(top - self.target_position)))
         return routes
 
@@ -1437,6 +1469,37 @@ class CaptureRadiusPursuit3DEnv:
         if float(np.linalg.norm(away)) <= 1.0e-9:
             return _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0]))
         return _unit(away, fallback=self.target_escape_direction)
+
+    def _target_maneuver_boundary_direction(self) -> np.ndarray:
+        """Return an inward direction when the current target state is risky.
+
+        The predictive branch is intentionally target-private.  It models the
+        target noticing that its bounded dynamics cannot safely maintain the
+        current heading until the next nominal maneuver decision; it does not
+        reveal target state to the defender policy.
+        """
+
+        boundary_direction = np.zeros(3, dtype=np.float64)
+        boundary_trigger = float(self.pursuit["target_boundary_margin"]) + max(
+            0.50,
+            float(np.linalg.norm(self.target_velocity)) * self.dt * 2.0,
+        )
+        predictive_recovery = bool(self.pursuit["target_maneuver_predictive_boundary_recovery"])
+        lookahead_distance = (
+            float(self.pursuit["target_maneuver_predictive_boundary_lookahead_steps"]) * self.dt
+            if predictive_recovery
+            else 0.0
+        )
+        for axis in range(3):
+            lower_distance = float(self.target_position[axis] - self.lower[axis])
+            upper_distance = float(self.upper[axis] - self.target_position[axis])
+            lower_projected = lower_distance + min(float(self.target_velocity[axis]), 0.0) * lookahead_distance
+            upper_projected = upper_distance - max(float(self.target_velocity[axis]), 0.0) * lookahead_distance
+            if lower_distance < boundary_trigger or lower_projected < boundary_trigger:
+                boundary_direction[axis] += 1.0
+            if upper_distance < boundary_trigger or upper_projected < boundary_trigger:
+                boundary_direction[axis] -= 1.0
+        return boundary_direction
 
     def _target_maneuver_candidates(
         self,
@@ -1513,24 +1576,15 @@ class CaptureRadiusPursuit3DEnv:
                     "route": route,
                 }
             )
-        boundary_direction = np.zeros(3, dtype=np.float64)
-        boundary_trigger = float(self.pursuit["target_boundary_margin"]) + max(
-            0.50,
-            float(np.linalg.norm(self.target_velocity)) * self.dt * 2.0,
-        )
-        for axis in range(3):
-            lower_distance = float(self.target_position[axis] - self.lower[axis])
-            upper_distance = float(self.upper[axis] - self.target_position[axis])
-            if lower_distance < boundary_trigger:
-                boundary_direction[axis] += 1.0
-            if upper_distance < boundary_trigger:
-                boundary_direction[axis] -= 1.0
+        boundary_direction = self._target_maneuver_boundary_direction()
         if float(np.linalg.norm(boundary_direction)) > 1.0e-9:
             candidates.append(
                 {
                     "mode": "boundary_recovery",
                     "direction": _unit(boundary_direction, fallback=away),
-                    "speed_scale": 0.75,
+                    "speed_scale": float(
+                        self.pursuit["target_maneuver_boundary_recovery_speed_scale"]
+                    ),
                     "route": "boundary_recovery",
                 }
             )
@@ -1700,12 +1754,28 @@ class CaptureRadiusPursuit3DEnv:
 
         defender_positions, defender_velocities = self._observe_defenders_for_maneuver()
         interval = int(self.pursuit["target_maneuver_replan_interval_steps"])
+        predictive_boundary_risk = bool(
+            self.pursuit["target_maneuver_predictive_boundary_recovery"]
+            and np.linalg.norm(self._target_maneuver_boundary_direction()) > 1.0e-9
+        )
         should_replan = (
             self.target_maneuver_last_replan_step < 0
             or self.step_count - self.target_maneuver_last_replan_step >= interval
+            or predictive_boundary_risk
         )
         if should_replan:
             candidates = self._target_maneuver_candidates(defender_positions, defender_velocities)
+            if predictive_boundary_risk:
+                # Once the current bounded dynamics predict a boundary
+                # violation, there is no meaningful adversarial trade-off to
+                # optimize: emergency recovery must take precedence over the
+                # normal candidate search.  Evaluating only this candidate
+                # also avoids repeatedly rolling out every maneuver while the
+                # target is already braking toward the interior.
+                boundary_candidates = [
+                    item for item in candidates if item["mode"] == "boundary_recovery"
+                ]
+                candidates = boundary_candidates or candidates
             evaluated = [
                 self._evaluate_target_maneuver_candidate(item, defender_positions, defender_velocities)
                 for item in candidates
@@ -1737,15 +1807,28 @@ class CaptureRadiusPursuit3DEnv:
                         ),
                     )
                 else:
-                    fallback = max(
-                        fallback_pool,
-                        key=lambda item: (
-                            float(item["first_boundary"]),
-                            float(item["first_clearance"]),
-                            int(item["feasible_prefix_steps"]),
-                            float(item["score"]),
-                        ),
-                    )
+                    if bool(self.pursuit["target_maneuver_safety_first_fallback"]):
+                        fallback = max(
+                            fallback_pool,
+                            key=lambda item: (
+                                float(item["min_boundary"]),
+                                float(item["min_clearance"]),
+                                int(item["feasible_prefix_steps"]),
+                                float(item["first_boundary"]),
+                                float(item["first_clearance"]),
+                                float(item["score"]),
+                            ),
+                        )
+                    else:
+                        fallback = max(
+                            fallback_pool,
+                            key=lambda item: (
+                                float(item["first_boundary"]),
+                                float(item["first_clearance"]),
+                                int(item["feasible_prefix_steps"]),
+                                float(item["score"]),
+                            ),
+                        )
                 self.target_maneuver_last_feasibility_failure = str(fallback["feasibility_failure"])
             else:
                 fallback = None
@@ -1759,6 +1842,13 @@ class CaptureRadiusPursuit3DEnv:
                 for mode in sorted(_MANEUVER_MODES)
                 if any(item["mode"] == mode for item in evaluated)
             }
+            boundary_recovery_items = [
+                item for item in evaluated if item["mode"] == "boundary_recovery"
+            ]
+            force_boundary_recovery = bool(
+                self.pursuit["target_maneuver_predictive_boundary_recovery"]
+                and boundary_recovery_items
+            )
             hold_steps = self.step_count - int(self.target_maneuver_mode_start_step)
             eligible = feasible_evaluated if feasible_evaluated else [fallback]
             if hold_steps < int(self.pursuit["target_maneuver_min_hold_steps"]):
@@ -1767,6 +1857,8 @@ class CaptureRadiusPursuit3DEnv:
                     eligible = held_feasible or feasible_evaluated
                 elif fallback is not None and fallback["mode"] == self.target_maneuver_mode:
                     eligible = [fallback]
+            if force_boundary_recovery:
+                eligible = boundary_recovery_items
             current_mode = self.target_maneuver_mode
             for item in eligible:
                 if item["mode"] != current_mode:
