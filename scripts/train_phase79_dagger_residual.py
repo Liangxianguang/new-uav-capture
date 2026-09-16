@@ -328,6 +328,57 @@ def actor_action(
     return action.cpu().numpy().astype(np.float32), hidden
 
 
+def _evaluation_rate(rows: list[dict[str, Any]], name: str) -> float:
+    return float(np.mean([bool(row.get(name, False)) for row in rows])) if rows else 0.0
+
+
+def _evaluation_percentiles(values: list[float]) -> dict[str, float]:
+    if not values:
+        return {"p50": 0.0, "p95": 0.0, "p99": 0.0}
+    return {
+        f"p{percentile}": float(np.percentile(np.asarray(values, dtype=np.float64), percentile))
+        for percentile in (50, 95, 99)
+    }
+
+
+def _write_evaluation_progress(
+    path: Path,
+    *,
+    target_episodes: int,
+    rows: list[dict[str, Any]],
+    route_latencies: list[float],
+    actor_latencies: list[float],
+    safety_latencies: list[float],
+    total_latencies: list[float],
+) -> None:
+    """Write an atomic, calibration-only progress snapshot for long evaluations."""
+
+    payload = {
+        "experiment_name": "phase79_dagger_residual_policy_evaluation_progress",
+        "evaluation_split": "development_validation_only",
+        "locked_test_used": False,
+        "episodes_target": int(target_episodes),
+        "episodes_completed": len(rows),
+        "complete": bool(len(rows) == target_episodes),
+        "safe_capture_rate": _evaluation_rate(rows, "safe_capture_success"),
+        "collision_rate": _evaluation_rate(rows, "collision"),
+        "boundary_violation_rate": _evaluation_rate(rows, "boundary_violation"),
+        "timeout_rate": _evaluation_rate(rows, "timeout"),
+        "latency_ms": {
+            "route_intent": _evaluation_percentiles(route_latencies),
+            "actor": _evaluation_percentiles(actor_latencies),
+            "safety": _evaluation_percentiles(safety_latencies),
+            "total": _evaluation_percentiles(total_latencies),
+        },
+        "last_episode": rows[-1] if rows else None,
+    }
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
 def rollout(
     environment_config: dict[str, Any],
     record: dict[str, Any],
@@ -560,12 +611,26 @@ def evaluate_policy(
     actor: RecurrentResidualActor,
     device: torch.device,
     max_steps: int | None,
+    progress_path: Path | None = None,
+    progress_interval: int = 10,
 ) -> dict[str, Any]:
+    if progress_interval <= 0:
+        raise ValueError("progress_interval must be positive")
     rows: list[dict[str, Any]] = []
     route_latencies: list[float] = []
     actor_latencies: list[float] = []
     safety_latencies: list[float] = []
     total_latencies: list[float] = []
+    if progress_path is not None:
+        _write_evaluation_progress(
+            progress_path,
+            target_episodes=len(records),
+            rows=rows,
+            route_latencies=route_latencies,
+            actor_latencies=actor_latencies,
+            safety_latencies=safety_latencies,
+            total_latencies=total_latencies,
+        )
     for index, record in enumerate(records):
         evaluation_record = copy.deepcopy(record)
         evaluation_record["episode_seed"] = int(record["episode_seed"]) + 910_000 + index
@@ -626,14 +691,36 @@ def evaluate_policy(
                         "min_clearance_m": float(info["min_clearance_so_far"]),
                     }
                 )
+                if progress_path is not None and (
+                    len(rows) == 1
+                    or len(rows) % progress_interval == 0
+                    or len(rows) == len(records)
+                ):
+                    _write_evaluation_progress(
+                        progress_path,
+                        target_episodes=len(records),
+                        rows=rows,
+                        route_latencies=route_latencies,
+                        actor_latencies=actor_latencies,
+                        safety_latencies=safety_latencies,
+                        total_latencies=total_latencies,
+                    )
+                    print(
+                        json.dumps(
+                            {
+                                "phase": "evaluation_progress",
+                                "completed": len(rows),
+                                "total": len(records),
+                            }
+                        ),
+                        flush=True,
+                    )
                 break
     def rate(name: str) -> float:
-        return float(np.mean([bool(row[name]) for row in rows])) if rows else 0.0
+        return _evaluation_rate(rows, name)
 
     def percentiles(values: list[float]) -> dict[str, float]:
-        if not values:
-            return {"p50": 0.0, "p95": 0.0, "p99": 0.0}
-        return {f"p{p}": float(np.percentile(np.asarray(values, dtype=np.float64), p)) for p in (50, 95, 99)}
+        return _evaluation_percentiles(values)
 
     return {
         "experiment_name": "phase79_dagger_residual_nominal_validation",
@@ -713,6 +800,7 @@ def main() -> None:
             residual_scale=float(checkpoint["residual_scale"]),
         ).to(device)
         actor.load_state_dict(checkpoint["state_dict"], strict=True)
+        args.output.mkdir(parents=True, exist_ok=True)
         result = evaluate_policy(
             environment,
             records,
@@ -721,8 +809,9 @@ def main() -> None:
             actor,
             device,
             args.max_steps,
+            progress_path=args.output / "evaluation_progress.json",
+            progress_interval=int(settings.get("evaluation_progress_interval", 10)),
         )
-        args.output.mkdir(parents=True, exist_ok=True)
         args.output.joinpath("evaluation.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, indent=2))
         return
@@ -899,7 +988,17 @@ def main() -> None:
     )
     torch.save(checkpoint_payload(actor, settings, action_scale, seed), output / "checkpoint.pt")
     eval_records = load_records(resolve_config_path(settings["evaluation_scene_file"], args.config), args.evaluation_episodes)
-    result = evaluate_policy(environment, eval_records, planner, settings, actor, device, args.max_steps)
+    result = evaluate_policy(
+        environment,
+        eval_records,
+        planner,
+        settings,
+        actor,
+        device,
+        args.max_steps,
+        progress_path=output / "evaluation_progress.json",
+        progress_interval=int(settings.get("evaluation_progress_interval", 10)),
+    )
     result["checkpoint_sha256"] = hashlib.sha256((output / "checkpoint.pt").read_bytes()).hexdigest()
     output.joinpath("evaluation.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     output.joinpath("config.yaml").write_text(yaml.safe_dump({"document": document, "settings": settings}, sort_keys=False), encoding="utf-8")

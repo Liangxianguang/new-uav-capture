@@ -10,7 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from encirclement3d.residual_actor import RecurrentResidualActor  # noqa: E402
-from train_phase79_dagger_residual import teacher_demo_is_accepted  # noqa: E402
+from train_phase79_dagger_residual import (  # noqa: E402
+    _write_evaluation_progress,
+    teacher_demo_is_accepted,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +82,33 @@ def test_teacher_quality_gate_rejects_unsafe_rollouts() -> None:
             "timeout": False,
         }
     )
+
+
+def test_evaluation_progress_snapshot_is_atomic_and_calibration_only(tmp_path) -> None:
+    path = tmp_path / "evaluation_progress.json"
+    rows = [
+        {
+            "safe_capture_success": True,
+            "collision": False,
+            "boundary_violation": False,
+            "timeout": False,
+        }
+    ]
+    _write_evaluation_progress(
+        path,
+        target_episodes=2,
+        rows=rows,
+        route_latencies=[1.0],
+        actor_latencies=[2.0],
+        safety_latencies=[3.0],
+        total_latencies=[6.0],
+    )
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert payload["locked_test_used"] is False
+    assert payload["episodes_completed"] == 1
+    assert payload["complete"] is False
+    assert payload["latency_ms"]["total"] == {"p50": 6.0, "p95": 6.0, "p99": 6.0}
+    assert not list(tmp_path.glob(".evaluation_progress.json.tmp"))
 
 
 def test_phase81_transition_enables_quality_gate_and_cpu_thread_cap() -> None:
