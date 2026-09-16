@@ -56,3 +56,19 @@ def test_three_seed_gate_fails_on_collision(tmp_path):
     payload = aggregate(paths, tmp_path / "aggregate.json")
     assert payload["three_seed_gate_passed"] is False
     assert payload["seeds"][1]["gate"]["passed"] is False
+
+
+def test_aggregate_accepts_phase_specific_metadata(tmp_path):
+    paths = [
+        _write_seed(tmp_path, 835601, 8),
+        _write_seed(tmp_path, 835602, 8),
+        _write_seed(tmp_path, 835603, 8),
+    ]
+    payload = aggregate(
+        paths,
+        tmp_path / "aggregate.json",
+        experiment_name="phase83_hard1_three_seed_validation",
+        evaluation_split="hard1_development_holdout",
+    )
+    assert payload["experiment_name"] == "phase83_hard1_three_seed_validation"
+    assert payload["evaluation_split"] == "hard1_development_holdout"

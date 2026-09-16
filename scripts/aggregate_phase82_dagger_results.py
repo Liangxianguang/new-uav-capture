@@ -1,4 +1,4 @@
-"""Aggregate the Phase 82 learned-policy validation results across seeds.
+"""Aggregate learned-policy validation results across seeds.
 
 This report is development-only.  It uses the independent validation pool and
 requires every seed to satisfy the predeclared Nominal-plus gate before Hard
@@ -129,6 +129,8 @@ def aggregate(
     *,
     safe_gate: float = 0.70,
     failure_gate: float = 0.05,
+    experiment_name: str = "phase82_dnmcp_dagger_residual_eligible_three_seed_validation",
+    evaluation_split: str = "development_validation_only",
 ) -> dict[str, Any]:
     if len(paths) < 3:
         raise ValueError("Phase 82 requires at least three seed outputs")
@@ -143,8 +145,8 @@ def aggregate(
     if len(source_hashes) != 1:
         raise ValueError("seed outputs must use the same training source scene pool")
     payload = {
-        "experiment_name": "phase82_dnmcp_dagger_residual_eligible_three_seed_validation",
-        "evaluation_split": "development_validation_only",
+        "experiment_name": str(experiment_name),
+        "evaluation_split": str(evaluation_split),
         "locked_test_used": False,
         "source_scene_sha256": next(iter(source_hashes)),
         "seeds": per_seed,
@@ -172,6 +174,11 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--safe-capture-gate", type=float, default=0.70)
     parser.add_argument("--failure-rate-gate", type=float, default=0.05)
+    parser.add_argument(
+        "--experiment-name",
+        default="phase82_dnmcp_dagger_residual_eligible_three_seed_validation",
+    )
+    parser.add_argument("--evaluation-split", default="development_validation_only")
     args = parser.parse_args()
     print(
         json.dumps(
@@ -180,6 +187,8 @@ def main() -> None:
                 args.output,
                 safe_gate=args.safe_capture_gate,
                 failure_gate=args.failure_rate_gate,
+                experiment_name=args.experiment_name,
+                evaluation_split=args.evaluation_split,
             ),
             ensure_ascii=False,
             indent=2,
