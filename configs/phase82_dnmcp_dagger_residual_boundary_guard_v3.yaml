@@ -1,0 +1,64 @@
+experiment_name: phase82_dnmcp_dagger_residual_target_boundary_guard_v3
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: phase70_maneuvering_adversary_v2.yaml
+mpc_config: innovation_mpc.yaml
+training_scene_file: ../results/phase82_target_boundary_guard_eligible_training_pool_v3/scenes.jsonl
+evaluation_scene_file: ../results/phase82_eligible_validation_pool_v2/scenes.jsonl
+bootstrap_expert_datasets: []
+
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: true
+      action_delay_steps: 1
+      command_noise_std: 0.025
+  task:
+    pursuit:
+      target_motion_mode: adaptive_maneuvering
+      target_maneuver_replan_interval_steps: 6
+      target_maneuver_min_hold_steps: 6
+      target_maneuver_horizon_steps: 16
+      target_maneuver_route_boundary_buffer_m: 1.25
+      target_maneuver_predictive_boundary_recovery: true
+      target_maneuver_safety_first_fallback: true
+      target_maneuver_predictive_boundary_lookahead_steps: 48
+      target_maneuver_boundary_recovery_speed_scale: 0.35
+      target_maneuver_feasibility_margin_m: 0.60
+      target_maneuver_obstacle_avoidance_gain: 5.0
+      target_maneuver_crossing_gain: 0.0
+      target_maneuver_enable_reverse_lane_change: false
+      target_boundary_margin: 2.0
+      target_maneuver_boundary_weight: 3.0
+      safety_margin: 1.0
+
+experiment:
+  seed: 824601
+  demo_episodes: 192
+  dagger_rounds: 2
+  episodes_per_round: 12
+  hidden_dim: 128
+  residual_scale_mps: 0.5
+  learning_rate: 0.0005
+  epochs: 20
+  sequence_length: 32
+  sequence_batch_size: 16
+  teacher_horizon_seconds: 0.75
+  teacher_replan_interval_steps: 8
+  teacher_min_hold_steps: 6
+  teacher_grid_step_m: 0.75
+  teacher_route_margin_m: 0.85
+  dnmpc_candidate_count: 2
+  dnmpc_replan_interval_steps: 16
+  dnmpc_max_iterations: 1
+  dnmpc_communication_interval_steps: 1
+  dnmpc_message_delay_steps: 1
+  dnmpc_max_message_age_steps: 8
+  dnmpc_local_timeout_ms: 50.0
+  filtered_route_base: true
+  quality_gate_initial_demos: true
+  max_initial_demo_attempts: 1200
+  torch_threads: 1
+  recovery_action_gap_m: 0.20
+  recovery_cbf_correction_mps: 0.15
+  dt_seconds: 0.1
