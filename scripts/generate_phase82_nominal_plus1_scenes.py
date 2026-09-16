@@ -289,7 +289,7 @@ def generate(
     mirror_groups = Counter(str(item["mirror_group_id"]) for item in records)
     manifest = {
         "dataset_name": str(protocol["dataset_name"]),
-        "dataset_version": "phase82.nominal_plus1.v1",
+        "dataset_version": str(protocol.get("dataset_version", "phase82.nominal_plus1.v1")),
         "phase": "development_calibration_only",
         "not_a_locked_test": True,
         "locked_test": False,
@@ -327,9 +327,12 @@ def generate(
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    readme_title = str(
+        protocol.get("readme_title", "Phase 82 Nominal-plus-1 calibration pool")
+    )
     (output_dir / "README.md").write_text(
-        "# Phase 82 Nominal-plus-1 calibration pool\n\n"
-        "Each variant changes one factor relative to the Phase 81 transition profile. "
+        f"# {readme_title}\n\n"
+        "Each variant changes one factor relative to its declared base profile. "
         "The target initially moves away from the nearest obstacle, does not require an "
         "intentional lane change or central crossing, and all generated scenes are "
         "calibration-only.\n",
