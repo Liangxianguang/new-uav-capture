@@ -1089,3 +1089,36 @@ teacher、route-base residual recurrent actor 和闭环 DAgger/recovery 数据�
 
 详细协议和失败归因见 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_PLAN.md`、
 `docs/PHASE79_DNMPC_DAGGER_RESIDUAL_REPORT.md`。
+
+### Phase 81：Nominal-plus 过渡验证与三 seed DAgger 复核
+
+Phase 81 保持 Phase 78 的 obstacle-avoidance-first 目标合同：不要求主动变道、
+不要求穿越中心障碍物，目标初始优先远离最近障碍物。该阶段只将命令噪声从
+`0.020` 轻微提高到 `0.025 m/s`，并使用独立 holdout 做过渡验证。
+
+- [x] 生成 900 场训练池和独立 900 场 holdout（各 450 个 mirror groups），初始
+  外逃可行性证书均为 100%；holdout public-belief calibration 接受 `267/300`
+  个过渡 Hard 场景；
+- [x] 三个 seed（`813601/813602/813603`）各完成 `192` 条质量门控 DN-MPC teacher
+  示范、两轮各 12 条闭环 DAgger/recovery，并保存独立 checkpoint、manifest 和
+  recovery 数据；
+- [x] 在同一 267 场 holdout、完整 250 步上完成三 seed 复核：801 episodes pooled
+  safe capture/collision/boundary/timeout 为
+  `92.38%/6.74%/6.74%/0.87%`；safe capture 和 timeout 达标，但 collision/boundary
+  均略超 5% gate，过渡候选判定 No-Go；
+- [x] 完整报告 route intent/actor/local CBF/total latency p50/p95/p99；total 为
+  `2.623/62.844/93.305 ms`（CPU 单线程诊断）；
+- [x] 记录“低捕获率”归因：120-step/12-demo smoke 与完整 holdout 不可直接比较；
+  raw-base 合同问题已修复；当前剩余问题集中在危险前缀的恢复和经验 CBF 投影，
+  而不是 timeout；
+- [x] 完成同一 267 场 holdout 上的 Phase79 conservative reference 对照：reference
+  safe capture/collision/boundary/timeout 为 `94.01%/4.87%/4.87%/1.12%`，Phase81
+  为 `92.51%/6.37%/6.37%/1.12%`；确认 Phase81 存在小幅负迁移，不能把退化全部
+  归因于场景分布变化；
+- [ ] 下一步进行失败前缀分层，决定是否补充 recovery 数据；在新的 Nominal/过渡
+  gate 通过前，不开放 Hard、Stress 或 locked-test；
+- [x] locked-test 未读取或修改；local CBF 仍只作为经验过滤器，未宣称
+  R-CLBF-QP/robust CBF-QP 安全证明。
+
+详细结果见 `docs/PHASE81_NOMINAL_PLUS_TRANSITION_REPORT.md`，机器可读聚合结果见
+`results/phase81_dnmcp_dagger_residual_nominal_plus_holdout_aggregate.json`。

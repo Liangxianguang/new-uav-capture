@@ -1,0 +1,105 @@
+experiment_name: phase81_nominal_plus_transition_calibration
+dataset_name: phase81_nominal_plus_transition_calibration_900
+phase: development_calibration_only
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+total_scenes: 900
+scenes_per_difficulty: 300
+mirror_groups_per_difficulty: 150
+seed_blocks:
+  easy: 811201
+  nominal: 811301
+  hard: 811401
+
+common:
+  source_protocol: configs/phase73_crossing_scene_dataset.yaml
+  obstacle_zone_x: [-2.5, 3.0]
+  target_crossing_required: false
+  minimum_bypass_routes: 1
+  initial_escape_lookahead_steps: 4
+  initial_escape_clearance_limit_m: 0.60
+  max_sampling_attempts_per_group: 500
+
+_base_pursuit: &base_pursuit
+  detection_range: 14.0
+  target_maneuver_replan_interval_steps: 8
+  target_maneuver_min_hold_steps: 6
+  target_maneuver_horizon_steps: 16
+  target_maneuver_feasibility_margin_m: 0.60
+  target_maneuver_obstacle_avoidance_gain: 5.0
+  target_maneuver_crossing_gain: 0.0
+  target_maneuver_enable_reverse_lane_change: false
+
+# This transition changes only the command-noise level slightly from Nominal.
+# It is a calibration rung for teacher quality, not a new target contract.
+difficulty_profiles:
+  easy:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.45, 0.55]
+    initial_side_distances: [6.0, 6.5]
+    obstacle_count_range: [3, 3]
+    observation_condition: easy_nominal
+    pursuit_overrides:
+      <<: *base_pursuit
+      detection_dropout_probability: 0.08
+      observation_noise_std: 0.02
+      message_delay_steps: 1
+      message_dropout_probability: 0.02
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.06
+      target_maneuver_observation_dropout_probability: 0.04
+    execution:
+      action_delay_steps: 0
+      command_noise_std_mps: 0.00
+  nominal:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.50, 0.60]
+    initial_side_distances: [6.0, 6.5]
+    obstacle_count_range: [3, 3]
+    observation_condition: nominal
+    pursuit_overrides:
+      <<: *base_pursuit
+      detection_dropout_probability: 0.12
+      observation_noise_std: 0.025
+      message_delay_steps: 1
+      message_dropout_probability: 0.03
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.08
+      target_maneuver_observation_dropout_probability: 0.08
+    execution:
+      action_delay_steps: 1
+      command_noise_std_mps: 0.02
+  hard:
+    target_motion_mode: adaptive_maneuvering
+    target_speed_scales: [0.50, 0.60]
+    initial_side_distances: [6.0, 6.5]
+    obstacle_count_range: [3, 3]
+    observation_condition: nominal_plus
+    pursuit_overrides:
+      <<: *base_pursuit
+      detection_dropout_probability: 0.12
+      observation_noise_std: 0.025
+      message_delay_steps: 1
+      message_dropout_probability: 0.03
+      target_maneuver_observation_delay_steps: 1
+      target_maneuver_observation_noise_std: 0.08
+      target_maneuver_observation_dropout_probability: 0.08
+    execution:
+      action_delay_steps: 1
+      command_noise_std_mps: 0.025
+
+expert_calibration:
+  controller: oracle_route
+  use_local_cbf: true
+  accepted_scene_requires:
+    - safe_capture_in_pursuit
+    - no_target_boundary_violation
+    - no_defender_boundary_violation
+    - no_defender_physical_collision
+  minimum_expert_rate_for_transition_promotion: 0.80
+
+evaluation:
+  locked_test_used: false
+  report_latency_percentiles: [50, 95, 99]
+  local_cbf_is_empirical_filter_only: true
+  formal_robust_cbf_qp_claim: false

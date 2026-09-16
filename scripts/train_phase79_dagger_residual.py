@@ -75,6 +75,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument(
+        "--torch-threads",
+        type=int,
+        help="Optional deterministic PyTorch intra/inter-op CPU thread count.",
+    )
     parser.add_argument("--demo-episodes", type=int)
     parser.add_argument("--dagger-rounds", type=int)
     parser.add_argument("--episodes-per-round", type=int)
@@ -669,6 +674,15 @@ def main() -> None:
     settings["mpc_config"] = document["mpc_config"]
     settings["bootstrap_expert_datasets"] = document.get("bootstrap_expert_datasets", [])
     device = select_device(args.device)
+    torch_threads = args.torch_threads
+    if torch_threads is None and settings.get("torch_threads") is not None:
+        torch_threads = int(settings["torch_threads"])
+    if torch_threads is not None:
+        if torch_threads <= 0:
+            raise ValueError("torch-threads must be positive")
+        torch.set_num_threads(torch_threads)
+        torch.set_num_interop_threads(torch_threads)
+        settings["torch_threads"] = int(torch_threads)
     if args.mode == "evaluate":
         if args.checkpoint is None:
             raise ValueError("--checkpoint is required in evaluate mode.")

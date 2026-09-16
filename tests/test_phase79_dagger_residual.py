@@ -79,3 +79,14 @@ def test_teacher_quality_gate_rejects_unsafe_rollouts() -> None:
             "timeout": False,
         }
     )
+
+
+def test_phase81_transition_enables_quality_gate_and_cpu_thread_cap() -> None:
+    payload = yaml.safe_load(
+        (ROOT / "configs" / "phase81_dnmcp_dagger_residual_nominal_plus.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["experiment"]["demo_episodes"] >= 192
+    assert payload["experiment"]["quality_gate_initial_demos"] is True
+    assert payload["experiment"]["torch_threads"] == 1
