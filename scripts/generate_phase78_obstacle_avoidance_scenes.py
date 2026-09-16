@@ -79,7 +79,14 @@ def _mirror_scenario(scenario: ShowcaseScenario, name: str) -> ShowcaseScenario:
         defender_positions=defenders,
         target_position=target,
         target_escape_direction=escape,
-        obstacle_zone_x=tuple(float(value) for value in scenario.obstacle_zone_x),
+        # The obstacle zone is part of the geometric contract.  Phase 78's
+        # default zone is intentionally not x-symmetric, so the right-side
+        # mirror must reflect the interval as well; otherwise valid mirrored
+        # obstacles can be rejected as lying outside their own zone.
+        obstacle_zone_x=(
+            -float(scenario.obstacle_zone_x[1]),
+            -float(scenario.obstacle_zone_x[0]),
+        ),
         target_crossing_required=False,
         defender_side="right",
         layout_seed=scenario.layout_seed,
@@ -197,10 +204,17 @@ def _sample_obstacle_avoidance_pair(
     max_attempts: int,
     clearance_limit: float,
     strict_audit: bool,
+    defender_y_scale: float = 1.0,
+    target_obstacle_clearance_max: float | None = None,
 ) -> tuple[ShowcaseScenario, ShowcaseScenario, int]:
+    if defender_y_scale <= 0.0:
+        raise ValueError("defender_y_scale must be positive")
+    if target_obstacle_clearance_max is not None and target_obstacle_clearance_max <= 0.0:
+        raise ValueError("target_obstacle_clearance_max must be positive when provided")
     zone = (-2.5, 3.0)
     count_low, count_high = obstacle_count_range
     defenders, target, escape = _opposite_side_positions(initial_side_distance, "left")
+    defenders[:, 1] *= float(defender_y_scale)
     protected = np.vstack([defenders, target[None, :]])
     rng = np.random.default_rng(int(layout_seed))
     for attempt in range(1, max_attempts + 1):
@@ -222,6 +236,12 @@ def _sample_obstacle_avoidance_pair(
                 break
         if len(obstacles) != count:
             continue
+        if target_obstacle_clearance_max is not None:
+            target_clearance = min(
+                float(env._obstacle_clearance(target, obstacle)) for obstacle in obstacles
+            )
+            if target_clearance > float(target_obstacle_clearance_max):
+                continue
         left = ShowcaseScenario(
             name=f"phase78_avoidance_{layout_seed}_left",
             obstacles=tuple(obstacles),

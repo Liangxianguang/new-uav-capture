@@ -125,6 +125,8 @@ Phase81 pooled 结果，当前退化应归因于两部分：独立 holdout/轻�
 - 三个 full holdout 结果目录：
   `results/phase81_dnmcp_dagger_residual_nominal_plus_full_seed813601/`、
   `...full_seed813602/`、`...full_seed813603/`。
+- 同 holdout reference 对照：
+  `results/phase81_phase79_conservative_reference_full_holdout/`。
 
 ## 后续决策
 

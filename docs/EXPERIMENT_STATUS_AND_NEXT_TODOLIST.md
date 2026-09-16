@@ -1,5 +1,16 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 82 Nominal-plus-1 困难场景标定已完成：新增 500 场景 / 250 个完整镜像组，
+> 分成 command-noise、action-delay、maneuver-frequency、obstacle-near 和
+> formation-tight 五个单因素 block，各 100 场景。所有场景的四步初始 outward-escape
+> certificate 通过；但 oracle/public-belief 专家接受率只有 `75.2%/62.4%`，public-belief
+> 五个 block 分别为 `69%/33%/68%/72%/70%`，均未达到预注册的 `80%` 训练门槛。
+> 因此不能把这批场景直接混入训练，也不应继续打开 Hard、Stress 或 locked-test；当前应
+> 先做较小幅度的 difficulty ramp 和失败归因。route-and-safety 专家诊断延迟总体
+> p50/p95/p99 为 `1.506/54.352/292.028 ms`，不是部署 runtime 结论。恢复/CBF 投影
+> 数据采集只用于诊断，local CBF 仍是经验过滤器，不宣称 R-CLBF-QP/robust CBF-QP
+> 安全证明。完整结果见 `docs/PHASE82_NOMINAL_PLUS1_CALIBRATION_REPORT.md`。
+
 > Phase 76 路线感知重训练 pilot 已完成但为 **No-Go**：实现了仅使用 public belief 和公开
 > 障碍几何的左绕/右绕/上绕路线教师，并将下一航点、路线 one-hot 和 belief-blind 标志
 > 作为 7 维条件输入加入低层 GRU。48 个合格示范经 40 epoch、`5e-4` 从零训练后，离线

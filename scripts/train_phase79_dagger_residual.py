@@ -65,6 +65,9 @@ class TeacherOutput:
     recovery: bool
     planner_status: str
     planner_latency_ms: float
+    base_cbf_correction_norm: float = 0.0
+    teacher_cbf_correction_norm: float = 0.0
+    teacher_base_gap_norm: float = 0.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -257,6 +260,7 @@ class DNMPCTeacher:
         self.cached_sequence = _shift_warm_start_sequence(self.cached_sequence)
         teacher_action, safety_diag = self.safety.filter(teacher_action, observation)
         residual_norm = float(np.mean(np.linalg.norm(teacher_action - base_action, axis=1)))
+        base_cbf_correction = float(getattr(self.route, "last_base_cbf_correction_norm", 0.0))
         recovery = bool(
             residual_norm >= float(self.settings.get("recovery_action_gap_m", 0.35))
             or safety_diag.action_correction_norm >= float(self.settings.get("recovery_cbf_correction_mps", 0.20))
@@ -270,6 +274,9 @@ class DNMPCTeacher:
             recovery=recovery,
             planner_status=planner_status,
             planner_latency_ms=float(planner_latency_ms),
+            base_cbf_correction_norm=base_cbf_correction,
+            teacher_cbf_correction_norm=float(safety_diag.action_correction_norm),
+            teacher_base_gap_norm=residual_norm,
         )
 
     def base_output(self, observation: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
@@ -296,8 +303,10 @@ def _route_base_action(
 
     raw_action = route.act(observation)
     if not bool(settings.get("filtered_route_base", True)):
+        route.last_base_cbf_correction_norm = 0.0
         return np.asarray(raw_action, dtype=np.float32)
-    filtered_action, _diagnostics = safety.filter(raw_action, observation)
+    filtered_action, diagnostics = safety.filter(raw_action, observation)
+    route.last_base_cbf_correction_norm = float(diagnostics.action_correction_norm)
     return np.asarray(filtered_action, dtype=np.float32)
 
 
