@@ -62,6 +62,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--difficulty", choices=("all", "easy", "nominal", "hard"), default="all")
     parser.add_argument("--episodes", type=int)
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="Start offset after difficulty filtering; useful for reproducible calibration sharding.",
+    )
     parser.add_argument("--controller", choices=("oracle_route", "public_belief_route"), default="oracle_route")
     parser.add_argument(
         "--experiment-name",
@@ -112,11 +118,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _read_records(path: Path, limit: int | None, difficulty: str) -> list[dict[str, Any]]:
+def _read_records(path: Path, limit: int | None, difficulty: str, start_index: int = 0) -> list[dict[str, Any]]:
+    if start_index < 0:
+        raise ValueError("start-index must be non-negative")
     records = [json.loads(line) for line in path.resolve().read_text(encoding="utf-8").splitlines() if line.strip()]
     records.sort(key=lambda value: int(value["episode_index"]))
     if difficulty != "all":
         records = [record for record in records if str(record.get("difficulty")) == difficulty]
+    records = records[start_index:]
     if limit is not None:
         if limit <= 0:
             raise ValueError("episodes must be positive")
@@ -406,7 +415,7 @@ def main() -> None:
     args = parse_args()
     scenes = args.scenes.resolve()
     manifest = _guard_not_locked(scenes)
-    records = _read_records(scenes, args.episodes, args.difficulty)
+    records = _read_records(scenes, args.episodes, args.difficulty, args.start_index)
     output = args.output_dir.resolve()
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"refusing to overwrite non-empty output directory: {output}")
@@ -482,6 +491,8 @@ def main() -> None:
         },
         "route_exercise_is_reported_separately": True,
         "raw_pool_episodes": len(rows),
+        "source_scene_start_index": int(args.start_index),
+        "source_scene_requested_episodes": args.episodes,
         "accepted_calibration_episodes": len(accepted_records),
         "accepted_route_exercise_episodes": int(
             sum(bool(row["expert_route_exercise_accepted"]) for row in rows)
