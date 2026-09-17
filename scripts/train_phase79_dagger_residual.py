@@ -450,9 +450,15 @@ def rollout(
             "safe_capture_success": bool(info["safe_capture_success"]),
             "capture_event": bool(info["capture_event"]),
             "collision": bool(info["collision"]),
-            "boundary_violation": bool(info["world_violation_steps"] > 0),
-            "target_boundary_violation": bool(info.get("target_world_violation_steps", 0) > 0),
-            "defender_boundary_violation": bool(info.get("defender_world_violation_steps", 0) > 0),
+            "boundary_violation": bool(info.get("boundary_violation", info["world_violation_steps"] > 0)),
+            "target_boundary_violation": bool(
+                info.get("target_boundary_violation", info.get("target_world_violation_steps", 0) > 0)
+            ),
+            "defender_boundary_violation": bool(
+                info.get("defender_boundary_violation", info.get("defender_world_violation_steps", 0) > 0)
+            ),
+            "target_invalid_episode": bool(info.get("target_invalid_episode", False)),
+            "task_valid_for_policy_evaluation": bool(info.get("task_valid_for_policy_evaluation", True)),
             "first_target_boundary_violation_step": info.get("first_target_boundary_violation_step"),
             "first_defender_boundary_violation_step": info.get("first_defender_boundary_violation_step"),
             "timeout": bool(info["termination_reason"] == "timeout"),
@@ -547,6 +553,8 @@ def teacher_demo_is_accepted(metadata: dict[str, Any]) -> bool:
         metadata.get("safe_capture_success", False)
         and not metadata.get("collision", False)
         and not metadata.get("boundary_violation", False)
+        and not metadata.get("target_invalid_episode", False)
+        and metadata.get("task_valid_for_policy_evaluation", True)
         and not metadata.get("timeout", False)
     )
 
@@ -680,9 +688,19 @@ def evaluate_policy(
                         "safe_capture_success": bool(info["safe_capture_success"]),
                         "capture_event": bool(info["capture_event"]),
                         "collision": bool(info["collision"]),
-                        "boundary_violation": bool(info["world_violation_steps"] > 0),
-                        "target_boundary_violation": bool(info.get("target_world_violation_steps", 0) > 0),
-                        "defender_boundary_violation": bool(info.get("defender_world_violation_steps", 0) > 0),
+                        "boundary_violation": bool(
+                            info.get("boundary_violation", info["world_violation_steps"] > 0)
+                        ),
+                        "target_boundary_violation": bool(
+                            info.get("target_boundary_violation", info.get("target_world_violation_steps", 0) > 0)
+                        ),
+                        "defender_boundary_violation": bool(
+                            info.get("defender_boundary_violation", info.get("defender_world_violation_steps", 0) > 0)
+                        ),
+                        "target_invalid_episode": bool(info.get("target_invalid_episode", False)),
+                        "task_valid_for_policy_evaluation": bool(
+                            info.get("task_valid_for_policy_evaluation", True)
+                        ),
                         "first_target_boundary_violation_step": info.get("first_target_boundary_violation_step"),
                         "first_defender_boundary_violation_step": info.get("first_defender_boundary_violation_step"),
                         "timeout": bool(info["termination_reason"] == "timeout"),
@@ -731,6 +749,9 @@ def evaluate_policy(
         "capture_event_rate": rate("capture_event"),
         "collision_rate": rate("collision"),
         "boundary_violation_rate": rate("boundary_violation"),
+        "target_invalid_episode_rate": rate("target_invalid_episode"),
+        "target_boundary_violation_rate": rate("target_boundary_violation"),
+        "defender_boundary_violation_rate": rate("defender_boundary_violation"),
         "timeout_rate": rate("timeout"),
         "mean_capture_time_seconds": float(np.mean([row["steps"] for row in rows])) * float(settings.get("dt_seconds", 0.1)) if rows else 0.0,
         "mean_min_clearance_m": float(np.mean([row["min_clearance_m"] for row in rows])) if rows else 0.0,

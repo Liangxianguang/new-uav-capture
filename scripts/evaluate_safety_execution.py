@@ -728,7 +728,15 @@ def run_episode(
             "safe_capture_success": bool(info.get("safe_capture_success", False)),
             "capture_event": bool(info.get("capture_event", False)),
             "collision": bool(info.get("collision", False)),
-            "boundary_violation": bool(info.get("world_violation_steps", 0) > 0),
+            "boundary_violation": bool(
+                info.get("defender_boundary_violation", info.get("world_violation_steps", 0) > 0)
+            ),
+            "target_boundary_violation": bool(info.get("target_boundary_violation", False)),
+            "target_invalid_episode": bool(info.get("target_invalid_episode", False)),
+            "task_valid_for_policy_evaluation": bool(info.get("task_valid_for_policy_evaluation", True)),
+            "defender_boundary_violation": bool(
+                info.get("defender_boundary_violation", info.get("world_violation_steps", 0) > 0)
+            ),
             "timeout": str(info.get("termination_reason")) == "timeout",
             "termination_reason": episode_termination_reason,
             "capture_time_seconds": info.get("capture_time_seconds"),
@@ -838,6 +846,9 @@ def summarize(rows: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[s
         "capture_rate": rate("capture_event"),
         "collision_rate": rate("collision"),
         "boundary_violation_rate": rate("boundary_violation"),
+        "target_invalid_episode_rate": rate("target_invalid_episode"),
+        "target_boundary_violation_rate": rate("target_boundary_violation"),
+        "defender_boundary_violation_rate": rate("defender_boundary_violation"),
         "timeout_rate": rate("timeout"),
         "safety_abort_rate": rate("safety_abort"),
         "robust_contract_violation_rate": rate("robust_contract_violation"),

@@ -548,10 +548,17 @@ class CaptureRadiusPursuit3DEnv:
         self.collision_steps = 0
         self.world_violation_steps = 0
         self.target_world_violation_steps = 0
+        self.target_boundary_violation_steps = 0
+        self.target_obstacle_violation_steps = 0
         self.defender_world_violation_steps = 0
         self.first_target_boundary_violation_step: int | None = None
         self.first_defender_boundary_violation_step: int | None = None
+        self.target_maneuver_candidate_invalid = False
+        self.target_command_clipped = False
+        self.target_command_clipped_steps = 0
         self.min_clearance = float("inf")
+        self.min_target_boundary_clearance = float("inf")
+        self.min_defender_boundary_clearance = float("inf")
         self.capture_time_seconds: float | None = None
         self.capturing_defender_id: int | None = None
         self.history: list[dict[str, np.ndarray | float | int | str]] = []
@@ -565,10 +572,17 @@ class CaptureRadiusPursuit3DEnv:
         self.collision_steps = 0
         self.world_violation_steps = 0
         self.target_world_violation_steps = 0
+        self.target_boundary_violation_steps = 0
+        self.target_obstacle_violation_steps = 0
         self.defender_world_violation_steps = 0
         self.first_target_boundary_violation_step = None
         self.first_defender_boundary_violation_step = None
+        self.target_maneuver_candidate_invalid = False
+        self.target_command_clipped = False
+        self.target_command_clipped_steps = 0
         self.min_clearance = float("inf")
+        self.min_target_boundary_clearance = float("inf")
+        self.min_defender_boundary_clearance = float("inf")
         self.capture_time_seconds = None
         self.capturing_defender_id = None
         self.history = []
@@ -651,6 +665,8 @@ class CaptureRadiusPursuit3DEnv:
             self.rng = map_rng
         else:
             self.obstacles = self._sample_obstacles()
+
+        self._update_boundary_clearance_metrics()
 
         if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
             self._reset_target_maneuver_observation()
@@ -887,8 +903,10 @@ class CaptureRadiusPursuit3DEnv:
 
         previous_target_velocity = self.target_velocity.copy()
         target_action = self._target_action()
-        if str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering":
-            target_action = self._constrain_target_command(target_action)
+        target_action = self._constrain_target_command(
+            target_action,
+            enforce_maneuver_limits=str(self.pursuit["target_motion_mode"]) == "adaptive_maneuvering",
+        )
         self.target_velocity = self._move_toward_velocity(
             self.target_velocity[None, :],
             target_action[None, :],
@@ -907,6 +925,13 @@ class CaptureRadiusPursuit3DEnv:
         )
 
         self.step_count += 1
+        self._update_boundary_clearance_metrics()
+        if self._target_boundary_clearance(self.target_position) <= 0.0:
+            self.target_boundary_violation_steps += 1
+            if self.first_target_boundary_violation_step is None:
+                self.first_target_boundary_violation_step = int(self.step_count)
+        if self._target_obstacle_clearance() <= 0.0:
+            self.target_obstacle_violation_steps += 1
         self._update_target_beliefs()
         metrics = self._metrics()
         self.min_clearance = min(self.min_clearance, metrics.min_clearance)
@@ -914,17 +939,31 @@ class CaptureRadiusPursuit3DEnv:
             self.collision_steps += 1
 
         capture_event = bool(metrics.minimum_target_distance <= float(self.pursuit["capture_radius"]))
-        # Boundary violations are safety failures just like obstacle and
-        # teammate collisions.  The clamped state is useful for continuing a
-        # diagnostic rollout, but it must not turn an earlier violation into a
-        # Safe Capture later in the episode.
-        safety_failure = bool(metrics.collision or self.world_violation_steps > 0)
+        target_boundary_violation = bool(self.target_boundary_violation_steps > 0)
+        target_obstacle_violation = bool(self.target_obstacle_violation_steps > 0)
+        target_invalid_episode = bool(
+            target_boundary_violation
+            or target_obstacle_violation
+            or self.target_maneuver_candidate_invalid
+        )
+        defender_physical_collision = bool(metrics.collision)
+        defender_boundary_violation = bool(self.defender_world_violation_steps > 0)
+        defender_safety_failure = bool(defender_physical_collision or defender_boundary_violation)
+        # Keep the aggregate termination behavior, but expose target contract
+        # failures separately so they cannot be reported as defender failures.
+        safety_failure = bool(target_invalid_episode or defender_safety_failure)
         safe_capture = bool(capture_event and not safety_failure)
         if safe_capture:
             self.capture_time_seconds = float(self.step_count * self.dt)
             self.capturing_defender_id = int(metrics.nearest_defender)
 
-        if safety_failure:
+        if target_boundary_violation:
+            termination_reason = "target_boundary_violation"
+        elif target_obstacle_violation:
+            termination_reason = "target_obstacle_violation"
+        elif self.target_maneuver_candidate_invalid:
+            termination_reason = "target_candidate_invalid"
+        elif defender_safety_failure:
             termination_reason = "safety_failure"
         elif safe_capture:
             termination_reason = "safe_capture"
@@ -961,14 +1000,32 @@ class CaptureRadiusPursuit3DEnv:
                 if capture_event
                 else None
             ),
-            "collision": safety_failure,
+            "collision": defender_safety_failure,
+            "safety_failure": safety_failure,
+            "defender_physical_collision": defender_physical_collision,
+            "defender_safety_failure": defender_safety_failure,
             "collision_steps": int(self.collision_steps),
             "physical_target_contact": bool(metrics.physical_target_contact),
             "world_violation_steps": int(self.world_violation_steps),
             "target_world_violation_steps": int(self.target_world_violation_steps),
+            "target_boundary_violation_steps": int(self.target_boundary_violation_steps),
+            "target_obstacle_violation_steps": int(self.target_obstacle_violation_steps),
             "defender_world_violation_steps": int(self.defender_world_violation_steps),
+            "target_boundary_violation": target_boundary_violation,
+            "target_obstacle_violation": target_obstacle_violation,
+            "target_invalid_episode": target_invalid_episode,
+            "target_candidate_invalid": bool(self.target_maneuver_candidate_invalid),
+            "defender_boundary_violation": defender_boundary_violation,
+            "boundary_violation": bool(target_boundary_violation or defender_boundary_violation),
+            "task_valid_for_policy_evaluation": not target_invalid_episode,
             "first_target_boundary_violation_step": self.first_target_boundary_violation_step,
             "first_defender_boundary_violation_step": self.first_defender_boundary_violation_step,
+            "minimum_target_boundary_clearance_m": float(self.min_target_boundary_clearance),
+            "minimum_defender_boundary_clearance_m": float(self.min_defender_boundary_clearance),
+            "target_command_clipped": bool(self.target_command_clipped),
+            "target_command_clipped_steps": int(self.target_command_clipped_steps),
+            "target_candidate_fallback_count": int(self.target_maneuver_fallback_count),
+            "target_candidate_rejection_reason": str(self.target_maneuver_last_feasibility_failure),
             "min_clearance": float(metrics.min_clearance),
             "min_clearance_so_far": float(self.min_clearance),
             "termination_reason": termination_reason,
@@ -1470,6 +1527,75 @@ class CaptureRadiusPursuit3DEnv:
             return _unit(self.target_escape_direction, fallback=np.array([1.0, 0.0, 0.0]))
         return _unit(away, fallback=self.target_escape_direction)
 
+    def _target_radius(self) -> float:
+        """Return the configured target radius, with point-target compatibility."""
+
+        radius = float(self.agents.get("target_radius", 0.0))
+        if not np.isfinite(radius) or radius < 0.0:
+            raise ValueError("agents.target_radius must be finite and non-negative.")
+        return radius
+
+    def _target_safe_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return the target center bounds after radius and margin erosion."""
+
+        erosion = self._target_radius() + float(self.pursuit["target_boundary_margin"])
+        lower = self.lower + erosion
+        upper = self.upper - erosion
+        if np.any(lower >= upper):
+            raise ValueError("target radius and boundary margin leave no valid target state space.")
+        return lower, upper
+
+    def _target_boundary_clearance(self, position: np.ndarray) -> float:
+        """Return signed clearance from the target's effective boundary.
+
+        A positive value is inside the target safety set.  The configured
+        target margin is included here so candidate rollout and runtime
+        accounting use exactly the same boundary semantics.
+        """
+
+        position = np.asarray(position, dtype=np.float64)
+        lower, upper = self._target_safe_bounds()
+        return float(min(np.min(position - lower), np.min(upper - position)))
+
+    def _defender_boundary_clearance(self) -> float:
+        return float(
+            min(
+                np.min(self.defender_positions - self.lower),
+                np.min(self.upper - self.defender_positions),
+            )
+        )
+
+    def _target_obstacle_clearance(self) -> float:
+        return float(
+            min(
+                (self._obstacle_clearance(self.target_position, obstacle) for obstacle in self.obstacles),
+                default=float("inf"),
+            )
+        )
+
+    def _update_boundary_clearance_metrics(self) -> None:
+        self.min_target_boundary_clearance = min(
+            self.min_target_boundary_clearance,
+            self._target_boundary_clearance(self.target_position),
+        )
+        self.min_defender_boundary_clearance = min(
+            self.min_defender_boundary_clearance,
+            self._defender_boundary_clearance(),
+        )
+
+    def _target_inward_direction(self, position: np.ndarray) -> np.ndarray:
+        """Return an inward direction for a predicted target state."""
+
+        position = np.asarray(position, dtype=np.float64)
+        lower, upper = self._target_safe_bounds()
+        direction = np.zeros(3, dtype=np.float64)
+        for axis in range(3):
+            if position[axis] <= lower[axis]:
+                direction[axis] += 1.0
+            elif position[axis] >= upper[axis]:
+                direction[axis] -= 1.0
+        return _unit(direction, fallback=self.target_escape_direction)
+
     def _target_maneuver_boundary_direction(self) -> np.ndarray:
         """Return an inward direction when the current target state is risky.
 
@@ -1480,7 +1606,7 @@ class CaptureRadiusPursuit3DEnv:
         """
 
         boundary_direction = np.zeros(3, dtype=np.float64)
-        boundary_trigger = float(self.pursuit["target_boundary_margin"]) + max(
+        boundary_trigger = max(
             0.50,
             float(np.linalg.norm(self.target_velocity)) * self.dt * 2.0,
         )
@@ -1490,9 +1616,10 @@ class CaptureRadiusPursuit3DEnv:
             if predictive_recovery
             else 0.0
         )
+        safe_lower, safe_upper = self._target_safe_bounds()
         for axis in range(3):
-            lower_distance = float(self.target_position[axis] - self.lower[axis])
-            upper_distance = float(self.upper[axis] - self.target_position[axis])
+            lower_distance = float(self.target_position[axis] - safe_lower[axis])
+            upper_distance = float(safe_upper[axis] - self.target_position[axis])
             lower_projected = lower_distance + min(float(self.target_velocity[axis]), 0.0) * lookahead_distance
             upper_projected = upper_distance - max(float(self.target_velocity[axis]), 0.0) * lookahead_distance
             if lower_distance < boundary_trigger or lower_projected < boundary_trigger:
@@ -1656,27 +1783,13 @@ class CaptureRadiusPursuit3DEnv:
             min_clearance = min(min_clearance, segment_clearance)
             for obstacle in self.obstacles:
                 min_clearance = min(min_clearance, self._obstacle_clearance(target_position, obstacle))
-            min_boundary = min(
-                min_boundary,
-                float(np.min(target_position - self.lower)),
-                float(np.min(self.upper - target_position)),
-            )
+            step_boundary = self._target_boundary_clearance(target_position)
+            min_boundary = min(min_boundary, step_boundary)
             if timestep == 0:
                 first_clearance = float(segment_clearance)
-                first_boundary = float(
-                    min(
-                        np.min(target_position - self.lower),
-                        np.min(self.upper - target_position),
-                    )
-                )
+                first_boundary = step_boundary
             step_clearance = float(segment_clearance)
-            step_boundary = float(
-                min(
-                    np.min(target_position - self.lower),
-                    np.min(self.upper - target_position),
-                )
-            )
-            if step_clearance >= required_clearance and step_boundary >= required_clearance:
+            if step_clearance >= required_clearance and step_boundary > 0.0:
                 feasible_prefix_steps += 1
             elif failure_reason == "none":
                 failure_reason = (
@@ -1723,11 +1836,11 @@ class CaptureRadiusPursuit3DEnv:
             + float(self.pursuit["target_maneuver_crossing_gain"]) * crossing_alignment
             + float(self.pursuit["target_maneuver_obstacle_avoidance_gain"]) * obstacle_avoidance_alignment
         )
-        feasible = bool(min_clearance >= required_clearance and min_boundary >= required_clearance)
+        feasible = bool(min_clearance >= required_clearance and min_boundary > 0.0)
         if not feasible:
             score -= 1.0e3 + 1.0e2 * max(
                 required_clearance - min_clearance if np.isfinite(min_clearance) else 0.0,
-                required_clearance - min_boundary,
+                -min_boundary,
                 0.0,
             )
         return {
@@ -1738,6 +1851,7 @@ class CaptureRadiusPursuit3DEnv:
             "min_clearance": float(min_clearance),
             "min_boundary": float(min_boundary),
             "required_clearance": float(required_clearance),
+            "required_boundary_clearance": 0.0,
             "first_clearance": float(first_clearance),
             "first_boundary": float(first_boundary),
             "feasible_prefix_steps": int(feasible_prefix_steps),
@@ -1793,7 +1907,7 @@ class CaptureRadiusPursuit3DEnv:
                     item
                     for item in evaluated
                     if float(item["first_clearance"]) >= required_clearance
-                    and float(item["first_boundary"]) >= required_clearance
+                    and float(item["first_boundary"]) > 0.0
                 ]
                 fallback_pool = immediate_safe or evaluated
                 if immediate_safe:
@@ -1807,6 +1921,10 @@ class CaptureRadiusPursuit3DEnv:
                         ),
                     )
                 else:
+                    # An unsafe fallback must never be silently promoted to a
+                    # valid target trajectory.  Keep the best diagnostic
+                    # action so the caller can inspect the failure, but mark
+                    # the episode invalid for policy evaluation.
                     if bool(self.pursuit["target_maneuver_safety_first_fallback"]):
                         fallback = max(
                             fallback_pool,
@@ -1829,6 +1947,7 @@ class CaptureRadiusPursuit3DEnv:
                                 float(item["score"]),
                             ),
                         )
+                    self.target_maneuver_candidate_invalid = True
                 self.target_maneuver_last_feasibility_failure = str(fallback["feasibility_failure"])
             else:
                 fallback = None
@@ -1858,7 +1977,9 @@ class CaptureRadiusPursuit3DEnv:
                 elif fallback is not None and fallback["mode"] == self.target_maneuver_mode:
                     eligible = [fallback]
             if force_boundary_recovery:
-                eligible = boundary_recovery_items
+                eligible = [item for item in boundary_recovery_items if bool(item["feasible"])] or (
+                    [fallback] if fallback is not None else feasible_evaluated
+                )
             current_mode = self.target_maneuver_mode
             for item in eligible:
                 if item["mode"] != current_mode:
@@ -1888,14 +2009,54 @@ class CaptureRadiusPursuit3DEnv:
             * float(self.target_maneuver_speed_scale)
         )
 
-    def _constrain_target_command(self, target_action: np.ndarray) -> np.ndarray:
-        """Constrain the selected target command before the environment update."""
+    def _constrain_target_command(
+        self,
+        target_action: np.ndarray,
+        *,
+        enforce_maneuver_limits: bool = True,
+    ) -> np.ndarray:
+        """Constrain a target command and recover before it exits the safe set."""
 
-        return self._limit_target_command(
-            self.target_velocity,
-            self.target_acceleration,
-            target_action,
+        if enforce_maneuver_limits:
+            limited = self._limit_target_command(
+                self.target_velocity,
+                self.target_acceleration,
+                target_action,
+            )
+        else:
+            limited = np.asarray(target_action, dtype=np.float64).copy()
+        max_delta = float(self.agents["target_max_acceleration"]) * self.dt
+        predicted_velocity = self._move_toward_velocity(
+            self.target_velocity[None, :],
+            limited[None, :],
+            max_delta=max_delta,
+        )[0]
+        predicted_position = self.target_position + predicted_velocity * self.dt
+        if self._target_boundary_clearance(predicted_position) > 0.0:
+            return limited
+
+        # A target command may be dynamically limited too late to preserve
+        # the effective boundary margin.  Replace it with an inward command;
+        # if even that cannot recover in one step, the episode is explicitly
+        # marked invalid by the post-step contract check.
+        recovery_direction = self._target_inward_direction(predicted_position)
+        recovery_speed = float(self.agents["target_max_speed"]) * max(
+            float(self.target_speed_scale),
+            0.1,
         )
+        recovery_action = recovery_direction * recovery_speed
+        recovery = (
+            self._limit_target_command(
+                self.target_velocity,
+                self.target_acceleration,
+                recovery_action,
+            )
+            if enforce_maneuver_limits
+            else recovery_action
+        )
+        self.target_command_clipped = True
+        self.target_command_clipped_steps += 1
+        return recovery
 
     def _adaptive_branching_target_action(self) -> np.ndarray:
         """Commit to the less interceptable S4 wall exit using simulator state.
@@ -2516,17 +2677,20 @@ class CaptureRadiusPursuit3DEnv:
     ) -> None:
         if entity not in {None, "target", "defender"}:
             raise ValueError(f"unknown world-bound entity: {entity}")
+        inferred_entity = entity
+        if inferred_entity is None and positions.shape[0] == self.n_defenders:
+            inferred_entity = "defender"
         for axis in range(3):
             below = positions[:, axis] < self.lower[axis]
             above = positions[:, axis] > self.upper[axis]
             if bool(np.any(below | above)):
                 count = int(np.count_nonzero(below | above))
                 self.world_violation_steps += count
-                if entity == "target":
+                if inferred_entity == "target":
                     self.target_world_violation_steps += count
                     if self.first_target_boundary_violation_step is None:
                         self.first_target_boundary_violation_step = int(self.step_count + 1)
-                elif entity == "defender":
+                elif inferred_entity == "defender":
                     self.defender_world_violation_steps += count
                     if self.first_defender_boundary_violation_step is None:
                         self.first_defender_boundary_violation_step = int(self.step_count + 1)

@@ -289,8 +289,9 @@ def _rollout(
             safety_corrections.append(float(diagnostics.action_correction_norm))
         observation, _reward, terminated, truncated, final_info = env.step(action, record_history=True)
         target_contact, defender_contact = _boundary_contact_flags(env)
-        target_boundary |= target_contact
-        defender_boundary |= defender_contact
+        target_boundary |= target_contact or bool(final_info.get("target_boundary_violation", False))
+        defender_boundary |= defender_contact or bool(final_info.get("defender_boundary_violation", False))
+        target_obstacle_collision |= bool(final_info.get("target_obstacle_violation", False))
         if any(float(env._obstacle_clearance(env.target_position, obstacle)) < 0.0 for obstacle in env.obstacles):
             target_obstacle_collision = True
         if terminated or truncated:
@@ -305,9 +306,13 @@ def _rollout(
         required_defender_zone_entries=int(record["scenario"].get("required_defender_zone_entries", 1)),
         require_target_zone_entry=bool(record.get("target_crossing_required", False)),
     )
-    physical_collision = bool(int(final_info.get("collision_steps", 0)) > 0)
+    physical_collision = bool(
+        final_info.get("defender_physical_collision", int(final_info.get("collision_steps", 0)) > 0)
+    )
+    target_invalid_episode = bool(final_info.get("target_invalid_episode", False))
     physical_feasible = bool(
         final_info.get("safe_capture_success", False)
+        and not target_invalid_episode
         and not target_boundary
         and not defender_boundary
         and not physical_collision
@@ -332,7 +337,19 @@ def _rollout(
         "target_obstacle_collision": target_obstacle_collision,
         "target_boundary_violation": target_boundary,
         "defender_boundary_violation": defender_boundary,
+        "target_invalid_episode": target_invalid_episode,
+        "task_valid_for_policy_evaluation": bool(
+            final_info.get("task_valid_for_policy_evaluation", not target_invalid_episode)
+        ),
         "world_violation_steps": int(final_info.get("world_violation_steps", 0)),
+        "target_boundary_violation_steps": int(final_info.get("target_boundary_violation_steps", 0)),
+        "defender_boundary_violation_steps": int(final_info.get("defender_world_violation_steps", 0)),
+        "minimum_target_boundary_clearance_m": float(
+            final_info.get("minimum_target_boundary_clearance_m", float("inf"))
+        ),
+        "minimum_defender_boundary_clearance_m": float(
+            final_info.get("minimum_defender_boundary_clearance_m", float("inf"))
+        ),
         "timeout": bool(final_info.get("termination_reason") == "timeout"),
         "termination_reason": str(final_info.get("termination_reason", "unknown")),
         "task_termination_reason": str(contract["task_termination_reason"]),
@@ -394,6 +411,7 @@ def _summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "physical_collision_rate": rate("physical_collision"),
         "target_obstacle_collision_rate": rate("target_obstacle_collision"),
         "target_boundary_violation_rate": rate("target_boundary_violation"),
+        "target_invalid_episode_rate": rate("target_invalid_episode"),
         "defender_boundary_violation_rate": rate("defender_boundary_violation"),
         "timeout_rate": rate("timeout"),
         "target_zone_entry_rate": rate("target_zone_entered"),
