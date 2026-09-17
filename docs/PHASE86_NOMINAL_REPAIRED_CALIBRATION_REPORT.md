@@ -72,4 +72,29 @@ python scripts\evaluate_phase77_expert_calibration.py `
 
 ## Decision and next gate
 
-`nominal_repaired` development calibration is **Go**. Next, evaluate the already generated 300-episode development-validation pool without changing target parameters. If target-invalid, target-boundary, or target-obstacle rate is nonzero, return to failure diagnosis; do not train. External holdout remains closed during calibration and validation. The other required Phase 86 single-factor blocks (`target_speed`, `obstacle_near`, `formation_tight`, `route_exercise`, `execution_delay`, and `command_noise`) remain open work.
+`nominal_repaired` development calibration is **Go**.
+
+## Independent development validation
+
+The same fixed environment and target parameters were evaluated without tuning on the separately seeded validation pool:
+
+- Scene pool: `results/phase86_nominal_repaired_development_validation/scenes.jsonl`
+- Episodes: 300 in 150 complete mirror groups
+- Scene SHA-256: `b903cf5fb6819a1ad970ce035b9cc9b25236e316c30fcf2b4e8e19401758869b`
+- Manifest SHA-256: `86cf8e451f06f2d96bb961c66cabb9d2da24ae8302b35250ce7d75292deb689c`
+
+| Metric | Oracle route | Public-belief route | Gate |
+|---|---:|---:|---:|
+| Expert acceptance | 97.33% (292/300) | 96.33% (289/300) | >=80% |
+| Target-invalid | 0.00% | 0.00% | 0% |
+| Target boundary violation | 0.00% | 0.00% | 0% |
+| Target obstacle collision | 0.00% | 0.00% | 0% |
+| Defender physical collision | 2.00% | 3.00% | separate diagnostic |
+| Defender boundary violation | 0.00% | 0.00% | separate diagnostic |
+| Timeout | 0.67% | 0.67% | reported |
+| Target maneuver fallback | 0.67% | 0.00% | diagnostic |
+| Route exercise accepted | 16.67% | 21.67% | diagnostic |
+
+The public-belief acceptance gap from oracle is 1.00 percentage point. The independent validation pool therefore passes the nominal target-validity and acceptance gates without a parameter change.
+
+`nominal_repaired` development calibration and validation are **Go**. External holdout remains closed because the other required Phase 86 single-factor blocks (`target_speed`, `obstacle_near`, `formation_tight`, `route_exercise`, `execution_delay`, and `command_noise`) remain open work. No defender training should begin until those development blocks have been generated and validated under the same zero-target-invalid contract.
