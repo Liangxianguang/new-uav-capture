@@ -206,6 +206,7 @@ _MANEUVER_MODES = {
     "vertical_escape",
     "speed_burst",
     "boundary_recovery",
+    "obstacle_recovery",
 }
 _OBSTACLE_PROFILES = {"cylinders", "boxes", "walls", "narrow_channels", "mixed"}
 _BELIEF_UPDATE_MODES = {"legacy", "zero_velocity", "constant_velocity", "time_aligned"}
@@ -1876,24 +1877,33 @@ class CaptureRadiusPursuit3DEnv:
             self.target_maneuver_last_replan_step < 0
             or self.step_count - self.target_maneuver_last_replan_step >= interval
             or predictive_boundary_risk
+            or self.target_maneuver_last_feasibility_failure != "none"
+            or self.target_maneuver_mode == "obstacle_recovery"
         )
         if should_replan:
             candidates = self._target_maneuver_candidates(defender_positions, defender_velocities)
-            if predictive_boundary_risk:
-                # Once the current bounded dynamics predict a boundary
-                # violation, there is no meaningful adversarial trade-off to
-                # optimize: emergency recovery must take precedence over the
-                # normal candidate search.  Evaluating only this candidate
-                # also avoids repeatedly rolling out every maneuver while the
-                # target is already braking toward the interior.
-                boundary_candidates = [
-                    item for item in candidates if item["mode"] == "boundary_recovery"
-                ]
-                candidates = boundary_candidates or candidates
             evaluated = [
                 self._evaluate_target_maneuver_candidate(item, defender_positions, defender_velocities)
                 for item in candidates
             ]
+            if self.obstacles and not any(bool(item["feasible"]) for item in evaluated):
+                # When every evasive maneuver has an unsafe horizon, first
+                # remove kinetic energy instead of accelerating deeper into
+                # the obstacle field.  This emergency candidate is injected
+                # only after normal non-trivial maneuvers have all failed.
+                obstacle_recovery = {
+                    "mode": "obstacle_recovery",
+                    "direction": self._target_obstacle_avoidance_direction(),
+                    "speed_scale": 0.0,
+                    "route": "obstacle_recovery_brake",
+                }
+                evaluated.append(
+                    self._evaluate_target_maneuver_candidate(
+                        obstacle_recovery,
+                        defender_positions,
+                        defender_velocities,
+                    )
+                )
             feasible_evaluated = [item for item in evaluated if bool(item["feasible"])]
             self.target_maneuver_feasible_candidate_count = len(feasible_evaluated)
             self.target_maneuver_rejected_candidate_count = len(evaluated) - len(feasible_evaluated)
@@ -1906,7 +1916,11 @@ class CaptureRadiusPursuit3DEnv:
                 immediate_safe = [
                     item
                     for item in evaluated
-                    if float(item["first_clearance"]) >= required_clearance
+                    # The long-horizon margin is a candidate preference and
+                    # rejection diagnostic.  A fallback is still valid when
+                    # its realized next step stays physically clear of both
+                    # obstacles and the effective target boundary.
+                    if float(item["first_clearance"]) > 0.0
                     and float(item["first_boundary"]) > 0.0
                 ]
                 fallback_pool = immediate_safe or evaluated
@@ -1915,8 +1929,9 @@ class CaptureRadiusPursuit3DEnv:
                         fallback_pool,
                         key=lambda item: (
                             int(item["feasible_prefix_steps"]),
-                            float(item["first_boundary"]),
                             float(item["first_clearance"]),
+                            float(item["first_boundary"]),
+                            float(item["min_clearance"]),
                             float(item["score"]),
                         ),
                     )
@@ -1929,11 +1944,11 @@ class CaptureRadiusPursuit3DEnv:
                         fallback = max(
                             fallback_pool,
                             key=lambda item: (
-                                float(item["min_boundary"]),
-                                float(item["min_clearance"]),
                                 int(item["feasible_prefix_steps"]),
-                                float(item["first_boundary"]),
                                 float(item["first_clearance"]),
+                                float(item["first_boundary"]),
+                                float(item["min_clearance"]),
+                                float(item["min_boundary"]),
                                 float(item["score"]),
                             ),
                         )
@@ -1941,9 +1956,9 @@ class CaptureRadiusPursuit3DEnv:
                         fallback = max(
                             fallback_pool,
                             key=lambda item: (
-                                float(item["first_boundary"]),
-                                float(item["first_clearance"]),
                                 int(item["feasible_prefix_steps"]),
+                                float(item["first_clearance"]),
+                                float(item["first_boundary"]),
                                 float(item["score"]),
                             ),
                         )
@@ -1964,9 +1979,13 @@ class CaptureRadiusPursuit3DEnv:
             boundary_recovery_items = [
                 item for item in evaluated if item["mode"] == "boundary_recovery"
             ]
+            feasible_boundary_recovery = [
+                item for item in boundary_recovery_items if bool(item["feasible"])
+            ]
             force_boundary_recovery = bool(
                 self.pursuit["target_maneuver_predictive_boundary_recovery"]
-                and boundary_recovery_items
+                and predictive_boundary_risk
+                and feasible_boundary_recovery
             )
             hold_steps = self.step_count - int(self.target_maneuver_mode_start_step)
             eligible = feasible_evaluated if feasible_evaluated else [fallback]
@@ -1977,9 +1996,7 @@ class CaptureRadiusPursuit3DEnv:
                 elif fallback is not None and fallback["mode"] == self.target_maneuver_mode:
                     eligible = [fallback]
             if force_boundary_recovery:
-                eligible = [item for item in boundary_recovery_items if bool(item["feasible"])] or (
-                    [fallback] if fallback is not None else feasible_evaluated
-                )
+                eligible = feasible_boundary_recovery
             current_mode = self.target_maneuver_mode
             for item in eligible:
                 if item["mode"] != current_mode:

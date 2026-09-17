@@ -22,6 +22,7 @@ def _row(index: int, accepted: bool) -> dict[str, object]:
         "physical_collision": False,
         "target_obstacle_collision": False,
         "target_boundary_violation": False,
+        "target_invalid_episode": False,
         "defender_boundary_violation": False,
         "timeout": not accepted,
         "target_zone_entered": False,

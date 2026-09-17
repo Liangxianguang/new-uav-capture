@@ -172,6 +172,221 @@ def test_unsafe_target_fallback_is_marked_invalid(monkeypatch: pytest.MonkeyPatc
     assert env.target_maneuver_last_feasibility_failure == "boundary_clearance"
 
 
+def test_physically_safe_target_fallback_is_not_marked_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.65)
+    env.reset(seed=820235)
+
+    candidate = {
+        "mode": "straight_flee",
+        "direction": np.array([1.0, 0.0, 0.0]),
+        "speed_scale": 1.0,
+        "route": "direct",
+    }
+    monkeypatch.setattr(env, "_target_maneuver_candidates", lambda *_args: [candidate])
+
+    def margin_rejected(item: dict, *_args: np.ndarray) -> dict:
+        return {
+            **item,
+            "score": -1000.0,
+            "min_distance": 0.0,
+            "terminal_distance": 0.0,
+            "min_clearance": 0.2,
+            "min_boundary": 1.0,
+            "required_clearance": 0.6,
+            "required_boundary_clearance": 0.0,
+            "first_clearance": 0.2,
+            "first_boundary": 1.0,
+            "feasible_prefix_steps": 0,
+            "feasible": False,
+            "feasibility_failure": "obstacle_clearance",
+            "estimated_capture_time_seconds": 0.0,
+            "escape_gap_rad": 0.0,
+            "crossing_alignment": 0.0,
+            "obstacle_avoidance_alignment": 0.0,
+        }
+
+    monkeypatch.setattr(env, "_evaluate_target_maneuver_candidate", margin_rejected)
+    env._adaptive_maneuvering_target_action()
+
+    assert env.target_maneuver_fallback_count == 1
+    assert not env.target_maneuver_candidate_invalid
+    assert env.target_maneuver_last_feasibility_failure == "obstacle_clearance"
+
+
+def test_margin_rejected_fallback_forces_next_step_replan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.65)
+    env.reset(seed=820236)
+    candidate = {
+        "mode": "straight_flee",
+        "direction": np.array([1.0, 0.0, 0.0]),
+        "speed_scale": 1.0,
+        "route": "direct",
+    }
+    candidate_calls = 0
+
+    def candidates(*_args: np.ndarray) -> list[dict]:
+        nonlocal candidate_calls
+        candidate_calls += 1
+        return [candidate]
+
+    def evaluated(item: dict, *_args: np.ndarray) -> dict:
+        feasible = candidate_calls > 1
+        return {
+            **item,
+            "score": 1.0 if feasible else -1000.0,
+            "min_distance": 1.0,
+            "terminal_distance": 1.0,
+            "min_clearance": 1.0 if feasible else 0.2,
+            "min_boundary": 1.0,
+            "required_clearance": 0.6,
+            "required_boundary_clearance": 0.0,
+            "first_clearance": 1.0 if feasible else 0.2,
+            "first_boundary": 1.0,
+            "feasible_prefix_steps": 12 if feasible else 0,
+            "feasible": feasible,
+            "feasibility_failure": "none" if feasible else "obstacle_clearance",
+            "estimated_capture_time_seconds": 0.0,
+            "escape_gap_rad": 0.0,
+            "crossing_alignment": 0.0,
+            "obstacle_avoidance_alignment": 0.0,
+        }
+
+    monkeypatch.setattr(env, "_target_maneuver_candidates", candidates)
+    monkeypatch.setattr(env, "_evaluate_target_maneuver_candidate", evaluated)
+
+    env._adaptive_maneuvering_target_action()
+    env.step_count += 1
+    env._adaptive_maneuvering_target_action()
+
+    assert candidate_calls == 2
+    assert env.target_maneuver_last_feasibility_failure == "none"
+    assert not env.target_maneuver_candidate_invalid
+
+
+def test_all_infeasible_maneuvers_use_replanning_obstacle_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=1, target_speed_scale=0.65)
+    env.reset(seed=820237)
+    normal_candidate = {
+        "mode": "straight_flee",
+        "direction": np.array([1.0, 0.0, 0.0]),
+        "speed_scale": 1.0,
+        "route": "direct",
+    }
+    candidate_calls = 0
+
+    def candidates(*_args: np.ndarray) -> list[dict]:
+        nonlocal candidate_calls
+        candidate_calls += 1
+        return [normal_candidate]
+
+    def evaluated(item: dict, *_args: np.ndarray) -> dict:
+        recovery = item["mode"] == "obstacle_recovery"
+        return {
+            **item,
+            "score": 1.0 if recovery else -1000.0,
+            "min_distance": 1.0,
+            "terminal_distance": 1.0,
+            "min_clearance": 1.0 if recovery else -0.1,
+            "min_boundary": 1.0,
+            "required_clearance": 0.6,
+            "required_boundary_clearance": 0.0,
+            "first_clearance": 1.0 if recovery else -0.1,
+            "first_boundary": 1.0,
+            "feasible_prefix_steps": 12 if recovery else 0,
+            "feasible": recovery,
+            "feasibility_failure": "none" if recovery else "obstacle_clearance",
+            "estimated_capture_time_seconds": 0.0,
+            "escape_gap_rad": 0.0,
+            "crossing_alignment": 0.0,
+            "obstacle_avoidance_alignment": 1.0 if recovery else 0.0,
+        }
+
+    monkeypatch.setattr(env, "_target_maneuver_candidates", candidates)
+    monkeypatch.setattr(env, "_evaluate_target_maneuver_candidate", evaluated)
+
+    first_action = env._adaptive_maneuvering_target_action()
+    env.step_count += 1
+    second_action = env._adaptive_maneuvering_target_action()
+
+    assert candidate_calls == 2
+    assert env.target_maneuver_mode == "obstacle_recovery"
+    assert env.target_maneuver_speed_scale == 0.0
+    np.testing.assert_allclose(first_action, 0.0)
+    np.testing.assert_allclose(second_action, 0.0)
+    assert not env.target_maneuver_candidate_invalid
+
+
+def test_feasible_normal_maneuver_does_not_inject_obstacle_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs" / "phase70_maneuvering_adversary_v2.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=1, target_speed_scale=0.65)
+    env.reset(seed=820238)
+    candidate = {
+        "mode": "lateral_jink",
+        "direction": np.array([0.0, 1.0, 0.0]),
+        "speed_scale": 0.9,
+        "route": "left",
+    }
+    evaluated_modes: list[str] = []
+    monkeypatch.setattr(env, "_target_maneuver_candidates", lambda *_args: [candidate])
+
+    def evaluated(item: dict, *_args: np.ndarray) -> dict:
+        evaluated_modes.append(str(item["mode"]))
+        return {
+            **item,
+            "score": 1.0,
+            "min_distance": 1.0,
+            "terminal_distance": 1.0,
+            "min_clearance": 1.0,
+            "min_boundary": 1.0,
+            "required_clearance": 0.6,
+            "required_boundary_clearance": 0.0,
+            "first_clearance": 1.0,
+            "first_boundary": 1.0,
+            "feasible_prefix_steps": 12,
+            "feasible": True,
+            "feasibility_failure": "none",
+            "estimated_capture_time_seconds": 0.0,
+            "escape_gap_rad": 0.0,
+            "crossing_alignment": 0.0,
+            "obstacle_avoidance_alignment": 0.0,
+        }
+
+    monkeypatch.setattr(env, "_evaluate_target_maneuver_candidate", evaluated)
+    action = env._adaptive_maneuvering_target_action()
+
+    assert evaluated_modes == ["lateral_jink"]
+    assert env.target_maneuver_mode == "lateral_jink"
+    assert env.target_maneuver_speed_scale == 0.9
+    assert np.linalg.norm(action) > 0.0
+
+
 def test_target_invalid_episode_is_separate_from_defender_collision() -> None:
     config = yaml.safe_load(
         (PROJECT_ROOT / "configs" / "capture_radius_pursuit_central_v4_flee.yaml").read_text(

@@ -510,6 +510,8 @@ def test_maneuvering_adversary_is_deterministic_and_replans_from_private_tracks(
             "reverse_lane_change",
             "vertical_escape",
             "speed_burst",
+            "boundary_recovery",
+            "obstacle_recovery",
         }
         assert first_info["target_maneuver_mode"] == second_info["target_maneuver_mode"]
         assert first_info["target_maneuver_route"] == second_info["target_maneuver_route"]
