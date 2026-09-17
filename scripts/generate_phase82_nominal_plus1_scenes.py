@@ -107,9 +107,12 @@ def _record(
         "variant": str(variant_name),
         "single_factor": str(variant["single_factor"]),
         "single_factor_value": copy.deepcopy(variant.get("single_factor_value")),
-        "scene_block": "phase82_calibration",
+        "scene_block": str(variant.get("scene_block", "phase82_calibration")),
         "execution": copy.deepcopy(variant["execution"]),
-        "mirror_group_id": f"phase82-{variant_name}-{pair_index:04d}",
+        "mirror_group_id": (
+            f"{variant.get('mirror_group_prefix', 'phase82')}-"
+            f"{variant_name}-{pair_index:04d}"
+        ),
         "mirror_pair_member": member_name,
         "formation_spacing_min_m": _minimum_formation_spacing(scenario),
         "target_initial_obstacle_clearance_m": _target_obstacle_clearance(env, scenario),

@@ -1,5 +1,16 @@
 # 当前实验状态与后续 TodoList
 
+> Phase 83 Hard-1 已通过三 seed promotion gate：主/holdout 各 300 场景、150 个镜像组，包含
+> target-speed、obstacle-near、formation-tight 三个单因素 block。专家 public-belief 接受率为
+> `88.67%`（main）和 `90.33%`（holdout），均高于 `80%` 场景质量门槛。三个 seed 在独立
+> 271-scene holdout 上的 safe capture 为 `97.79%/98.89%/99.26%`，collision 为
+> `0.37%/0.37%/0.37%`，boundary 为 `0.37%/0.37%/0%`；pooled 为 `802/813=98.65%`、
+> collision `0.37%`、boundary `0.25%`、timeout `0.98%`，三个 seed 均通过
+> safe≥70%、collision/boundary≤5% gate。Hard 现已开放 Stress calibration，但 Stress 尚未
+> 测试，locked-test 仍关闭。Route/actor/safety/total 的 p50/p95/p99 已记录；本阶段未测量
+> predictor/planner/QDR stage latency，不作推断。local CBF 仍是经验过滤器，不宣称
+> R-CLBF-QP/robust CBF-QP 安全证明。详见 `docs/PHASE83_HARD1_CALIBRATION_REPORT.md`。
+
 > Phase 82 Nominal-plus-1 困难场景标定已完成：新增 500 场景 / 250 个完整镜像组，
 > 分成 command-noise、action-delay、maneuver-frequency、obstacle-near 和
 > formation-tight 五个单因素 block，各 100 场景。所有场景的四步初始 outward-escape
