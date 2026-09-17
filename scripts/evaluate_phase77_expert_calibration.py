@@ -344,6 +344,8 @@ def _rollout(
         "world_violation_steps": int(final_info.get("world_violation_steps", 0)),
         "target_boundary_violation_steps": int(final_info.get("target_boundary_violation_steps", 0)),
         "defender_boundary_violation_steps": int(final_info.get("defender_world_violation_steps", 0)),
+        "first_target_boundary_violation_step": final_info.get("first_target_boundary_violation_step"),
+        "first_defender_boundary_violation_step": final_info.get("first_defender_boundary_violation_step"),
         "minimum_target_boundary_clearance_m": float(
             final_info.get("minimum_target_boundary_clearance_m", float("inf"))
         ),

@@ -737,6 +737,8 @@ def run_episode(
             "defender_boundary_violation": bool(
                 info.get("defender_boundary_violation", info.get("world_violation_steps", 0) > 0)
             ),
+            "first_target_boundary_violation_step": info.get("first_target_boundary_violation_step"),
+            "first_defender_boundary_violation_step": info.get("first_defender_boundary_violation_step"),
             "timeout": str(info.get("termination_reason")) == "timeout",
             "termination_reason": episode_termination_reason,
             "capture_time_seconds": info.get("capture_time_seconds"),
