@@ -29,13 +29,43 @@
       "timeout_rate": 0,
       "mean_min_clearance_m": 0.43274443308986427,
       "mean_policy_latency_ms": 0.9252737999299004
-    }
+    },
+    "cbf_single_episode_diagnostics": [
+      {
+        "episode_start_index": 0,
+        "source": "results/phase88_baselines/ippo_seed791601_target_speed_30u_v1/eval_cbf_episode0/evaluation.json",
+        "safe_capture_rate": 0,
+        "collision_rate": 0,
+        "boundary_violation_rate": 0,
+        "target_invalid_episode_rate": 0,
+        "timeout_rate": 1
+      },
+      {
+        "episode_start_index": 1,
+        "source": "results/phase88_baselines/ippo_seed791601_target_speed_30u_v1/eval_cbf_episode1/evaluation.json",
+        "safe_capture_rate": 0,
+        "collision_rate": 0,
+        "boundary_violation_rate": 0,
+        "target_invalid_episode_rate": 0,
+        "timeout_rate": 1
+      },
+      {
+        "episode_start_index": 2,
+        "source": "results/phase88_baselines/ippo_seed791601_target_speed_30u_v1/eval_cbf_episode2/evaluation.json",
+        "safe_capture_rate": 0,
+        "collision_rate": 0,
+        "boundary_violation_rate": 0,
+        "target_invalid_episode_rate": 0,
+        "timeout_rate": 1
+      }
+    ]
   },
   "interpretation": [
     "30-update IPPO completed and produced a loadable checkpoint.",
     "The first 5 validation episodes show no capture and high raw safety failure; this is a diagnostic chunk, not a five-seed final result.",
     "Target-invalid, target-boundary, and target-obstacle rates are zero.",
-    "The 100-episode monolithic evaluator was stopped because it produced no intermediate artifact after extended runtime; future evaluation must use reproducible chunks."
+    "The 100-episode monolithic evaluator was stopped because it produced no intermediate artifact after extended runtime; future evaluation must use reproducible chunks.",
+    "Three paired IPPO+C BF single-episode diagnostics preserved zero collision and zero defender boundary violation but produced timeout in every episode; this is a safety-layer diagnostic, not a final aggregate."
   ],
-  "next_gate": "Run IPPO raw and CBF in 20-episode chunks, then aggregate chunk JSON files before considering multi-seed expansion."
+  "next_gate": "Complete a reproducible 63-D warm-start or recurrent baseline before five-seed expansion; keep raw/CBF validation chunked."
 }
