@@ -63,6 +63,8 @@ def args() -> argparse.Namespace:
     p.add_argument("--tensorboard", action="store_true")
     p.add_argument("--log-interval", type=int, default=1)
     p.add_argument("--action-scale-factor", type=float, default=1.0, help="Multiply the environment defender speed for a PPO safety curriculum.")
+    p.add_argument("--action-scale-end-factor", type=float, default=None, help="Optional final action scale for a linear curriculum.")
+    p.add_argument("--action-scale-ramp-updates", type=int, default=0, help="Number of updates over which to ramp action scale.")
     return p.parse_args()
 
 
@@ -337,6 +339,10 @@ def main() -> None:
         raise ValueError("updates and episodes-per-update must be positive")
     if not 0.0 < a.action_scale_factor <= 1.0:
         raise ValueError("action-scale-factor must be in (0, 1].")
+    if a.action_scale_end_factor is not None and not 0.0 < a.action_scale_end_factor <= 1.0:
+        raise ValueError("action-scale-end-factor must be in (0, 1].")
+    if a.action_scale_ramp_updates < 0:
+        raise ValueError("action-scale-ramp-updates must be non-negative.")
     if a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
     a.output.mkdir(parents=True, exist_ok=True)
@@ -356,7 +362,8 @@ def main() -> None:
     observation = probe.observe()
     local_dim = int(policy_observations(probe, observation).shape[-1])
     state_dim = int(probe.centralized_state().shape[-1])
-    action_scale = float(config["agents"]["defender_max_speed"]) * float(a.action_scale_factor)
+    base_action_scale = float(config["agents"]["defender_max_speed"])
+    action_scale = base_action_scale * float(a.action_scale_factor)
     if a.recurrent and a.algorithm != "mappo":
         raise ValueError("--recurrent is only supported with --algorithm mappo")
     if a.recurrent:
@@ -411,6 +418,10 @@ def main() -> None:
             encoding="utf-8",
         )
     for update_index in range(a.updates):
+        if a.action_scale_end_factor is not None and a.action_scale_ramp_updates > 0:
+            progress = min(1.0, float(update_index) / float(a.action_scale_ramp_updates))
+            scale_factor = float(a.action_scale_factor) + progress * (float(a.action_scale_end_factor) - float(a.action_scale_factor))
+            action_scale = base_action_scale * scale_factor
         episode_seeds = [a.seed + update_index * a.episodes_per_update + j for j in range(a.episodes_per_update)]
         record_indices = (
             np.random.default_rng(a.seed + update_index).integers(0, len(training_records), size=a.episodes_per_update)
@@ -462,6 +473,7 @@ def main() -> None:
             "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes])),
             "episode_return_mean": float(np.mean([float(np.sum(e["rewards"])) for e in episodes])),
             "episode_length_mean": float(np.mean([len(e["old_log_prob"]) for e in episodes])),
+            "action_scale_factor": float(action_scale / base_action_scale),
             "collision_rate": float(np.mean([bool(e["info"].get("defender_safety_failure", False)) for e in episodes])),
             "defender_physical_collision_rate": float(np.mean([bool(e["info"].get("defender_physical_collision", False)) for e in episodes])),
             "defender_boundary_violation_rate": float(np.mean([bool(e["info"].get("defender_boundary_violation", False)) for e in episodes])),
