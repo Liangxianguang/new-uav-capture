@@ -1,0 +1,19 @@
+experiment_name: phase108_ippo_expert_contract
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: F:/uav_capture/three_d_encirclement/configs/phase85_target_contract_repaired_environment.yaml
+environment_overrides:
+  dynamics:
+    execution: {enabled: false}
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    pursuit:
+      safety_margin: 1.0
+      include_prediction_features: true
+      defender_boundary_margin: 1.25
+      defender_boundary_proximity_weight: 1.50
+      defender_boundary_progress_weight: 0.80
+experiment:
+  seed: 10801
+  action_scale_mode: full_range
+  evaluation_split: phase108_expert_contract

@@ -56,6 +56,8 @@ def args() -> argparse.Namespace:
     p.add_argument("--use-cbf-eval", action="store_true")
     p.add_argument("--training-scenes", type=Path, help="Development scene JSONL used for training rollouts.")
     p.add_argument("--training-episodes", type=int, help="Maximum records loaded from --training-scenes.")
+    p.add_argument("--obstacle-count", type=int, default=4, help="Obstacle count for random training resets.")
+    p.add_argument("--target-speed-scale", type=float, default=0.65, help="Target speed scale for random training resets.")
     p.add_argument("--expert-dataset", type=Path, help="Optional audited local-observation/action dataset for actor warm-start.")
     p.add_argument("--bc-epochs", type=int, default=0, help="Behavior-cloning epochs before PPO; zero disables warm-start.")
     p.add_argument("--bc-batch-size", type=int, default=1024)
@@ -99,8 +101,8 @@ def load_config(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return document, environment
 
 
-def make_env(config: dict[str, Any], seed: int, *, max_steps: int | None) -> CaptureRadiusPursuit3DEnv:
-    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.65)
+def make_env(config: dict[str, Any], seed: int, *, max_steps: int | None, obstacle_count: int = 4, target_speed_scale: float = 0.65) -> CaptureRadiusPursuit3DEnv:
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=obstacle_count, target_speed_scale=target_speed_scale)
     if max_steps is not None:
         env.max_steps = int(max_steps)
     env.reset(seed=seed)
@@ -358,7 +360,7 @@ def main() -> None:
             raise ValueError("--training-scenes contains no records")
         if any("locked" in str(item.get("scene_block", "")).lower() for item in training_records):
             raise ValueError("Training scenes must not contain locked-test records")
-    probe = make_env(config, a.seed, max_steps=a.max_steps)
+    probe = make_env(config, a.seed, max_steps=a.max_steps, obstacle_count=a.obstacle_count, target_speed_scale=a.target_speed_scale)
     observation = probe.observe()
     local_dim = int(policy_observations(probe, observation).shape[-1])
     state_dim = int(probe.centralized_state().shape[-1])
@@ -430,7 +432,7 @@ def main() -> None:
         episodes = [
             collect_episode(
                 policy,
-                make_env(config, a.seed + update_index * a.episodes_per_update + j, max_steps=a.max_steps),
+                make_env(config, a.seed + update_index * a.episodes_per_update + j, max_steps=a.max_steps, obstacle_count=a.obstacle_count, target_speed_scale=a.target_speed_scale),
                 a.algorithm,
                 dev,
                 action_scale,
