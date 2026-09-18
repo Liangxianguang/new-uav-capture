@@ -460,6 +460,8 @@ def main() -> None:
             "episode_return_mean": float(np.mean([float(np.sum(e["rewards"])) for e in episodes])),
             "episode_length_mean": float(np.mean([len(e["old_log_prob"]) for e in episodes])),
             "collision_rate": float(np.mean([bool(e["info"].get("defender_safety_failure", False)) for e in episodes])),
+            "defender_physical_collision_rate": float(np.mean([bool(e["info"].get("defender_physical_collision", False)) for e in episodes])),
+            "defender_boundary_violation_rate": float(np.mean([bool(e["info"].get("defender_boundary_violation", False)) for e in episodes])),
             "boundary_violation_rate": float(np.mean([bool(e["info"].get("boundary_violation", False)) for e in episodes])),
             "target_invalid_rate": float(np.mean([bool(e["info"].get("target_invalid_episode", False)) for e in episodes])),
             "timeout_rate": float(np.mean([e["info"].get("termination_reason") == "timeout" for e in episodes])),
