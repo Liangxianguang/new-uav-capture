@@ -1,0 +1,49 @@
+{
+  "phase": "phase88_recurrent_mappo_smoke",
+  "date": "2026-09-18",
+  "status": "interface_smoke_passed",
+  "scope": "development_validation_only",
+  "locked_test_used": false,
+  "algorithm": "mappo",
+  "actor_recurrent": true,
+  "feature_contract": {
+    "local_observation_dim": 63,
+    "centralized_critic": true,
+    "hidden_state": "independent_per_defender_gru_cell",
+    "reset": "zeroed_at_episode_start"
+  },
+  "training": {
+    "seed": 791601,
+    "updates": 1,
+    "episodes_per_update": 1,
+    "ppo_epochs": 1,
+    "minibatch_size": 1,
+    "max_steps": 3,
+    "output": "results/phase88_baselines/recurrent_mappo_seed791601_smoke_v2"
+  },
+  "validation": {
+    "scene_block": "target_speed",
+    "episodes_per_run": 1,
+    "max_steps": 3,
+    "raw": {
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.0,
+      "boundary_violation_rate": 0.0,
+      "timeout_rate": 1.0,
+      "mean_min_clearance_m": 1.1412844317941169,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_smoke_v2/eval_raw_1/evaluation.json"
+    },
+    "common_cbf": {
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.0,
+      "boundary_violation_rate": 0.0,
+      "timeout_rate": 1.0,
+      "mean_min_clearance_m": 1.1412844317941169,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_smoke_v2/eval_cbf_1/evaluation.json"
+    }
+  },
+  "interpretation": "The recurrent training and evaluation contracts are executable. This is an interface smoke test, not a performance comparison; the one-update, three-step run cannot support an algorithm ranking.",
+  "next_gate": "Run a target_speed recurrent-MAPPO pilot with the normal episode horizon, then validate in chunks before expanding to all Phase86 blocks and multiple seeds."
+}

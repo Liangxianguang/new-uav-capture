@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-from encirclement3d.learning import CentralizedSharedActorCritic, SharedActorCritic  # noqa: E402
+from encirclement3d.learning import CentralizedSharedActorCritic, RecurrentCentralizedSharedActorCritic, SharedActorCritic  # noqa: E402
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
 from encirclement3d.pursuit_controllers import PursuitCBFSafetyFilter  # noqa: E402
 from encirclement3d.showcase import prepare_showcase_episode, scenario_from_metadata  # noqa: E402
@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scenes", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--algorithm", choices=("mappo", "ippo"), required=True)
+    p.add_argument("--recurrent", action="store_true", help="Load a recurrent MAPPO checkpoint.")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--start-index", type=int, default=0, help="Zero-based scene-record offset for reproducible validation chunks.")
     p.add_argument("--max-steps", type=int, default=250)
@@ -57,7 +58,7 @@ def load_environment(config_path: Path) -> dict[str, Any]:
     return environment
 
 
-def load_policy(path: Path, env: Any, observation: dict[str, Any], algorithm: str, dev: torch.device) -> tuple[torch.nn.Module, float]:
+def load_policy(path: Path, env: Any, observation: dict[str, Any], algorithm: str, dev: torch.device, recurrent: bool) -> tuple[torch.nn.Module, float]:
     checkpoint = torch.load(path.resolve(), map_location=dev, weights_only=True)
     local_dim = int(policy_observations(env, observation).shape[-1])
     state_dim = int(env.centralized_state().shape[-1])
@@ -66,7 +67,14 @@ def load_policy(path: Path, env: Any, observation: dict[str, Any], algorithm: st
     if int(checkpoint["centralized_state_dim"]) != state_dim:
         raise ValueError(f"centralized dimension mismatch: checkpoint={checkpoint['centralized_state_dim']} env={state_dim}")
     hidden = int(checkpoint.get("hidden_dim", 128))
-    if algorithm == "mappo":
+    checkpoint_recurrent = bool(checkpoint.get("actor_recurrent", False))
+    if checkpoint_recurrent != bool(recurrent):
+        raise ValueError(f"recurrent contract mismatch: checkpoint={checkpoint_recurrent} cli={recurrent}")
+    if recurrent:
+        if algorithm != "mappo":
+            raise ValueError("Recurrent evaluation only supports MAPPO.")
+        policy = RecurrentCentralizedSharedActorCritic(local_dim, state_dim, hidden_dim=hidden).to(dev)
+    elif algorithm == "mappo":
         policy = CentralizedSharedActorCritic(local_dim, state_dim, hidden_dim=hidden).to(dev)
     else:
         policy = SharedActorCritic(local_dim, hidden_dim=hidden).to(dev)
@@ -74,10 +82,11 @@ def load_policy(path: Path, env: Any, observation: dict[str, Any], algorithm: st
     return policy.eval(), float(checkpoint["action_scale"])
 
 
-def evaluate_episode(policy: torch.nn.Module, env: Any, observation: dict[str, Any], algorithm: str, dev: torch.device, action_scale: float, use_cbf: bool, max_steps: int) -> dict[str, Any]:
+def evaluate_episode(policy: torch.nn.Module, env: Any, observation: dict[str, Any], algorithm: str, dev: torch.device, action_scale: float, use_cbf: bool, max_steps: int, recurrent: bool) -> dict[str, Any]:
     safety = PursuitCBFSafetyFilter(env) if use_cbf else None
     final_info: dict[str, Any] = {}
     latencies: list[float] = []
+    hidden = policy.initial_actor_hidden(4, device=dev) if recurrent else None  # type: ignore[union-attr]
     with torch.no_grad():
         for _ in range(max_steps):
             local = torch.as_tensor(policy_observations(env, observation), device=dev)
@@ -88,7 +97,9 @@ def evaluate_episode(policy: torch.nn.Module, env: Any, observation: dict[str, A
             else:
                 import time
                 clock = time.perf_counter()
-            if algorithm == "mappo":
+            if recurrent:
+                distribution, hidden = policy.distribution_step(local, hidden)  # type: ignore[union-attr]
+            elif algorithm == "mappo":
                 distribution = policy.distribution(local)  # type: ignore[union-attr]
             else:
                 distribution, _value = policy.distribution_and_value(local)  # type: ignore[union-attr]
@@ -120,6 +131,8 @@ def evaluate_episode(policy: torch.nn.Module, env: Any, observation: dict[str, A
 
 def main() -> None:
     a = parse_args()
+    if a.recurrent and a.algorithm != "mappo":
+        raise ValueError("--recurrent is only supported with --algorithm mappo")
     if a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
     a.output.mkdir(parents=True, exist_ok=True)
@@ -129,11 +142,11 @@ def main() -> None:
         raise ValueError("start-index must be non-negative and episodes must be positive")
     records = load_records(a.scenes.resolve(), a.start_index + a.episodes, allow_target_crossing=True)[a.start_index : a.start_index + a.episodes]
     first_env, first_observation, _ = build_environment(environment, records[0], max_steps=a.max_steps)
-    policy, action_scale = load_policy(a.checkpoint, first_env, first_observation, a.algorithm, dev)
+    policy, action_scale = load_policy(a.checkpoint, first_env, first_observation, a.algorithm, dev, a.recurrent)
     rows = []
     for record in records:
         env, observation, _scenario = build_environment(environment, record, max_steps=a.max_steps)
-        rows.append({"episode_index": int(record["episode_index"]), "mirror_group_id": str(record["mirror_group_id"]), **evaluate_episode(policy, env, observation, a.algorithm, dev, action_scale, a.use_cbf, a.max_steps)})
+        rows.append({"episode_index": int(record["episode_index"]), "mirror_group_id": str(record["mirror_group_id"]), **evaluate_episode(policy, env, observation, a.algorithm, dev, action_scale, a.use_cbf, a.max_steps, a.recurrent)})
     rate = lambda key: float(np.mean([bool(row[key]) for row in rows])) if rows else 0.0
     result = {
         "algorithm": a.algorithm,
@@ -142,6 +155,7 @@ def main() -> None:
         "episode_end_index_exclusive": int(a.start_index + len(rows)),
         "locked_test_used": False,
         "use_cbf": bool(a.use_cbf),
+        "actor_recurrent": bool(a.recurrent),
         "safe_capture_rate": rate("safe_capture_success"),
         "capture_event_rate": rate("capture_event"),
         "collision_rate": rate("collision"),

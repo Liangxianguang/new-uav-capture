@@ -24,7 +24,7 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from encirclement3d.learning import CentralizedSharedActorCritic, SharedActorCritic  # noqa: E402
+from encirclement3d.learning import CentralizedSharedActorCritic, RecurrentCentralizedSharedActorCritic, SharedActorCritic  # noqa: E402
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
 from encirclement3d.pursuit_controllers import PursuitCBFSafetyFilter  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
@@ -37,6 +37,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--config", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--algorithm", choices=("mappo", "ippo"), required=True)
+    p.add_argument("--recurrent", action="store_true", help="Use recurrent centralized-critic MAPPO.")
     p.add_argument("--seed", type=int, default=791601)
     p.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     p.add_argument("--updates", type=int, default=100)
@@ -121,6 +122,7 @@ def collect_episode(
     gamma: float,
     gae_lambda: float,
     record: dict[str, Any] | None = None,
+    recurrent: bool = False,
 ) -> dict[str, Any]:
     if record is None:
         observation = env.reset(seed=seed)
@@ -133,13 +135,17 @@ def collect_episode(
     rewards: list[float] = []
     dones: list[bool] = []
     values: list[float] = []
+    hidden = policy.initial_actor_hidden(4, device=dev) if recurrent else None  # type: ignore[union-attr]
     limit = int(max_steps or env.max_steps)
     for _ in range(limit):
         local = policy_observations(env, observation).astype(np.float32)
         state = env.centralized_state().astype(np.float32)
         with torch.no_grad():
             local_t = torch.as_tensor(local, device=dev)
-            if algorithm == "mappo":
+            if recurrent:
+                distribution, hidden = policy.distribution_step(local_t, hidden)  # type: ignore[union-attr]
+                value = policy.value(torch.as_tensor(state, device=dev)[None])[0]  # type: ignore[union-attr]
+            elif algorithm == "mappo":
                 distribution = policy.distribution(local_t)  # type: ignore[union-attr]
                 value = policy.value(torch.as_tensor(state, device=dev)[None])[0]  # type: ignore[union-attr]
             else:
@@ -169,7 +175,7 @@ def collect_episode(
     return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "info": info}
 
 
-def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float) -> float:
+def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float, recurrent: bool = False) -> float:
     n = int(batch["advantage"].shape[0])
     total_loss = 0.0
     for _ in range(epochs):
@@ -178,6 +184,29 @@ def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dic
             idx = order[start : start + minibatch]
             local = batch["local"][idx]
             actions = batch["action"][idx]
+            if recurrent:
+                # Each item is one complete episode.  Keeping the sequence intact
+                # makes the old log-probability and GRU state contract explicit.
+                local_seq = batch["local"][idx]
+                action_seq = batch["action"][idx]
+                reset = torch.zeros(local_seq.shape[:2], device=local_seq.device)
+                initial = torch.zeros((local_seq.shape[0], 4, policy.hidden_dim), device=local_seq.device)
+                logp_agents, entropy_agents, _ = policy.evaluate_actions_sequence(local_seq, initial, reset, action_seq, action_scale)  # type: ignore[union-attr]
+                logp = logp_agents.sum(-1)
+                entropy = entropy_agents.sum(-1).mean()
+                value = policy.value(batch["state"][idx].reshape(-1, batch["state"].shape[-1])).reshape(local_seq.shape[0], -1)  # type: ignore[union-attr]
+                valid = batch["valid"][idx]
+                old_logp = batch["old_log_prob"][idx]
+                adv = batch["advantage"][idx]
+                ratio = torch.exp(logp - old_logp)
+                clipped = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * adv
+                policy_loss = -torch.minimum(ratio * adv, clipped)
+                value_target = batch["return"][idx]
+                value_loss = 0.5 * (value - value_target).pow(2)
+                loss = (policy_loss * valid).sum() / valid.sum().clamp_min(1.0) + (value_loss * valid).sum() / valid.sum().clamp_min(1.0) - 0.01 * entropy
+                optimizer.zero_grad(); loss.backward(); torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5); optimizer.step()
+                total_loss += float(loss.detach())
+                continue
             if algorithm == "mappo":
                 flat_local = local.reshape(-1, local.shape[-1])
                 flat_actions = actions.reshape(-1, actions.shape[-1])
@@ -282,7 +311,11 @@ def main() -> None:
     local_dim = int(policy_observations(probe, observation).shape[-1])
     state_dim = int(probe.centralized_state().shape[-1])
     action_scale = float(config["agents"]["defender_max_speed"])
-    if a.algorithm == "mappo":
+    if a.recurrent and a.algorithm != "mappo":
+        raise ValueError("--recurrent is only supported with --algorithm mappo")
+    if a.recurrent:
+        policy: torch.nn.Module = RecurrentCentralizedSharedActorCritic(local_dim, state_dim, hidden_dim=a.hidden_dim).to(dev)
+    elif a.algorithm == "mappo":
         policy: torch.nn.Module = CentralizedSharedActorCritic(local_dim, state_dim, hidden_dim=a.hidden_dim).to(dev)
     else:
         policy = SharedActorCritic(local_dim, hidden_dim=a.hidden_dim).to(dev)
@@ -314,7 +347,7 @@ def main() -> None:
             "action_scale": action_scale,
             "hidden_dim": a.hidden_dim,
             "algorithm": a.algorithm,
-            "actor_recurrent": False,
+            "actor_recurrent": bool(a.recurrent),
             "seed": a.seed,
             "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None,
             "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
@@ -338,19 +371,35 @@ def main() -> None:
                 a.gamma,
                 a.gae_lambda,
                 record=training_records[(update_index * a.episodes_per_update + j) % len(training_records)] if training_records else None,
+                recurrent=a.recurrent,
             )
             for j in range(a.episodes_per_update)
         ]
-        batch_np = {key: np.concatenate([episode[key] for episode in episodes], axis=0) for key in ("local", "state", "action", "old_log_prob", "advantage", "return")}
+        if a.recurrent:
+            length = max(len(e["reward"] if "reward" in e else e["old_log_prob"]) for e in episodes)
+            def pad(key: str, fill: float = 0.0) -> np.ndarray:
+                values = []
+                for e in episodes:
+                    value = np.asarray(e[key]); out = np.full((length,) + value.shape[1:], fill, dtype=value.dtype); out[:len(value)] = value; values.append(out)
+                return np.asarray(values)
+            batch_np = {key: pad(key) for key in ("local", "state", "action", "old_log_prob", "advantage", "return")}
+            batch_np["valid"] = np.asarray([[1.0] * len(e["old_log_prob"]) + [0.0] * (length - len(e["old_log_prob"])) for e in episodes], dtype=np.float32)
+        else:
+            batch_np = {key: np.concatenate([episode[key] for episode in episodes], axis=0) for key in ("local", "state", "action", "old_log_prob", "advantage", "return")}
         batch = {key: torch.as_tensor(value, device=dev, dtype=torch.float32) for key, value in batch_np.items()}
-        batch["advantage"] = (batch["advantage"] - batch["advantage"].mean()) / (batch["advantage"].std() + 1e-8)
-        loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range)
+        if a.recurrent:
+            valid = batch["valid"]
+            flat_adv = batch["advantage"][valid > 0]
+            batch["advantage"] = (batch["advantage"] - flat_adv.mean()) / (flat_adv.std() + 1e-8)
+        else:
+            batch["advantage"] = (batch["advantage"] - batch["advantage"].mean()) / (batch["advantage"].std() + 1e-8)
+        loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range, recurrent=a.recurrent)
         row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes]))}
         history.append(row)
         save_progress()
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
             print(json.dumps(row), flush=True)
-    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": False, "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
+    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
     (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "behavior_cloning_loss": bc_history, "document": document}, indent=2), encoding="utf-8")
     (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
