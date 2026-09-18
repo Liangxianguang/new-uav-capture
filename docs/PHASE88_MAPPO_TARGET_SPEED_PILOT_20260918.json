@@ -1,0 +1,51 @@
+{
+  "experiment": "phase88_mappo_target_speed_single_seed_pilot",
+  "date": "2026-09-18",
+  "locked_test_used": false,
+  "training": {
+    "algorithm": "mappo",
+    "seed": 791601,
+    "updates": 30,
+    "episodes_per_update": 4,
+    "ppo_epochs": 2,
+    "minibatch_size": 256,
+    "max_steps": 120,
+    "training_scenes": "results/phase86_single_factor_development/blocks/target_speed.jsonl",
+    "checkpoint": "results/phase88_baselines/mappo_seed791601_target_speed_30u_v3/checkpoint.pt"
+  },
+  "validation": {
+    "raw_100ep": {
+      "episodes": 100,
+      "safe_capture_rate": 0,
+      "capture_event_rate": 0,
+      "collision_rate": 1,
+      "boundary_violation_rate": 0.52,
+      "target_invalid_episode_rate": 0,
+      "target_boundary_violation_rate": 0,
+      "target_obstacle_violation_rate": 0,
+      "timeout_rate": 0,
+      "mean_min_clearance_m": 0.36563755708727463,
+      "mean_policy_latency_ms": 0.23418308916520642
+    },
+    "cbf_5ep_debug": {
+      "episodes": 5,
+      "safe_capture_rate": 0.2,
+      "capture_event_rate": 0.2,
+      "collision_rate": 0,
+      "boundary_violation_rate": 0,
+      "target_invalid_episode_rate": 0,
+      "target_boundary_violation_rate": 0,
+      "target_obstacle_violation_rate": 0,
+      "timeout_rate": 0.8,
+      "mean_min_clearance_m": 0.9795680389202873,
+      "mean_policy_latency_ms": 0.22634764249260364
+    }
+  },
+  "interpretation": [
+    "30-update feed-forward MAPPO did not learn safe raw control: raw collision 100% and safe capture 0% over 100 validation episodes.",
+    "Common empirical CBF reduced collision and defender boundary violations to 0% in the 5-episode diagnostic, but safe capture was 20% and timeout 80%.",
+    "The CBF result is diagnostic only, not a final comparison; no formal robust-CBF guarantee is claimed.",
+    "All target-invalid, target-boundary, and target-obstacle rates were 0%, so the failure is attributed to defender policy/safety behavior."
+  ],
+  "next_gate": "Do not expand to five seeds or all six blocks until a longer baseline protocol, recurrent policy or matched expert warm-start, and stable validation are established."
+}
