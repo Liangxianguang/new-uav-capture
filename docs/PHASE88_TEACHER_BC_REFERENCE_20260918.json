@@ -22,14 +22,15 @@
       "output": "results/phase88_baselines/teacher_target_speed_raw_5_v1/evaluation.json"
     },
     "common_empirical_cbf": {
-      "safe_capture_rate": 1.0,
-      "capture_event_rate": 1.0,
+      "safe_capture_rate": 0.8,
+      "capture_event_rate": 0.8,
       "collision_rate": 0.0,
       "boundary_violation_rate": 0.0,
-      "timeout_rate": 0.0,
-      "episodes": 1,
-      "mean_min_clearance_m": 0.28326450268243564,
-      "output": "results/phase88_baselines/teacher_target_speed_cbf_1_v1/evaluation.json"
+      "timeout_rate": 0.2,
+      "episodes": 5,
+      "mean_min_clearance_m": 0.6966623083512237,
+      "mean_policy_latency_ms": 7.543396636150308,
+      "output": "results/phase88_baselines/teacher_target_speed_cbf_5_v1/evaluation.json"
     }
   },
   "matched_bc_checkpoint": {
@@ -43,6 +44,6 @@
     "mean_min_clearance_m": 0.5456085122369055,
     "output": "results/phase88_baselines/contract_matched_bc_seed791601_32e_v1/eval_baseline_raw/evaluation.json"
   },
-  "interpretation": "The teacher raw policy is not a safe upper bound under this contract; the empirical CBF materially changes behavior and the one-episode result is only diagnostic. The matched BC checkpoint improves safety relative to raw PPO pilots but does not capture on this five-episode chunk. No result here is a final multi-seed ranking.",
+  "interpretation": "The teacher raw policy is not a safe upper bound under this contract; the empirical CBF materially changes behavior. On the completed five-episode chunk, teacher plus empirical CBF reaches 80% safe capture with 0% collision and 20% timeout. The matched BC checkpoint still does not capture on its five-episode chunk. No result here is a final multi-seed ranking.",
   "next_gate": "Use a common raw/CBF protocol with adequate denominators, then compare IPPO, feed-forward MAPPO, recurrent MAPPO, and the released method only after each has a validated checkpoint."
 }
