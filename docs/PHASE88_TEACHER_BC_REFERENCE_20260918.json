@@ -1,0 +1,48 @@
+{
+  "phase": "phase88_teacher_bc_reference",
+  "date": "2026-09-18",
+  "status": "reference_diagnostics_completed",
+  "scope": "development_validation_only",
+  "locked_test_used": false,
+  "protocol": {
+    "scene_block": "target_speed",
+    "raw_episodes": 5,
+    "cbf_episodes": 1,
+    "max_steps": 120,
+    "same_phase87_environment_builder": true
+  },
+  "dynamic_teacher": {
+    "raw": {
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 1.0,
+      "boundary_violation_rate": 0.0,
+      "timeout_rate": 0.0,
+      "mean_min_clearance_m": -0.11723743240023662,
+      "output": "results/phase88_baselines/teacher_target_speed_raw_5_v1/evaluation.json"
+    },
+    "common_empirical_cbf": {
+      "safe_capture_rate": 1.0,
+      "capture_event_rate": 1.0,
+      "collision_rate": 0.0,
+      "boundary_violation_rate": 0.0,
+      "timeout_rate": 0.0,
+      "episodes": 1,
+      "mean_min_clearance_m": 0.28326450268243564,
+      "output": "results/phase88_baselines/teacher_target_speed_cbf_1_v1/evaluation.json"
+    }
+  },
+  "matched_bc_checkpoint": {
+    "checkpoint": "results/phase88_baselines/contract_matched_bc_seed791601_32e_v1/checkpoint.pt",
+    "raw_episodes": 5,
+    "safe_capture_rate": 0.0,
+    "capture_event_rate": 0.0,
+    "collision_rate": 0.2,
+    "boundary_violation_rate": 0.0,
+    "timeout_rate": 0.8,
+    "mean_min_clearance_m": 0.5456085122369055,
+    "output": "results/phase88_baselines/contract_matched_bc_seed791601_32e_v1/eval_baseline_raw/evaluation.json"
+  },
+  "interpretation": "The teacher raw policy is not a safe upper bound under this contract; the empirical CBF materially changes behavior and the one-episode result is only diagnostic. The matched BC checkpoint improves safety relative to raw PPO pilots but does not capture on this five-episode chunk. No result here is a final multi-seed ranking.",
+  "next_gate": "Use a common raw/CBF protocol with adequate denominators, then compare IPPO, feed-forward MAPPO, recurrent MAPPO, and the released method only after each has a validated checkpoint."
+}
