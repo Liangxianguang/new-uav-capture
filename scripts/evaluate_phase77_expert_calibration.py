@@ -272,6 +272,7 @@ def _rollout(
         min_hold_steps=6,
         grid_step=0.75,
         route_margin=0.85,
+        require_bypass_route=bool(record.get("target_crossing_required", False)),
     )
     controller: Any = SafetyFilteredPursuitController(base_controller) if use_local_cbf else base_controller
     target_boundary = False
@@ -287,7 +288,12 @@ def _rollout(
         diagnostics = getattr(controller, "last_diagnostics", None)
         if diagnostics is not None:
             safety_corrections.append(float(diagnostics.action_correction_norm))
-        observation, _reward, terminated, truncated, final_info = env.step(action, record_history=True)
+        command_authority = None
+        observation, _reward, terminated, truncated, final_info = env.step(
+            action,
+            record_history=True,
+            command_authority=command_authority,
+        )
         target_contact, defender_contact = _boundary_contact_flags(env)
         target_boundary |= target_contact or bool(final_info.get("target_boundary_violation", False))
         defender_boundary |= defender_contact or bool(final_info.get("defender_boundary_violation", False))

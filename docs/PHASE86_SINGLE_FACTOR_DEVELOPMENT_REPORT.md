@@ -33,6 +33,17 @@ The route-exercise raw expert acceptance passes, but its stronger exercise-speci
 
 ## Decision
 
-Four ordinary single-factor blocks pass the development expert gate and preserve the repaired target contract. `execution_delay` and strict public-belief `route_exercise` do not. Therefore Phase 87 current-checkpoint validation, legal-trajectory training, Hard/Stress closed-loop promotion, CBF ablations, external holdout, and locked-test diagnostics remain closed.
+All six single-factor blocks now pass the development expert gate and preserve the repaired target contract. The bypass-only route-exercise repair passed the fixed 200-scene gate for both Oracle (84%) and Public-belief (82.5%). The queue-aware projected-state repair passed the fixed 100-scene execution-delay gate for Oracle (95%) and Public-belief (96%). Phase 87 current-checkpoint validation is now open; legal-trajectory training, Hard/Stress closed-loop promotion, CBF ablations, external holdout, and locked-test diagnostics remain closed until Phase 87 is complete.
 
 The next experiment is a targeted diagnosis of the two No-Go blocks, holding their scene manifests fixed and separating defender collision, defender boundary, queue delay, and target-validity fields. Do not retune the target boundary contract based on these defender-side failures.
+
+## Diagnostic follow-up
+
+Two fixed-manifest diagnostics were completed for `execution_delay`:
+
+| Diagnostic | Oracle acceptance | Public-belief acceptance | Target invalid | Target boundary | Target obstacle | Main finding |
+|---|---:|---:|---:|---:|---:|---|
+| safety margin `0.50 m`, 100 episodes | 59% | 69% | 0% | 0% | 0% | Larger margin did not repair queued-action failures; defender boundary violation remained 23%/19% and physical collision 18%/12%. |
+| queue-preview filter pilot, 10 episodes | 60% | 40% | 0% | 0% | 0% | Suppressing only newly issued commands cannot cancel unsafe immutable pending commands; defender boundary violation remained 40%/30% and physical collision 0%/30%. |
+
+These are retained diagnosis-only results from before the final repair and do not replace the final execution-delay gate. The final repair makes the safety projection execution-aware by constraining the projected post-queue state without forcing a full stop. No Phase 87 promotion beyond the documented baseline diagnostics is allowed until its current-checkpoint adapter is run and recorded.

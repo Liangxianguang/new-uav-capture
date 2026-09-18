@@ -14,6 +14,7 @@ from .pursuit_env import CaptureRadiusPursuit3DEnv, TETRAHEDRON_DIRECTIONS, _uni
 class PursuitSafetyDiagnostics:
     action_correction_norm: float
     minimum_barrier_value: float
+    queue_preview_unsafe: bool = False
 
 
 class PursuitCBFSafetyFilter:
@@ -42,9 +43,51 @@ class PursuitCBFSafetyFilter:
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         radius = float(self.env.agents["drone_radius"])
         barriers: list[float] = []
+        queue_preview_unsafe = False
+
+        # A delayed command is already committed before this filter runs.  A
+        # current-state-only projection can therefore approve a command whose
+        # queued predecessor drives a defender into a boundary or obstacle.
+        # Check the reachable queue prefix as a conservative empirical guard.
+        execution = observation.get("execution", {})
+        queued = execution.get("action_queue", []) if isinstance(execution, dict) else []
+        future_positions = positions.copy()
+        future_commands = [np.asarray(item, dtype=np.float64) for item in queued]
+        future_commands.append(safe.copy())
+        future_horizon = max(len(future_commands) - 1, 0)
+        for command in future_commands[:future_horizon]:
+            future_positions = future_positions + command * float(self.env.dt)
+            for index, position in enumerate(future_positions):
+                for obstacle in self.env.obstacles:
+                    clearance, _normal = self.env._cylinder_clearance_and_normal(position, obstacle)
+                    barriers.append(float(clearance - radius - self.margin))
+                barriers.extend(
+                    [
+                        float(position[axis] - self.env.lower[axis] - radius - self.margin)
+                        for axis in range(3)
+                    ]
+                )
+                barriers.extend(
+                    [
+                        float(self.env.upper[axis] - position[axis] - radius - self.margin)
+                        for axis in range(3)
+                    ]
+                )
+            if future_horizon and min(barriers[-max(self.env.n_defenders * (2 * len(self.env.obstacles) + 6), 1):]) < 0.0:
+                # The committed prefix is unsafe, but a full stop can create
+                # timeouts.  Keep the flag for diagnostics and let the
+                # projected-position constraints below steer the next command
+                # back toward a feasible state.
+                queue_preview_unsafe = True
+                break
+
+        # The newly appended command will act after the committed queue.  Use
+        # that reachable state for the projection constraints; projecting at
+        # the current state leaves the delay window uncontrolled.
+        constraint_positions = future_positions if future_horizon else positions
 
         for _ in range(4):
-            for index, position in enumerate(positions):
+            for index, position in enumerate(constraint_positions):
                 for obstacle in self.env.obstacles:
                     clearance, normal = self.env._cylinder_clearance_and_normal(position, obstacle)
                     barrier = clearance - radius - self.margin
@@ -63,7 +106,7 @@ class PursuitCBFSafetyFilter:
                     barriers.extend([lower_barrier, upper_barrier])
             for first in range(self.env.n_defenders):
                 for second in range(first + 1, self.env.n_defenders):
-                    delta = positions[first] - positions[second]
+                    delta = constraint_positions[first] - constraint_positions[second]
                     distance = float(np.linalg.norm(delta))
                     normal = _unit(delta, fallback=np.array([1.0, 0.0, 0.0], dtype=np.float64))
                     barrier = distance - (2.0 * radius + self.margin)
@@ -79,6 +122,7 @@ class PursuitCBFSafetyFilter:
         return safe, PursuitSafetyDiagnostics(
             action_correction_norm=float(np.mean(np.linalg.norm(safe - desired, axis=1))),
             minimum_barrier_value=float(min(barriers)) if barriers else float("inf"),
+            queue_preview_unsafe=queue_preview_unsafe,
         )
 
 
@@ -209,6 +253,7 @@ class PublicBeliefRouteIntentController(_PursuitController):
         min_hold_steps: int = 6,
         grid_step: float = 0.75,
         route_margin: float = 0.85,
+        require_bypass_route: bool = False,
     ) -> None:
         super().__init__(env)
         if replan_interval_steps <= 0 or min_hold_steps <= 0:
@@ -218,6 +263,7 @@ class PublicBeliefRouteIntentController(_PursuitController):
         self.min_hold_steps = int(min_hold_steps)
         self.grid_step = float(grid_step)
         self.route_margin = float(route_margin)
+        self.require_bypass_route = bool(require_bypass_route)
         self.route_name = "direct"
         self.route_started_step = -10**9
         self.route_paths: list[list[np.ndarray]] = []
@@ -306,7 +352,8 @@ class PublicBeliefRouteIntentController(_PursuitController):
             self.env.upper - 0.6,
         )
         candidates: dict[str, Any] = {}
-        for route_name in ("direct", *self.ROUTE_NAMES):
+        route_candidates = self.ROUTE_NAMES if self.require_bypass_route else ("direct", *self.ROUTE_NAMES)
+        for route_name in route_candidates:
             paths = [self._build_path(position, goal, route_name) for position in self.env.defender_positions]
             feasible = [path is not None for path in paths]
             if not any(feasible):
