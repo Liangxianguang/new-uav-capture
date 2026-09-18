@@ -1,0 +1,101 @@
+experiment_name: phase86_single_factor_development
+dataset_name: phase86.single_factor.development.v1
+dataset_version: phase86.single_factor.v1
+readme_title: Phase 86 repaired single-factor development pools
+phase: development_calibration_only
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+episodes_per_variant: 100
+seed_offset: 0
+
+common:
+  obstacle_zone_x: [-2.5, 3.0]
+  target_crossing_required: false
+  minimum_bypass_routes: 1
+  initial_escape_lookahead_steps: 4
+  initial_escape_clearance_limit_m: 0.60
+  max_sampling_attempts_per_group: 500
+
+base_profile:
+  difficulty_label: phase86_single_factor
+  scene_block: phase86_single_factor_development
+  mirror_group_prefix: phase86
+  target_motion_mode: adaptive_maneuvering
+  target_speed_scales: [0.50, 0.60]
+  initial_side_distances: [6.0, 6.5]
+  obstacle_count_range: [3, 3]
+  observation_condition: phase86_base
+  pursuit_overrides:
+    detection_range: 14.0
+    detection_dropout_probability: 0.12
+    observation_noise_std: 0.025
+    message_delay_steps: 1
+    message_dropout_probability: 0.03
+    target_maneuver_observation_delay_steps: 1
+    target_maneuver_observation_noise_std: 0.08
+    target_maneuver_observation_dropout_probability: 0.08
+    target_maneuver_replan_interval_steps: 8
+    target_maneuver_min_hold_steps: 6
+    target_maneuver_horizon_steps: 16
+    target_maneuver_feasibility_margin_m: 0.60
+    target_maneuver_obstacle_avoidance_gain: 5.0
+    target_maneuver_crossing_gain: 0.0
+    target_maneuver_enable_reverse_lane_change: false
+  execution:
+    action_delay_steps: 0
+    command_noise_std_mps: 0.0
+  defender_y_scale: 1.0
+  single_factor: baseline
+  single_factor_value: 0.0
+
+seed_blocks:
+  target_speed: 861301
+  obstacle_near: 861401
+  formation_tight: 861501
+  execution_delay: 861601
+  command_noise: 861701
+
+variants:
+  target_speed:
+    observation_condition: phase86_target_speed
+    target_speed_scales: [0.55, 0.65]
+    single_factor: target_speed_scales
+    single_factor_value: [0.55, 0.65]
+  obstacle_near:
+    observation_condition: phase86_obstacle_near
+    initial_side_distances: [4.5, 5.0]
+    target_obstacle_clearance_max_m: 2.40
+    single_factor: initial_side_distances
+    single_factor_value: [4.5, 5.0]
+  formation_tight:
+    observation_condition: phase86_formation_tight
+    defender_y_scale: 0.65
+    single_factor: defender_y_scale
+    single_factor_value: 0.65
+  execution_delay:
+    observation_condition: phase86_execution_delay
+    execution:
+      action_delay_steps: 2
+    single_factor: action_delay_steps
+    single_factor_value: 2
+  command_noise:
+    observation_condition: phase86_command_noise
+    execution:
+      command_noise_std_mps: 0.030
+    single_factor: command_noise_std_mps
+    single_factor_value: 0.030
+
+expert_calibration:
+  controllers: [oracle_route, public_belief_route]
+  use_local_cbf: true
+  minimum_acceptance_rate_for_training: 0.80
+  accepted_scene_requires:
+    - safe_capture_in_pursuit
+    - no_target_boundary_violation
+    - no_defender_boundary_violation
+    - no_defender_physical_collision
+
+evaluation:
+  locked_test_used: false
+  local_cbf_is_empirical_filter_only: true
+  formal_robust_cbf_qp_claim: false
