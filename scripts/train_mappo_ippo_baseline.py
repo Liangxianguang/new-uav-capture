@@ -20,6 +20,7 @@ from typing import Any
 import numpy as np
 import torch
 import yaml
+from torch.utils.tensorboard import SummaryWriter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -59,6 +60,8 @@ def args() -> argparse.Namespace:
     p.add_argument("--bc-epochs", type=int, default=0, help="Behavior-cloning epochs before PPO; zero disables warm-start.")
     p.add_argument("--bc-batch-size", type=int, default=1024)
     p.add_argument("--recurrent-init", type=Path, help="Compatible recurrent actor checkpoint for recurrent MAPPO warm-start.")
+    p.add_argument("--tensorboard", action="store_true")
+    p.add_argument("--log-interval", type=int, default=1)
     return p.parse_args()
 
 
@@ -101,12 +104,12 @@ def make_env(config: dict[str, Any], seed: int, *, max_steps: int | None) -> Cap
     return env
 
 
-def discounted_gae(rewards: np.ndarray, values: np.ndarray, dones: np.ndarray, gamma: float, lam: float) -> tuple[np.ndarray, np.ndarray]:
+def discounted_gae(rewards: np.ndarray, values: np.ndarray, terminated: np.ndarray, gamma: float, lam: float, bootstrap_value: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
     advantages = np.zeros_like(rewards, dtype=np.float32)
     last = 0.0
     for t in range(len(rewards) - 1, -1, -1):
-        next_value = 0.0 if t == len(rewards) - 1 else values[t + 1]
-        nonterminal = 1.0 - float(dones[t])
+        next_value = bootstrap_value if t == len(rewards) - 1 else values[t + 1]
+        nonterminal = 1.0 - float(terminated[t])
         delta = rewards[t] + gamma * next_value * nonterminal - values[t]
         last = delta + gamma * lam * nonterminal * last
         advantages[t] = last
@@ -135,7 +138,7 @@ def collect_episode(
     actions: list[np.ndarray] = []
     old_log_probs: list[float] = []
     rewards: list[float] = []
-    dones: list[bool] = []
+    terminated_flags: list[bool] = []
     values: list[float] = []
     hidden = policy.initial_actor_hidden(4, device=dev) if recurrent else None  # type: ignore[union-attr]
     limit = int(max_steps or env.max_steps)
@@ -162,19 +165,30 @@ def collect_episode(
         actions.append(action.cpu().numpy().astype(np.float32))
         old_log_probs.append(float(log_prob.cpu()))
         rewards.append(float(reward))
-        dones.append(bool(terminated or truncated))
+        terminated_flags.append(bool(terminated))
         values.append(float(value.cpu()))
         observation = next_observation
         if terminated or truncated:
             break
+    bootstrap_value = 0.0
+    if truncated and not terminated:
+        next_local = policy_observations(env, observation).astype(np.float32)
+        next_state = env.centralized_state().astype(np.float32)
+        with torch.no_grad():
+            if algorithm == "ippo":
+                _, next_values = policy.distribution_and_value(torch.as_tensor(next_local, device=dev))  # type: ignore[union-attr]
+                bootstrap_value = float(next_values.mean())
+            else:
+                bootstrap_value = float(policy.value(torch.as_tensor(next_state, device=dev)[None])[0])  # type: ignore[union-attr]
     advantages, returns = discounted_gae(
         np.asarray(rewards, dtype=np.float32),
         np.asarray(values, dtype=np.float32),
-        np.asarray(dones, dtype=bool),
+        np.asarray(terminated_flags, dtype=bool),
         gamma,
         gae_lambda,
+        bootstrap_value,
     )
-    return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "info": info}
+    return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "rewards": np.asarray(rewards), "info": info}
 
 
 def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float, recurrent: bool = False, entropy_coef: float = 0.01, diagnostics: dict[str, float] | None = None) -> float:
@@ -323,6 +337,7 @@ def main() -> None:
     if a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
     a.output.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(str(a.output / "tensorboard")) if a.tensorboard else None
     dev = device(a.device)
     torch.set_num_threads(a.torch_threads)
     torch.set_num_interop_threads(a.torch_threads)
@@ -393,6 +408,11 @@ def main() -> None:
             encoding="utf-8",
         )
     for update_index in range(a.updates):
+        episode_seeds = [a.seed + update_index * a.episodes_per_update + j for j in range(a.episodes_per_update)]
+        record_indices = (
+            np.random.default_rng(a.seed + update_index).integers(0, len(training_records), size=a.episodes_per_update)
+            if training_records else [None] * a.episodes_per_update
+        )
         episodes = [
             collect_episode(
                 policy,
@@ -400,11 +420,11 @@ def main() -> None:
                 a.algorithm,
                 dev,
                 action_scale,
-                a.seed + update_index * a.episodes_per_update + j,
+                episode_seeds[j],
                 a.max_steps,
                 a.gamma,
                 a.gae_lambda,
-                record=training_records[(update_index * a.episodes_per_update + j) % len(training_records)] if training_records else None,
+                record=training_records[int(record_indices[j])] if training_records else None,
                 recurrent=a.recurrent,
             )
             for j in range(a.episodes_per_update)
@@ -429,14 +449,33 @@ def main() -> None:
             batch["advantage"] = (batch["advantage"] - batch["advantage"].mean()) / (batch["advantage"].std() + 1e-8)
         diagnostics: dict[str, float] = {}
         loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range, recurrent=a.recurrent, entropy_coef=a.entropy_coef, diagnostics=diagnostics)
-        row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes])), **diagnostics}
+        env_steps = int(sum(len(e["old_log_prob"]) for e in episodes))
+        total_env_steps = int(history[-1]["total_env_steps"] if history else 0) + env_steps
+        row = {
+            "update": update_index + 1,
+            "env_steps": env_steps,
+            "total_env_steps": total_env_steps,
+            "loss": loss,
+            "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes])),
+            "episode_return_mean": float(np.mean([float(np.sum(e["rewards"])) for e in episodes])),
+            "episode_length_mean": float(np.mean([len(e["old_log_prob"]) for e in episodes])),
+            **diagnostics,
+        }
         history.append(row)
+        if writer is not None and (update_index % max(1, a.log_interval) == 0):
+            for key, value in row.items():
+                if isinstance(value, (int, float)):
+                    writer.add_scalar(f"train/{key}", value, total_env_steps)
+            writer.add_scalar("train/learning_rate", optimizer.param_groups[0]["lr"], total_env_steps)
+            writer.flush()
         save_progress()
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
             print(json.dumps(row), flush=True)
     payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
     (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "entropy_coef": a.entropy_coef, "history": history, "behavior_cloning_loss": bc_history, "recurrent_initialization": initialization, "document": document}, indent=2), encoding="utf-8")
+    if writer is not None:
+        writer.close()
     (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     print(json.dumps({"output": str(a.output.resolve()), "checkpoint": str((a.output / "checkpoint.pt").resolve()), "algorithm": a.algorithm, "updates": a.updates}, indent=2))
 
