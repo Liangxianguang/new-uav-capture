@@ -53,6 +53,9 @@ def args() -> argparse.Namespace:
     p.add_argument("--use-cbf-eval", action="store_true")
     p.add_argument("--training-scenes", type=Path, help="Development scene JSONL used for training rollouts.")
     p.add_argument("--training-episodes", type=int, help="Maximum records loaded from --training-scenes.")
+    p.add_argument("--expert-dataset", type=Path, help="Optional audited local-observation/action dataset for actor warm-start.")
+    p.add_argument("--bc-epochs", type=int, default=0, help="Behavior-cloning epochs before PPO; zero disables warm-start.")
+    p.add_argument("--bc-batch-size", type=int, default=1024)
     return p.parse_args()
 
 
@@ -203,6 +206,59 @@ def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dic
     return total_loss / max(1, epochs * ((n + minibatch - 1) // minibatch))
 
 
+def behavior_clone(
+    policy: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    dataset_path: Path,
+    algorithm: str,
+    action_scale: float,
+    epochs: int,
+    batch_size: int,
+    device_: torch.device,
+) -> list[float]:
+    archive = np.load(dataset_path.resolve())
+    if "local_observations" not in archive or "actions" not in archive:
+        raise ValueError("Expert dataset must contain local_observations and actions.")
+    local = np.asarray(archive["local_observations"], dtype=np.float32).reshape(-1, archive["local_observations"].shape[-1])
+    actions = np.asarray(archive["actions"], dtype=np.float32).reshape(-1, archive["actions"].shape[-1])
+    if local.shape[-1] <= 0 or actions.shape[-1] != 3:
+        raise ValueError("Expert dataset has incompatible dimensions.")
+    expected_dim = int(
+        policy.actor_body[0].in_features
+        if algorithm == "mappo"
+        else policy.body[0].in_features  # type: ignore[union-attr]
+    )
+    if local.shape[-1] != expected_dim:
+        raise ValueError(
+            "Expert dataset local-observation dimension does not match the baseline actor: "
+            f"dataset={local.shape[-1]}, actor={expected_dim}. "
+            "Use a dataset collected with the same route/prediction feature contract."
+        )
+    local_tensor = torch.as_tensor(local, device=device_)
+    action_tensor = torch.as_tensor(actions, device=device_)
+    if algorithm == "mappo":
+        actor = policy.distribution  # type: ignore[union-attr]
+    else:
+        actor = policy.distribution_and_value  # type: ignore[union-attr]
+    history: list[float] = []
+    generator = torch.Generator(device=device_).manual_seed(17)
+    for _ in range(epochs):
+        order = torch.randperm(local_tensor.shape[0], generator=generator, device=device_)
+        losses: list[float] = []
+        for start in range(0, local_tensor.shape[0], batch_size):
+            index = order[start : start + batch_size]
+            distribution = actor(local_tensor[index])[0] if algorithm == "ippo" else actor(local_tensor[index])
+            predicted = torch.tanh(distribution.loc) * action_scale
+            loss = torch.nn.functional.mse_loss(predicted, action_tensor[index])
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
+            optimizer.step()
+            losses.append(float(loss.detach()))
+        history.append(float(np.mean(losses)))
+    return history
+
+
 def main() -> None:
     a = args()
     if a.updates <= 0 or a.episodes_per_update <= 0:
@@ -232,6 +288,22 @@ def main() -> None:
         policy = SharedActorCritic(local_dim, hidden_dim=a.hidden_dim).to(dev)
     optimizer = torch.optim.Adam(policy.parameters(), lr=a.learning_rate)
     history: list[dict[str, Any]] = []
+    bc_history: list[float] = []
+    if a.expert_dataset is not None and a.bc_epochs > 0:
+        bc_history = behavior_clone(
+            policy,
+            optimizer,
+            a.expert_dataset,
+            a.algorithm,
+            action_scale,
+            a.bc_epochs,
+            a.bc_batch_size,
+            dev,
+        )
+        (a.output / "behavior_cloning.json").write_text(
+            json.dumps({"dataset": str(a.expert_dataset.resolve()), "dataset_sha256": hashlib.sha256(a.expert_dataset.resolve().read_bytes()).hexdigest(), "epochs": a.bc_epochs, "loss": bc_history}, indent=2),
+            encoding="utf-8",
+        )
     def save_progress() -> None:
         payload = {
             "state_dict": policy.state_dict(),
@@ -280,7 +352,7 @@ def main() -> None:
             print(json.dumps(row), flush=True)
     payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": False, "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
-    (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "document": document}, indent=2), encoding="utf-8")
+    (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "behavior_cloning_loss": bc_history, "document": document}, indent=2), encoding="utf-8")
     (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     print(json.dumps({"output": str(a.output.resolve()), "checkpoint": str((a.output / "checkpoint.pt").resolve()), "algorithm": a.algorithm, "updates": a.updates}, indent=2))
 
