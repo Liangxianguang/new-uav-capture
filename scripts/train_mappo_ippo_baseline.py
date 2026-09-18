@@ -54,6 +54,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--max-steps", type=int, default=None)
     p.add_argument("--torch-threads", type=int, default=1)
     p.add_argument("--use-cbf-eval", action="store_true")
+    p.add_argument("--use-cbf-train", action="store_true", help="Apply the empirical local CBF filter before every training env.step.")
     p.add_argument("--training-scenes", type=Path, help="Development scene JSONL used for training rollouts.")
     p.add_argument("--training-episodes", type=int, help="Maximum records loaded from --training-scenes.")
     p.add_argument("--obstacle-count", type=int, default=4, help="Obstacle count for random training resets.")
@@ -133,6 +134,7 @@ def collect_episode(
     gae_lambda: float,
     record: dict[str, Any] | None = None,
     recurrent: bool = False,
+    use_cbf: bool = False,
 ) -> dict[str, Any]:
     if record is None:
         observation = env.reset(seed=seed)
@@ -146,6 +148,9 @@ def collect_episode(
     terminated_flags: list[bool] = []
     values: list[float] = []
     hidden = policy.initial_actor_hidden(4, device=dev) if recurrent else None  # type: ignore[union-attr]
+    safety = PursuitCBFSafetyFilter(env) if use_cbf else None
+    cbf_interventions = 0
+    cbf_correction_norms: list[float] = []
     limit = int(max_steps or env.max_steps)
     for _ in range(limit):
         local = policy_observations(env, observation).astype(np.float32)
@@ -164,7 +169,13 @@ def collect_episode(
             raw = distribution.sample()
             action = torch.tanh(raw) * action_scale
             log_prob = policy._squashed_log_probability(distribution, raw).sum(dim=-1).sum()  # type: ignore[union-attr]
-        next_observation, reward, terminated, truncated, info = env.step(action.cpu().numpy())
+        commanded_action = action.cpu().numpy()
+        if safety is not None:
+            commanded_action, diagnostics = safety.filter(commanded_action, observation)
+            correction = float(diagnostics.action_correction_norm)
+            cbf_correction_norms.append(correction)
+            cbf_interventions += int(correction > 1e-6)
+        next_observation, reward, terminated, truncated, info = env.step(commanded_action)
         locals_.append(local)
         states.append(state)
         actions.append(action.cpu().numpy().astype(np.float32))
@@ -193,7 +204,13 @@ def collect_episode(
         gae_lambda,
         bootstrap_value,
     )
-    return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "rewards": np.asarray(rewards), "info": info}
+    return {
+        "local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions),
+        "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns,
+        "rewards": np.asarray(rewards), "info": info,
+        "cbf_intervention_rate": float(cbf_interventions / max(1, len(actions))),
+        "cbf_correction_norm_mean": float(np.mean(cbf_correction_norms)) if cbf_correction_norms else 0.0,
+    }
 
 
 def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float, recurrent: bool = False, entropy_coef: float = 0.01, diagnostics: dict[str, float] | None = None) -> float:
@@ -442,6 +459,7 @@ def main() -> None:
                 a.gae_lambda,
                 record=training_records[int(record_indices[j])] if training_records else None,
                 recurrent=a.recurrent,
+                use_cbf=a.use_cbf_train,
             )
             for j in range(a.episodes_per_update)
         ]
@@ -482,6 +500,8 @@ def main() -> None:
             "boundary_violation_rate": float(np.mean([bool(e["info"].get("boundary_violation", False)) for e in episodes])),
             "target_invalid_rate": float(np.mean([bool(e["info"].get("target_invalid_episode", False)) for e in episodes])),
             "timeout_rate": float(np.mean([e["info"].get("termination_reason") == "timeout" for e in episodes])),
+            "cbf_intervention_rate": float(np.mean([e["cbf_intervention_rate"] for e in episodes])),
+            "cbf_correction_norm_mean": float(np.mean([e["cbf_correction_norm_mean"] for e in episodes])),
             **diagnostics,
         }
         history.append(row)
@@ -494,7 +514,7 @@ def main() -> None:
         save_progress()
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
             print(json.dumps(row), flush=True)
-    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
+    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "use_cbf_train": bool(a.use_cbf_train), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
     (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "entropy_coef": a.entropy_coef, "history": history, "behavior_cloning_loss": bc_history, "recurrent_initialization": initialization, "document": document}, indent=2), encoding="utf-8")
     if writer is not None:
