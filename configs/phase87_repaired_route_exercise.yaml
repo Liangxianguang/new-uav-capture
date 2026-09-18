@@ -1,0 +1,15 @@
+experiment_name: phase87_repaired_route_exercise
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+allow_target_crossing_scenes: true
+environment_config: F:/uav_capture/three_d_encirclement/configs/phase85_target_contract_repaired_environment.yaml
+mpc_config: F:/uav_capture/three_d_encirclement/configs/innovation_mpc.yaml
+training_scene_file: F:/uav_capture/three_d_encirclement/results/phase86_single_factor_development/route_exercise/scenes.jsonl
+evaluation_scene_file: F:/uav_capture/three_d_encirclement/results/phase86_single_factor_development/route_exercise/scenes.jsonl
+environment_overrides:
+  dynamics:
+    execution: {enabled: true}
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    pursuit: {safety_margin: 1.0, include_prediction_features: true}
+experiment: {seed: 791601, hidden_dim: 128, residual_scale_mps: 0.5, dt_seconds: 0.1, torch_threads: 1}

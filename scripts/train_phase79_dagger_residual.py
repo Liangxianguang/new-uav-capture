@@ -135,11 +135,16 @@ def resolve_config_path(value: str | Path, config_path: Path) -> Path:
     return (config_path.parent / path).resolve()
 
 
-def load_records(path: Path, limit: int | None) -> list[dict[str, Any]]:
+def load_records(
+    path: Path,
+    limit: int | None,
+    *,
+    allow_target_crossing: bool = False,
+) -> list[dict[str, Any]]:
     records = read_scenes(path.resolve(), limit)
     if not records:
         raise ValueError("The calibration scene file is empty.")
-    if any(bool(item.get("target_crossing_required", False)) for item in records):
+    if (not allow_target_crossing) and any(bool(item.get("target_crossing_required", False)) for item in records):
         raise ValueError("Phase79 refuses target-crossing scenes.")
     if any("locked" in str(item.get("scene_block", "")).lower() for item in records):
         raise ValueError("Phase79 refuses locked-test records.")
@@ -694,6 +699,9 @@ def evaluate_policy(
                         "target_boundary_violation": bool(
                             info.get("target_boundary_violation", info.get("target_world_violation_steps", 0) > 0)
                         ),
+                        "target_obstacle_violation": bool(
+                            info.get("target_obstacle_violation", info.get("target_obstacle_collision", False))
+                        ),
                         "defender_boundary_violation": bool(
                             info.get("defender_boundary_violation", info.get("defender_world_violation_steps", 0) > 0)
                         ),
@@ -751,6 +759,7 @@ def evaluate_policy(
         "boundary_violation_rate": rate("boundary_violation"),
         "target_invalid_episode_rate": rate("target_invalid_episode"),
         "target_boundary_violation_rate": rate("target_boundary_violation"),
+        "target_obstacle_violation_rate": rate("target_obstacle_violation"),
         "defender_boundary_violation_rate": rate("defender_boundary_violation"),
         "timeout_rate": rate("timeout"),
         "mean_capture_time_seconds": float(np.mean([row["steps"] for row in rows])) * float(settings.get("dt_seconds", 0.1)) if rows else 0.0,
@@ -812,7 +821,11 @@ def main() -> None:
         if args.checkpoint is None:
             raise ValueError("--checkpoint is required in evaluate mode.")
         evaluation_path = resolve_config_path(settings["evaluation_scene_file"], args.config)
-        records = load_records(evaluation_path, args.evaluation_episodes)
+        records = load_records(
+            evaluation_path,
+            args.evaluation_episodes,
+            allow_target_crossing=bool(document.get("allow_target_crossing_scenes", False)),
+        )
         checkpoint = torch.load(args.checkpoint.resolve(), map_location=device, weights_only=True)
         actor = RecurrentResidualActor(
             int(checkpoint["local_observation_dim"]),
@@ -1008,7 +1021,11 @@ def main() -> None:
         },
     )
     torch.save(checkpoint_payload(actor, settings, action_scale, seed), output / "checkpoint.pt")
-    eval_records = load_records(resolve_config_path(settings["evaluation_scene_file"], args.config), args.evaluation_episodes)
+    eval_records = load_records(
+        resolve_config_path(settings["evaluation_scene_file"], args.config),
+        args.evaluation_episodes,
+        allow_target_crossing=bool(document.get("allow_target_crossing_scenes", False)),
+    )
     result = evaluate_policy(
         environment,
         eval_records,
