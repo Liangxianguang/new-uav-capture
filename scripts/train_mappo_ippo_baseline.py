@@ -57,6 +57,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--expert-dataset", type=Path, help="Optional audited local-observation/action dataset for actor warm-start.")
     p.add_argument("--bc-epochs", type=int, default=0, help="Behavior-cloning epochs before PPO; zero disables warm-start.")
     p.add_argument("--bc-batch-size", type=int, default=1024)
+    p.add_argument("--recurrent-init", type=Path, help="Compatible recurrent actor checkpoint for recurrent MAPPO warm-start.")
     return p.parse_args()
 
 
@@ -288,6 +289,23 @@ def behavior_clone(
     return history
 
 
+def load_recurrent_initialization(policy: torch.nn.Module, checkpoint_path: Path, local_dim: int, state_dim: int, action_scale: float, dev: torch.device) -> dict[str, Any]:
+    checkpoint = torch.load(checkpoint_path.resolve(), map_location=dev, weights_only=True)
+    if not bool(checkpoint.get("actor_recurrent", False)):
+        raise ValueError("--recurrent-init must contain a recurrent actor checkpoint.")
+    if int(checkpoint.get("local_observation_dim", -1)) != local_dim:
+        raise ValueError("Recurrent initialization local-observation dimension does not match the baseline.")
+    if int(checkpoint.get("centralized_state_dim", -1)) != state_dim:
+        raise ValueError("Recurrent initialization centralized-state dimension does not match the baseline.")
+    if not np.isclose(float(checkpoint.get("action_scale", np.nan)), action_scale):
+        raise ValueError("Recurrent initialization action scale does not match the baseline.")
+    state_dict = checkpoint.get("state_dict")
+    if not isinstance(state_dict, dict):
+        raise ValueError("Recurrent initialization checkpoint has no state_dict.")
+    policy.load_state_dict(state_dict, strict=True)
+    return {"checkpoint": str(checkpoint_path.resolve()), "sha256": hashlib.sha256(checkpoint_path.resolve().read_bytes()).hexdigest(), "source_seed": checkpoint.get("seed"), "source_algorithm": checkpoint.get("algorithm")}
+
+
 def main() -> None:
     a = args()
     if a.updates <= 0 or a.episodes_per_update <= 0:
@@ -322,6 +340,12 @@ def main() -> None:
     optimizer = torch.optim.Adam(policy.parameters(), lr=a.learning_rate)
     history: list[dict[str, Any]] = []
     bc_history: list[float] = []
+    initialization = None
+    if a.recurrent_init is not None:
+        if not a.recurrent:
+            raise ValueError("--recurrent-init requires --recurrent.")
+        initialization = load_recurrent_initialization(policy, a.recurrent_init, local_dim, state_dim, action_scale, dev)
+        (a.output / "recurrent_initialization.json").write_text(json.dumps(initialization, indent=2), encoding="utf-8")
     if a.expert_dataset is not None and a.bc_epochs > 0:
         bc_history = behavior_clone(
             policy,
@@ -401,7 +425,7 @@ def main() -> None:
             print(json.dumps(row), flush=True)
     payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
-    (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "behavior_cloning_loss": bc_history, "document": document}, indent=2), encoding="utf-8")
+    (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "history": history, "behavior_cloning_loss": bc_history, "recurrent_initialization": initialization, "document": document}, indent=2), encoding="utf-8")
     (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     print(json.dumps({"output": str(a.output.resolve()), "checkpoint": str((a.output / "checkpoint.pt").resolve()), "algorithm": a.algorithm, "updates": a.updates}, indent=2))
 
