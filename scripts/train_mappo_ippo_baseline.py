@@ -28,6 +28,8 @@ from encirclement3d.learning import CentralizedSharedActorCritic, SharedActorCri
 from encirclement3d.observation_encoding import policy_observations  # noqa: E402
 from encirclement3d.pursuit_controllers import PursuitCBFSafetyFilter  # noqa: E402
 from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+from evaluate_s4_closed_loop import read_scenes  # noqa: E402
+from train_phase79_dagger_residual import build_environment  # noqa: E402
 
 
 def args() -> argparse.Namespace:
@@ -49,6 +51,8 @@ def args() -> argparse.Namespace:
     p.add_argument("--max-steps", type=int, default=None)
     p.add_argument("--torch-threads", type=int, default=1)
     p.add_argument("--use-cbf-eval", action="store_true")
+    p.add_argument("--training-scenes", type=Path, help="Development scene JSONL used for training rollouts.")
+    p.add_argument("--training-episodes", type=int, help="Maximum records loaded from --training-scenes.")
     return p.parse_args()
 
 
@@ -113,8 +117,12 @@ def collect_episode(
     max_steps: int | None,
     gamma: float,
     gae_lambda: float,
+    record: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    observation = env.reset(seed=seed)
+    if record is None:
+        observation = env.reset(seed=seed)
+    else:
+        env, observation, _scenario = build_environment(env.config, record, max_steps=max_steps)
     locals_: list[np.ndarray] = []
     states: list[np.ndarray] = []
     actions: list[np.ndarray] = []
@@ -206,6 +214,13 @@ def main() -> None:
     torch.set_num_threads(a.torch_threads)
     torch.set_num_interop_threads(a.torch_threads)
     document, config = load_config(a.config)
+    training_records = None
+    if a.training_scenes is not None:
+        training_records = read_scenes(a.training_scenes.resolve(), a.training_episodes)
+        if not training_records:
+            raise ValueError("--training-scenes contains no records")
+        if any("locked" in str(item.get("scene_block", "")).lower() for item in training_records):
+            raise ValueError("Training scenes must not contain locked-test records")
     probe = make_env(config, a.seed, max_steps=a.max_steps)
     observation = probe.observe()
     local_dim = int(policy_observations(probe, observation).shape[-1])
@@ -217,6 +232,27 @@ def main() -> None:
         policy = SharedActorCritic(local_dim, hidden_dim=a.hidden_dim).to(dev)
     optimizer = torch.optim.Adam(policy.parameters(), lr=a.learning_rate)
     history: list[dict[str, Any]] = []
+    def save_progress() -> None:
+        payload = {
+            "state_dict": policy.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "local_observation_dim": local_dim,
+            "centralized_state_dim": state_dim,
+            "action_dim": 3,
+            "action_scale": action_scale,
+            "hidden_dim": a.hidden_dim,
+            "algorithm": a.algorithm,
+            "actor_recurrent": False,
+            "seed": a.seed,
+            "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None,
+            "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
+            "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
+        }
+        torch.save(payload, a.output / "checkpoint_latest.pt")
+        (a.output / "progress.json").write_text(
+            json.dumps({"algorithm": a.algorithm, "updates_completed": len(history), "updates_target": a.updates, "history": history}, indent=2),
+            encoding="utf-8",
+        )
     for update_index in range(a.updates):
         episodes = [
             collect_episode(
@@ -229,6 +265,7 @@ def main() -> None:
                 a.max_steps,
                 a.gamma,
                 a.gae_lambda,
+                record=training_records[(update_index * a.episodes_per_update + j) % len(training_records)] if training_records else None,
             )
             for j in range(a.episodes_per_update)
         ]
@@ -238,9 +275,10 @@ def main() -> None:
         loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range)
         row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes]))}
         history.append(row)
+        save_progress()
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
             print(json.dumps(row), flush=True)
-    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": False, "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
+    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": False, "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
     (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "document": document}, indent=2), encoding="utf-8")
     (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
