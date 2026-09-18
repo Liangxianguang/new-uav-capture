@@ -1,0 +1,41 @@
+{
+  "experiment": "phase88_ippo_target_speed_single_seed_pilot",
+  "date": "2026-09-18",
+  "locked_test_used": false,
+  "training": {
+    "algorithm": "ippo",
+    "seed": 791601,
+    "updates": 30,
+    "episodes_per_update": 4,
+    "ppo_epochs": 2,
+    "minibatch_size": 256,
+    "max_steps": 120,
+    "training_scenes": "results/phase86_single_factor_development/blocks/target_speed.jsonl",
+    "checkpoint": "results/phase88_baselines/ippo_seed791601_target_speed_30u_v1/checkpoint.pt"
+  },
+  "validation": {
+    "raw_chunk0_5ep": {
+      "source": "results/phase88_baselines/ippo_seed791601_target_speed_30u_v1/eval_raw_chunk0/evaluation.json",
+      "episodes": 5,
+      "episode_start_index": 0,
+      "episode_end_index_exclusive": 5,
+      "safe_capture_rate": 0,
+      "capture_event_rate": 0,
+      "collision_rate": 1,
+      "boundary_violation_rate": 0.4,
+      "target_invalid_episode_rate": 0,
+      "target_boundary_violation_rate": 0,
+      "target_obstacle_violation_rate": 0,
+      "timeout_rate": 0,
+      "mean_min_clearance_m": 0.43274443308986427,
+      "mean_policy_latency_ms": 0.9252737999299004
+    }
+  },
+  "interpretation": [
+    "30-update IPPO completed and produced a loadable checkpoint.",
+    "The first 5 validation episodes show no capture and high raw safety failure; this is a diagnostic chunk, not a five-seed final result.",
+    "Target-invalid, target-boundary, and target-obstacle rates are zero.",
+    "The 100-episode monolithic evaluator was stopped because it produced no intermediate artifact after extended runtime; future evaluation must use reproducible chunks."
+  ],
+  "next_gate": "Run IPPO raw and CBF in 20-episode chunks, then aggregate chunk JSON files before considering multi-seed expansion."
+}

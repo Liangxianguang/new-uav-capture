@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--algorithm", choices=("mappo", "ippo"), required=True)
     p.add_argument("--episodes", type=int, default=100)
+    p.add_argument("--start-index", type=int, default=0, help="Zero-based scene-record offset for reproducible validation chunks.")
     p.add_argument("--max-steps", type=int, default=250)
     p.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     p.add_argument("--use-cbf", action="store_true")
@@ -124,7 +125,9 @@ def main() -> None:
     a.output.mkdir(parents=True, exist_ok=True)
     dev = torch.device(a.device)
     environment = load_environment(a.config)
-    records = load_records(a.scenes.resolve(), a.episodes, allow_target_crossing=True)
+    if a.start_index < 0 or a.episodes <= 0:
+        raise ValueError("start-index must be non-negative and episodes must be positive")
+    records = load_records(a.scenes.resolve(), a.start_index + a.episodes, allow_target_crossing=True)[a.start_index : a.start_index + a.episodes]
     first_env, first_observation, _ = build_environment(environment, records[0], max_steps=a.max_steps)
     policy, action_scale = load_policy(a.checkpoint, first_env, first_observation, a.algorithm, dev)
     rows = []
@@ -135,6 +138,8 @@ def main() -> None:
     result = {
         "algorithm": a.algorithm,
         "episodes": len(rows),
+        "episode_start_index": int(a.start_index),
+        "episode_end_index_exclusive": int(a.start_index + len(rows)),
         "locked_test_used": False,
         "use_cbf": bool(a.use_cbf),
         "safe_capture_rate": rate("safe_capture_success"),
