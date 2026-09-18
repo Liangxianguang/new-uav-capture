@@ -1,0 +1,52 @@
+{
+  "phase": "phase88_recurrent_mappo_target_speed_pilot",
+  "date": "2026-09-18",
+  "status": "diagnostic_pilot_completed",
+  "scope": "development_validation_only",
+  "locked_test_used": false,
+  "algorithm": "mappo",
+  "actor_recurrent": true,
+  "seed": 791601,
+  "training": {
+    "updates": 30,
+    "episodes_per_update": 4,
+    "ppo_epochs": 2,
+    "minibatch_size": 4,
+    "max_steps": 120,
+    "training_scene_file": "results/phase86_single_factor_development/blocks/target_speed.jsonl",
+    "training_rollout_safe_capture_rate": 0.0,
+    "output": "results/phase88_baselines/recurrent_mappo_seed791601_target_speed_30u_v1"
+  },
+  "validation": {
+    "raw_chunk": {
+      "episodes": 5,
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 1.0,
+      "defender_boundary_violation_rate": 1.0,
+      "target_invalid_episode_rate": 0.0,
+      "target_boundary_violation_rate": 0.0,
+      "target_obstacle_violation_rate": 0.0,
+      "timeout_rate": 0.0,
+      "mean_min_clearance_m": 0.894236528558187,
+      "mean_policy_latency_ms": 1.1096213033657771,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_target_speed_30u_v1/eval_raw_chunk0/evaluation.json"
+    },
+    "common_cbf_diagnostic": {
+      "episodes": 1,
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.0,
+      "defender_boundary_violation_rate": 0.0,
+      "target_invalid_episode_rate": 0.0,
+      "target_boundary_violation_rate": 0.0,
+      "target_obstacle_violation_rate": 0.0,
+      "timeout_rate": 1.0,
+      "mean_min_clearance_m": 0.920370520019995,
+      "mean_policy_latency_ms": 1.1330358331179013,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_target_speed_30u_v1/eval_cbf_episode0/evaluation.json"
+    }
+  },
+  "interpretation": "The recurrent MAPPO path is executable, but this no-warm-start 30-update pilot does not learn capture and has unsafe raw validation behavior. The common CBF removes the observed defender collision and boundary violations in the one-episode diagnostic, but does not recover capture. These are diagnostic results, not a final algorithm ranking.",
+  "next_gate": "Audit recurrent PPO sequence/update and add a 63-D contract-matched expert warm-start or another validated curriculum before multi-seed comparison."
+}
