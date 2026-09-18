@@ -1,0 +1,14 @@
+experiment_name: phase87_mappo_ippo_baseline
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+environment_config: F:/uav_capture/three_d_encirclement/configs/phase85_target_contract_repaired_environment.yaml
+environment_overrides:
+  dynamics:
+    execution: {enabled: true}
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    pursuit: {safety_margin: 1.0, include_prediction_features: true}
+experiment:
+  seed: 791601
+  action_scale_mode: full_range
+  evaluation_split: phase87_repaired_baseline

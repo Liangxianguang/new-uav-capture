@@ -1,0 +1,251 @@
+"""Train reproducible MAPPO/IPPO baselines on the four-defender pursuit task.
+
+The actor is parameter-shared across defenders and uses decentralized local
+observations.  ``mappo`` uses ``env.centralized_state()`` for the critic;
+``ippo`` uses the corresponding defender local observation for the critic.
+Both variants share the same PPO implementation, action bounds, environment,
+seed protocol, and optional execution CBF filter at evaluation time.
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import torch
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from encirclement3d.learning import CentralizedSharedActorCritic, SharedActorCritic  # noqa: E402
+from encirclement3d.observation_encoding import policy_observations  # noqa: E402
+from encirclement3d.pursuit_controllers import PursuitCBFSafetyFilter  # noqa: E402
+from encirclement3d.pursuit_env import CaptureRadiusPursuit3DEnv  # noqa: E402
+
+
+def args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--config", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--algorithm", choices=("mappo", "ippo"), required=True)
+    p.add_argument("--seed", type=int, default=791601)
+    p.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    p.add_argument("--updates", type=int, default=100)
+    p.add_argument("--episodes-per-update", type=int, default=8)
+    p.add_argument("--ppo-epochs", type=int, default=4)
+    p.add_argument("--minibatch-size", type=int, default=512)
+    p.add_argument("--hidden-dim", type=int, default=128)
+    p.add_argument("--learning-rate", type=float, default=3e-4)
+    p.add_argument("--gamma", type=float, default=0.99)
+    p.add_argument("--gae-lambda", type=float, default=0.95)
+    p.add_argument("--clip-range", type=float, default=0.2)
+    p.add_argument("--max-steps", type=int, default=None)
+    p.add_argument("--torch-threads", type=int, default=1)
+    p.add_argument("--use-cbf-eval", action="store_true")
+    return p.parse_args()
+
+
+def device(name: str) -> torch.device:
+    if name == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is unavailable.")
+    return torch.device(name)
+
+
+def load_config(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    document = yaml.safe_load(path.resolve().read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or "environment_config" not in document:
+        raise ValueError("Baseline config must contain environment_config.")
+    env_path = Path(str(document["environment_config"]))
+    if not env_path.is_absolute():
+        env_path = path.parent / env_path
+    environment = yaml.safe_load(env_path.resolve().read_text(encoding="utf-8"))
+    if not isinstance(environment, dict):
+        raise ValueError("environment_config must contain a mapping.")
+
+    def merge(base: dict[str, Any], update: dict[str, Any]) -> None:
+        for key, value in update.items():
+            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                merge(base[key], value)
+            else:
+                base[key] = copy.deepcopy(value)
+
+    overrides = document.get("environment_overrides", {})
+    if not isinstance(overrides, dict):
+        raise ValueError("environment_overrides must be a mapping.")
+    merge(environment, overrides)
+    return document, environment
+
+
+def make_env(config: dict[str, Any], seed: int, *, max_steps: int | None) -> CaptureRadiusPursuit3DEnv:
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=4, target_speed_scale=0.65)
+    if max_steps is not None:
+        env.max_steps = int(max_steps)
+    env.reset(seed=seed)
+    return env
+
+
+def discounted_gae(rewards: np.ndarray, values: np.ndarray, dones: np.ndarray, gamma: float, lam: float) -> tuple[np.ndarray, np.ndarray]:
+    advantages = np.zeros_like(rewards, dtype=np.float32)
+    last = 0.0
+    for t in range(len(rewards) - 1, -1, -1):
+        next_value = 0.0 if t == len(rewards) - 1 else values[t + 1]
+        nonterminal = 1.0 - float(dones[t])
+        delta = rewards[t] + gamma * next_value * nonterminal - values[t]
+        last = delta + gamma * lam * nonterminal * last
+        advantages[t] = last
+    return advantages, advantages + values
+
+
+def collect_episode(
+    policy: torch.nn.Module,
+    env: CaptureRadiusPursuit3DEnv,
+    algorithm: str,
+    dev: torch.device,
+    action_scale: float,
+    seed: int,
+    max_steps: int | None,
+    gamma: float,
+    gae_lambda: float,
+) -> dict[str, Any]:
+    observation = env.reset(seed=seed)
+    locals_: list[np.ndarray] = []
+    states: list[np.ndarray] = []
+    actions: list[np.ndarray] = []
+    old_log_probs: list[float] = []
+    rewards: list[float] = []
+    dones: list[bool] = []
+    values: list[float] = []
+    limit = int(max_steps or env.max_steps)
+    for _ in range(limit):
+        local = policy_observations(env, observation).astype(np.float32)
+        state = env.centralized_state().astype(np.float32)
+        with torch.no_grad():
+            local_t = torch.as_tensor(local, device=dev)
+            if algorithm == "mappo":
+                distribution = policy.distribution(local_t)  # type: ignore[union-attr]
+                value = policy.value(torch.as_tensor(state, device=dev)[None])[0]  # type: ignore[union-attr]
+            else:
+                distribution, value_per_agent = policy.distribution_and_value(local_t)  # type: ignore[union-attr]
+                value = value_per_agent.mean()
+            raw = distribution.sample()
+            action = torch.tanh(raw) * action_scale
+            log_prob = policy._squashed_log_probability(distribution, raw).sum(dim=-1).sum()  # type: ignore[union-attr]
+        next_observation, reward, terminated, truncated, info = env.step(action.cpu().numpy())
+        locals_.append(local)
+        states.append(state)
+        actions.append(action.cpu().numpy().astype(np.float32))
+        old_log_probs.append(float(log_prob.cpu()))
+        rewards.append(float(reward))
+        dones.append(bool(terminated or truncated))
+        values.append(float(value.cpu()))
+        observation = next_observation
+        if terminated or truncated:
+            break
+    advantages, returns = discounted_gae(
+        np.asarray(rewards, dtype=np.float32),
+        np.asarray(values, dtype=np.float32),
+        np.asarray(dones, dtype=bool),
+        gamma,
+        gae_lambda,
+    )
+    return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "info": info}
+
+
+def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float) -> float:
+    n = int(batch["advantage"].shape[0])
+    total_loss = 0.0
+    for _ in range(epochs):
+        order = torch.randperm(n, device=batch["advantage"].device)
+        for start in range(0, n, minibatch):
+            idx = order[start : start + minibatch]
+            local = batch["local"][idx]
+            actions = batch["action"][idx]
+            if algorithm == "mappo":
+                flat_local = local.reshape(-1, local.shape[-1])
+                flat_actions = actions.reshape(-1, actions.shape[-1])
+                dist = policy.distribution(flat_local)  # type: ignore[union-attr]
+                raw = torch.atanh(torch.clamp(flat_actions / action_scale, -0.999999, 0.999999))
+                logp = policy._squashed_log_probability(dist, raw).sum(-1).reshape(-1, 4).sum(-1)  # type: ignore[union-attr]
+                value = policy.value(batch["state"][idx]).reshape(-1)  # type: ignore[union-attr]
+            else:
+                flat = local.reshape(-1, local.shape[-1])
+                dist, value_agents = policy.distribution_and_value(flat)  # type: ignore[union-attr]
+                raw = torch.atanh(torch.clamp(actions.reshape(-1, actions.shape[-1]) / action_scale, -0.999999, 0.999999))
+                logp = policy._squashed_log_probability(dist, raw).sum(-1).reshape(-1, 4).sum(-1)  # type: ignore[union-attr]
+                value = value_agents.reshape(-1, 4).mean(-1)
+            ratio = torch.exp(logp - batch["old_log_prob"][idx])
+            adv = batch["advantage"][idx]
+            clipped = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * adv
+            policy_loss = -torch.minimum(ratio * adv, clipped).mean()
+            value_loss = 0.5 * (value - batch["return"][idx]).pow(2).mean()
+            entropy = dist.entropy().sum(-1).mean()
+            loss = policy_loss + value_loss * 0.5 - 0.01 * entropy
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
+            optimizer.step()
+            total_loss += float(loss.detach())
+    return total_loss / max(1, epochs * ((n + minibatch - 1) // minibatch))
+
+
+def main() -> None:
+    a = args()
+    if a.updates <= 0 or a.episodes_per_update <= 0:
+        raise ValueError("updates and episodes-per-update must be positive")
+    if a.output.exists() and any(a.output.iterdir()):
+        raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
+    a.output.mkdir(parents=True, exist_ok=True)
+    dev = device(a.device)
+    torch.set_num_threads(a.torch_threads)
+    torch.set_num_interop_threads(a.torch_threads)
+    document, config = load_config(a.config)
+    probe = make_env(config, a.seed, max_steps=a.max_steps)
+    observation = probe.observe()
+    local_dim = int(policy_observations(probe, observation).shape[-1])
+    state_dim = int(probe.centralized_state().shape[-1])
+    action_scale = float(config["agents"]["defender_max_speed"])
+    if a.algorithm == "mappo":
+        policy: torch.nn.Module = CentralizedSharedActorCritic(local_dim, state_dim, hidden_dim=a.hidden_dim).to(dev)
+    else:
+        policy = SharedActorCritic(local_dim, hidden_dim=a.hidden_dim).to(dev)
+    optimizer = torch.optim.Adam(policy.parameters(), lr=a.learning_rate)
+    history: list[dict[str, Any]] = []
+    for update_index in range(a.updates):
+        episodes = [
+            collect_episode(
+                policy,
+                make_env(config, a.seed + update_index * a.episodes_per_update + j, max_steps=a.max_steps),
+                a.algorithm,
+                dev,
+                action_scale,
+                a.seed + update_index * a.episodes_per_update + j,
+                a.max_steps,
+                a.gamma,
+                a.gae_lambda,
+            )
+            for j in range(a.episodes_per_update)
+        ]
+        batch_np = {key: np.concatenate([episode[key] for episode in episodes], axis=0) for key in ("local", "state", "action", "old_log_prob", "advantage", "return")}
+        batch = {key: torch.as_tensor(value, device=dev, dtype=torch.float32) for key, value in batch_np.items()}
+        batch["advantage"] = (batch["advantage"] - batch["advantage"].mean()) / (batch["advantage"].std() + 1e-8)
+        loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range)
+        row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes]))}
+        history.append(row)
+        if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
+            print(json.dumps(row), flush=True)
+    payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": False, "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
+    torch.save(payload, a.output / "checkpoint.pt")
+    (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "history": history, "document": document}, indent=2), encoding="utf-8")
+    (a.output / "config.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    print(json.dumps({"output": str(a.output.resolve()), "checkpoint": str((a.output / "checkpoint.pt").resolve()), "algorithm": a.algorithm, "updates": a.updates}, indent=2))
+
+
+if __name__ == "__main__":
+    main()
