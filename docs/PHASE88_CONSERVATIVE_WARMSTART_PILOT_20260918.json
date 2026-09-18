@@ -1,0 +1,43 @@
+{
+  "phase": "phase88_conservative_recurrent_mappo_warmstart",
+  "date": "2026-09-18",
+  "status": "diagnostic_ablation_completed",
+  "scope": "development_validation_only",
+  "locked_test_used": false,
+  "algorithm": "mappo",
+  "actor_recurrent": true,
+  "seed": 791601,
+  "initialization": "results/phase88_baselines/contract_matched_bc_seed791601_32e_v1/checkpoint.pt",
+  "training": {
+    "updates": 5,
+    "episodes_per_update": 2,
+    "ppo_epochs": 1,
+    "max_steps": 120,
+    "entropy_coef": 0.0,
+    "training_rollout_safe_capture_rate": 0.0,
+    "output": "results/phase88_baselines/recurrent_mappo_seed791601_conservative_warmstart_5u_v1"
+  },
+  "validation": {
+    "raw_chunk": {
+      "episodes": 5,
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.6,
+      "defender_boundary_violation_rate": 0.6,
+      "timeout_rate": 0.4,
+      "mean_min_clearance_m": 0.510608695104775,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_conservative_warmstart_5u_v1/eval_raw_chunk0/evaluation.json"
+    },
+    "common_cbf_diagnostic": {
+      "episodes": 1,
+      "safe_capture_rate": 0.0,
+      "collision_rate": 0.0,
+      "defender_boundary_violation_rate": 0.0,
+      "timeout_rate": 1.0,
+      "mean_min_clearance_m": 0.9959568781881725,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_conservative_warmstart_5u_v1/eval_cbf_episode0/evaluation.json"
+    }
+  },
+  "interpretation": "Setting the PPO entropy coefficient to zero does not stabilize the warm-start actor. The recurrent PPO update contract requires further audit; this ablation is not a final baseline ranking.",
+  "next_gate": "Add explicit recurrent PPO ratio/KL diagnostics and verify old-log-probelihood reproduction before additional long runs."
+}
