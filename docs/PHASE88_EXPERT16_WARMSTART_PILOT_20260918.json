@@ -1,0 +1,54 @@
+{
+  "phase": "phase88_expert16_recurrent_mappo_warmstart",
+  "date": "2026-09-18",
+  "status": "diagnostic_pilot_completed",
+  "scope": "development_validation_only",
+  "locked_test_used": false,
+  "contract": {
+    "local_observation_dim": 63,
+    "accepted_expert_episodes": 16,
+    "expert_rejection_rate": 0.0,
+    "sequence_archive_shape": [31, 32, 4, 63],
+    "archive": "results/phase88_baselines/contract_matched_expert_16ep_seed791601_v1/expert_sequence_dataset.npz"
+  },
+  "training": {
+    "algorithm": "mappo",
+    "actor_recurrent": true,
+    "seed": 791601,
+    "updates": 10,
+    "episodes_per_update": 2,
+    "ppo_epochs": 1,
+    "entropy_coef": 0.0,
+    "max_steps": 120,
+    "ratio_contract_audit": "passed",
+    "training_rollout_safe_capture_rate": 0.0,
+    "output": "results/phase88_baselines/recurrent_mappo_seed791601_expert16_warmstart_10u_v1"
+  },
+  "validation": {
+    "raw_chunk": {
+      "episodes": 5,
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.6,
+      "defender_boundary_violation_rate": 0.4,
+      "target_invalid_episode_rate": 0.0,
+      "target_boundary_violation_rate": 0.0,
+      "target_obstacle_violation_rate": 0.0,
+      "timeout_rate": 0.4,
+      "mean_min_clearance_m": 0.6387733501031805,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_expert16_warmstart_10u_v1/eval_raw_chunk0/evaluation.json"
+    },
+    "common_cbf_diagnostic": {
+      "episodes": 1,
+      "safe_capture_rate": 0.0,
+      "capture_event_rate": 0.0,
+      "collision_rate": 0.0,
+      "defender_boundary_violation_rate": 0.0,
+      "timeout_rate": 1.0,
+      "mean_min_clearance_m": 1.0000443219987156,
+      "output": "results/phase88_baselines/recurrent_mappo_seed791601_expert16_warmstart_10u_v1/eval_cbf_episode0/evaluation.json"
+    }
+  },
+  "interpretation": "Increasing the quality-gated 63-D expert archive from 4 to 16 accepted episodes did not yield capture in a 10-update recurrent-MAPPO pilot. The recurrent probability contract remains valid, while the learning protocol still fails to transfer the teacher behavior to closed-loop validation. Do not promote this result to a final algorithm ranking.",
+  "next_gate": "Freeze recurrent-MAPPO expansion; establish BC-only and teacher-policy reference results, then repair reward/advantage or behavior-regularized PPO before comparing additional algorithms."
+}

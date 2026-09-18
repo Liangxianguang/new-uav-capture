@@ -1,0 +1,42 @@
+experiment_name: phase88_mappo_contract_matched_expert_16ep
+environment_config: F:/uav_capture/three_d_encirclement/configs/phase85_target_contract_repaired_environment.yaml
+environment_overrides:
+  experiments:
+    - obstacle_count: 4
+      target_speed_scale: 0.65
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    pursuit:
+      safety_margin: 1.0
+      include_prediction_features: true
+imitation:
+  seed: 791601
+  device: cpu
+  episodes: 16
+  expert_controller: dynamic_encirclement
+  expert_max_attempts_per_episode: 8
+  expert_max_rejection_rate: 0.75
+  expert_collection_checkpoint_every_accepted_episodes: 1
+  expert_require_safe_capture: true
+  expert_require_cooperative_safe_capture: true
+  training_obstacle_counts: [4]
+  training_target_speed_scales: [0.65]
+  training_target_motion_modes: [adaptive_maneuvering]
+  training_required_defender_zone_entries: 2
+  action_scale_mode: full_range
+  hidden_dim: 128
+  learning_rate: 0.00005
+  epochs: 8
+  validation_episodes: 1
+  recurrent_reset_interval_steps: 1
+  training_showcase_stages:
+    - until_progress: 1.0
+      showcase_probability: 1.0
+      randomized_central_probability: 0.0
+      layouts: [mixed]
+      initial_side_distances: [6.0]
+      defender_sides: [left, right]
+      target_speed_scales: [0.65]
+      target_motion_modes: [adaptive_maneuvering]
+      target_crossing_probability: 0.0
+      required_defender_zone_entries: 2
