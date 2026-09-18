@@ -25,10 +25,11 @@ class PursuitCBFSafetyFilter:
     teammate data as the decentralized pursuit controllers.
     """
 
-    def __init__(self, env: CaptureRadiusPursuit3DEnv) -> None:
+    def __init__(self, env: CaptureRadiusPursuit3DEnv, *, projection_iterations: int = 4) -> None:
         self.env = env
         self.gamma = float(env.task.get("cbf_gamma", 0.25))
         self.margin = float(env.pursuit["safety_margin"])
+        self.projection_iterations = max(1, int(projection_iterations))
 
     def filter(
         self,
@@ -86,7 +87,7 @@ class PursuitCBFSafetyFilter:
         # the current state leaves the delay window uncontrolled.
         constraint_positions = future_positions if future_horizon else positions
 
-        for _ in range(4):
+        for _ in range(self.projection_iterations):
             for index, position in enumerate(constraint_positions):
                 for obstacle in self.env.obstacles:
                     clearance, normal = self.env._cylinder_clearance_and_normal(position, obstacle)

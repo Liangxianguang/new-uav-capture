@@ -55,6 +55,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--torch-threads", type=int, default=1)
     p.add_argument("--use-cbf-eval", action="store_true")
     p.add_argument("--use-cbf-train", action="store_true", help="Apply the empirical local CBF filter before every training env.step.")
+    p.add_argument("--cbf-train-iterations", type=int, default=1, help="CBF projection iterations used during training rollouts.")
     p.add_argument("--training-scenes", type=Path, help="Development scene JSONL used for training rollouts.")
     p.add_argument("--training-episodes", type=int, help="Maximum records loaded from --training-scenes.")
     p.add_argument("--obstacle-count", type=int, default=4, help="Obstacle count for random training resets.")
@@ -135,6 +136,7 @@ def collect_episode(
     record: dict[str, Any] | None = None,
     recurrent: bool = False,
     use_cbf: bool = False,
+    cbf_train_iterations: int = 1,
 ) -> dict[str, Any]:
     if record is None:
         observation = env.reset(seed=seed)
@@ -148,7 +150,7 @@ def collect_episode(
     terminated_flags: list[bool] = []
     values: list[float] = []
     hidden = policy.initial_actor_hidden(4, device=dev) if recurrent else None  # type: ignore[union-attr]
-    safety = PursuitCBFSafetyFilter(env) if use_cbf else None
+    safety = PursuitCBFSafetyFilter(env, projection_iterations=cbf_train_iterations) if use_cbf else None
     cbf_interventions = 0
     cbf_correction_norms: list[float] = []
     limit = int(max_steps or env.max_steps)
@@ -460,6 +462,7 @@ def main() -> None:
                 record=training_records[int(record_indices[j])] if training_records else None,
                 recurrent=a.recurrent,
                 use_cbf=a.use_cbf_train,
+                cbf_train_iterations=a.cbf_train_iterations,
             )
             for j in range(a.episodes_per_update)
         ]
