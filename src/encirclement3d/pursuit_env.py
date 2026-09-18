@@ -157,6 +157,9 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "progress_reward_weight": 3.00,
     "distance_reward_weight": 0.12,
     "coverage_reward_weight": 0.15,
+    "defender_boundary_margin": 1.25,
+    "defender_boundary_proximity_weight": 1.50,
+    "defender_boundary_progress_weight": 0.80,
     "max_observation_obstacles": 3,
     "obstacle_profile": "cylinders",
     "map_seed_offset": 0,
@@ -899,6 +902,7 @@ class CaptureRadiusPursuit3DEnv:
         if actions.shape != (self.n_defenders, 3):
             raise ValueError(f"Expected actions with shape {(self.n_defenders, 3)}, got {actions.shape}.")
         previous_distance = self._target_distances().min()
+        previous_defender_boundary_clearance = self._defender_boundary_clearance()
         actions = self._clip_rows(actions, float(self.agents["defender_max_speed"]))
         self._apply_defender_actions(actions, command_authority=command_authority)
 
@@ -927,6 +931,7 @@ class CaptureRadiusPursuit3DEnv:
 
         self.step_count += 1
         self._update_boundary_clearance_metrics()
+        defender_boundary_clearance = self._defender_boundary_clearance()
         if self._target_boundary_clearance(self.target_position) <= 0.0:
             self.target_boundary_violation_steps += 1
             if self.first_target_boundary_violation_step is None:
@@ -983,6 +988,10 @@ class CaptureRadiusPursuit3DEnv:
             "coverage": float(self.pursuit["coverage_reward_weight"]) * coverage,
             "capture": float(self.pursuit["capture_bonus"]) if safe_capture else 0.0,
             "safety": -float(self.pursuit["collision_penalty"]) if safety_failure else 0.0,
+            "boundary_proximity": -float(self.pursuit["defender_boundary_proximity_weight"])
+            * max(0.0, float(self.pursuit["defender_boundary_margin"]) - defender_boundary_clearance),
+            "boundary_progress": float(self.pursuit["defender_boundary_progress_weight"])
+            * (defender_boundary_clearance - previous_defender_boundary_clearance),
         }
         reward = float(sum(reward_components.values()))
 
