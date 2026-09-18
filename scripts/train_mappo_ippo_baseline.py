@@ -177,7 +177,7 @@ def collect_episode(
     return {"local": np.asarray(locals_), "state": np.asarray(states), "action": np.asarray(actions), "old_log_prob": np.asarray(old_log_probs), "advantage": advantages, "return": returns, "info": info}
 
 
-def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float, recurrent: bool = False, entropy_coef: float = 0.01) -> float:
+def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dict[str, torch.Tensor], algorithm: str, action_scale: float, epochs: int, minibatch: int, clip_range: float, recurrent: bool = False, entropy_coef: float = 0.01, diagnostics: dict[str, float] | None = None) -> float:
     n = int(batch["advantage"].shape[0])
     total_loss = 0.0
     for _ in range(epochs):
@@ -201,6 +201,15 @@ def update(policy: torch.nn.Module, optimizer: torch.optim.Optimizer, batch: dic
                 old_logp = batch["old_log_prob"][idx]
                 adv = batch["advantage"][idx]
                 ratio = torch.exp(logp - old_logp)
+                if diagnostics is not None:
+                    with torch.no_grad():
+                        valid_count = valid.sum().clamp_min(1.0)
+                        if "old_logp_reproduction_max_abs" not in diagnostics:
+                            diagnostics["old_logp_reproduction_max_abs"] = float(((logp.detach() - old_logp).abs() * valid).max())
+                            diagnostics["ratio_mean"] = float((ratio.detach() * valid).sum() / valid_count)
+                            diagnostics["ratio_max_abs_delta"] = float(((ratio.detach() - 1.0).abs() * valid).max())
+                            diagnostics["approx_kl"] = float((((old_logp - logp.detach()) * valid).sum()) / valid_count)
+                            diagnostics["clip_fraction"] = float((((ratio.detach() < 1.0 - clip_range) | (ratio.detach() > 1.0 + clip_range)).to(valid.dtype) * valid).sum() / valid_count)
                 clipped = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * adv
                 policy_loss = -torch.minimum(ratio * adv, clipped)
                 value_target = batch["return"][idx]
@@ -418,8 +427,9 @@ def main() -> None:
             batch["advantage"] = (batch["advantage"] - flat_adv.mean()) / (flat_adv.std() + 1e-8)
         else:
             batch["advantage"] = (batch["advantage"] - batch["advantage"].mean()) / (batch["advantage"].std() + 1e-8)
-        loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range, recurrent=a.recurrent, entropy_coef=a.entropy_coef)
-        row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes]))}
+        diagnostics: dict[str, float] = {}
+        loss = update(policy, optimizer, batch, a.algorithm, action_scale, a.ppo_epochs, a.minibatch_size, a.clip_range, recurrent=a.recurrent, entropy_coef=a.entropy_coef, diagnostics=diagnostics)
+        row = {"update": update_index + 1, "loss": loss, "safe_capture_rate": float(np.mean([bool(e["info"]["safe_capture_success"]) for e in episodes])), **diagnostics}
         history.append(row)
         save_progress()
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:

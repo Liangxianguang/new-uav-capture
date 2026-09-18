@@ -1,0 +1,27 @@
+{
+  "phase": "phase88_recurrent_ppo_ratio_audit",
+  "date": "2026-09-18",
+  "status": "contract_audit_passed",
+  "scope": "development_diagnostic_only",
+  "locked_test_used": false,
+  "setup": {
+    "algorithm": "mappo",
+    "actor_recurrent": true,
+    "initialization": "results/phase88_baselines/contract_matched_bc_seed791601_32e_v1/checkpoint.pt",
+    "updates": 1,
+    "episodes_per_update": 2,
+    "ppo_epochs": 2,
+    "max_steps": 20,
+    "entropy_coef": 0.0
+  },
+  "diagnostics": {
+    "old_logp_reproduction_max_abs": 9.5367431640625e-7,
+    "ratio_mean": 1.0,
+    "ratio_max_abs_delta": 9.5367431640625e-7,
+    "approx_kl": 2.6822089438383045e-8,
+    "clip_fraction": 0.0
+  },
+  "interpretation": "The first pre-update recurrent rollout reproduces old log-probabilities to numerical precision and starts with ratio one. The earlier large diagnostic value was caused by measuring after optimizer updates, not by hidden-state misalignment. The remaining failure is therefore in learning signal, expert coverage, or task-scale optimization rather than the recurrent probability contract.",
+  "output": "results/phase88_baselines/recurrent_mappo_ratio_audit_seed791601_1u_v2",
+  "next_gate": "Improve accepted expert coverage and/or reward-scale/advantage conditioning, then rerun a short target-speed pilot with the ratio/KL diagnostics retained."
+}
