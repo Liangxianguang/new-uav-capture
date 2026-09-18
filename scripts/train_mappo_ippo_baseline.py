@@ -62,6 +62,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--recurrent-init", type=Path, help="Compatible recurrent actor checkpoint for recurrent MAPPO warm-start.")
     p.add_argument("--tensorboard", action="store_true")
     p.add_argument("--log-interval", type=int, default=1)
+    p.add_argument("--action-scale-factor", type=float, default=1.0, help="Multiply the environment defender speed for a PPO safety curriculum.")
     return p.parse_args()
 
 
@@ -334,6 +335,8 @@ def main() -> None:
     a = args()
     if a.updates <= 0 or a.episodes_per_update <= 0:
         raise ValueError("updates and episodes-per-update must be positive")
+    if not 0.0 < a.action_scale_factor <= 1.0:
+        raise ValueError("action-scale-factor must be in (0, 1].")
     if a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
     a.output.mkdir(parents=True, exist_ok=True)
@@ -353,7 +356,7 @@ def main() -> None:
     observation = probe.observe()
     local_dim = int(policy_observations(probe, observation).shape[-1])
     state_dim = int(probe.centralized_state().shape[-1])
-    action_scale = float(config["agents"]["defender_max_speed"])
+    action_scale = float(config["agents"]["defender_max_speed"]) * float(a.action_scale_factor)
     if a.recurrent and a.algorithm != "mappo":
         raise ValueError("--recurrent is only supported with --algorithm mappo")
     if a.recurrent:
