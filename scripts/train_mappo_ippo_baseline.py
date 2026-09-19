@@ -13,6 +13,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -433,11 +434,17 @@ def main() -> None:
             "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
             "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
         }
-        torch.save(payload, a.output / "checkpoint_latest.pt")
-        (a.output / "progress.json").write_text(
+        checkpoint_path = a.output / "checkpoint_latest.pt"
+        checkpoint_tmp = checkpoint_path.with_suffix(".pt.tmp")
+        torch.save(payload, checkpoint_tmp)
+        os.replace(checkpoint_tmp, checkpoint_path)
+        progress_path = a.output / "progress.json"
+        progress_tmp = progress_path.with_suffix(".json.tmp")
+        progress_tmp.write_text(
             json.dumps({"algorithm": a.algorithm, "updates_completed": len(history), "updates_target": a.updates, "history": history}, indent=2),
             encoding="utf-8",
         )
+        os.replace(progress_tmp, progress_path)
     for update_index in range(a.updates):
         if a.action_scale_end_factor is not None and a.action_scale_ramp_updates > 0:
             progress = min(1.0, float(update_index) / float(a.action_scale_ramp_updates))
