@@ -38,6 +38,7 @@ def args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--config", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--resume", type=Path, help="Resume from checkpoint_latest.pt in --output, restoring optimizer and RNG state.")
     p.add_argument("--algorithm", choices=("mappo", "ippo"), required=True)
     p.add_argument("--recurrent", action="store_true", help="Use recurrent centralized-critic MAPPO.")
     p.add_argument("--seed", type=int, default=791601)
@@ -365,11 +366,19 @@ def main() -> None:
         raise ValueError("action-scale-end-factor must be in (0, 1].")
     if a.action_scale_ramp_updates < 0:
         raise ValueError("action-scale-ramp-updates must be non-negative.")
-    if a.output.exists() and any(a.output.iterdir()):
+    if a.resume is None and a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
+    if a.resume is not None:
+        if not a.resume.resolve().is_file():
+            raise FileNotFoundError(f"Resume checkpoint does not exist: {a.resume}")
+        if a.resume.resolve().parent != a.output.resolve():
+            raise ValueError("--resume must point to checkpoint_latest.pt inside --output.")
     a.output.mkdir(parents=True, exist_ok=True)
     writer = SummaryWriter(str(a.output / "tensorboard")) if a.tensorboard else None
     dev = device(a.device)
+    torch.manual_seed(a.seed)
+    if dev.type == "cuda":
+        torch.cuda.manual_seed_all(a.seed)
     torch.set_num_threads(a.torch_threads)
     torch.set_num_interop_threads(a.torch_threads)
     document, config = load_config(a.config)
@@ -398,6 +407,36 @@ def main() -> None:
     history: list[dict[str, Any]] = []
     bc_history: list[float] = []
     initialization = None
+    start_update = 0
+    if a.resume is not None:
+        checkpoint = torch.load(a.resume.resolve(), map_location=dev, weights_only=False)
+        expected = {
+            "algorithm": a.algorithm,
+            "actor_recurrent": bool(a.recurrent),
+            "local_observation_dim": local_dim,
+            "centralized_state_dim": state_dim,
+            "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
+            "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
+        }
+        for key, value in expected.items():
+            if checkpoint.get(key) != value:
+                raise ValueError(f"Resume checkpoint contract mismatch for {key}: checkpoint={checkpoint.get(key)!r} requested={value!r}")
+        policy.load_state_dict(checkpoint["state_dict"], strict=True)
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        progress_path = a.output / "progress.json"
+        progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        history = list(progress.get("history", []))
+        start_update = int(checkpoint.get("updates_completed", len(history)))
+        if start_update != len(history):
+            raise ValueError("Resume checkpoint and progress history disagree on completed updates.")
+        if start_update >= a.updates:
+            raise ValueError("--updates must exceed the number of completed updates when resuming.")
+        if "torch_rng_state" in checkpoint:
+            torch.set_rng_state(checkpoint["torch_rng_state"])
+        if dev.type == "cuda" and "cuda_rng_state_all" in checkpoint:
+            torch.cuda.set_rng_state_all(checkpoint["cuda_rng_state_all"])
+    if a.resume is not None and (a.recurrent_init is not None or a.expert_dataset is not None or a.bc_epochs > 0):
+        raise ValueError("--resume cannot be combined with initialization or behavior-cloning options.")
     if a.recurrent_init is not None:
         if not a.recurrent:
             raise ValueError("--recurrent-init requires --recurrent.")
@@ -430,6 +469,9 @@ def main() -> None:
             "algorithm": a.algorithm,
             "actor_recurrent": bool(a.recurrent),
             "seed": a.seed,
+            "updates_completed": len(history),
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state_all": torch.cuda.get_rng_state_all() if dev.type == "cuda" else None,
             "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None,
             "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
             "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
@@ -445,7 +487,7 @@ def main() -> None:
             encoding="utf-8",
         )
         os.replace(progress_tmp, progress_path)
-    for update_index in range(a.updates):
+    for update_index in range(start_update, a.updates):
         if a.action_scale_end_factor is not None and a.action_scale_ramp_updates > 0:
             progress = min(1.0, float(update_index) / float(a.action_scale_ramp_updates))
             scale_factor = float(a.action_scale_factor) + progress * (float(a.action_scale_end_factor) - float(a.action_scale_factor))
