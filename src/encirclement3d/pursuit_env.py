@@ -987,7 +987,9 @@ class CaptureRadiusPursuit3DEnv:
             "distance": -float(self.pursuit["distance_reward_weight"]) * metrics.minimum_target_distance,
             "coverage": float(self.pursuit["coverage_reward_weight"]) * coverage,
             "capture": float(self.pursuit["capture_bonus"]) if safe_capture else 0.0,
-            "safety": -float(self.pursuit["collision_penalty"]) if safety_failure else 0.0,
+            # A target-contract violation terminates the sample, but is not a
+            # defender action failure and must not train the defender to avoid it.
+            "safety": -float(self.pursuit["collision_penalty"]) if defender_safety_failure else 0.0,
             "boundary_proximity": -float(self.pursuit["defender_boundary_proximity_weight"])
             * max(0.0, float(self.pursuit["defender_boundary_margin"]) - defender_boundary_clearance),
             "boundary_progress": float(self.pursuit["defender_boundary_progress_weight"])

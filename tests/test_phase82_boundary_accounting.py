@@ -414,3 +414,4 @@ def test_target_invalid_episode_is_separate_from_defender_collision() -> None:
     assert not info["collision"]
     assert not info["task_valid_for_policy_evaluation"]
     assert info["termination_reason"] == "target_boundary_violation"
+    assert info["reward_components"]["safety"] == 0.0
