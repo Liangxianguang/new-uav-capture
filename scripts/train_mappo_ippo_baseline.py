@@ -68,6 +68,7 @@ def args() -> argparse.Namespace:
     p.add_argument("--recurrent-init", type=Path, help="Compatible recurrent actor checkpoint for recurrent MAPPO warm-start.")
     p.add_argument("--tensorboard", action="store_true")
     p.add_argument("--log-interval", type=int, default=1)
+    p.add_argument("--checkpoint-interval-updates", type=int, default=10, help="Write the full model/optimizer/RNG checkpoint every N updates.")
     p.add_argument("--action-scale-factor", type=float, default=1.0, help="Multiply the environment defender speed for a PPO safety curriculum.")
     p.add_argument("--action-scale-end-factor", type=float, default=None, help="Optional final action scale for a linear curriculum.")
     p.add_argument("--action-scale-ramp-updates", type=int, default=0, help="Number of updates over which to ramp action scale.")
@@ -366,6 +367,8 @@ def main() -> None:
         raise ValueError("action-scale-end-factor must be in (0, 1].")
     if a.action_scale_ramp_updates < 0:
         raise ValueError("action-scale-ramp-updates must be non-negative.")
+    if a.checkpoint_interval_updates <= 0:
+        raise ValueError("checkpoint-interval-updates must be positive.")
     if a.resume is None and a.output.exists() and any(a.output.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty output: {a.output}")
     if a.resume is not None:
@@ -408,6 +411,7 @@ def main() -> None:
     bc_history: list[float] = []
     initialization = None
     start_update = 0
+    last_checkpoint_update = 0
     if a.resume is not None:
         checkpoint = torch.load(a.resume.resolve(), map_location=dev, weights_only=False)
         expected = {
@@ -427,8 +431,10 @@ def main() -> None:
         progress = json.loads(progress_path.read_text(encoding="utf-8"))
         history = list(progress.get("history", []))
         start_update = int(checkpoint.get("updates_completed", len(history)))
-        if start_update != len(history):
-            raise ValueError("Resume checkpoint and progress history disagree on completed updates.")
+        if start_update > len(history):
+            raise ValueError("Resume checkpoint is newer than progress history.")
+        history = history[:start_update]
+        last_checkpoint_update = start_update
         if start_update >= a.updates:
             raise ValueError("--updates must exceed the number of completed updates when resuming.")
         if "torch_rng_state" in checkpoint:
@@ -457,33 +463,36 @@ def main() -> None:
             json.dumps({"dataset": str(a.expert_dataset.resolve()), "dataset_sha256": hashlib.sha256(a.expert_dataset.resolve().read_bytes()).hexdigest(), "epochs": a.bc_epochs, "loss": bc_history}, indent=2),
             encoding="utf-8",
         )
-    def save_progress() -> None:
-        payload = {
-            "state_dict": policy.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "local_observation_dim": local_dim,
-            "centralized_state_dim": state_dim,
-            "action_dim": 3,
-            "action_scale": action_scale,
-            "hidden_dim": a.hidden_dim,
-            "algorithm": a.algorithm,
-            "actor_recurrent": bool(a.recurrent),
-            "seed": a.seed,
-            "updates_completed": len(history),
-            "torch_rng_state": torch.get_rng_state(),
-            "cuda_rng_state_all": torch.cuda.get_rng_state_all() if dev.type == "cuda" else None,
-            "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None,
-            "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
-            "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
-        }
-        checkpoint_path = a.output / "checkpoint_latest.pt"
-        checkpoint_tmp = checkpoint_path.with_suffix(".pt.tmp")
-        torch.save(payload, checkpoint_tmp)
-        os.replace(checkpoint_tmp, checkpoint_path)
+    def save_progress(write_checkpoint: bool) -> None:
+        nonlocal last_checkpoint_update
+        if write_checkpoint:
+            payload = {
+                "state_dict": policy.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "local_observation_dim": local_dim,
+                "centralized_state_dim": state_dim,
+                "action_dim": 3,
+                "action_scale": action_scale,
+                "hidden_dim": a.hidden_dim,
+                "algorithm": a.algorithm,
+                "actor_recurrent": bool(a.recurrent),
+                "seed": a.seed,
+                "updates_completed": len(history),
+                "torch_rng_state": torch.get_rng_state(),
+                "cuda_rng_state_all": torch.cuda.get_rng_state_all() if dev.type == "cuda" else None,
+                "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None,
+                "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None,
+                "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest(),
+            }
+            checkpoint_path = a.output / "checkpoint_latest.pt"
+            checkpoint_tmp = checkpoint_path.with_suffix(".pt.tmp")
+            torch.save(payload, checkpoint_tmp)
+            os.replace(checkpoint_tmp, checkpoint_path)
+            last_checkpoint_update = len(history)
         progress_path = a.output / "progress.json"
         progress_tmp = progress_path.with_suffix(".json.tmp")
         progress_tmp.write_text(
-            json.dumps({"algorithm": a.algorithm, "updates_completed": len(history), "updates_target": a.updates, "history": history}, indent=2),
+            json.dumps({"algorithm": a.algorithm, "updates_completed": len(history), "checkpoint_updates_completed": last_checkpoint_update, "updates_target": a.updates, "history": history}, indent=2),
             encoding="utf-8",
         )
         os.replace(progress_tmp, progress_path)
@@ -563,9 +572,10 @@ def main() -> None:
                     writer.add_scalar(f"train/{key}", value, total_env_steps)
             writer.add_scalar("train/learning_rate", optimizer.param_groups[0]["lr"], total_env_steps)
             writer.flush()
-        save_progress()
+        save_progress(len(history) == 1 or len(history) % a.checkpoint_interval_updates == 0)
         if (update_index + 1) % max(1, a.updates // 10) == 0 or update_index == 0:
             print(json.dumps(row), flush=True)
+    save_progress(True)
     payload = {"state_dict": policy.state_dict(), "local_observation_dim": local_dim, "centralized_state_dim": state_dim, "action_dim": 3, "action_scale": action_scale, "hidden_dim": a.hidden_dim, "algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "seed": a.seed, "use_cbf_eval": bool(a.use_cbf_eval), "use_cbf_train": bool(a.use_cbf_train), "training_scene_file": str(a.training_scenes.resolve()) if a.training_scenes else None, "training_scene_sha256": hashlib.sha256(a.training_scenes.resolve().read_bytes()).hexdigest() if a.training_scenes else None, "config_sha256": hashlib.sha256(a.config.resolve().read_bytes()).hexdigest()}
     torch.save(payload, a.output / "checkpoint.pt")
     (a.output / "training.json").write_text(json.dumps({"algorithm": a.algorithm, "actor_recurrent": bool(a.recurrent), "entropy_coef": a.entropy_coef, "history": history, "behavior_cloning_loss": bc_history, "recurrent_initialization": initialization, "document": document}, indent=2), encoding="utf-8")
