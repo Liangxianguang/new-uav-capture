@@ -29,6 +29,119 @@ include detection dropout/noise and delayed, lossy teammate messages. This is
 a **kinematic simulation**. Capture-radius entry is not physical contact,
 net capture, flight-control validation, real vision, SITL, or a flight test.
 
+## Current Phase86 Pure MAPPO Reproduction Track
+
+Phase86 is a separate, development-only PPO track for the current four-defender
+task. It must not be mixed with the V4/V5 behavior-cloning results above. The
+released Phase86 bundle contains the trainer, portable configuration, scene
+records, expert warm-start dataset, CUDA smoke check, regression tests, and
+the exact environment contract. It does **not** publish the live checkpoint,
+TensorBoard event files, progress logs, or process logs.
+
+The current run is a non-recurrent **MAPPO** baseline with a shared actor and
+a centralized public-state critic. PPO rollouts do not use CBF. The optional
+`eval_cbf` result below applies an external local CBF safety layer after the
+policy action and is therefore not a pure-MAPPO result. The actor is warm-
+started with the versioned development expert dataset before PPO updates;
+expert actions and route labels remain forbidden as inputs to the formal
+comparison contract.
+
+### Environment and information contract
+
+| Item | Phase86 value |
+| --- | --- |
+| World and integration | `20 x 20 x 10 m`, `dt=0.1 s`, kinematic backend |
+| Episode limit | `250` control steps |
+| Agents | 4 defenders + 1 target |
+| Defender limits | `5.0 m/s`, `6.0 m/s^2`, radius `0.25 m` |
+| Target limits | `3.6 m/s`, `5.0 m/s^2`, radius `0 m` |
+| Target motion | `adaptive_maneuvering`; mixed obstacle profile |
+| Observation corruption | 1-step target observation delay, noise `0.08`, dropout `0.08` |
+| Policy input | public delayed/noisy belief, observed geometry, role-slot and route-intent features |
+| Hidden information forbidden | target future truth, expert action labels, route labels |
+| Execution dynamics | disabled; no delay, command noise, drag, or actuator lag |
+| Safety/reward contract | safety margin `1.0 m`; defender boundary margin `1.25 m`; inter-agent target clearance `1.25 m` |
+
+The environment and portable overrides are in
+[`configs/phase86_pure_mappo_repro.yaml`](configs/phase86_pure_mappo_repro.yaml)
+and [`configs/phase85_target_contract_repaired_environment.yaml`](configs/phase85_target_contract_repaired_environment.yaml).
+The frozen calibration/validation scene manifests contain 300 records per
+split, 150 mirror groups per split, zero layout-seed overlap, and zero
+episode-seed overlap. Their hashes and the full comparison contract are in
+[`configs/current_rl_comparison_phase86_v1.yaml`](configs/current_rl_comparison_phase86_v1.yaml).
+
+### Training contract
+
+| Parameter | Value |
+| --- | --- |
+| Algorithm / seed | MAPPO, `101`; IPPO is supported by the same launcher |
+| PPO target | `5000` updates, `8` episodes/update |
+| Optimization | 4 PPO epochs, minibatch `512`, hidden size `128` |
+| Optimizer settings | learning rate `3e-4`, gamma `0.99`, GAE lambda `0.95` |
+| PPO regularization | clip range `0.2`, entropy coefficient `0.01` |
+| Runtime | `torch_threads=1`, CUDA for training; CPU monitor/TensorBoard |
+| CBF | disabled during pure-PPO training; optional only for labelled evaluation |
+| Checkpoints | initial update `1`, then every `500` updates; latest checkpoint is also copied to the run root |
+
+### Results snapshot (development evidence only)
+
+The following numbers are from the frozen 300-episode validation split. They
+are a checkpoint-selection diagnostic, not a locked multi-seed claim. The
+snapshot was recorded while seed `101` was still training; later updates may
+change the result.
+
+| Checkpoint | Mode | Safe capture | Collision | Boundary violation | Target invalid | Timeout | Mean min clearance |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | raw MAPPO | 24.67% | 75.33% | 0% | 0% | 0% | 0.008 m |
+| 500 | MAPPO + external eval CBF | 86.33% | 0% | 0% | 0% | 13.67% | 1.007 m |
+| 1000 | raw MAPPO | 70.67% | 29.33% | 12.00% | 0% | 0% | 0.460 m |
+| 1000 | MAPPO + external eval CBF | 98.67% | 0% | 0% | 0% | 1.33% | 1.012 m |
+
+At the documentation snapshot, online training had reached approximately
+update `1304/5000`. Its latest 8-episode rollout was `75%` safe capture,
+`25%` defender physical collision, `0%` defender boundary violation, `0%`
+target invalid, and `0%` timeout. This online value is not a substitute for
+the 300-episode validation table. The raw/eval-CBF JSON files are generated
+under the local run directory and are intentionally not committed.
+On the training workstation, the update-1000 evidence is at
+`models/phase86_pure_mappo_route_nocbf_long_seed101_20260921_v2/independent_validation/update_001000/raw/evaluation.json`
+and
+`models/phase86_pure_mappo_route_nocbf_long_seed101_20260921_v2/independent_validation/update_001000/eval_cbf/evaluation.json`.
+
+### Reproduce on a CUDA workstation
+
+Create the pinned environment, verify CUDA, and launch from the repository
+root on Windows:
+
+```powershell
+conda env create -f environment.yml
+conda activate uav-encirclement-gpu
+python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NO CUDA')"
+./scripts/run_phase86_pure_mappo.ps1 -Python python -Device cuda
+```
+
+The portable launcher resolves all default inputs from the repository,
+refuses a silent CUDA-to-CPU fallback, writes checkpoints every 500 updates,
+and supports an apples-to-apples IPPO run:
+
+```powershell
+./scripts/run_phase86_pure_mappo.ps1 -Algorithm ippo -Python python -Device cuda
+```
+
+Use `-Output` to create a separate directory for each seed/run. To resume,
+pass `-Resume` with that run's `checkpoint_latest.pt`; resuming restores the
+optimizer and RNG state and does not repeat behavior cloning. Do not pass
+`-UseCbfTrain` for the pure-PPO baseline. If you use the optional CUDA smoke
+script, treat its output as a hardware/serialization check only, never as a
+policy result:
+
+```powershell
+python scripts/smoke_cuda_phase86.py
+```
+
+The detailed provenance, validation labels, and artifact policy are in
+[`docs/PHASE86_PURE_MAPPO_REPRODUCTION.md`](docs/PHASE86_PURE_MAPPO_REPRODUCTION.md).
+
 ## Released Method And Evidence
 
 The released checkpoint is **V5 exact-reactive recurrent behavior cloning +

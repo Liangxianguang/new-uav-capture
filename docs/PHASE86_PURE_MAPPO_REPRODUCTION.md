@@ -20,11 +20,34 @@ an optional evaluation-only safety layer.
 - Checkpoint interval: **every 500 updates**
 - Current output: `models/phase86_pure_mappo_route_nocbf_long_seed101_20260921_v2/`
 
+At the documentation snapshot on 2026-09-22, the run had reached update
+`1304/5000`. This is an ongoing development run, not a completed formal
+comparison or a multi-seed result.
+
 The launcher writes both `checkpoint_latest.pt` at the run root and archived
 files such as `checkpoints/checkpoint_update_000500.pt` and
 `checkpoints/checkpoint_update_001000.pt`. Generated checkpoints, progress
 files, TensorBoard events, and process logs are intentionally excluded from
 Git.
+
+## Validation snapshot
+
+The monitor evaluates each archived checkpoint on the frozen 300-episode
+development validation split in two explicitly labelled modes. `raw` is the
+pure PPO policy. `eval_cbf` applies an external local CBF safety layer and is
+not a pure-PPO result.
+
+| Checkpoint | Mode | Safe capture | Collision | Boundary violation | Target invalid | Timeout | Mean min clearance |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | raw | 24.67% | 75.33% | 0% | 0% | 0% | 0.008 m |
+| 500 | eval-CBF | 86.33% | 0% | 0% | 0% | 13.67% | 1.007 m |
+| 1000 | raw | 70.67% | 29.33% | 12.00% | 0% | 0% | 0.460 m |
+| 1000 | eval-CBF | 98.67% | 0% | 0% | 0% | 1.33% | 1.012 m |
+
+The latest online 8-episode rollout at that snapshot was `75%` safe capture,
+`25%` defender physical collision, `0%` defender boundary violation, `0%`
+target invalid, and `0%` timeout. It is included only as a training-progress
+diagnostic; use the frozen 300-episode validation results for reporting.
 
 ## CUDA versus CPU
 
