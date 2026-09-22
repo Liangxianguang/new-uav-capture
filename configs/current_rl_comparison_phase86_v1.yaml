@@ -1,0 +1,139 @@
+experiment_name: current_rl_comparison_phase86_v1
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+
+# This file is the frozen comparison contract for the first current-scene
+# RL baseline. It intentionally does not reuse the legacy V4/Phase83 names.
+environment_config: phase85_target_contract_repaired_environment.yaml
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: false
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    pursuit:
+      safety_margin: 1.0
+      include_prediction_features: true
+      defender_boundary_margin: 1.25
+      defender_boundary_proximity_weight: 1.50
+      defender_boundary_progress_weight: 0.80
+
+experiment:
+  algorithm_family: [ippo, mappo, recurrent_ippo, recurrent_mappo]
+  training_seeds: [101, 202, 303]
+  device: cuda
+  hidden_dim: 128
+  dt_seconds: 0.1
+  max_steps: 250
+  action_dim: 3
+  action_scale_factor: 1.0
+  episodes_per_update: 1
+  pilot_updates: 1000
+  formal_updates: 5000
+  extension_updates: 10000
+  checkpoint_interval_updates: 500
+  target_invalid_policy: separate_contract_fault_no_defender_penalty
+  reward_version: phase85_environment_reward_v1
+  actor_observation_contract: public_local_observation_only
+  critic_contract_primary: mappo_centralized_public_state_ippo_local_public_observation
+  critic_contract_secondary: implementation_default_ctde_audit_only
+  expert_action_or_route_labels: forbidden
+  target_future_truth_in_actor: forbidden
+
+scene_contract:
+  environment_config_sha256: 148D07C10CF4BD17BD4013DEA4F6BCA3C7F89E946E89A09103A44C020A839091
+  calibration_scene_file: ../results/phase86_nominal_repaired_development_calibration/scenes.jsonl
+  calibration_scene_sha256: A631C960873BE35DAFD025EAF575A3F5798514E70775468212CDF6D885C58B71
+  calibration_manifest: ../results/phase86_nominal_repaired_development_calibration/manifest.json
+  calibration_manifest_sha256: AF22742AAADB5026A7515201EEF8FFF7BA9A2C9180F00A94E1207E305C64B6D0
+  validation_scene_file: ../results/phase86_nominal_repaired_development_validation/scenes.jsonl
+  validation_scene_sha256: B903CF5FB6819A1AD970CE035B9CC9B25236E316C30FCF2B4E8E19401758869B
+  validation_manifest: ../results/phase86_nominal_repaired_development_validation/manifest.json
+  validation_manifest_sha256: 86CF8E451F06F2D96BB961C66CABB9D2DA24AE8302B35250CE7D75292DEB689C
+  records_per_split: 300
+  mirror_groups_per_split: 150
+  split_group_key: split_name_plus_mirror_group_id
+  layout_seed_overlap: 0
+  episode_seed_overlap: 0
+  target_invalid_scene_field_count: 0
+
+evaluation_contract:
+  episodes: 300
+  modes: [raw, eval_cbf]
+  primary_metrics:
+    - cooperative_safe_capture_rate
+    - collision_rate
+    - defender_boundary_violation_rate
+    - timeout_rate
+    - target_invalid_rate
+  secondary_metrics:
+    - capture_rate
+    - mean_capture_time_seconds
+    - mean_min_clearance_m
+    - worst_min_clearance_m
+    - cbf_intervention_rate
+    - mean_cbf_correction_norm
+    - max_cbf_correction_norm
+    - runtime_p50_p95_p99
+  checkpoint_selection:
+    source: validation_only
+    safe_capture_priority: true
+    max_collision_rate: 0.05
+    max_boundary_violation_rate: 0.05
+    tie_breakers: [timeout_rate, mean_capture_time_seconds]
+    holdout_selection_forbidden: true
+
+comparison_matrix:
+  - name: ippo_raw
+    algorithm: ippo
+    recurrent: false
+    use_cbf_train: false
+    use_cbf_eval: false
+  - name: ippo_eval_cbf
+    algorithm: ippo
+    recurrent: false
+    use_cbf_train: false
+    use_cbf_eval: true
+  - name: mappo_raw
+    algorithm: mappo
+    recurrent: false
+    use_cbf_train: false
+    use_cbf_eval: false
+  - name: mappo_eval_cbf
+    algorithm: mappo
+    recurrent: false
+    use_cbf_train: false
+    use_cbf_eval: true
+  - name: recurrent_ippo_raw
+    algorithm: ippo
+    recurrent: true
+    use_cbf_train: false
+    use_cbf_eval: false
+  - name: recurrent_ippo_eval_cbf
+    algorithm: ippo
+    recurrent: true
+    use_cbf_train: false
+    use_cbf_eval: true
+  - name: recurrent_mappo_raw
+    algorithm: mappo
+    recurrent: true
+    use_cbf_train: false
+    use_cbf_eval: false
+  - name: recurrent_mappo_eval_cbf
+    algorithm: mappo
+    recurrent: true
+    use_cbf_train: false
+    use_cbf_eval: true
+  - name: recurrent_mappo_cbf_aware
+    algorithm: mappo
+    recurrent: true
+    use_cbf_train: true
+    use_cbf_eval: true
+
+decision_rules:
+  clear_advantage_min_delta_pp: 5.0
+  clear_advantage_paired_bootstrap_lower_bound_pp: 0.0
+  safety_regression_tolerance_pp: 1.0
+  minimum_independent_training_seeds: 3
+  single_seed_claim: descriptive_only
+  different_scene_claim: invalid

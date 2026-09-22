@@ -412,6 +412,33 @@ class RecurrentCentralizedSharedActorCritic(nn.Module):
         return distribution.log_prob(raw_actions) - correction
 
 
+class RecurrentSharedActorCritic(RecurrentCentralizedSharedActorCritic):
+    """Recurrent IPPO with a decentralized local critic.
+
+    The actor and recurrent state contract are shared with recurrent MAPPO,
+    but the value function receives each defender's local observation instead
+    of the centralized simulator state.  Keeping this as a separate class
+    prevents the recurrent IPPO arm from silently becoming centralized
+    training under the MAPPO name.
+    """
+
+    def __init__(
+        self,
+        local_observation_dim: int,
+        action_dim: int = 3,
+        hidden_dim: int = 128,
+    ) -> None:
+        super().__init__(
+            local_observation_dim,
+            local_observation_dim,
+            action_dim=action_dim,
+            hidden_dim=hidden_dim,
+        )
+
+    def value(self, local_observations: torch.Tensor) -> torch.Tensor:
+        return self.critic(self.critic_body(local_observations)).squeeze(-1)
+
+
 class CapturePolicy(nn.Module):
     """Multi-task behavior-cloning policy for motion and binary cage closure.
 

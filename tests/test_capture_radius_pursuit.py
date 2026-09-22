@@ -27,7 +27,7 @@ def test_capture_radius_is_the_terminal_success_event() -> None:
     env.defender_positions[0] = env.target_position + np.array([0.70, 0.0, 0.0])
     env.defender_velocities.fill(0.0)
 
-    _observation, _reward, terminated, truncated, info = env.step(np.zeros((4, 3)))
+    _observation, reward, terminated, truncated, info = env.step(np.zeros((4, 3)))
 
     assert terminated
     assert not truncated
@@ -35,6 +35,29 @@ def test_capture_radius_is_the_terminal_success_event() -> None:
     assert info["safe_capture_success"]
     assert info["termination_reason"] == "safe_capture"
     assert info["capturing_defender_id"] == 0
+    assert info["reward_components"]["capture"] == pytest.approx(50.0)
+    assert info["reward_components"]["timeout"] == 0.0
+    assert info["reward_components"]["time"] == pytest.approx(-0.01)
+    assert reward > 45.0
+
+
+def test_reward_contract_penalizes_timeout_without_absolute_distance_drift() -> None:
+    config = load_config()
+    env = CaptureRadiusPursuit3DEnv(config, obstacle_count=0, target_speed_scale=0.01)
+    env.max_steps = 1
+    env.reset(seed=5201011)
+
+    _observation, reward, terminated, truncated, info = env.step(np.zeros((4, 3)))
+
+    assert not terminated
+    assert truncated
+    assert info["termination_reason"] == "timeout"
+    assert info["reward_components"]["capture"] == 0.0
+    assert info["reward_components"]["safety"] == 0.0
+    assert info["reward_components"]["timeout"] == pytest.approx(-10.0)
+    assert info["reward_components"]["time"] == pytest.approx(-0.01)
+    assert abs(info["reward_components"]["boundary_proximity"]) <= 0.05 + 1e-8
+    assert np.isfinite(reward)
 
 
 def test_safety_failure_has_priority_over_capture_event() -> None:

@@ -1,0 +1,207 @@
+{
+  "dataset_type": "frozen_dynamic_encirclement_teacher_policy_actions",
+  "config": "F:\\uav_capture\\three_d_encirclement\\configs\\phase86_fix_route_mappo_development_v1.yaml",
+  "config_sha256": "5f51f589179d3bef7938378e88c883dfdeb9a97b6843b7c36e4c9677103602bf",
+  "scenes": "F:\\uav_capture\\three_d_encirclement\\results\\phase86_nominal_repaired_development_calibration\\scenes.jsonl",
+  "scenes_sha256": "a631c960873be35dafd025eaf575a3f5798514e70775468212cdf6d885c58b71",
+  "episodes": 20,
+  "selected_episodes": 19,
+  "accepted_only": true,
+  "frames": 1612,
+  "sequence_length": 206,
+  "local_observation_dim": 77,
+  "route_intent_features": true,
+  "route_intent_feature_dim": 7,
+  "action_shape_per_frame": [
+    4,
+    3
+  ],
+  "controller": "PublicBeliefRouteIntentController",
+  "interceptor_id": 0,
+  "safety_layer": "local_cbf",
+  "max_steps": 250,
+  "selection_policy": "safe_capture_and_target_valid",
+  "rows": [
+    {
+      "episode_index": 0,
+      "episode_seed": 861201,
+      "steps": 250,
+      "safe_capture_success": false,
+      "target_invalid_episode": false,
+      "termination_reason": "timeout",
+      "accepted_for_dataset": false
+    },
+    {
+      "episode_index": 1,
+      "episode_seed": 861202,
+      "steps": 206,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 2,
+      "episode_seed": 861203,
+      "steps": 93,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 3,
+      "episode_seed": 861204,
+      "steps": 202,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 4,
+      "episode_seed": 861205,
+      "steps": 41,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 5,
+      "episode_seed": 861206,
+      "steps": 40,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 6,
+      "episode_seed": 861207,
+      "steps": 195,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 7,
+      "episode_seed": 861208,
+      "steps": 86,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 8,
+      "episode_seed": 861209,
+      "steps": 40,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 9,
+      "episode_seed": 861210,
+      "steps": 31,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 10,
+      "episode_seed": 861211,
+      "steps": 43,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 11,
+      "episode_seed": 861212,
+      "steps": 49,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 12,
+      "episode_seed": 861213,
+      "steps": 88,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 13,
+      "episode_seed": 861214,
+      "steps": 90,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 14,
+      "episode_seed": 861215,
+      "steps": 73,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 15,
+      "episode_seed": 861216,
+      "steps": 40,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 16,
+      "episode_seed": 861217,
+      "steps": 41,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 17,
+      "episode_seed": 861218,
+      "steps": 45,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 18,
+      "episode_seed": 861219,
+      "steps": 72,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    },
+    {
+      "episode_index": 19,
+      "episode_seed": 861220,
+      "steps": 137,
+      "safe_capture_success": true,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "accepted_for_dataset": true
+    }
+  ],
+  "document_experiment_name": "phase86_fix_route_mappo_development_v1"
+}

@@ -1,0 +1,43 @@
+{
+  "dataset_name": "phase86_nominal_repaired_formal",
+  "dataset_version": "phase86.nominal_repaired.v1",
+  "phase": "development_calibration_only",
+  "not_a_locked_test": true,
+  "locked_test": false,
+  "locked_test_modified": false,
+  "total_scenes": 300,
+  "episodes_per_variant": 300,
+  "variant_count": 1,
+  "variant_counts": {
+    "nominal_repaired": 300
+  },
+  "variant_manifests": {
+    "nominal_repaired": {
+      "single_factor": "nominal_repaired",
+      "single_factor_value": 0.0,
+      "scene_count": 300,
+      "mirror_groups": 150,
+      "seed": 861201,
+      "block_file": "F:\\uav_capture\\three_d_encirclement\\results\\phase86_nominal_repaired_development_calibration\\blocks\\nominal_repaired.jsonl"
+    }
+  },
+  "mirror_groups": 150,
+  "all_mirror_groups_have_two_members": true,
+  "initial_escape_clearance_certified_rate": 1.0,
+  "sampling_attempts_by_variant": {
+    "nominal_repaired": 150
+  },
+  "seed_offset": 0,
+  "scene_file": "F:\\uav_capture\\three_d_encirclement\\results\\phase86_nominal_repaired_development_calibration\\scenes.jsonl",
+  "scene_file_sha256": "a631c960873be35dafd025eaf575a3f5798514e70775468212cdf6d885c58b71",
+  "protocol": "F:\\uav_capture\\three_d_encirclement\\configs\\phase86_nominal_repaired_formal.yaml",
+  "environment_config": "F:\\uav_capture\\three_d_encirclement\\configs\\phase85_target_contract_repaired_environment.yaml",
+  "contract": {
+    "obstacle_avoidance_first": true,
+    "target_crossing_required": false,
+    "intentional_reverse_lane_change": false,
+    "one_factor_per_variant": true,
+    "expert_filter_is_calibration_only": true,
+    "route_certificate_is_not_a_closed_loop_safety_proof": true
+  }
+}

@@ -155,11 +155,18 @@ _PURSUIT_DEFAULTS: dict[str, Any] = {
     "capture_bonus": 25.00,
     "collision_penalty": 15.00,
     "progress_reward_weight": 3.00,
+    "progress_reward_normalizer": 1.00,
     "distance_reward_weight": 0.12,
     "coverage_reward_weight": 0.15,
+    # Optional development-only shaping.  The default is zero so the frozen
+    # Phase86 reward contract remains unchanged unless a new protocol opts in.
+    "inter_agent_clearance_reward_weight": 0.0,
+    "inter_agent_clearance_target_m": 1.00,
+    "time_penalty": 0.00,
+    "timeout_penalty": 0.00,
     "defender_boundary_margin": 1.25,
-    "defender_boundary_proximity_weight": 1.50,
-    "defender_boundary_progress_weight": 0.80,
+    "defender_boundary_proximity_weight": 0.05,
+    "defender_boundary_progress_weight": 0.10,
     "max_observation_obstacles": 3,
     "obstacle_profile": "cylinders",
     "map_seed_offset": 0,
@@ -262,6 +269,15 @@ def pursuit_settings(task: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("task.pursuit.observation_covariance_growth must be non-negative.")
     if float(settings["prediction_uncertainty_base"]) < 0.0:
         raise ValueError("task.pursuit.prediction_uncertainty_base must be non-negative.")
+    if float(settings["progress_reward_normalizer"]) <= 0.0:
+        raise ValueError("task.pursuit.progress_reward_normalizer must be positive.")
+    if float(settings["inter_agent_clearance_reward_weight"]) < 0.0:
+        raise ValueError("task.pursuit.inter_agent_clearance_reward_weight must be non-negative.")
+    if float(settings["inter_agent_clearance_target_m"]) <= 0.0:
+        raise ValueError("task.pursuit.inter_agent_clearance_target_m must be positive.")
+    for name in ("time_penalty", "timeout_penalty"):
+        if float(settings[name]) < 0.0:
+            raise ValueError(f"task.pursuit.{name} must be non-negative.")
     if not 0.0 <= float(settings["belief_stale_velocity_decay"]) <= 1.0:
         raise ValueError("task.pursuit.belief_stale_velocity_decay must be in [0, 1].")
     if int(settings["belief_velocity_decay_start_age_steps"]) < 0:
@@ -980,20 +996,45 @@ class CaptureRadiusPursuit3DEnv:
         if truncated:
             termination_reason = "timeout"
 
-        progress = float(previous_distance - metrics.minimum_target_distance)
+        progress = float(
+            np.clip(
+                (previous_distance - metrics.minimum_target_distance)
+                / float(self.pursuit["progress_reward_normalizer"]),
+                -1.0,
+                1.0,
+            )
+        )
         coverage = self._coverage_score()
+        inter_agent_clearance = self._inter_agent_clearance_score()
         reward_components = {
             "progress": float(self.pursuit["progress_reward_weight"]) * progress,
             "distance": -float(self.pursuit["distance_reward_weight"]) * metrics.minimum_target_distance,
             "coverage": float(self.pursuit["coverage_reward_weight"]) * coverage,
+            "inter_agent_clearance": float(self.pursuit["inter_agent_clearance_reward_weight"])
+            * inter_agent_clearance,
+            "time": -float(self.pursuit["time_penalty"]),
             "capture": float(self.pursuit["capture_bonus"]) if safe_capture else 0.0,
+            "timeout": -float(self.pursuit["timeout_penalty"]) if truncated else 0.0,
             # A target-contract violation terminates the sample, but is not a
             # defender action failure and must not train the defender to avoid it.
             "safety": -float(self.pursuit["collision_penalty"]) if defender_safety_failure else 0.0,
             "boundary_proximity": -float(self.pursuit["defender_boundary_proximity_weight"])
-            * max(0.0, float(self.pursuit["defender_boundary_margin"]) - defender_boundary_clearance),
+            * np.clip(
+                (
+                    float(self.pursuit["defender_boundary_margin"])
+                    - defender_boundary_clearance
+                )
+                / max(float(self.pursuit["defender_boundary_margin"]), 1.0e-9),
+                0.0,
+                1.0,
+            ),
             "boundary_progress": float(self.pursuit["defender_boundary_progress_weight"])
-            * (defender_boundary_clearance - previous_defender_boundary_clearance),
+            * np.clip(
+                (defender_boundary_clearance - previous_defender_boundary_clearance)
+                / max(float(self.pursuit["defender_boundary_margin"]), 1.0e-9),
+                -1.0,
+                1.0,
+            ),
         }
         reward = float(sum(reward_components.values()))
 
@@ -2565,6 +2606,27 @@ class CaptureRadiusPursuit3DEnv:
         pairwise = np.sum(vectors[:, None, :] * vectors[None, :, :], axis=2)
         upper = pairwise[np.triu_indices(self.n_defenders, k=1)]
         return float(np.clip(-np.mean(upper), -1.0, 1.0))
+
+    def _inter_agent_clearance_score(self) -> float:
+        """Return a bounded shaping signal for impending defender collisions.
+
+        The term is zero while every pair is at least the configured target
+        distance apart, and becomes smoothly negative as a pair approaches the
+        physical-contact threshold.  It is deliberately optional and disabled
+        by the default reward contract.
+        """
+
+        target = float(self.pursuit["inter_agent_clearance_target_m"])
+        pairwise_distances: list[float] = []
+        for first in range(self.n_defenders):
+            for second in range(first + 1, self.n_defenders):
+                pairwise_distances.append(
+                    float(np.linalg.norm(self.defender_positions[first] - self.defender_positions[second]))
+                )
+        if not pairwise_distances:
+            return 0.0
+        shortfall = np.clip((target - np.asarray(pairwise_distances)) / target, 0.0, 1.0)
+        return float(-np.mean(shortfall * shortfall))
 
     def _target_distances(self) -> np.ndarray:
         return np.linalg.norm(self.defender_positions - self.target_position[None, :], axis=1)

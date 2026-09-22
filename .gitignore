@@ -28,3 +28,8 @@ tmp/
 !models/formal_phase2_v3/*.pt
 !models/formal_phase2_v3/manifest.json
 models/phase15_s4_v3_*/
+
+# Active formal training outputs and local process logs are reproducible
+# artifacts; keep checkpoints, TensorBoard files, and progress state out of Git.
+models/phase86_pure_mappo_route_nocbf_long_seed101_20260921_v2/
+run_logs/phase86_pure_mappo_route_nocbf_long_seed101_20260921_v2.*

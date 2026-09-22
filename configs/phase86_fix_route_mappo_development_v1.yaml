@@ -1,0 +1,35 @@
+experiment_name: phase86_fix_route_mappo_development_v1
+not_a_locked_test: true
+locked_test_tuning_forbidden: true
+formal_comparison_allowed: false
+purpose: development_only_teacher_warm_start_and_safety_exploration
+
+environment_config: F:/uav_capture/three_d_encirclement/configs/phase85_target_contract_repaired_environment.yaml
+environment_overrides:
+  dynamics:
+    execution:
+      enabled: false
+  task:
+    policy_obstacle_geometry: shape_extents_and_type
+    # Derived only from public delayed/noisy belief and observed geometry.
+    policy_role_slot_features: true
+    policy_role_slot_radius_m: 1.25
+    policy_route_intent_features: true
+    pursuit:
+      # Keep the current Phase86 safety contract for this diagnostic.  The
+      # route teacher supplies the missing long-horizon navigation prior.
+      safety_margin: 1.0
+      include_prediction_features: true
+      defender_boundary_margin: 1.25
+      defender_boundary_proximity_weight: 1.50
+      defender_boundary_progress_weight: 0.80
+      inter_agent_clearance_reward_weight: 4.0
+      inter_agent_clearance_target_m: 1.25
+
+development_contract:
+  source_protocol: F:/uav_capture/three_d_encirclement/configs/current_rl_comparison_phase86_v1.yaml
+  source_safety_margin: 1.0
+  route_features_source: delayed_noisy_public_belief_and_observed_geometry
+  target_future_truth_in_actor: forbidden
+  expert_actions_formal_use: forbidden
+  formal_matrix_output_must_not_be_overwritten: true

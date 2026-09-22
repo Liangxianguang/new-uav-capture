@@ -35,10 +35,19 @@ class PursuitCBFSafetyFilter:
         self,
         desired_actions: np.ndarray,
         observation: dict[str, Any],
+        *,
+        max_speed: float | None = None,
     ) -> tuple[np.ndarray, PursuitSafetyDiagnostics]:
+        command_limit = (
+            float(self.env.agents["defender_max_speed"])
+            if max_speed is None
+            else float(max_speed)
+        )
+        if command_limit <= 0.0:
+            raise ValueError("max_speed must be positive.")
         desired = self.env._clip_rows(
             np.asarray(desired_actions, dtype=np.float64),
-            float(self.env.agents["defender_max_speed"]),
+            command_limit,
         )
         safe = desired.copy()
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
@@ -118,7 +127,7 @@ class PursuitCBFSafetyFilter:
                         safe[first] += correction
                         safe[second] -= correction
                     barriers.append(barrier)
-            safe = self.env._clip_rows(safe, float(self.env.agents["defender_max_speed"]))
+            safe = self.env._clip_rows(safe, command_limit)
 
         return safe, PursuitSafetyDiagnostics(
             action_correction_norm=float(np.mean(np.linalg.norm(safe - desired, axis=1))),
@@ -228,6 +237,28 @@ class DynamicEncirclementController(_PursuitController):
         return self._avoidance(desired, observation)
 
 
+class FixedRoleEncirclementController(DynamicEncirclementController):
+    """Development-only encirclement teacher with a fixed interceptor role.
+
+    ``DynamicEncirclementController`` chooses the nearest defender as the
+    interceptor, which is useful for a rule baseline but gives a shared actor
+    no stable role label to imitate. This subclass keeps the role assignment
+    fixed so it can be paired with ``policy_role_slot_features`` during a
+    development warm-up. It is not part of the formal RL comparison.
+    """
+
+    def __init__(
+        self,
+        env: CaptureRadiusPursuit3DEnv,
+        horizon_seconds: float = 0.55,
+        interceptor_id: int = 0,
+    ) -> None:
+        super().__init__(env, horizon_seconds=horizon_seconds)
+        if not 0 <= int(interceptor_id) < env.n_defenders:
+            raise ValueError("interceptor_id must identify an existing defender.")
+        self.interceptor_id = int(interceptor_id)
+
+
 class PublicBeliefRouteIntentController(_PursuitController):
     """Route-aware public-belief expert for obstacle-crossing demonstrations.
 
@@ -255,6 +286,7 @@ class PublicBeliefRouteIntentController(_PursuitController):
         grid_step: float = 0.75,
         route_margin: float = 0.85,
         require_bypass_route: bool = False,
+        interceptor_id: int | None = None,
     ) -> None:
         super().__init__(env)
         if replan_interval_steps <= 0 or min_hold_steps <= 0:
@@ -265,6 +297,9 @@ class PublicBeliefRouteIntentController(_PursuitController):
         self.grid_step = float(grid_step)
         self.route_margin = float(route_margin)
         self.require_bypass_route = bool(require_bypass_route)
+        if interceptor_id is not None and not 0 <= int(interceptor_id) < env.n_defenders:
+            raise ValueError("interceptor_id must identify an existing defender.")
+        self.fixed_interceptor_id = None if interceptor_id is None else int(interceptor_id)
         self.route_name = "direct"
         self.route_started_step = -10**9
         self.route_paths: list[list[np.ndarray]] = []
@@ -543,7 +578,11 @@ class PublicBeliefRouteIntentController(_PursuitController):
             self.route_paths = details["paths"]
         positions = np.asarray(observation["defender_positions"], dtype=np.float64)
         distances = np.linalg.norm(positions - target[None, :], axis=1)
-        interceptor = int(np.argmin(distances))
+        interceptor = (
+            int(np.argmin(distances))
+            if self.fixed_interceptor_id is None
+            else self.fixed_interceptor_id
+        )
         perimeter = float(np.clip(0.55 * np.median(distances), self.env.pursuit["capture_radius"] + 0.3, 2.4))
         desired = np.zeros_like(positions)
         for index, position in enumerate(positions):
