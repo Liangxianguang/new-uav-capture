@@ -86,6 +86,15 @@ def args() -> argparse.Namespace:
     p.add_argument("--expert-dataset", type=Path, help="Optional audited local-observation/action dataset for actor warm-start.")
     p.add_argument("--bc-epochs", type=int, default=0, help="Behavior-cloning epochs before PPO; zero disables warm-start.")
     p.add_argument("--bc-batch-size", type=int, default=1024)
+    p.add_argument(
+        "--bc-action-scale-factor",
+        type=float,
+        default=0.0,
+        help=(
+            "Action scale used only while fitting expert actions. Zero uses the initial "
+            "PPO rollout scale; a positive value is multiplied by defender_max_speed."
+        ),
+    )
     p.add_argument("--bc-prefix-weight", type=float, default=1.0, help="Extra weight for the first frozen-episode frames during recurrent BC.")
     p.add_argument("--bc-prefix-steps", type=int, default=0, help="Number of initial frames receiving --bc-prefix-weight; zero disables prefix weighting.")
     p.add_argument("--recurrent-init", type=Path, help="Compatible recurrent actor checkpoint for recurrent MAPPO/IPPO warm-start.")
@@ -669,13 +678,18 @@ def main() -> None:
             dev,
         )
         (a.output / "recurrent_initialization.json").write_text(json.dumps(initialization, indent=2), encoding="utf-8")
+    bc_action_scale = (
+        base_action_scale * float(a.bc_action_scale_factor)
+        if a.bc_action_scale_factor > 0.0
+        else action_scale
+    )
     if a.expert_dataset is not None and a.bc_epochs > 0:
         bc_history = behavior_clone(
             policy,
             optimizer,
             a.expert_dataset,
             a.algorithm,
-            action_scale,
+            bc_action_scale,
             a.bc_epochs,
             a.bc_batch_size,
             dev,
@@ -684,7 +698,7 @@ def main() -> None:
             prefix_steps=a.bc_prefix_steps,
         )
         (a.output / "behavior_cloning.json").write_text(
-            json.dumps({"dataset": str(a.expert_dataset.resolve()), "dataset_sha256": hashlib.sha256(a.expert_dataset.resolve().read_bytes()).hexdigest(), "epochs": a.bc_epochs, "prefix_weight": a.bc_prefix_weight, "prefix_steps": a.bc_prefix_steps, "loss": bc_history}, indent=2),
+            json.dumps({"dataset": str(a.expert_dataset.resolve()), "dataset_sha256": hashlib.sha256(a.expert_dataset.resolve().read_bytes()).hexdigest(), "epochs": a.bc_epochs, "action_scale": bc_action_scale, "action_scale_factor": bc_action_scale / base_action_scale, "prefix_weight": a.bc_prefix_weight, "prefix_steps": a.bc_prefix_steps, "loss": bc_history}, indent=2),
             encoding="utf-8",
         )
     def checkpoint_payload() -> dict[str, Any]:
