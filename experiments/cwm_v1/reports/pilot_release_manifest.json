@@ -1,0 +1,28 @@
+{
+  "stage": "pilot",
+  "baseline_episodes_verified": 256,
+  "baseline_byte_equality_verified": true,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "enhanced_control_enabled": false,
+  "status": "pilot_no_go_keep_baseline",
+  "trained_models": 6,
+  "states": 108,
+  "episodes": 36,
+  "artifact_sha256": "601827559e156a163f01d3c93198eef2bf04df870f2b16f894d02e9e7d9132f9",
+  "artifact_bytes": 3113391,
+  "source_hashes": {
+    "baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "hydrate_git_cache.py": "ed9fb409765d6d6e3e772a588c869998ec0c70ba4f21a5c19179ede0ac478d71",
+    "model.py": "b6456e6170380a5369b0e5f7d28c952fd2a51b66ab2ebfb70bfa59c14ca6dd54",
+    "package_stage.py": "a0ccaf6bd4f3775df744842aef5e8da9dc5414d12e81043870ce8d146d4e0a64",
+    "plugin.py": "a8ccc6c1a2660cd6b906c59f02231adc3d6f77b16ca40e8f0d1d4ac431e12b04",
+    "replay_baseline.py": "9e4855adec3f9c2b4bc8b2a3647d84b9027dbbce74f0bbab686478acfda5f054",
+    "shadow.py": "e12b6b837c17a4cb143872ea464651170d4ff2c9e2bb474441f0f47f381c0117",
+    "test_cwm_v1.py": "3be2d434c367fe5e6d8ac62c1dd30fba2eaa67d5fcf1dbcd2170dc17148b8e28",
+    "train.py": "42eb0b35aafa43b11de6d1c6f54d1d8cfa58708170053a0b492c44d2b4e466be",
+    "verify_checkpoints.py": "2795038534b4bfbe08e0de30db8f80499fa5e3a924ae4ccb532dff548c3a22f4"
+  },
+  "reason": "Both learned pilots are worse than constant velocity; paired intervention effects are too small to support a causal benefit claim."
+}

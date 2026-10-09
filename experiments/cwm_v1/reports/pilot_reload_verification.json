@@ -1,0 +1,42 @@
+{
+  "status": "passed",
+  "results": [
+    {
+      "name": "plain_seed101",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed101",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    },
+    {
+      "name": "plain_seed202",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed202",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    },
+    {
+      "name": "plain_seed303",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed303",
+      "bitwise_prediction_equal": true,
+      "max_abs_error": 0.0,
+      "metrics_equal": true
+    }
+  ],
+  "runtime_scope": "Recorded CPU/PyTorch runtime only"
+}

@@ -1,0 +1,156 @@
+{
+  "status": "passed",
+  "retraining": [
+    {
+      "name": "plain_seed101",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed101",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    },
+    {
+      "name": "plain_seed202",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed202",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    },
+    {
+      "name": "plain_seed303",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    },
+    {
+      "name": "structured_seed303",
+      "predictions_byte_equal": true,
+      "weights_byte_equal": true,
+      "training_histories_equal": true,
+      "metrics_equal": true
+    }
+  ],
+  "original_provenance_hashes_reverified": 9,
+  "full_original_validation_group_overlap": 0,
+  "training_only_diagnostic": {
+    "scope": "original training pool / model train split only",
+    "states": 72,
+    "branches": {
+      "left_pressure": {
+        "proposed_difference_mps": {
+          "count": 2224,
+          "mean": 1.4211291074752808,
+          "p50": 1.4391770362854004,
+          "p95": 1.5,
+          "max": 1.5000001192092896
+        },
+        "commanded_difference_mps": {
+          "count": 2224,
+          "mean": 1.4114649295806885,
+          "p50": 1.4098072052001953,
+          "p95": 2.86356520652771,
+          "max": 5.073482990264893
+        },
+        "executed_difference_mps": {
+          "count": 2224,
+          "mean": 1.4114649295806885,
+          "p50": 1.4098072052001953,
+          "p95": 2.86356520652771,
+          "max": 5.073482990264893
+        },
+        "target_response_m": {
+          "count": 556,
+          "mean": 4.9899266741704196e-05,
+          "p50": 0.0,
+          "p95": 6.236940680537373e-05,
+          "max": 0.010789964348077774
+        },
+        "effect_over_0_1m_fraction": 0.0
+      },
+      "right_pressure": {
+        "proposed_difference_mps": {
+          "count": 2224,
+          "mean": 1.4408562183380127,
+          "p50": 1.4714981317520142,
+          "p95": 1.5,
+          "max": 1.5000001192092896
+        },
+        "commanded_difference_mps": {
+          "count": 2224,
+          "mean": 1.435001015663147,
+          "p50": 1.430190920829773,
+          "p95": 2.830130100250244,
+          "max": 5.227860927581787
+        },
+        "executed_difference_mps": {
+          "count": 2224,
+          "mean": 1.435001015663147,
+          "p50": 1.430190920829773,
+          "p95": 2.830130100250244,
+          "max": 5.227860927581787
+        },
+        "target_response_m": {
+          "count": 556,
+          "mean": 0.00031203095568343997,
+          "p50": 0.0,
+          "p95": 0.00012409592454787344,
+          "max": 0.05644978582859039
+        },
+        "effect_over_0_1m_fraction": 0.0
+      },
+      "half_speed": {
+        "proposed_difference_mps": {
+          "count": 2228,
+          "mean": 2.459089517593384,
+          "p50": 2.5,
+          "p95": 2.5,
+          "max": 2.500000238418579
+        },
+        "commanded_difference_mps": {
+          "count": 2228,
+          "mean": 1.6165555715560913,
+          "p50": 1.687676191329956,
+          "p95": 2.7024900913238525,
+          "max": 4.679287910461426
+        },
+        "executed_difference_mps": {
+          "count": 2228,
+          "mean": 1.6165555715560913,
+          "p50": 1.687676191329956,
+          "p95": 2.7024900913238525,
+          "max": 4.679287910461426
+        },
+        "target_response_m": {
+          "count": 557,
+          "mean": 0.00018842867575585842,
+          "p50": 0.0,
+          "p95": 5.316251554177143e-05,
+          "max": 0.017358414828777313
+        },
+        "effect_over_0_1m_fraction": 0.0
+      }
+    },
+    "nearest_defender_to_public_reference_m": {
+      "count": 72,
+      "mean": 7.536467552185059,
+      "p50": 7.722310543060303,
+      "p95": 11.277544975280762,
+      "max": 12.370288848876953
+    }
+  },
+  "limitations": "Recorded CPU runtime only; command differences are not defender-geometry effects or identified causal mechanisms."
+}

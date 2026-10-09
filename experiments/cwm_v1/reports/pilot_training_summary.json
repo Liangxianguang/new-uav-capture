@@ -1,0 +1,169 @@
+{
+  "status": "pilot_training_complete_not_online_promoted",
+  "dataset_sha256": "a88257480fd37188efae5e04ba008251fea28373a550c475c6b591854b793039",
+  "source_hashes": {
+    "train.py": "42eb0b35aafa43b11de6d1c6f54d1d8cfa58708170053a0b492c44d2b4e466be",
+    "model.py": "b6456e6170380a5369b0e5f7d28c952fd2a51b66ab2ebfb70bfa59c14ca6dd54",
+    "protocol.json": "fe1919a06719fd638a5ced8c20e9e567234aea68d1b88405bcb4dd1b8542cb57"
+  },
+  "selection": "fixed final epoch; no validation-based checkpoint selection",
+  "results": [
+    {
+      "kind": "plain",
+      "seed": 101,
+      "parameters": 37272,
+      "elapsed_seconds": 2.543224100023508,
+      "checkpoint_sha256": "e00a07429aed2227e33e81cf6ee43ee6fe17089da2da3760f195e4bbd81ac5d5",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.5951722860336304,
+        "fde_m": 1.790686845779419,
+        "paired_effect_error_m": 0.06949591636657715,
+        "paired_effect_p95_m": 0.2400909811258316,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 1.3827720880508423,
+        "fde_m": 1.54677414894104,
+        "paired_effect_error_m": 0.07401395589113235,
+        "paired_effect_p95_m": 0.2797089219093323,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 101,
+      "parameters": 36560,
+      "elapsed_seconds": 1.6321870998945087,
+      "checkpoint_sha256": "5d83f6a42899abb08cee639fed563346cb93a95991dcbc9c3b0bc5f2c168b26f",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.3178051710128784,
+        "fde_m": 1.42177152633667,
+        "paired_effect_error_m": 0.02219524048268795,
+        "paired_effect_p95_m": 0.06616129726171494,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 1.7877919673919678,
+        "fde_m": 1.9050089120864868,
+        "paired_effect_error_m": 0.021618470549583435,
+        "paired_effect_p95_m": 0.06853710114955902,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    },
+    {
+      "kind": "plain",
+      "seed": 202,
+      "parameters": 37272,
+      "elapsed_seconds": 1.2184685000684112,
+      "checkpoint_sha256": "60b2f2b422370f24ee25e311a2fd971458e7f6242e23573afaf7fdd2e55003e9",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.488101840019226,
+        "fde_m": 1.7016046047210693,
+        "paired_effect_error_m": 0.07230257987976074,
+        "paired_effect_p95_m": 0.2671239972114563,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 1.8404004573822021,
+        "fde_m": 1.9373242855072021,
+        "paired_effect_error_m": 0.08634945005178452,
+        "paired_effect_p95_m": 0.26859673857688904,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 202,
+      "parameters": 36560,
+      "elapsed_seconds": 1.9571669001597911,
+      "checkpoint_sha256": "bbb3e80cb4521d2e08337aa6f6bf60ea828ddb16615a55cf0e94bc844cb4abd7",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.3514471054077148,
+        "fde_m": 1.4873915910720825,
+        "paired_effect_error_m": 0.02383318915963173,
+        "paired_effect_p95_m": 0.07487421482801437,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 2.080420970916748,
+        "fde_m": 2.1387362480163574,
+        "paired_effect_error_m": 0.02182040922343731,
+        "paired_effect_p95_m": 0.07275606691837311,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    },
+    {
+      "kind": "plain",
+      "seed": 303,
+      "parameters": 37272,
+      "elapsed_seconds": 1.3497765001375228,
+      "checkpoint_sha256": "c3e7e90fa876f20940fb154f60c265d01cf1fbdd6fce218df8daf9d3446be276",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.3992033004760742,
+        "fde_m": 1.584453821182251,
+        "paired_effect_error_m": 0.0654979944229126,
+        "paired_effect_p95_m": 0.22794044017791748,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 1.4705173969268799,
+        "fde_m": 1.600737452507019,
+        "paired_effect_error_m": 0.06763811409473419,
+        "paired_effect_p95_m": 0.2267855554819107,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 303,
+      "parameters": 36560,
+      "elapsed_seconds": 1.5619181001093239,
+      "checkpoint_sha256": "833bf84c992726a468e9c6d72356b42737c04f9db5fb02a1e97fb9baa5d6a7b0",
+      "calibration": {
+        "states": 18,
+        "ade_m": 1.1345809698104858,
+        "fde_m": 1.2686697244644165,
+        "paired_effect_error_m": 0.017778640612959862,
+        "paired_effect_p95_m": 0.05871457979083061,
+        "effect_valid_points": 398,
+        "full_horizon_branches": 64
+      },
+      "validation": {
+        "states": 18,
+        "ade_m": 1.4745078086853027,
+        "fde_m": 1.5191572904586792,
+        "paired_effect_error_m": 0.018429599702358246,
+        "paired_effect_p95_m": 0.0627022311091423,
+        "effect_valid_points": 414,
+        "full_horizon_branches": 68
+      }
+    }
+  ],
+  "zero_response_effect_error_m": 0.00013636027870234102,
+  "constant_velocity_ade_m": 0.19044452925716387,
+  "limitations": [
+    "Small training-pool-disjoint pilot, not the formal Level5/6 or Level7/8 evaluation.",
+    "No SCM identifiability, safety, novelty, or closed-loop gain is established.",
+    "Calibration errors are descriptive; no guard was calibrated or enabled."
+  ]
+}

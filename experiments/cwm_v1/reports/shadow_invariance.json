@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "mode": "shadow",
+  "episodes": [
+    {
+      "episode_index": 920000640,
+      "bitwise_trajectory_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 920000641,
+      "bitwise_trajectory_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 10038,
+      "bitwise_trajectory_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 10039,
+      "bitwise_trajectory_equal": true,
+      "outcomes_equal": true
+    }
+  ],
+  "steps": 121,
+  "errors": 0,
+  "shadow_extra_latency_ms": {
+    "p50": 2.75310012511909,
+    "p95": 4.863500129431486,
+    "p99": 5.791239952668546
+  },
+  "limitations": "Offline shadow invariance sanity check only; no enhanced action, no guarded mode, no control-performance improvement claim."
+}
