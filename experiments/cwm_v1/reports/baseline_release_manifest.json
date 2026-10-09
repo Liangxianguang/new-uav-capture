@@ -1,0 +1,8 @@
+{
+  "stage": "baseline",
+  "baseline_episodes_verified": 256,
+  "baseline_byte_equality_verified": true,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "enhanced_control_enabled": false,
+  "status": "baseline_preservation_pass"
+}

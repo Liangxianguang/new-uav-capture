@@ -1,0 +1,2826 @@
+{
+  "status": "passed",
+  "selected": 256,
+  "completed": 256,
+  "passed": 256,
+  "comparisons": [
+    {
+      "episode_index": 920000640,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000641,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000642,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000643,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000644,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000645,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000646,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000647,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000648,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000649,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000650,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000651,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000652,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000653,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000654,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000655,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000656,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000657,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000658,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000659,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000660,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000661,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000662,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000663,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000664,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000665,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000666,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000667,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000668,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000669,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000670,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000671,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000672,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000673,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000674,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000675,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000676,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000677,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000678,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000679,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000680,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000681,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000682,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000683,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000684,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000685,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000686,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000687,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000688,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000689,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000690,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000691,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000692,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000693,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000694,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000695,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000696,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000697,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000698,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000699,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000700,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000701,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000702,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000703,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000704,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000705,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000706,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000707,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000708,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000709,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000710,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000711,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000712,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000713,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000714,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000715,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000716,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000717,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000718,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000719,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000720,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000721,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000722,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000723,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000724,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000725,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000726,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000727,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000728,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000729,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000730,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000731,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000732,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000733,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000734,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000735,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000736,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000737,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000738,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000739,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000740,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000741,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000742,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000743,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000744,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000745,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000746,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000747,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000748,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000749,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000750,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000751,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000752,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000753,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000754,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000755,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000756,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000757,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000758,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000759,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000760,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000761,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000762,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000763,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000764,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000765,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000766,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 920000767,
+      "level": 5,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10038,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10039,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10070,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10071,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10110,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10111,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10114,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10115,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10122,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10123,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10126,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10127,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10246,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10247,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10284,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10285,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10308,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10309,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10358,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10359,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10390,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10391,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10394,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10395,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10450,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10451,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10468,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10469,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10512,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10513,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10514,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10515,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10590,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10591,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10612,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 10613,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11000,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11001,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11162,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11163,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11198,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11199,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11256,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11257,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11270,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11271,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11388,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11389,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11484,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11485,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11584,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11585,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11632,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11633,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11646,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11647,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11660,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11661,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11700,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11701,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11840,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11841,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11992,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11993,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11996,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 11997,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12144,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12145,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12206,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12207,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12296,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12297,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12426,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12427,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12466,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12467,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12720,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12721,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12886,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12887,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12888,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12889,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12892,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12893,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12902,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12903,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12916,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12917,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12978,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 12979,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13166,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13167,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13224,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13225,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13230,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13231,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13244,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13245,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13290,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13291,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13434,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13435,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13516,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13517,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13560,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13561,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13818,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13819,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13852,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 13853,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14012,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14013,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14084,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14085,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14176,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14177,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14238,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14239,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14270,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14271,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14366,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14367,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14464,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14465,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14612,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14613,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14916,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    },
+    {
+      "episode_index": 14917,
+      "level": 6,
+      "passed": true,
+      "bitwise_trajectory_equal": true,
+      "errors": {
+        "defender_positions": 0.0,
+        "target_positions": 0.0
+      },
+      "mismatches": {}
+    }
+  ],
+  "source_and_artifact_integrity_after_replay": true,
+  "limitations": "Exact trajectories apply to this recorded CPU/runtime. Latency and other platforms are not guaranteed identical."
+}
