@@ -1,0 +1,16 @@
+{
+  "version": "cwm_v5.offline_value_of_response.20261009",
+  "source_archive": "experiments/cwm_v4/artifacts/asymmetric_diagnostic_20261009.zip",
+  "source_archive_sha256": "bd5f97f5a47ec73422e004cd53e729b8337a80597950ce34de5154fa02eccbef",
+  "horizon_steps": 8,
+  "candidate_count": 13,
+  "cost": "Frozen distributed DN-MPC _team_scenario_costs with original message state and complete cost terms",
+  "counterfactuals": ["original_gru", "gru_plus_oracle_response", "fixed_reference_truth", "action_specific_truth"],
+  "tie_absolute_cost_tolerance": 1e-9,
+  "group_bootstrap_seed": 950910,
+  "group_bootstrap_draws": 2000,
+  "enhanced_control_enabled": false,
+  "original_validation_or_holdout_use": false,
+  "new_model_training_enabled": false,
+  "interpretation": "Offline exploratory decision-sensitivity diagnostic. Exact response and target truth are diagnostic upper-information references only; oracle corrections need not satisfy target dynamics projection. No causal gain, formal upper bound, closed-loop benefit or promotion claim."
+}

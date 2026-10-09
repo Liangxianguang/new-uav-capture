@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "windows": 54,
+  "rankable_windows": 47,
+  "episodes_per_replay": 10,
+  "replay_windows_byte_equal": true,
+  "original_trajectory_arrays_byte_equal": true,
+  "enhanced_control_enabled": false,
+  "scope": "Two original-TRAIN diagnostic replays, not an enhanced-controller safety or success test.",
+  "artifact_sha256": "b9ffa783f9bad9492d3cf9ae58e6754842d7c3b76fcffc83e9feae2ddaf538e8",
+  "artifact_bytes": 181358,
+  "source_archive_sha256": "bd5f97f5a47ec73422e004cd53e729b8337a80597950ce34de5154fa02eccbef",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329"
+}

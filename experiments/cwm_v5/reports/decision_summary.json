@@ -1,0 +1,291 @@
+{
+  "status": "offline_diagnostic_complete_not_promoted",
+  "protocol": {
+    "version": "cwm_v5.offline_value_of_response.20261009",
+    "source_archive": "experiments/cwm_v4/artifacts/asymmetric_diagnostic_20261009.zip",
+    "source_archive_sha256": "bd5f97f5a47ec73422e004cd53e729b8337a80597950ce34de5154fa02eccbef",
+    "horizon_steps": 8,
+    "candidate_count": 13,
+    "cost": "Frozen distributed DN-MPC _team_scenario_costs with original message state and complete cost terms",
+    "counterfactuals": [
+      "original_gru",
+      "gru_plus_oracle_response",
+      "fixed_reference_truth",
+      "action_specific_truth"
+    ],
+    "tie_absolute_cost_tolerance": 1e-09,
+    "group_bootstrap_seed": 950910,
+    "group_bootstrap_draws": 2000,
+    "enhanced_control_enabled": false,
+    "original_validation_or_holdout_use": false,
+    "new_model_training_enabled": false,
+    "interpretation": "Offline exploratory decision-sensitivity diagnostic. Exact response and target truth are diagnostic upper-information references only; oracle corrections need not satisfy target dynamics projection. No causal gain, formal upper bound, closed-loop benefit or promotion claim."
+  },
+  "enhanced_control_enabled": false,
+  "source_archive_sha256": "bd5f97f5a47ec73422e004cd53e729b8337a80597950ce34de5154fa02eccbef",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "source_hashes": {
+    "decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "protocol.json": "7c46786652fede664e99b3e8eea36c2c0bc5d28ee92ee0036acb6df2a9d920fd"
+  },
+  "statistics": {
+    "all_windows": 54,
+    "rankable_windows": 47,
+    "excluded_incomplete_windows": 7,
+    "methods": {
+      "original_gru": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 41,
+        "mean_regret_in_diagnostic_cost": 6.2711369676116036
+      },
+      "gru_plus_oracle_response": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 41,
+        "mean_regret_in_diagnostic_cost": 6.2711369676116036
+      },
+      "fixed_reference_truth": {
+        "choice_changes_vs_original_gru": 6,
+        "tie_optimal_choices": 47,
+        "mean_regret_in_diagnostic_cost": 0.0
+      },
+      "action_specific_truth": {
+        "choice_changes_vs_original_gru": 6,
+        "tie_optimal_choices": 47,
+        "mean_regret_in_diagnostic_cost": 0.0
+      }
+    },
+    "by_variant": {
+      "agile_target": {
+        "rankable_windows": 9,
+        "response_only_choice_changes": 0,
+        "motion_truth_choice_changes": 2,
+        "truth_response_choice_changes": 0,
+        "response_only_regret_reduction": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        },
+        "response_value_with_correct_motion": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        }
+      },
+      "dense_mixed": {
+        "rankable_windows": 11,
+        "response_only_choice_changes": 0,
+        "motion_truth_choice_changes": 2,
+        "truth_response_choice_changes": 0,
+        "response_only_regret_reduction": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        },
+        "response_value_with_correct_motion": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        }
+      },
+      "fast_target": {
+        "rankable_windows": 11,
+        "response_only_choice_changes": 0,
+        "motion_truth_choice_changes": 1,
+        "truth_response_choice_changes": 0,
+        "response_only_regret_reduction": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        },
+        "response_value_with_correct_motion": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        }
+      },
+      "mixed_three_evasive": {
+        "rankable_windows": 8,
+        "response_only_choice_changes": 0,
+        "motion_truth_choice_changes": 1,
+        "truth_response_choice_changes": 0,
+        "response_only_regret_reduction": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        },
+        "response_value_with_correct_motion": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        }
+      },
+      "sensor_degraded": {
+        "rankable_windows": 8,
+        "response_only_choice_changes": 0,
+        "motion_truth_choice_changes": 0,
+        "truth_response_choice_changes": 0,
+        "response_only_regret_reduction": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        },
+        "response_value_with_correct_motion": {
+          "groups": 2,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Descriptive group bootstrap; few exploratory TRAIN groups, not fresh inference."
+        }
+      }
+    }
+  },
+  "episodes": [
+    {
+      "episode_index": 910001360,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cf1c7e69e06218080f6dd53d9abf42b601675b1cbf87de094381a84d138c3622",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 910001528,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4e9a8b642df9067c5965cbda72224dc5e207f08f27ae98601e44d19113ad04e3",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 11092,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "6cce9010287df6dce28994687d9213c4f3ee4e9590e718756a4dd8538f77ae12",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 11932,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cc20c0e61b3f890c8fb07562f409914434aa87a6997ee1d9bebea76cca0118b6",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 18466,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "3319b0a05fc65f9b372b535fb92ff202c9d7ccb2be0b152f72c7216b042f6433",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 19314,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "7f76e9a125d6cd439d2c9ad5abfe443f1570777c984ccf55c9a151d8196dac84",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 48570,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d5cde0872bbdfebb93bb93561fbc731791f6658feb8f92a6923ba00963d23d02",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 49920,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "3130bdb3edae8cf9825893a077f9ddf8e69c83cc30033e01580def7a1fbf014f",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 43404,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "aa23f776f8875466d47b2286b5ce504037e94483217f2511854519acde0a4e64",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 43988,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a2809a92e541d55ca3a1eda9291162a9095b43dcaf3725bc57fc9cc5c274b62a",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "termination_reason": "safe_capture"
+    }
+  ],
+  "elapsed_seconds": 43.57986219995655,
+  "limitations": [
+    "Uses V4 exploratory TRAIN windows; no fresh independent confirmation, holdout, training or controller activation.",
+    "13 probes are not the complete DN-MPC local candidate library. Team diagnostic ranking does not equal distributed local decisions.",
+    "Actual action-specific truth with common noise is an upper-information diagnostic, not deployable or a formal upper bound.",
+    "All methods use unchanged proposed commands and original complete 8-step scoring; counterfactual CBF-dependent execution is not modeled by that score.",
+    "Windows censored before 8 steps are excluded jointly for all 13 probes; no post-terminal score padding.",
+    "No 24-step cost or terminal-value extension was introduced."
+  ]
+}
