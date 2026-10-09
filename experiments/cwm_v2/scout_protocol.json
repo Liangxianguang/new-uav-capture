@@ -1,0 +1,21 @@
+{
+  "version": "cwm_v2.train_only_scout.20261009",
+  "status": "scout_before_training_default_off",
+  "variants": {"fast_target": 7, "agile_target": 7, "sensor_degraded": 8},
+  "groups_per_variant": 1,
+  "selection_seed": 920910,
+  "snapshot_steps": [3, 10, 17, 24, 31, 38, 64, 96, 128, 160, 192],
+  "history_steps": 8,
+  "horizon_steps": 8,
+  "branches": ["baseline_plan", "ring_clockwise", "ring_counterclockwise", "brake"],
+  "maximum_command_speed_mps": 5.0,
+  "minimum_next_stage_signal": {
+    "effect_over_0_05m_valid_point_fraction": 0.05,
+    "independent_scene_groups_with_effect_over_0_05m": 2,
+    "note": "Training-data adequacy screen only, not a promotion or safety gate. Confirm in additional train groups before selecting training variants."
+  },
+  "baseline_weight_or_contract_changes": false,
+  "original_validation_or_holdout_use": false,
+  "private_truth_model_inputs": false,
+  "enhanced_control_enabled": false
+}

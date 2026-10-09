@@ -1,0 +1,137 @@
+{
+  "status": "scout_complete_not_online_promoted",
+  "states": 13,
+  "episodes": 3,
+  "dataset_sha256": "5eecd29d131aeb96e4ab97633e37a47f81c2d49bc06585438b07f64fd001a0be",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "training_scenes_sha256": "0307b4e7430dc2c9f5835d7204a3a507f3fb47c36ac1be87731577938098d438",
+  "excluded_scenes_sha256": "156e660f7e4f06f331ed8d4f3d4eb9db08cbff373d34f47ab964540cdf05fd38",
+  "protocol": {
+    "version": "cwm_v2.train_only_scout.20261009",
+    "status": "scout_before_training_default_off",
+    "variants": {
+      "fast_target": 7,
+      "agile_target": 7,
+      "sensor_degraded": 8
+    },
+    "groups_per_variant": 1,
+    "selection_seed": 920910,
+    "snapshot_steps": [
+      3,
+      10,
+      17,
+      24,
+      31,
+      38,
+      64,
+      96,
+      128,
+      160,
+      192
+    ],
+    "history_steps": 8,
+    "horizon_steps": 8,
+    "branches": [
+      "baseline_plan",
+      "ring_clockwise",
+      "ring_counterclockwise",
+      "brake"
+    ],
+    "maximum_command_speed_mps": 5.0,
+    "minimum_next_stage_signal": {
+      "effect_over_0_05m_valid_point_fraction": 0.05,
+      "independent_scene_groups_with_effect_over_0_05m": 2,
+      "note": "Training-data adequacy screen only, not a promotion or safety gate. Confirm in additional train groups before selecting training variants."
+    },
+    "baseline_weight_or_contract_changes": false,
+    "original_validation_or_holdout_use": false,
+    "private_truth_model_inputs": false,
+    "enhanced_control_enabled": false
+  },
+  "source_hashes": {
+    "scout.py": "eb66782d89158086a0b4e6f79bcaad1ee23f26354cb172e93f4afd61314d58ca",
+    "scout_protocol.json": "7beb24db0b8bfa1679e30e71f2789faf9d722409f6d51dfe430ef6da5c8755d2",
+    "baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc"
+  },
+  "variants": {
+    "fast_target": {
+      "states": 5,
+      "effect_m": {
+        "count": 99,
+        "mean": 0.0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "fraction_over_0_05m": 0.0,
+      "signal_groups": [],
+      "full_horizon_pairs": 12,
+      "paired_effect_points": 99,
+      "backbone_ade_m": 0.43623191118240356
+    },
+    "agile_target": {
+      "states": 4,
+      "effect_m": {
+        "count": 84,
+        "mean": 0.00027643143470781764,
+        "p50": 0.0,
+        "p95": 0.00026160062079725195,
+        "max": 0.015176385641098022
+      },
+      "fraction_over_0_05m": 0.0,
+      "signal_groups": [],
+      "full_horizon_pairs": 9,
+      "paired_effect_points": 84,
+      "backbone_ade_m": 0.41736114025115967
+    },
+    "sensor_degraded": {
+      "states": 4,
+      "effect_m": {
+        "count": 84,
+        "mean": 0.0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "fraction_over_0_05m": 0.0,
+      "signal_groups": [],
+      "full_horizon_pairs": 9,
+      "paired_effect_points": 84,
+      "backbone_ade_m": 0.5048543214797974
+    }
+  },
+  "elapsed_seconds": 73.22977790003642,
+  "episodes_results": [
+    {
+      "variant": "fast_target",
+      "episode_index": 17792,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false
+    },
+    {
+      "variant": "agile_target",
+      "episode_index": 45338,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false
+    },
+    {
+      "variant": "sensor_degraded",
+      "episode_index": 44468,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false
+    }
+  ],
+  "original_validation_and_v1_group_overlap": 0,
+  "limitations": [
+    "Training-pool diagnostic only; few groups, no generalization or causal-identification claim.",
+    "Terminated branches masked; report common-prefix and full-horizon support separately.",
+    "Backbone is the unmodified already-computed original GRU path; truth is labels only."
+  ]
+}

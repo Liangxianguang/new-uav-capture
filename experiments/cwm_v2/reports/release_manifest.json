@@ -1,0 +1,12 @@
+{
+  "status": "data_adequacy_no_go_keep_baseline",
+  "adequate_variants": [],
+  "enhanced_control_enabled": false,
+  "artifact_sha256": "660881fd377bd3b4aa112d7e49bb53b79d78bcee70420da1d80058190991ccea",
+  "artifact_bytes": 277117,
+  "episodes": 12,
+  "states": 51,
+  "groups": 12,
+  "source_snapshot_hashes_verified": true,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329"
+}

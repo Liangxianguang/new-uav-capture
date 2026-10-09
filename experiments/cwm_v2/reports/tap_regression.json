@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "episodes": [
+    {
+      "episode_index": 920000640,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 10038,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    }
+  ],
+  "scope": "Two regression scenes for new tap only; full 256-episode baseline audit remains separate."
+}
