@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "episodes": [
+    {
+      "episode_index": 920000640,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 10038,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 11388,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    },
+    {
+      "episode_index": 14612,
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true
+    }
+  ],
+  "calls": 351,
+  "errors": 0,
+  "extra_latency_ms": {
+    "p50": 3.18130012601614,
+    "p95": 4.942099913023412,
+    "p99": 5.99555007647723
+  },
+  "enhanced_control_enabled": false,
+  "scope": "Offline shadow sanity including historical failures; not an enhanced closed-loop performance or safety claim."
+}

@@ -1,0 +1,36 @@
+{
+  "version": "cwm_v3.anchored_response_diagnostic.20261009",
+  "purpose": "Small offline method diagnostic on archived training-pool scouts; NOT a data-adequacy override or promotion",
+  "source_dataset": "cwm_v2_level7_8_scout_confirmation",
+  "source_adequacy_status": "no_go",
+  "dataset_summaries_previously_inspected": true,
+  "split_seed": 930910,
+  "split_rule": "Per variant: 4 disjoint original-train groups; shuffled 2 train, 1 calibration, 1 development_validation",
+  "training": {
+    "seeds": [101, 202, 303],
+    "epochs": 40,
+    "batch_states": 16,
+    "learning_rate": 0.001,
+    "threads": 1,
+    "response_scale_m": 0.05,
+    "residual_penalty": 0.01,
+    "checkpoint_selection": "fixed_final_epoch_no_validation_selection"
+  },
+  "model": {
+    "anchor": "original_dn_mpc_proposed_sequence",
+    "backbone": "original_frozen_gru_projected_K1_path",
+    "paired_effect_only_loss": true,
+    "zero_init_final_layer": true,
+    "baseline_weights_are_optimizer_parameters": false,
+    "equal_public_input_contract": ["252D_history", "relative_defender_state", "proposed_commands", "anchor_commands", "frozen_backbone_path"],
+    "head": "bounded f(actions)-f(anchor); exact-zero anchor enforced"
+  },
+  "enhanced_control_enabled": false,
+  "guarded_mode_allowed": false,
+  "holdout_and_locked_tuning": false,
+  "limitations": [
+    "All splits are from the original train pool; source effect summaries already inspected. Not a fresh generalization test.",
+    "A bounded response or preserved anchor is NOT a safety guarantee or closed-loop non-regression guarantee.",
+    "Data adequacy failed. No larger-budget training or promotion is authorized by this diagnostic."
+  ]
+}

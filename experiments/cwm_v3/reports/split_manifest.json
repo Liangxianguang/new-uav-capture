@@ -1,0 +1,22 @@
+{
+  "groups": {
+    "phase89-agile_target-0169": "train",
+    "phase89-agile_target-2365": "train",
+    "phase89-agile_target-0657": "calibration",
+    "phase89-agile_target-0225": "development_validation",
+    "phase89-fast_target-1396": "train",
+    "phase89-fast_target-1923": "train",
+    "phase89-fast_target-2088": "calibration",
+    "phase89-fast_target-0847": "development_validation",
+    "phase89-sensor_degraded-2234": "train",
+    "phase89-sensor_degraded-0380": "train",
+    "phase89-sensor_degraded-0993": "calibration",
+    "phase89-sensor_degraded-2111": "development_validation"
+  },
+  "states": {
+    "train": 27,
+    "calibration": 12,
+    "development_validation": 12
+  },
+  "all_source_groups": "original train only; aggregate summaries previously inspected"
+}

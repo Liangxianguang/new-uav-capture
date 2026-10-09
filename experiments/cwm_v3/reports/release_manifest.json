@@ -1,0 +1,33 @@
+{
+  "status": "no_go_keep_original_controller",
+  "trained_models": 6,
+  "enhanced_control_enabled": false,
+  "data_adequacy_gate_passed": false,
+  "artifact_sha256": "e24bb1ad7459fdad11c79012026170ac09b9fe94dba69234aa86cd6d91cbd2a0",
+  "artifact_bytes": 2255140,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "source_archive_sha256": "660881fd377bd3b4aa112d7e49bb53b79d78bcee70420da1d80058190991ccea",
+  "development_means": {
+    "plain": {
+      "ade_m": 0.46291570862134296,
+      "paired_effect_error_m": 9.063090449975182e-05
+    },
+    "structured": {
+      "ade_m": 0.46291646361351013,
+      "paired_effect_error_m": 9.047589749873926e-05
+    }
+  },
+  "zero_response_control": {
+    "states": 12,
+    "ade_m": 0.4629221558570862,
+    "fde_m": 0.8655202388763428,
+    "paired_effect_error_m": 1.6726899048080668e-06,
+    "paired_effect_p95_m": 0.0,
+    "full_horizon_effect_error_m": 0.0,
+    "full_horizon_pairs": 29,
+    "paired_valid_points": 256,
+    "response_max_norm_m": 0.0,
+    "anchor_response_exact_zero": true
+  },
+  "interpretation": "Tiny trajectory differences are not meaningful evidence. Neither learned response beats zero-response; no closed-loop gain established."
+}

@@ -1,0 +1,278 @@
+{
+  "status": "diagnostic_trained_no_go_data_adequacy_unchanged",
+  "protocol": {
+    "version": "cwm_v3.anchored_response_diagnostic.20261009",
+    "purpose": "Small offline method diagnostic on archived training-pool scouts; NOT a data-adequacy override or promotion",
+    "source_dataset": "cwm_v2_level7_8_scout_confirmation",
+    "source_adequacy_status": "no_go",
+    "dataset_summaries_previously_inspected": true,
+    "split_seed": 930910,
+    "split_rule": "Per variant: 4 disjoint original-train groups; shuffled 2 train, 1 calibration, 1 development_validation",
+    "training": {
+      "seeds": [
+        101,
+        202,
+        303
+      ],
+      "epochs": 40,
+      "batch_states": 16,
+      "learning_rate": 0.001,
+      "threads": 1,
+      "response_scale_m": 0.05,
+      "residual_penalty": 0.01,
+      "checkpoint_selection": "fixed_final_epoch_no_validation_selection"
+    },
+    "model": {
+      "anchor": "original_dn_mpc_proposed_sequence",
+      "backbone": "original_frozen_gru_projected_K1_path",
+      "paired_effect_only_loss": true,
+      "zero_init_final_layer": true,
+      "baseline_weights_are_optimizer_parameters": false,
+      "equal_public_input_contract": [
+        "252D_history",
+        "relative_defender_state",
+        "proposed_commands",
+        "anchor_commands",
+        "frozen_backbone_path"
+      ],
+      "head": "bounded f(actions)-f(anchor); exact-zero anchor enforced"
+    },
+    "enhanced_control_enabled": false,
+    "guarded_mode_allowed": false,
+    "holdout_and_locked_tuning": false,
+    "limitations": [
+      "All splits are from the original train pool; source effect summaries already inspected. Not a fresh generalization test.",
+      "A bounded response or preserved anchor is NOT a safety guarantee or closed-loop non-regression guarantee.",
+      "Data adequacy failed. No larger-budget training or promotion is authorized by this diagnostic."
+    ]
+  },
+  "results": [
+    {
+      "kind": "plain",
+      "seed": 101,
+      "parameters": 29752,
+      "elapsed_seconds": 0.6371444999240339,
+      "checkpoint_sha256": "7f6c0a3f07dd1dbe85db42fb3f26a271ac1ad3ade6334f19cca98ad052b4de51",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.41398000717163086,
+        "fde_m": 0.7998427748680115,
+        "paired_effect_error_m": 0.00039107981137931347,
+        "paired_effect_p95_m": 0.0013834118144586682,
+        "full_horizon_effect_error_m": 0.0004311374214012176,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0009530780953355134,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.46291473507881165,
+        "fde_m": 0.8654721975326538,
+        "paired_effect_error_m": 9.61550249485299e-05,
+        "paired_effect_p95_m": 0.0006604903610423207,
+        "full_horizon_effect_error_m": 0.00010417586599942297,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0008284894865937531,
+        "anchor_response_exact_zero": true
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 101,
+      "parameters": 27928,
+      "elapsed_seconds": 0.6762930999975652,
+      "checkpoint_sha256": "0eb2b0c6a8ee0a91c04e3983aa6ba83e91cd554671812db137da8ff371d2f553",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.41397956013679504,
+        "fde_m": 0.7998358011245728,
+        "paired_effect_error_m": 0.00038749052328057587,
+        "paired_effect_p95_m": 0.001384963863529265,
+        "full_horizon_effect_error_m": 0.0004272902151569724,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0007073340239003301,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.46291619539260864,
+        "fde_m": 0.8654801845550537,
+        "paired_effect_error_m": 9.268836583942175e-05,
+        "paired_effect_p95_m": 0.0006397116812877357,
+        "full_horizon_effect_error_m": 0.00010035986633738503,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0007156371721066535,
+        "anchor_response_exact_zero": true
+      }
+    },
+    {
+      "kind": "plain",
+      "seed": 202,
+      "parameters": 29752,
+      "elapsed_seconds": 0.5507723998744041,
+      "checkpoint_sha256": "1d33fd2e79ff72e3f61ac96f430fa8df73975dc7f2875377c23fa3a948a165ef",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.413979709148407,
+        "fde_m": 0.7998388409614563,
+        "paired_effect_error_m": 0.0003875576367136091,
+        "paired_effect_p95_m": 0.0013828679220750928,
+        "full_horizon_effect_error_m": 0.00042732624569907784,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0008640966843813658,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.462917298078537,
+        "fde_m": 0.8654879331588745,
+        "paired_effect_error_m": 9.07493376871571e-05,
+        "paired_effect_p95_m": 0.0006489524967037141,
+        "full_horizon_effect_error_m": 9.821834100876004e-05,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0007338356808759272,
+        "anchor_response_exact_zero": true
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 202,
+      "parameters": 27928,
+      "elapsed_seconds": 0.8843181999400258,
+      "checkpoint_sha256": "6490211b367d3670afd25c27f0067213b38e4f16b1e9fb0dfcbd7bd558356c66",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.4139801859855652,
+        "fde_m": 0.7998411655426025,
+        "paired_effect_error_m": 0.00038615474477410316,
+        "paired_effect_p95_m": 0.0013849182287231088,
+        "full_horizon_effect_error_m": 0.0004257918044459075,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.00069173623342067,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.4629167914390564,
+        "fde_m": 0.8654841780662537,
+        "paired_effect_error_m": 9.044677426572889e-05,
+        "paired_effect_p95_m": 0.0006297252839431167,
+        "full_horizon_effect_error_m": 9.787448652787134e-05,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0006930688978172839,
+        "anchor_response_exact_zero": true
+      }
+    },
+    {
+      "kind": "plain",
+      "seed": 303,
+      "parameters": 29752,
+      "elapsed_seconds": 1.3675224999897182,
+      "checkpoint_sha256": "dc37f69f779e14582306ab2c57158b6cab4c937615263c7e93f3032984299eb5",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.4139832854270935,
+        "fde_m": 0.7998595237731934,
+        "paired_effect_error_m": 0.00038271461380645633,
+        "paired_effect_p95_m": 0.0013860872713848948,
+        "full_horizon_effect_error_m": 0.0004220594419166446,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0008399530197493732,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.4629150927066803,
+        "fde_m": 0.8654735684394836,
+        "paired_effect_error_m": 8.498835086356848e-05,
+        "paired_effect_p95_m": 0.0006338392267934978,
+        "full_horizon_effect_error_m": 9.188497642753646e-05,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.000945639272686094,
+        "anchor_response_exact_zero": true
+      }
+    },
+    {
+      "kind": "structured",
+      "seed": 303,
+      "parameters": 27928,
+      "elapsed_seconds": 0.9834342000540346,
+      "checkpoint_sha256": "1bbf67e38bdc2e9f078f1daf79748c1ba9d4dab0e691cb9437be80cdd991e6ab",
+      "calibration": {
+        "states": 12,
+        "ade_m": 0.41398048400878906,
+        "fde_m": 0.7998397350311279,
+        "paired_effect_error_m": 0.0003845471946988255,
+        "paired_effect_p95_m": 0.001384803093969822,
+        "full_horizon_effect_error_m": 0.0004240800335537642,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0006879450520500541,
+        "anchor_response_exact_zero": true
+      },
+      "development_validation": {
+        "states": 12,
+        "ade_m": 0.46291640400886536,
+        "fde_m": 0.8654808402061462,
+        "paired_effect_error_m": 8.829255239106715e-05,
+        "paired_effect_p95_m": 0.0006286148563958704,
+        "full_horizon_effect_error_m": 9.552182746119797e-05,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0007148964214138687,
+        "anchor_response_exact_zero": true
+      }
+    }
+  ],
+  "controls": {
+    "calibration": {
+      "frozen_backbone_zero_response": {
+        "states": 12,
+        "ade_m": 0.4139924645423889,
+        "fde_m": 0.7999141812324524,
+        "paired_effect_error_m": 0.00032884784741327167,
+        "paired_effect_p95_m": 0.0013851654948666692,
+        "full_horizon_effect_error_m": 0.0003628665581345558,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0,
+        "anchor_response_exact_zero": true
+      },
+      "constant_velocity_ade_m": 0.23275710252126464
+    },
+    "development_validation": {
+      "frozen_backbone_zero_response": {
+        "states": 12,
+        "ade_m": 0.4629221558570862,
+        "fde_m": 0.8655202388763428,
+        "paired_effect_error_m": 1.6726899048080668e-06,
+        "paired_effect_p95_m": 0.0,
+        "full_horizon_effect_error_m": 0.0,
+        "full_horizon_pairs": 29,
+        "paired_valid_points": 256,
+        "response_max_norm_m": 0.0,
+        "anchor_response_exact_zero": true
+      },
+      "constant_velocity_ade_m": 0.2173648801546777
+    }
+  },
+  "source_hashes": {
+    "train_residual.py": "4177c7295da44b9b4d62434ed5e57ad4892c12f9a679b958028c5aec04df7209",
+    "residual_model.py": "f298c206e3e68e65ca7cfda25dcf7ad2c59b3d249aeb412f73af28000f9d11d0",
+    "protocol.json": "e18e20453944bbcf197c3849d8bfe5ce45c739adf497f2413da1585cbce1e80a"
+  },
+  "dataset_sha256": "de62f1c61a2fcabd5b5ab13ef9c5ece422781b81721fd15b75796a6f1f354f0b",
+  "source_archive_sha256": "660881fd377bd3b4aa112d7e49bb53b79d78bcee70420da1d80058190991ccea",
+  "enhanced_control_enabled": false,
+  "source_adequacy_gate_passed": false
+}

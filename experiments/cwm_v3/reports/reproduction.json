@@ -1,0 +1,74 @@
+{
+  "status": "passed",
+  "results": [
+    {
+      "name": "plain_seed101",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    },
+    {
+      "name": "structured_seed101",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    },
+    {
+      "name": "plain_seed202",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    },
+    {
+      "name": "structured_seed202",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    },
+    {
+      "name": "plain_seed303",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    },
+    {
+      "name": "structured_seed303",
+      "reload_metrics_equal": true,
+      "reload_predictions_byte_equal": true,
+      "anchor_backbone_byte_equal": true,
+      "response_bound_pass": true,
+      "retrain_predictions_byte_equal": true,
+      "retrain_weights_byte_equal": true,
+      "retrain_history_equal": true,
+      "retrain_metrics_equal": true
+    }
+  ],
+  "groups": 12,
+  "enhanced_control_enabled": false,
+  "scope": "Recorded local CPU/runtime; numerical/model bytes, not wall-clock or checkpoint-container bytes."
+}
