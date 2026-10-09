@@ -1,0 +1,2679 @@
+{
+  "status": "data_adequacy_no_go_keep_baseline",
+  "enhanced_control_enabled": false,
+  "states": 54,
+  "episodes": 10,
+  "groups": 10,
+  "protocol": {
+    "version": "cwm_v4.asymmetric_train_diagnostic.20261009",
+    "selection_seed": 940910,
+    "variants": {
+      "mixed_three_evasive": 5,
+      "dense_mixed": 6,
+      "fast_target": 7,
+      "agile_target": 7,
+      "sensor_degraded": 8
+    },
+    "groups_per_variant": 2,
+    "snapshot_steps": [
+      3,
+      7,
+      11,
+      15,
+      23,
+      31
+    ],
+    "history_steps": 8,
+    "horizons": [
+      8,
+      16,
+      24
+    ],
+    "horizon_steps": 24,
+    "branches": [
+      "baseline_plan",
+      "agent0_left",
+      "agent0_right",
+      "agent0_brake",
+      "agent1_left",
+      "agent1_right",
+      "agent1_brake",
+      "agent2_left",
+      "agent2_right",
+      "agent2_brake",
+      "agent3_left",
+      "agent3_right",
+      "agent3_brake"
+    ],
+    "single_agent_tangent_bias_mps": 3.0,
+    "maximum_command_speed_mps": 5.0,
+    "minimum_next_stage_signal": {
+      "effect_over_0_05m_valid_point_fraction": 0.05,
+      "independent_scene_groups_with_effect_over_0_05m": 2
+    },
+    "extension": "Steps 9-24 repeat the final original planned command; open-loop diagnostic, NOT a longer MPC plan or closed-loop benefit.",
+    "private_truth_model_inputs": false,
+    "target_rules_or_safety_changes": false,
+    "original_validation_or_holdout_use": false,
+    "enhanced_control_enabled": false,
+    "interpretation": "Exploratory screen on fresh original TRAIN groups; data gate is a heuristic, not a causal-identification or safety test. Passing requires independent confirmation before training expansion."
+  },
+  "source_hashes": {
+    "cwm_v4\\diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v4\\protocol.json": "15458bce42e8d10195fe65b0fe3990566d7cd45c53955b51edcd7637ed8af970",
+    "cwm_v2\\scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v1\\baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1\\freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v1\\collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v1\\diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b"
+  },
+  "training_scenes_sha256": "0307b4e7430dc2c9f5835d7204a3a507f3fb47c36ac1be87731577938098d438",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "exclusion_sha256": {
+    "D:\\uav-capture\\causal-world-model-20261009\\results\\cwm_v4\\asymmetric_20261009\\restored\\results\\phase91_zero_cbf_curriculum_v5\\validation\\scenes.jsonl": "ab25e24f7f2b93c342f1371300ee8c79d42b4a947c90927e20dcab61d5c5597f",
+    "results\\cwm_v1\\pilot_pairs_20261009\\selected_scenes.jsonl": "156e660f7e4f06f331ed8d4f3d4eb9db08cbff373d34f47ab964540cdf05fd38",
+    "results\\cwm_v2\\scout_level7_8_20261009_v2\\selected_scenes.jsonl": "e78c25dd2e2f99576d8871edb88cc108d85dc7228a42b5c482aee5132721f7e2",
+    "results\\cwm_v2\\confirmation_level7_8_20261009\\selected_scenes.jsonl": "2aa370cfda6520b541a9a606456968c03ee61c2460cdd91b537e4268934c37cb"
+  },
+  "excluded_group_overlap": 0,
+  "dataset_sha256": "e7d474935f8b46e10c8bfa1898db82415c6c4daac97b811d4b0c141250525f05",
+  "variants": {
+    "mixed_three_evasive": {
+      "8": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 864,
+          "mean": 6.084530415165264e-05,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0.009008758497233727
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 96,
+        "full_horizon_endpoint_effect_m": {
+          "count": 96,
+          "mean": 0.0003825126901197963,
+          "p50": 0.0,
+          "p95": 0.0033144348054759444,
+          "max": 0.009008758497233727
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.0,
+        "executed_difference_mps": {
+          "count": 864,
+          "mean": 0.8284356258212341,
+          "p50": 0.7507376056124826,
+          "p95": 1.467512133130949,
+          "max": 1.9236212035726035
+        },
+        "target_sensor_difference_m": {
+          "count": 864,
+          "mean": 0.1805553258519541,
+          "p50": 0.12897674689501984,
+          "p95": 0.5584858893824268,
+          "max": 0.8818598297116784
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 72,
+              "mean": 8.068231732239427e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.004057738957626784
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 72,
+              "mean": 7.701950395446399e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0038732407168163025
+            },
+            "full_pairs": 8
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 72,
+              "mean": 3.5500451269565196e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0017856782005888628
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 72,
+              "mean": 2.2416360143939665e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0011278699874801615
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 72,
+              "mean": 1.8864410689989765e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0009486852787937358
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 72,
+              "mean": 3.9617195449253126e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.001993673678504054
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 72,
+              "mean": 8.692006631040378e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.004371695666983514
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 72,
+              "mean": 3.2021910983881135e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0016101839460043541
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 72,
+              "mean": 2.03943853437685e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0010243330165131072
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 72,
+              "mean": 0.00017912771633843438,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.009008758497233727
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 72,
+              "mean": 7.457663410370738e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0037501708464818735
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 72,
+              "mean": 6.300269791003054e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0031691894584739678
+            },
+            "full_pairs": 8
+          }
+        }
+      },
+      "16": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 1500,
+          "mean": 0.00044398741363728313,
+          "p50": 0.0,
+          "p95": 0.00111068700965886,
+          "max": 0.09320525354354722
+        },
+        "fraction_over_0_05m": 0.0013333333333333333,
+        "signal_groups": [
+          "phase91-train-mixed_three_evasive-00080"
+        ],
+        "full_horizon_pairs": 60,
+        "full_horizon_endpoint_effect_m": {
+          "count": 60,
+          "mean": 0.0023109823440053846,
+          "p50": 0.0,
+          "p95": 0.013063494448660607,
+          "max": 0.05470951077624804
+        },
+        "full_horizon_fraction_over_0_05m": 0.016666666666666666,
+        "full_horizon_signal_groups": [
+          "phase91-train-mixed_three_evasive-00080"
+        ],
+        "mode_differs_fraction": 0.002,
+        "executed_difference_mps": {
+          "count": 1500,
+          "mean": 0.8884004934878872,
+          "p50": 0.7715422136556862,
+          "p95": 1.5768460456528146,
+          "max": 2.5383542019700407
+        },
+        "target_sensor_difference_m": {
+          "count": 1500,
+          "mean": 0.43875208305784796,
+          "p50": 0.3246402809296671,
+          "p95": 1.2715926192792049,
+          "max": 2.114947887077242
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.000573272956479776,
+              "p50": 0.0,
+              "p95": 0.0008856940866365785,
+              "max": 0.03831365374246908
+            },
+            "full_pairs": 5
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.00024909982999271943,
+              "p50": 0.0,
+              "p95": 0.0011832680734250938,
+              "max": 0.008800105687741536
+            },
+            "full_pairs": 5
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.0001677923775836619,
+              "p50": 0.0,
+              "p95": 0.0006246349817134809,
+              "max": 0.0053760687539662995
+            },
+            "full_pairs": 5
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.001877727163045277,
+              "p50": 0.0,
+              "p95": 0.0031977987818282228,
+              "max": 0.09320525354354722
+            },
+            "full_pairs": 5
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 125,
+              "mean": 7.951714737192512e-05,
+              "p50": 0.0,
+              "p95": 0.0003022403808840066,
+              "max": 0.003397301294575903
+            },
+            "full_pairs": 5
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.00039245484123237486,
+              "p50": 0.0,
+              "p95": 0.0018068180444194433,
+              "max": 0.014039764399743764
+            },
+            "full_pairs": 5
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.0003662655239699367,
+              "p50": 0.0,
+              "p95": 0.0018219001760632076,
+              "max": 0.012283368465634846
+            },
+            "full_pairs": 5
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.00022925958148498283,
+              "p50": 0.0,
+              "p95": 0.0012030253273885153,
+              "max": 0.010460401885052406
+            },
+            "full_pairs": 5
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.00010414388422708842,
+              "p50": 0.0,
+              "p95": 0.0002977535583523621,
+              "max": 0.005322808534299226
+            },
+            "full_pairs": 5
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.0008508260191098522,
+              "p50": 0.0,
+              "p95": 0.004404151645188422,
+              "max": 0.03282688006130987
+            },
+            "full_pairs": 5
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.0002041377411714951,
+              "p50": 0.0,
+              "p95": 0.0002937906176755798,
+              "max": 0.008519465668612143
+            },
+            "full_pairs": 5
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 125,
+              "mean": 0.00023335189797830792,
+              "p50": 0.0,
+              "p95": 0.0009300702429385602,
+              "max": 0.009475481912548928
+            },
+            "full_pairs": 5
+          }
+        }
+      },
+      "24": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 1812,
+          "mean": 0.001649504398488293,
+          "p50": 0.0,
+          "p95": 0.0038896632737874938,
+          "max": 0.22553154315322932
+        },
+        "fraction_over_0_05m": 0.009933774834437087,
+        "signal_groups": [
+          "phase91-train-mixed_three_evasive-00080"
+        ],
+        "full_horizon_pairs": 12,
+        "full_horizon_endpoint_effect_m": {
+          "count": 12,
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.008278145695364239,
+        "executed_difference_mps": {
+          "count": 1812,
+          "mean": 0.8973917324236342,
+          "p50": 0.7634300742923308,
+          "p95": 1.548130569703436,
+          "max": 2.5383542019700407
+        },
+        "target_sensor_difference_m": {
+          "count": 1812,
+          "mean": 0.6077296304240537,
+          "p50": 0.43648233079212156,
+          "p95": 1.789697183281563,
+          "max": 2.827691540289657
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.004786829314316687,
+              "p50": 0.0,
+              "p95": 0.01132450576712906,
+              "max": 0.21373669812149035
+            },
+            "full_pairs": 1
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.0003420610951227422,
+              "p50": 0.0,
+              "p95": 0.002202247896959275,
+              "max": 0.008800105687741536
+            },
+            "full_pairs": 1
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.0006446997553732624,
+              "p50": 0.0,
+              "p95": 0.002956873332765773,
+              "max": 0.022234191422173352
+            },
+            "full_pairs": 1
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.006651099681073677,
+              "p50": 0.0,
+              "p95": 0.030163793416115234,
+              "max": 0.22553154315322932
+            },
+            "full_pairs": 1
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.00016885282801896274,
+              "p50": 0.0,
+              "p95": 0.0010667721478991076,
+              "max": 0.00633120657928144
+            },
+            "full_pairs": 1
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.001580162771460356,
+              "p50": 0.0,
+              "p95": 0.005446647743164126,
+              "max": 0.055708114088924
+            },
+            "full_pairs": 1
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.001230193922122628,
+              "p50": 0.0,
+              "p95": 0.005963130910841769,
+              "max": 0.05165294087993584
+            },
+            "full_pairs": 1
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.000695323836819399,
+              "p50": 0.0,
+              "p95": 0.0037730185498229046,
+              "max": 0.02690265670050416
+            },
+            "full_pairs": 1
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.00012203429059933303,
+              "p50": 0.0,
+              "p95": 0.0007813120202790364,
+              "max": 0.005322808534299226
+            },
+            "full_pairs": 1
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.00264981243549503,
+              "p50": 0.0,
+              "p95": 0.013964552647001915,
+              "max": 0.10923758709802854
+            },
+            "full_pairs": 1
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.0004946820151398848,
+              "p50": 0.0,
+              "p95": 0.0017391817259157286,
+              "max": 0.025536152229159767
+            },
+            "full_pairs": 1
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 151,
+              "mean": 0.00042830083631755064,
+              "p50": 0.0,
+              "p95": 0.0022644581365281477,
+              "max": 0.016133685624744376
+            },
+            "full_pairs": 1
+          }
+        }
+      }
+    },
+    "dense_mixed": {
+      "8": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 1056,
+          "mean": 4.30686828889689e-05,
+          "p50": 0.0,
+          "p95": 1.6493076033705176e-05,
+          "max": 0.006994872001764421
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 132,
+        "full_horizon_endpoint_effect_m": {
+          "count": 132,
+          "mean": 0.00022062899891443397,
+          "p50": 0.0,
+          "p95": 0.00017586483172732617,
+          "max": 0.006994872001764421
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.00946969696969697,
+        "executed_difference_mps": {
+          "count": 1056,
+          "mean": 0.723121997280131,
+          "p50": 0.694160991247639,
+          "p95": 1.3068030858484836,
+          "max": 1.839348674741531
+        },
+        "target_sensor_difference_m": {
+          "count": 1056,
+          "mean": 0.17624089180066327,
+          "p50": 0.13079004523497811,
+          "p95": 0.5139006369985805,
+          "max": 0.845921197456049
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 88,
+              "mean": 0.0001241504103537087,
+              "p50": 0.0,
+              "p95": 2.1009648664796256e-05,
+              "max": 0.006835303765089591
+            },
+            "full_pairs": 11
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 88,
+              "mean": 0.00011092787668551934,
+              "p50": 0.0,
+              "p95": 6.433292079292745e-06,
+              "max": 0.006177242750881459
+            },
+            "full_pairs": 11
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 88,
+              "mean": 0.000126078418375034,
+              "p50": 0.0,
+              "p95": 1.7087859902569314e-05,
+              "max": 0.006994872001764421
+            },
+            "full_pairs": 11
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 88,
+              "mean": 3.127625787857443e-06,
+              "p50": 0.0,
+              "p95": 1.236087066742673e-05,
+              "max": 0.00013176868549429218
+            },
+            "full_pairs": 11
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 88,
+              "mean": 3.197280466907608e-06,
+              "p50": 0.0,
+              "p95": 9.7152578051291e-06,
+              "max": 0.00014192675448775155
+            },
+            "full_pairs": 11
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 88,
+              "mean": 2.691059033031496e-06,
+              "p50": 0.0,
+              "p95": 1.1684002797014478e-05,
+              "max": 0.0001233372874694313
+            },
+            "full_pairs": 11
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 88,
+              "mean": 0.00012453141398012776,
+              "p50": 0.0,
+              "p95": 3.104189563322248e-06,
+              "max": 0.006944253753195703
+            },
+            "full_pairs": 11
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 88,
+              "mean": 4.540205791319984e-06,
+              "p50": 0.0,
+              "p95": 2.0512906185681685e-05,
+              "max": 0.0001937344965749979
+            },
+            "full_pairs": 11
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 88,
+              "mean": 2.9852108022113405e-06,
+              "p50": 0.0,
+              "p95": 1.0290819878625118e-05,
+              "max": 0.00012813420452231457
+            },
+            "full_pairs": 11
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 88,
+              "mean": 4.7062814056196295e-06,
+              "p50": 0.0,
+              "p95": 7.93023397080194e-06,
+              "max": 0.00017254267553418447
+            },
+            "full_pairs": 11
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 88,
+              "mean": 4.664829001277036e-06,
+              "p50": 0.0,
+              "p95": 2.086525012672425e-05,
+              "max": 0.00019776916334321687
+            },
+            "full_pairs": 11
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 88,
+              "mean": 5.223582985012473e-06,
+              "p50": 0.0,
+              "p95": 1.5405652881694246e-05,
+              "max": 0.00017992524485227734
+            },
+            "full_pairs": 11
+          }
+        }
+      },
+      "16": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 2085,
+          "mean": 0.0010693026066866088,
+          "p50": 0.0,
+          "p95": 0.002587206667281961,
+          "max": 0.17403857664172406
+        },
+        "fraction_over_0_05m": 0.0028776978417266188,
+        "signal_groups": [
+          "phase89-dense_mixed-0546"
+        ],
+        "full_horizon_pairs": 118,
+        "full_horizon_endpoint_effect_m": {
+          "count": 118,
+          "mean": 0.00566680416042474,
+          "p50": 0.00014805603433061813,
+          "p95": 0.02656680012661465,
+          "max": 0.17403857664172406
+        },
+        "full_horizon_fraction_over_0_05m": 0.01694915254237288,
+        "full_horizon_signal_groups": [
+          "phase89-dense_mixed-0546"
+        ],
+        "mode_differs_fraction": 0.018225419664268584,
+        "executed_difference_mps": {
+          "count": 2085,
+          "mean": 0.7511706671614785,
+          "p50": 0.6984183590055794,
+          "p95": 1.404655008165639,
+          "max": 2.304983483274997
+        },
+        "target_sensor_difference_m": {
+          "count": 2085,
+          "mean": 0.4312051320947238,
+          "p50": 0.3473530246265606,
+          "p95": 1.180700801523088,
+          "max": 1.8651149756224918
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 168,
+              "mean": 0.0038661582053639127,
+              "p50": 0.0,
+              "p95": 0.021830109335822377,
+              "max": 0.17403857664172406
+            },
+            "full_pairs": 9
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.0015913792649573336,
+              "p50": 0.0,
+              "p95": 0.013957813463647438,
+              "max": 0.033797289051286435
+            },
+            "full_pairs": 10
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.0013060076423914457,
+              "p50": 0.0,
+              "p95": 0.004374863280769547,
+              "max": 0.03877690614748741
+            },
+            "full_pairs": 10
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00024374281262818325,
+              "p50": 0.0,
+              "p95": 0.0008503173648358992,
+              "max": 0.0077891294557527685
+            },
+            "full_pairs": 10
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00019741969239657573,
+              "p50": 0.0,
+              "p95": 0.0006738033707967962,
+              "max": 0.008052974814450088
+            },
+            "full_pairs": 10
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00018976752505313907,
+              "p50": 0.0,
+              "p95": 0.001178428607998079,
+              "max": 0.006139540777145667
+            },
+            "full_pairs": 10
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.001820940012555499,
+              "p50": 0.0,
+              "p95": 0.016311647178314542,
+              "max": 0.038463773636738995
+            },
+            "full_pairs": 10
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00019477501705988652,
+              "p50": 0.0,
+              "p95": 0.0009895476924435477,
+              "max": 0.005264550219332262
+            },
+            "full_pairs": 10
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00014582468386829247,
+              "p50": 0.0,
+              "p95": 0.0009692603922323245,
+              "max": 0.0039012050436012043
+            },
+            "full_pairs": 10
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 167,
+              "mean": 0.00317266289785892,
+              "p50": 0.0,
+              "p95": 0.010697426390276732,
+              "max": 0.17389863746324588
+            },
+            "full_pairs": 9
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00017832343881199472,
+              "p50": 0.0,
+              "p95": 0.0009167677394110929,
+              "max": 0.005511542814737751
+            },
+            "full_pairs": 10
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 175,
+              "mean": 0.00013265792455194943,
+              "p50": 0.0,
+              "p95": 0.0006231998383094643,
+              "max": 0.003521712354560121
+            },
+            "full_pairs": 10
+          }
+        }
+      },
+      "24": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 3021,
+          "mean": 0.004752733820584026,
+          "p50": 0.0,
+          "p95": 0.017271880299989304,
+          "max": 0.6972801689478677
+        },
+        "fraction_over_0_05m": 0.020191989407480966,
+        "signal_groups": [
+          "phase89-dense_mixed-0546",
+          "phase89-dense_mixed-0966"
+        ],
+        "full_horizon_pairs": 117,
+        "full_horizon_endpoint_effect_m": {
+          "count": 117,
+          "mean": 0.0249808281062884,
+          "p50": 0.002598738181504893,
+          "p95": 0.1736011726160098,
+          "max": 0.6972801689478677
+        },
+        "full_horizon_fraction_over_0_05m": 0.11965811965811966,
+        "full_horizon_signal_groups": [
+          "phase89-dense_mixed-0546",
+          "phase89-dense_mixed-0966"
+        ],
+        "mode_differs_fraction": 0.025819265143992055,
+        "executed_difference_mps": {
+          "count": 3021,
+          "mean": 0.8021102812865883,
+          "p50": 0.7105684168406506,
+          "p95": 1.4933474724517777,
+          "max": 3.5293518817043035
+        },
+        "target_sensor_difference_m": {
+          "count": 3021,
+          "mean": 0.678687106326311,
+          "p50": 0.5498027408047457,
+          "p95": 1.8612952540256182,
+          "max": 3.2018919628093316
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 240,
+              "mean": 0.023086609709083897,
+              "p50": 0.0,
+              "p95": 0.07227517267531852,
+              "max": 0.6972801689478677
+            },
+            "full_pairs": 9
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.005925892352032867,
+              "p50": 0.0,
+              "p95": 0.03803775118520401,
+              "max": 0.17362285811250952
+            },
+            "full_pairs": 10
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0050145165075075465,
+              "p50": 0.0,
+              "p95": 0.03599314227470365,
+              "max": 0.17657145370533178
+            },
+            "full_pairs": 10
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0016646452701936025,
+              "p50": 0.0,
+              "p95": 0.011136238754656485,
+              "max": 0.04385048592188617
+            },
+            "full_pairs": 10
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0009006891392185992,
+              "p50": 0.0,
+              "p95": 0.005604386912995087,
+              "max": 0.01702504969565075
+            },
+            "full_pairs": 10
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0009421966715487571,
+              "p50": 0.0,
+              "p95": 0.00572532262645669,
+              "max": 0.013296137877988277
+            },
+            "full_pairs": 10
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.006753349306619213,
+              "p50": 0.0,
+              "p95": 0.04632431779111305,
+              "max": 0.17612973937848503
+            },
+            "full_pairs": 10
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0037478571432391166,
+              "p50": 0.0,
+              "p95": 0.009006809940207616,
+              "max": 0.17365877879973704
+            },
+            "full_pairs": 10
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0006772193970673435,
+              "p50": 0.0,
+              "p95": 0.00376136772853556,
+              "max": 0.024614325451463585
+            },
+            "full_pairs": 10
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 231,
+              "mean": 0.00497559300524601,
+              "p50": 0.0,
+              "p95": 0.03530531083772871,
+              "max": 0.17389863746324588
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0023184713618991924,
+              "p50": 0.0,
+              "p95": 0.006460216294409385,
+              "max": 0.1735961435669074
+            },
+            "full_pairs": 10
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 255,
+              "mean": 0.0021252042529968235,
+              "p50": 0.0,
+              "p95": 0.004640760638882823,
+              "max": 0.17362128881241948
+            },
+            "full_pairs": 10
+          }
+        }
+      }
+    },
+    "fast_target": {
+      "8": {
+        "states": 12,
+        "common_prefix_effect_m": {
+          "count": 1140,
+          "mean": 3.672727981848484e-06,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0.0014888137917686514
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 132,
+        "full_horizon_endpoint_effect_m": {
+          "count": 132,
+          "mean": 2.8258997510338384e-05,
+          "p50": 0.0,
+          "p95": 0.0001259836007545443,
+          "max": 0.0014888137917686514
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.0035087719298245615,
+        "executed_difference_mps": {
+          "count": 1140,
+          "mean": 0.6457346808017588,
+          "p50": 0.656564439320467,
+          "p95": 1.253507681692616,
+          "max": 2.3163104581378935
+        },
+        "target_sensor_difference_m": {
+          "count": 1140,
+          "mean": 0.14894457612315493,
+          "p50": 0.11145735959826504,
+          "p95": 0.4511541997999962,
+          "max": 0.7426155260748732
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 95,
+              "mean": 8.761386559594004e-07,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 6.309604327234637e-05
+            },
+            "full_pairs": 11
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 95,
+              "mean": 3.5006701596907344e-07,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 2.3860402481225802e-05
+            },
+            "full_pairs": 11
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 95,
+              "mean": 3.433576708727234e-07,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 1.9372472509978522e-05
+            },
+            "full_pairs": 11
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.7174437152656805e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.00013197331291029996
+            },
+            "full_pairs": 11
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.9615334761231845e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.00015119324530341873
+            },
+            "full_pairs": 11
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 95,
+              "mean": 6.856111584940462e-07,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 4.0144404054498194e-05
+            },
+            "full_pairs": 11
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 95,
+              "mean": 2.596493657716748e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0001452159737638831
+            },
+            "full_pairs": 11
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 95,
+              "mean": 2.1415362112752733e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0001430924324165962
+            },
+            "full_pairs": 11
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.2946772463860638e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 6.843641272491397e-05
+            },
+            "full_pairs": 11
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.1383495262498051e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0008502361707469495
+            },
+            "full_pairs": 11
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.9524153304557005e-05,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 0.0014888137917686514
+            },
+            "full_pairs": 11
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 95,
+              "mean": 1.1982284070645624e-06,
+              "p50": 0.0,
+              "p95": 0.0,
+              "max": 6.76243834460586e-05
+            },
+            "full_pairs": 11
+          }
+        }
+      },
+      "16": {
+        "states": 12,
+        "common_prefix_effect_m": {
+          "count": 2196,
+          "mean": 0.0003976481442669253,
+          "p50": 0.0,
+          "p95": 0.0010448662379997252,
+          "max": 0.07155120647060038
+        },
+        "fraction_over_0_05m": 0.001366120218579235,
+        "signal_groups": [
+          "phase89-fast_target-1733"
+        ],
+        "full_horizon_pairs": 132,
+        "full_horizon_endpoint_effect_m": {
+          "count": 132,
+          "mean": 0.0020210090808999545,
+          "p50": 0.00012364208717423133,
+          "p95": 0.004363676585632997,
+          "max": 0.07155120647060038
+        },
+        "full_horizon_fraction_over_0_05m": 0.007575757575757576,
+        "full_horizon_signal_groups": [
+          "phase89-fast_target-1733"
+        ],
+        "mode_differs_fraction": 0.012295081967213115,
+        "executed_difference_mps": {
+          "count": 2196,
+          "mean": 0.7351858803593503,
+          "p50": 0.6811516609674922,
+          "p95": 1.52764213767579,
+          "max": 2.6704395226718263
+        },
+        "target_sensor_difference_m": {
+          "count": 2196,
+          "mean": 0.38028831544178143,
+          "p50": 0.27575690927951135,
+          "p95": 1.0855044646020895,
+          "max": 1.8565103242973562
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 183,
+              "mean": 4.1261460646085414e-05,
+              "p50": 0.0,
+              "p95": 0.00024344595550018498,
+              "max": 0.000957603442284852
+            },
+            "full_pairs": 11
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 183,
+              "mean": 2.5062029066551807e-05,
+              "p50": 0.0,
+              "p95": 0.0001872419738167949,
+              "max": 0.0008083962170172441
+            },
+            "full_pairs": 11
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 183,
+              "mean": 6.904571702662463e-05,
+              "p50": 0.0,
+              "p95": 0.0004633816003335986,
+              "max": 0.0015309996198994663
+            },
+            "full_pairs": 11
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.00010014836822879074,
+              "p50": 0.0,
+              "p95": 0.0007100530614318087,
+              "max": 0.0024507445268685544
+            },
+            "full_pairs": 11
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.00010235028992630366,
+              "p50": 0.0,
+              "p95": 0.0008539706173866781,
+              "max": 0.002295194728485225
+            },
+            "full_pairs": 11
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 183,
+              "mean": 8.713989935422376e-05,
+              "p50": 0.0,
+              "p95": 0.0005432849780731597,
+              "max": 0.001896754874889991
+            },
+            "full_pairs": 11
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.00024048376121661578,
+              "p50": 0.0,
+              "p95": 0.0017183363987901274,
+              "max": 0.006176405701476159
+            },
+            "full_pairs": 11
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.0003159675320084908,
+              "p50": 0.0,
+              "p95": 0.0015504114061778644,
+              "max": 0.014022422359825197
+            },
+            "full_pairs": 11
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.0001396535519606622,
+              "p50": 0.0,
+              "p95": 0.0009807476614274535,
+              "max": 0.002406491232887999
+            },
+            "full_pairs": 11
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.0016944673686049344,
+              "p50": 0.0,
+              "p95": 0.0027025558424146087,
+              "max": 0.07155120647060038
+            },
+            "full_pairs": 11
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.0018405554277232323,
+              "p50": 0.0,
+              "p95": 0.013887568540191717,
+              "max": 0.04517162032846441
+            },
+            "full_pairs": 11
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 183,
+              "mean": 0.00011564232544058781,
+              "p50": 0.0,
+              "p95": 0.0008108012942263043,
+              "max": 0.0019455394201317766
+            },
+            "full_pairs": 11
+          }
+        }
+      },
+      "24": {
+        "states": 12,
+        "common_prefix_effect_m": {
+          "count": 3252,
+          "mean": 0.0028259372237627637,
+          "p50": 0.0,
+          "p95": 0.007404875132786706,
+          "max": 0.37957006357707745
+        },
+        "fraction_over_0_05m": 0.015067650676506766,
+        "signal_groups": [
+          "phase89-fast_target-1733",
+          "phase89-fast_target-2157"
+        ],
+        "full_horizon_pairs": 132,
+        "full_horizon_endpoint_effect_m": {
+          "count": 132,
+          "mean": 0.01484847726742467,
+          "p50": 0.0016817384894708843,
+          "p95": 0.08059430090260744,
+          "max": 0.37957006357707745
+        },
+        "full_horizon_fraction_over_0_05m": 0.09090909090909091,
+        "full_horizon_signal_groups": [
+          "phase89-fast_target-1733",
+          "phase89-fast_target-2157"
+        ],
+        "mode_differs_fraction": 0.015682656826568265,
+        "executed_difference_mps": {
+          "count": 3252,
+          "mean": 0.800823159607967,
+          "p50": 0.7217526954167355,
+          "p95": 1.6450952443928872,
+          "max": 2.7014875280608504
+        },
+        "target_sensor_difference_m": {
+          "count": 3252,
+          "mean": 0.6363791933021673,
+          "p50": 0.46981092533041763,
+          "p95": 1.8093833955732201,
+          "max": 3.0020100539279033
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0002336075596207767,
+              "p50": 0.0,
+              "p95": 0.0011588871313809015,
+              "max": 0.005727524313921732
+            },
+            "full_pairs": 11
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0011955772433181323,
+              "p50": 0.0,
+              "p95": 0.0031490206016353928,
+              "max": 0.06753634115886681
+            },
+            "full_pairs": 11
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.00037552961261057613,
+              "p50": 0.0,
+              "p95": 0.00215285634935961,
+              "max": 0.003135169297360651
+            },
+            "full_pairs": 11
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0012460620402948662,
+              "p50": 0.0,
+              "p95": 0.00421858919126046,
+              "max": 0.058775112435680385
+            },
+            "full_pairs": 11
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0009911466970444348,
+              "p50": 0.0,
+              "p95": 0.003819481483128656,
+              "max": 0.03178342689074518
+            },
+            "full_pairs": 11
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0013756166260102216,
+              "p50": 0.0,
+              "p95": 0.003356748700958068,
+              "max": 0.06627507094185155
+            },
+            "full_pairs": 11
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.001081495988686478,
+              "p50": 0.0,
+              "p95": 0.006632827169461413,
+              "max": 0.01604472933481321
+            },
+            "full_pairs": 11
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0021106222673757426,
+              "p50": 0.0,
+              "p95": 0.014184078800647388,
+              "max": 0.049571691395328514
+            },
+            "full_pairs": 11
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.0005628699209100313,
+              "p50": 0.0,
+              "p95": 0.003128898949246189,
+              "max": 0.004810071245770428
+            },
+            "full_pairs": 11
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.00574170633298161,
+              "p50": 0.0,
+              "p95": 0.04095370492158006,
+              "max": 0.1527216246269135
+            },
+            "full_pairs": 11
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.017334733075405628,
+              "p50": 0.0,
+              "p95": 0.09266921674129559,
+              "max": 0.37957006357707745
+            },
+            "full_pairs": 11
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 271,
+              "mean": 0.001662279320894664,
+              "p50": 0.0,
+              "p95": 0.003841516754917237,
+              "max": 0.07914783273738614
+            },
+            "full_pairs": 11
+          }
+        }
+      }
+    },
+    "agile_target": {
+      "8": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 996,
+          "mean": 3.754238048865041e-05,
+          "p50": 0.0,
+          "p95": 5.700554878615785e-05,
+          "max": 0.011567665001006724
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 108,
+        "full_horizon_endpoint_effect_m": {
+          "count": 108,
+          "mean": 0.00016682334217514038,
+          "p50": 0.0,
+          "p95": 0.0006478456765215987,
+          "max": 0.011567665001006724
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.010040160642570281,
+        "executed_difference_mps": {
+          "count": 996,
+          "mean": 0.7829748308194171,
+          "p50": 0.708712649990805,
+          "p95": 1.40784710897933,
+          "max": 1.992688540215751
+        },
+        "target_sensor_difference_m": {
+          "count": 996,
+          "mean": 0.17268270994035628,
+          "p50": 0.1295658780982989,
+          "p95": 0.5137086593435181,
+          "max": 0.8475470877100413
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 83,
+              "mean": 1.5410617678430898e-05,
+              "p50": 0.0,
+              "p95": 2.8171640853571468e-05,
+              "max": 0.0006429200434082744
+            },
+            "full_pairs": 9
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 83,
+              "mean": 3.1212317676319304e-05,
+              "p50": 0.0,
+              "p95": 5.50023995758655e-05,
+              "max": 0.0012985685921841636
+            },
+            "full_pairs": 9
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 83,
+              "mean": 9.32566845187701e-06,
+              "p50": 0.0,
+              "p95": 4.3625507505291715e-05,
+              "max": 0.0003395156322324762
+            },
+            "full_pairs": 9
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 83,
+              "mean": 1.7047541978396107e-05,
+              "p50": 0.0,
+              "p95": 4.875849875458624e-05,
+              "max": 0.0006931038017555849
+            },
+            "full_pairs": 9
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 83,
+              "mean": 1.8152532124346775e-05,
+              "p50": 0.0,
+              "p95": 5.839018211320186e-05,
+              "max": 0.0006896979986622402
+            },
+            "full_pairs": 9
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 83,
+              "mean": 4.427682917654628e-06,
+              "p50": 0.0,
+              "p95": 1.3964480797391123e-05,
+              "max": 0.00015888241309475423
+            },
+            "full_pairs": 9
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 83,
+              "mean": 3.0399718264323572e-05,
+              "p50": 0.0,
+              "p95": 5.890277530866278e-05,
+              "max": 0.001124639002959174
+            },
+            "full_pairs": 9
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 83,
+              "mean": 1.679712132805091e-05,
+              "p50": 0.0,
+              "p95": 5.377949651097989e-05,
+              "max": 0.0006504979405056965
+            },
+            "full_pairs": 9
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 83,
+              "mean": 8.323289753574791e-06,
+              "p50": 0.0,
+              "p95": 2.724576422234926e-05,
+              "max": 0.0003225518703380008
+            },
+            "full_pairs": 9
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 83,
+              "mean": 0.000254335212690537,
+              "p50": 0.0,
+              "p95": 0.0005174914846073205,
+              "max": 0.011567665001006724
+            },
+            "full_pairs": 9
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 83,
+              "mean": 2.3839807753216792e-05,
+              "p50": 0.0,
+              "p95": 7.841384466281549e-05,
+              "max": 0.0010867902486767801
+            },
+            "full_pairs": 9
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 83,
+              "mean": 2.123705524707713e-05,
+              "p50": 0.0,
+              "p95": 5.754944108174027e-05,
+              "max": 0.0011478835924058465
+            },
+            "full_pairs": 9
+          }
+        }
+      },
+      "16": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 1800,
+          "mean": 0.0006349480137956722,
+          "p50": 0.0,
+          "p95": 0.0022057631849978837,
+          "max": 0.07037190587880321
+        },
+        "fraction_over_0_05m": 0.002777777777777778,
+        "signal_groups": [
+          "phase89-agile_target-2460"
+        ],
+        "full_horizon_pairs": 96,
+        "full_horizon_endpoint_effect_m": {
+          "count": 96,
+          "mean": 0.003365793877530242,
+          "p50": 0.0002620864582397982,
+          "p95": 0.009190507972797348,
+          "max": 0.07037190587880321
+        },
+        "full_horizon_fraction_over_0_05m": 0.020833333333333332,
+        "full_horizon_signal_groups": [
+          "phase89-agile_target-2460"
+        ],
+        "mode_differs_fraction": 0.015555555555555555,
+        "executed_difference_mps": {
+          "count": 1800,
+          "mean": 0.9014122245019803,
+          "p50": 0.7479086305114887,
+          "p95": 1.7778847716087351,
+          "max": 3.5934628550668863
+        },
+        "target_sensor_difference_m": {
+          "count": 1800,
+          "mean": 0.43459890236235565,
+          "p50": 0.32541818452688265,
+          "p95": 1.2981814540747019,
+          "max": 2.0561543259523942
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.0009523029858264027,
+              "p50": 0.0,
+              "p95": 0.0031525446285757142,
+              "max": 0.055770124295297485
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.0003707793194415511,
+              "p50": 0.0,
+              "p95": 0.0028024912062165506,
+              "max": 0.007434479893721157
+            },
+            "full_pairs": 8
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.0001852896817491542,
+              "p50": 0.0,
+              "p95": 0.0014518817937806182,
+              "max": 0.003556157639131974
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.00039537701099852363,
+              "p50": 0.0,
+              "p95": 0.0029656011943250907,
+              "max": 0.008852071477734036
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.0004082126178119193,
+              "p50": 0.0,
+              "p95": 0.0029502379538406884,
+              "max": 0.008646307696362359
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 150,
+              "mean": 8.209554039721625e-05,
+              "p50": 0.0,
+              "p95": 0.000620868634446397,
+              "max": 0.0015462429440865266
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.00042594721297063487,
+              "p50": 0.0,
+              "p95": 0.003066130926707162,
+              "max": 0.010205817457987286
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.0002978833306562342,
+              "p50": 0.0,
+              "p95": 0.0021101429178155646,
+              "max": 0.0043510793517658195
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 150,
+              "mean": 8.273102284842688e-05,
+              "p50": 0.0,
+              "p95": 0.0004449566825520073,
+              "max": 0.0016390296001651383
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.004031141083564663,
+              "p50": 0.0,
+              "p95": 0.03437266910168324,
+              "max": 0.07037190587880321
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.00021503646965988134,
+              "p50": 0.0,
+              "p95": 0.0013285333996740328,
+              "max": 0.0061071460838458425
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 150,
+              "mean": 0.00017257988962345955,
+              "p50": 0.0,
+              "p95": 0.0011339979788917037,
+              "max": 0.0062838274510400634
+            },
+            "full_pairs": 8
+          }
+        }
+      },
+      "24": {
+        "states": 11,
+        "common_prefix_effect_m": {
+          "count": 2568,
+          "mean": 0.006403784064381391,
+          "p50": 5.5351900734718895e-06,
+          "p95": 0.016428509504238353,
+          "max": 1.0120382758903164
+        },
+        "fraction_over_0_05m": 0.029595015576323987,
+        "signal_groups": [
+          "phase89-agile_target-1785",
+          "phase89-agile_target-2460"
+        ],
+        "full_horizon_pairs": 96,
+        "full_horizon_endpoint_effect_m": {
+          "count": 96,
+          "mean": 0.04538119771987418,
+          "p50": 0.007631530589620449,
+          "p95": 0.28132246512290976,
+          "max": 1.0120382758903164
+        },
+        "full_horizon_fraction_over_0_05m": 0.15625,
+        "full_horizon_signal_groups": [
+          "phase89-agile_target-1785",
+          "phase89-agile_target-2460"
+        ],
+        "mode_differs_fraction": 0.03348909657320872,
+        "executed_difference_mps": {
+          "count": 2568,
+          "mean": 0.9508141611577926,
+          "p50": 0.8026705015775555,
+          "p95": 1.8588843059235496,
+          "max": 4.299979388154773
+        },
+        "target_sensor_difference_m": {
+          "count": 2568,
+          "mean": 0.749675765777185,
+          "p50": 0.5538407827679384,
+          "p95": 2.158908717777845,
+          "max": 3.585045621263308
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.010114110791296989,
+              "p50": 5.2712787688115125e-06,
+              "p95": 0.04335995017532101,
+              "max": 0.2854318645921228
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0018523809180669623,
+              "p50": 2.0920811082827255e-06,
+              "p95": 0.011291891974301554,
+              "max": 0.022762182833224377
+            },
+            "full_pairs": 8
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0024025835965033183,
+              "p50": 2.7927558193179856e-06,
+              "p95": 0.008801450954894175,
+              "max": 0.09815303926215926
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.003067879838374937,
+              "p50": 7.730851964579931e-06,
+              "p95": 0.01344965570801034,
+              "max": 0.10479591488193984
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0019290142432044142,
+              "p50": 2.0608585701154467e-05,
+              "p95": 0.012419268562526118,
+              "max": 0.01805245406968771
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0008825692909313761,
+              "p50": 5.442746674993879e-06,
+              "p95": 0.0030364282154006494,
+              "max": 0.024860581977975808
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.012174416744200982,
+              "p50": 6.079697725280478e-06,
+              "p95": 0.030784962454062446,
+              "max": 0.5235713830940516
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.002366408778228751,
+              "p50": 1.9276569677334287e-05,
+              "p95": 0.006690144314344936,
+              "max": 0.11916094168700246
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0015903860812353338,
+              "p50": 1.2864324391712223e-06,
+              "p95": 0.004210730093475717,
+              "max": 0.10806089167034164
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.02837768206920736,
+              "p50": 2.2167462316703407e-05,
+              "p95": 0.1171086634766901,
+              "max": 1.0120382758903164
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.006167002358918068,
+              "p50": 1.665985227296978e-05,
+              "p95": 0.011486893540502157,
+              "max": 0.27995266529983875
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 214,
+              "mean": 0.0059209740624081904,
+              "p50": 5.588699179610527e-06,
+              "p95": 0.0038176080457891382,
+              "max": 0.296827410630955
+            },
+            "full_pairs": 8
+          }
+        }
+      }
+    },
+    "sensor_degraded": {
+      "8": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 900,
+          "mean": 6.922635941577975e-06,
+          "p50": 0.0,
+          "p95": 2.361295836319431e-05,
+          "max": 0.0011911638029635924
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 96,
+        "full_horizon_endpoint_effect_m": {
+          "count": 96,
+          "mean": 2.946002058375077e-05,
+          "p50": 0.0,
+          "p95": 0.00014085130525551894,
+          "max": 0.0011911638029635924
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.0011111111111111111,
+        "executed_difference_mps": {
+          "count": 900,
+          "mean": 0.844299860977532,
+          "p50": 0.7447945678696628,
+          "p95": 1.4577059715892071,
+          "max": 2.4009814026143825
+        },
+        "target_sensor_difference_m": {
+          "count": 900,
+          "mean": 0.12487393568057123,
+          "p50": 0.06650929498921634,
+          "p95": 0.4408213323054506,
+          "max": 0.6753213277979981
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 75,
+              "mean": 3.155811469634542e-06,
+              "p50": 0.0,
+              "p95": 2.1301192057872273e-05,
+              "max": 7.664757542300558e-05
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 75,
+              "mean": 2.595259395088636e-06,
+              "p50": 0.0,
+              "p95": 1.356484960225733e-05,
+              "max": 5.9026468997264046e-05
+            },
+            "full_pairs": 8
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 75,
+              "mean": 6.4139046728327415e-06,
+              "p50": 0.0,
+              "p95": 4.2774662148245814e-05,
+              "max": 0.00017473442894216224
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 75,
+              "mean": 6.817574219858357e-06,
+              "p50": 0.0,
+              "p95": 2.709535750146452e-05,
+              "max": 0.00018375285394991108
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 75,
+              "mean": 2.235525647770391e-06,
+              "p50": 0.0,
+              "p95": 1.952474907579804e-05,
+              "max": 3.2777911083690765e-05
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 75,
+              "mean": 2.613790942596321e-06,
+              "p50": 0.0,
+              "p95": 9.953623275142058e-06,
+              "max": 7.076347918137134e-05
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 75,
+              "mean": 6.35153283608654e-06,
+              "p50": 0.0,
+              "p95": 2.740681381593967e-05,
+              "max": 0.00017523880069745274
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 75,
+              "mean": 2.1755933181089234e-06,
+              "p50": 0.0,
+              "p95": 1.3950241826314057e-05,
+              "max": 4.173940219583972e-05
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 75,
+              "mean": 7.849722713433268e-07,
+              "p50": 0.0,
+              "p95": 5.394209512225383e-06,
+              "max": 2.1020367760235156e-05
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 75,
+              "mean": 5.546028793741659e-06,
+              "p50": 0.0,
+              "p95": 3.097315422980935e-05,
+              "max": 0.0001316396362292075
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 75,
+              "mean": 4.2573086295942154e-05,
+              "p50": 0.0,
+              "p95": 0.000174772107860692,
+              "max": 0.0011911638029635924
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 75,
+              "mean": 1.8085514359320946e-06,
+              "p50": 0.0,
+              "p95": 1.4519404820288783e-05,
+              "max": 3.1225408121702916e-05
+            },
+            "full_pairs": 8
+          }
+        }
+      },
+      "16": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 1668,
+          "mean": 0.00014794254165075127,
+          "p50": 0.0,
+          "p95": 0.00102692405825952,
+          "max": 0.005371752658654674
+        },
+        "fraction_over_0_05m": 0.0,
+        "signal_groups": [],
+        "full_horizon_pairs": 96,
+        "full_horizon_endpoint_effect_m": {
+          "count": 96,
+          "mean": 0.0006826466430128918,
+          "p50": 0.00021635496782911113,
+          "p95": 0.0024617182133578144,
+          "max": 0.005371752658654674
+        },
+        "full_horizon_fraction_over_0_05m": 0.0,
+        "full_horizon_signal_groups": [],
+        "mode_differs_fraction": 0.009592326139088728,
+        "executed_difference_mps": {
+          "count": 1668,
+          "mean": 0.9558263437710738,
+          "p50": 0.8009893320288919,
+          "p95": 1.8006649007739912,
+          "max": 2.728484286068638
+        },
+        "target_sensor_difference_m": {
+          "count": 1668,
+          "mean": 0.41837023739875145,
+          "p50": 0.30971599519180687,
+          "p95": 1.2992535761355855,
+          "max": 2.0969627703871603
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00019706162980744096,
+              "p50": 0.0,
+              "p95": 0.0014285908549876724,
+              "max": 0.002649730074042289
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00018471522475739643,
+              "p50": 0.0,
+              "p95": 0.001056991986518939,
+              "max": 0.005371752658654674
+            },
+            "full_pairs": 8
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00019085685298925653,
+              "p50": 0.0,
+              "p95": 0.0013412990769974373,
+              "max": 0.002227419144676185
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00011716868663350133,
+              "p50": 0.0,
+              "p95": 0.0005897325904238368,
+              "max": 0.001884011678083635
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 139,
+              "mean": 7.10415832032887e-05,
+              "p50": 0.0,
+              "p95": 0.0005324014598480251,
+              "max": 0.0011522766561013413
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 139,
+              "mean": 3.292306068379079e-05,
+              "p50": 0.0,
+              "p95": 0.00017766426658156513,
+              "max": 0.0004525439476054327
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00014067821419793558,
+              "p50": 0.0,
+              "p95": 0.0007945182009161265,
+              "max": 0.002399047593129656
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00015015709559233376,
+              "p50": 0.0,
+              "p95": 0.0011940806598439726,
+              "max": 0.001940097488434001
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00011148167914684835,
+              "p50": 0.0,
+              "p95": 0.0007154407597409462,
+              "max": 0.0023544682576320487
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.00017818786648189424,
+              "p50": 0.0,
+              "p95": 0.0011127502515987317,
+              "max": 0.0023739727896811406
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 139,
+              "mean": 0.000366915702137884,
+              "p50": 0.0,
+              "p95": 0.002229302612844422,
+              "max": 0.003846489226670579
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 139,
+              "mean": 3.412290417744435e-05,
+              "p50": 0.0,
+              "p95": 0.00016981496606574358,
+              "max": 0.000671848002721681
+            },
+            "full_pairs": 8
+          }
+        }
+      },
+      "24": {
+        "states": 10,
+        "common_prefix_effect_m": {
+          "count": 2432,
+          "mean": 0.0030700891706639238,
+          "p50": 2.8390891807623907e-05,
+          "p95": 0.0077353892579623915,
+          "max": 0.2712205440982045
+        },
+        "fraction_over_0_05m": 0.01069078947368421,
+        "signal_groups": [
+          "phase89-sensor_degraded-1702",
+          "phase89-sensor_degraded-1994"
+        ],
+        "full_horizon_pairs": 95,
+        "full_horizon_endpoint_effect_m": {
+          "count": 95,
+          "mean": 0.024421439243846755,
+          "p50": 0.004747916442392419,
+          "p95": 0.21202985765158922,
+          "max": 0.2712205440982045
+        },
+        "full_horizon_fraction_over_0_05m": 0.06315789473684211,
+        "full_horizon_signal_groups": [
+          "phase89-sensor_degraded-1702",
+          "phase89-sensor_degraded-1994"
+        ],
+        "mode_differs_fraction": 0.033717105263157895,
+        "executed_difference_mps": {
+          "count": 2432,
+          "mean": 0.9634108758871062,
+          "p50": 0.8398925384927844,
+          "p95": 1.7990823131802691,
+          "max": 2.728484286068638
+        },
+        "target_sensor_difference_m": {
+          "count": 2432,
+          "mean": 0.7608581259825357,
+          "p50": 0.6080375953349045,
+          "p95": 2.21170008369099,
+          "max": 3.6873001910906007
+        },
+        "branches": {
+          "agent0_left": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.004659527345189203,
+              "p50": 5.2075840394639795e-05,
+              "p95": 0.00944192855124089,
+              "max": 0.2346290835861482
+            },
+            "full_pairs": 8
+          },
+          "agent0_right": {
+            "effect_m": {
+              "count": 199,
+              "mean": 0.006805843244381225,
+              "p50": 3.774808484878229e-05,
+              "p95": 0.024492769058116818,
+              "max": 0.2712205440982045
+            },
+            "full_pairs": 7
+          },
+          "agent0_brake": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.001523450616350514,
+              "p50": 4.6722318273109186e-05,
+              "p95": 0.005787720844866097,
+              "max": 0.042132323413963425
+            },
+            "full_pairs": 8
+          },
+          "agent1_left": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.004109320999109663,
+              "p50": 4.535867357083741e-05,
+              "p95": 0.006082639469690951,
+              "max": 0.2353044323131455
+            },
+            "full_pairs": 8
+          },
+          "agent1_right": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.0011264632586324647,
+              "p50": 3.6814982149746145e-05,
+              "p95": 0.004747976410057096,
+              "max": 0.022962060834373552
+            },
+            "full_pairs": 8
+          },
+          "agent1_brake": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.0011538012042409326,
+              "p50": 1.6019625850376708e-05,
+              "p95": 0.00355070097414395,
+              "max": 0.045923936349020325
+            },
+            "full_pairs": 8
+          },
+          "agent2_left": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.004196950442787743,
+              "p50": 2.7263547016540418e-05,
+              "p95": 0.00849899466736853,
+              "max": 0.23500782389353037
+            },
+            "full_pairs": 8
+          },
+          "agent2_right": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.0016193597714360458,
+              "p50": 2.4896039306511574e-05,
+              "p95": 0.006941309430556536,
+              "max": 0.03561084582631345
+            },
+            "full_pairs": 8
+          },
+          "agent2_brake": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.0014445420385704399,
+              "p50": 7.764610434769485e-06,
+              "p95": 0.006810904213516268,
+              "max": 0.03747067842573226
+            },
+            "full_pairs": 8
+          },
+          "agent3_left": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.0047680783829492,
+              "p50": 5.483031157454624e-05,
+              "p95": 0.01259978337046953,
+              "max": 0.2363861932480013
+            },
+            "full_pairs": 8
+          },
+          "agent3_right": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.004177027435817117,
+              "p50": 0.0001791005435999806,
+              "p95": 0.009962520336811966,
+              "max": 0.20234447510820694
+            },
+            "full_pairs": 8
+          },
+          "agent3_brake": {
+            "effect_m": {
+              "count": 203,
+              "mean": 0.001330316226211252,
+              "p50": 3.1225408121702916e-05,
+              "p95": 0.005392729171479584,
+              "max": 0.04771997533437523
+            },
+            "full_pairs": 8
+          }
+        }
+      }
+    }
+  },
+  "signal_candidates": [],
+  "episodes_results": [
+    {
+      "episode_index": 910001360,
+      "variant": "mixed_three_evasive",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "cf1c7e69e06218080f6dd53d9abf42b601675b1cbf87de094381a84d138c3622",
+      "unobserved_sha256": "cf1c7e69e06218080f6dd53d9abf42b601675b1cbf87de094381a84d138c3622",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 910001528,
+      "variant": "mixed_three_evasive",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "4e9a8b642df9067c5965cbda72224dc5e207f08f27ae98601e44d19113ad04e3",
+      "unobserved_sha256": "4e9a8b642df9067c5965cbda72224dc5e207f08f27ae98601e44d19113ad04e3",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 11092,
+      "variant": "dense_mixed",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "6cce9010287df6dce28994687d9213c4f3ee4e9590e718756a4dd8538f77ae12",
+      "unobserved_sha256": "6cce9010287df6dce28994687d9213c4f3ee4e9590e718756a4dd8538f77ae12",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 11932,
+      "variant": "dense_mixed",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "cc20c0e61b3f890c8fb07562f409914434aa87a6997ee1d9bebea76cca0118b6",
+      "unobserved_sha256": "cc20c0e61b3f890c8fb07562f409914434aa87a6997ee1d9bebea76cca0118b6",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 18466,
+      "variant": "fast_target",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "3319b0a05fc65f9b372b535fb92ff202c9d7ccb2be0b152f72c7216b042f6433",
+      "unobserved_sha256": "3319b0a05fc65f9b372b535fb92ff202c9d7ccb2be0b152f72c7216b042f6433",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 19314,
+      "variant": "fast_target",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "7f76e9a125d6cd439d2c9ad5abfe443f1570777c984ccf55c9a151d8196dac84",
+      "unobserved_sha256": "7f76e9a125d6cd439d2c9ad5abfe443f1570777c984ccf55c9a151d8196dac84",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 48570,
+      "variant": "agile_target",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "d5cde0872bbdfebb93bb93561fbc731791f6658feb8f92a6923ba00963d23d02",
+      "unobserved_sha256": "d5cde0872bbdfebb93bb93561fbc731791f6658feb8f92a6923ba00963d23d02",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 49920,
+      "variant": "agile_target",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "3130bdb3edae8cf9825893a077f9ddf8e69c83cc30033e01580def7a1fbf014f",
+      "unobserved_sha256": "3130bdb3edae8cf9825893a077f9ddf8e69c83cc30033e01580def7a1fbf014f",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 43404,
+      "variant": "sensor_degraded",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "aa23f776f8875466d47b2286b5ce504037e94483217f2511854519acde0a4e64",
+      "unobserved_sha256": "aa23f776f8875466d47b2286b5ce504037e94483217f2511854519acde0a4e64",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 43988,
+      "variant": "sensor_degraded",
+      "trajectories_byte_equal": true,
+      "outcomes_equal": true,
+      "trajectory_sha256": "a2809a92e541d55ca3a1eda9291162a9095b43dcaf3725bc57fc9cc5c274b62a",
+      "unobserved_sha256": "a2809a92e541d55ca3a1eda9291162a9095b43dcaf3725bc57fc9cc5c274b62a",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    }
+  ],
+  "elapsed_seconds": 1415.209132200107,
+  "limitations": [
+    "Exploratory TRAIN-only action/horizon screen, not independent confirmation or closed-loop gains.",
+    "All actions chosen from public geometry at fixed snapshot times; private states are diagnostic labels only.",
+    "Common-prefix populations vary with termination. Full-horizon endpoint/support reported separately.",
+    "Original final command repeated after 8 steps; no planner horizon or target rules changed."
+  ]
+}
