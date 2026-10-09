@@ -1,0 +1,17 @@
+{
+  "status": "diagnostic_only_no_promotion",
+  "enhanced_control_enabled": false,
+  "artifact_sha256": "ef8c2fcd19c1a4572ccefc4dfc16fdd1ae91289e492cd7e7abf256533a940e92",
+  "artifact_bytes": 91420,
+  "episodes": 4,
+  "states": 28,
+  "original_validation_group_overlap": 0,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "source_hashes": {
+    "source/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "source/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "source/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "source/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "source/package_diagnostic.py": "99f01daadbcdce31a9d2e79ce8140ddbe8123684bdf8224e8c0798e7450375f8"
+  }
+}

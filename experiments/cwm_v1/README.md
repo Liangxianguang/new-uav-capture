@@ -77,3 +77,20 @@ python experiments/cwm_v1/collect_pairs.py --capsule experiments/cwm_v1/baseline
 The full original train pool is not silently inferred from the selected
 36 scenes. The manifest records its hash. Recollection and retraining write
 only new directories; the baseline and existing experiments stay untouched.
+
+## Follow-up interaction diagnostic
+
+Four original model-train groups and 28 windows were checked with geometry-aware
+commands and private target-decision LOGS (never model inputs). Responses remained
+weak at the original 8-step MPC horizon, even though the target sensed command
+effects and often replanned. No promotion. See the interaction diagnostic report.
+
+```powershell
+python experiments/cwm_v1/verify_release.py --diagnostic
+python experiments/cwm_v1/diagnose_interactions.py --capsule experiments/cwm_v1/baseline/capsule.zip --selected-scenes results/cwm_v1/pilot_release/dataset/selected_scenes.jsonl --output results/cwm_v1/interaction_new
+python -m pytest experiments/cwm_v1/test_cwm_v1.py experiments/cwm_v1/test_release_and_diagnostics.py -q
+```
+
+Diagnostic windows are saved as they complete. `--resume` reruns the original
+episodes but reuses saved windows; keep source and parameters unchanged when
+resuming. The diagnostic archive contains full windows and its source snapshot.

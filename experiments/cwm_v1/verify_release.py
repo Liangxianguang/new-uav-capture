@@ -31,6 +31,7 @@ def check_archive(path: Path, member_manifest: str, nested: bool):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).parent)
+    parser.add_argument("--diagnostic", action="store_true")
     args = parser.parse_args()
     results = []
     for stage, relative, manifest, nested in [
@@ -42,6 +43,12 @@ def main():
         expected = release["baseline_capsule_sha256"] if stage == "baseline" else release["artifact_sha256"]
         if row["sha256"] != expected or release["enhanced_control_enabled"]:
             raise ValueError("Release integrity or disabled-control contract mismatch")
+        results.append(row)
+    if args.diagnostic:
+        row = check_archive(args.root / "artifacts/interaction_diagnostic_20261009.zip", "ARTIFACT_MANIFEST.json", False)
+        release = json.loads((args.root / "reports/interaction_diagnostic_release.json").read_text())
+        if row["sha256"] != release["artifact_sha256"] or release["enhanced_control_enabled"]:
+            raise ValueError("Diagnostic release integrity failure")
         results.append(row)
     print(json.dumps({"status": "passed", "archives": results}))
 
