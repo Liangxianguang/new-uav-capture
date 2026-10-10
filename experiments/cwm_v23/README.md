@@ -136,3 +136,21 @@ never uses proposed actions. Common-path equality remains EXACT, not a looser
 tolerance. Architecture, data/split, losses, seeds, budget, primary and gates
 are unchanged. New full attempts use a fresh output directory, retain the old
 source/audit files and stop record, and restart the FULL fixed budgets.
+
+## Full research release (execute only after BOTH runs finish)
+
+```powershell
+python experiments/cwm_v23/cost_training_release.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --primary results/cwm_v23/primary_fixed_20261010 --retrained results/cwm_v23/retrained_20261010 --output results/cwm_v23/deployed_cost_contrast_20261010.zip --parts-output experiments/cwm_v23/artifacts/deployed_cost_contrast_20261010.parts.json --restored-output results/cwm_v23/release_restored_20261010
+python experiments/cwm_v23/cost_training_release.py --verify experiments/cwm_v23/artifacts/deployed_cost_contrast_20261010.parts.json --restored-output results/cwm_v23/independent_verify_restored_20261010
+```
+
+The verifier reaudits all independent public data, both initial score/gradient
+audits, all six calibrated-origin caches/audits per run, all36 final checkpoints,
+both completed motion-stage checkpoints per seed/run, all train/dev forecasts,
+actual/union original-engine choices/regrets, diagnostics, and original gates.
+It independently reconstructs final Torch/sampler RNG and optimizer parameter
+budgets/update counts, and compares both runs' full weights/optimizer/RNG/history.
+It is not a checksum-only audit. Prearchive AND archive audit must pass before
+reports/parts can be published as a verified scientific milestone. The complete
+research audit is still PENDING while training runs; ordinary implementation
+tests and partial checkpoints are not substitutes for it.
