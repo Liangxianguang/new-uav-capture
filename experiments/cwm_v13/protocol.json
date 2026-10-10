@@ -1,0 +1,21 @@
+{
+  "version": "cwm_v13.train_only_true_mechanism_replay.20261010",
+  "source_archive_sha256": "a833ad7fe3302d32ce6b17237c7dcab19864826967dd9a099519169203405329",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "split": "train",
+  "episodes": 48,
+  "eligible_calls": 716,
+  "horizon_steps": 8,
+  "dt_seconds": 0.1,
+  "cbf_margin_m": 0.35,
+  "changed_command_threshold_mps": 1e-8,
+  "response_threshold_m": 0.05,
+  "timing_response_threshold_m": 1e-8,
+  "replay_array_atol": 1e-12,
+  "new_model_training_enabled": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "private_mechanism_labels_network_inputs": false,
+  "interpretation": "Replay V12 TRAIN episodes with unchanged original control and identical paired noises/actions. Add true branch/avoidance/commit labels only for diagnosis. Compare proposed->CBF-command->executed mediation and terminal-prefix support. No y-sign proxy promoted to branch truth, no model/gate promotion, no development/holdout selection. Exploratory ad-hoc V12 aggregate development checks preceded this protocol; this formal replay uses TRAIN ONLY and is not an untouched validation claim."
+}

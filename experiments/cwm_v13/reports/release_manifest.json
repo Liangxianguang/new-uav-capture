@@ -1,0 +1,15 @@
+{
+  "status": "passed_independent_train_mechanism_recomputation",
+  "artifact_sha256": "83c22f56d75dfaefb95f948f2bfbab7a39592f324ca9b52b3846fc72c6f1f1e4",
+  "artifact_members_verified": 1577,
+  "calls": 716,
+  "episodes": 48,
+  "true_branch_flip_pairs": 44,
+  "cbf_changed_command_points": 46176,
+  "private_mechanism_labels_network_inputs": false,
+  "enhanced_control_enabled": false,
+  "new_model_training_enabled": false,
+  "holdout_used": false,
+  "scope": "TRAIN-only mechanism diagnosis; no model qualification, generalization, safety certificate, or closed-loop control claim.",
+  "artifact_bytes": 3710030
+}
