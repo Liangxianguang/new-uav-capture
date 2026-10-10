@@ -35,6 +35,19 @@ Use new output directories, recorded local CPU/runtime, and repository root:
 The immutable geometry archive contains complete traces, actual trajectory/
 stress arrays and source bytes as run. Later training preparation sources
 are maintained in this repository; the geometry archive does not pretend
-to contain model-training results. Trained weights/data/results, if accepted,
-will receive their own milestone archive and report. Exact replays are scoped
+to contain model-training results. The completed training milestone is now
+`artifacts/paired_training_20261010.zip`, containing the actual64-episode data,
+two independent six-model runs and exact sources. The development gate fails:
+response error improves over zero, but the structured model does not beat the
+ordinary model and total target ADE does not improve. No model is promoted.
+See `docs/CWM_V7_PAIRED_TRAINING_20261010.md`.
+
+```powershell
+& 'D:/miniconda3/envs/uav-encirclement-gpu/python.exe' experiments/cwm_v7/train_response.py --data results/cwm_v7/data_fresh --output results/cwm_v7/retraining_fresh
+& 'D:/miniconda3/envs/uav-encirclement-gpu/python.exe' experiments/cwm_v7/training_release.py --verify experiments/cwm_v7/artifacts/paired_training_20261010.zip
+& 'D:/miniconda3/envs/uav-encirclement-gpu/python.exe' experiments/cwm_v7/forecast_support.py --data results/cwm_v7/data_fresh --training results/cwm_v7/training_fresh --output results/cwm_v7/support_diagnostic_fresh.json
+```
+
+The post-training support/oracle report is a separately versioned development
+diagnostic, not a changed training gate or holdout claim. Exact replays are scoped
 to the recorded CPU/runtime, not arbitrary hosts or deterministic latency.

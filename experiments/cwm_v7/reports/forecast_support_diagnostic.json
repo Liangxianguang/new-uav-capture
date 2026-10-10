@@ -1,0 +1,281 @@
+{
+  "status": "post_training_support_diagnostic_only",
+  "results": {
+    "common_reference_valid": {
+      "original_gru_zero_response": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6215297466897685,
+        "by_group": {
+          "cwm-s4-1965034": 0.5369104573125174,
+          "cwm-s4-1965035": 0.5340813462091245,
+          "cwm-s4-1965036": 0.7626268437565483,
+          "cwm-s4-1965037": 0.6951035852700843,
+          "cwm-s4-1965038": 0.4911028652060863,
+          "cwm-s4-1965039": 0.6164857914145374,
+          "cwm-s4-1965040": 0.6176925977418293,
+          "cwm-s4-1965041": 0.718234486607421
+        }
+      },
+      "gru_plus_exact_response": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6318118954586258,
+        "by_group": {
+          "cwm-s4-1965034": 0.5456054338984575,
+          "cwm-s4-1965035": 0.5281969626902712,
+          "cwm-s4-1965036": 0.7664838143042609,
+          "cwm-s4-1965037": 0.7151068647011022,
+          "cwm-s4-1965038": 0.5051228669708233,
+          "cwm-s4-1965039": 0.6292780965217867,
+          "cwm-s4-1965040": 0.6275416672988228,
+          "cwm-s4-1965041": 0.7371594572834819
+        }
+      },
+      "fixed_reference_truth_zero_response": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.201479023922566,
+        "by_group": {
+          "cwm-s4-1965034": 0.1679396097471544,
+          "cwm-s4-1965035": 0.15235001811513948,
+          "cwm-s4-1965036": 0.296546448676039,
+          "cwm-s4-1965037": 0.2320762275821906,
+          "cwm-s4-1965038": 0.1638679011623291,
+          "cwm-s4-1965039": 0.15631233561858407,
+          "cwm-s4-1965040": 0.22528974457693102,
+          "cwm-s4-1965041": 0.21744990590216032
+        }
+      },
+      "action_specific_truth": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.0,
+        "by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        }
+      },
+      "plain_learned": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.623115113729086,
+        "by_group": {
+          "cwm-s4-1965034": 0.5379049932896508,
+          "cwm-s4-1965035": 0.5525785135197757,
+          "cwm-s4-1965036": 0.7402414889313593,
+          "cwm-s4-1965037": 0.6993906369636146,
+          "cwm-s4-1965038": 0.49217058166876676,
+          "cwm-s4-1965039": 0.6278645674405343,
+          "cwm-s4-1965040": 0.6058718741021798,
+          "cwm-s4-1965041": 0.7288982539168064
+        }
+      },
+      "plain_response_with_reference_motion_truth": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.14733545335282838,
+        "by_group": {
+          "cwm-s4-1965034": 0.0627530589556319,
+          "cwm-s4-1965035": 0.17937917929280592,
+          "cwm-s4-1965036": 0.211599020032069,
+          "cwm-s4-1965037": 0.13858177907811856,
+          "cwm-s4-1965038": 0.0956692233827147,
+          "cwm-s4-1965039": 0.19064294451533834,
+          "cwm-s4-1965040": 0.1732607520158811,
+          "cwm-s4-1965041": 0.12679766955006758
+        }
+      },
+      "structured_learned": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6373236521071889,
+        "by_group": {
+          "cwm-s4-1965034": 0.5308319616186996,
+          "cwm-s4-1965035": 0.5647759508144075,
+          "cwm-s4-1965036": 0.7403494461582165,
+          "cwm-s4-1965037": 0.7296010629440409,
+          "cwm-s4-1965038": 0.5236453221300861,
+          "cwm-s4-1965039": 0.6593499174991982,
+          "cwm-s4-1965040": 0.6204997590580078,
+          "cwm-s4-1965041": 0.7295357966348543
+        }
+      },
+      "structured_response_with_reference_motion_truth": {
+        "valid_points": 4872,
+        "states_with_support": 80,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.15083754573372649,
+        "by_group": {
+          "cwm-s4-1965034": 0.08388220848003272,
+          "cwm-s4-1965035": 0.17013397873374547,
+          "cwm-s4-1965036": 0.22955345837890961,
+          "cwm-s4-1965037": 0.1370374981539277,
+          "cwm-s4-1965038": 0.1059108142163383,
+          "cwm-s4-1965039": 0.20002595511735863,
+          "cwm-s4-1965040": 0.14846351920331555,
+          "cwm-s4-1965041": 0.13169293358618395
+        }
+      }
+    },
+    "all_probes_joint_full8": {
+      "original_gru_zero_response": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6499312125984869,
+        "by_group": {
+          "cwm-s4-1965034": 0.5741824992057567,
+          "cwm-s4-1965035": 0.5856241459092055,
+          "cwm-s4-1965036": 0.7898248103208138,
+          "cwm-s4-1965037": 0.7128538000353272,
+          "cwm-s4-1965038": 0.5259388006733301,
+          "cwm-s4-1965039": 0.6493438157645007,
+          "cwm-s4-1965040": 0.6176925977418293,
+          "cwm-s4-1965041": 0.7439892311371311
+        }
+      },
+      "gru_plus_exact_response": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6641153860136783,
+        "by_group": {
+          "cwm-s4-1965034": 0.5899149223828088,
+          "cwm-s4-1965035": 0.5766905951352106,
+          "cwm-s4-1965036": 0.7992317967135869,
+          "cwm-s4-1965037": 0.7432547308134585,
+          "cwm-s4-1965038": 0.5416443159641324,
+          "cwm-s4-1965039": 0.6664567993896975,
+          "cwm-s4-1965040": 0.6275416672988228,
+          "cwm-s4-1965041": 0.7681882604117085
+        }
+      },
+      "fixed_reference_truth_zero_response": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.20228556097087522,
+        "by_group": {
+          "cwm-s4-1965034": 0.16658867911055014,
+          "cwm-s4-1965035": 0.15842501582518057,
+          "cwm-s4-1965036": 0.2999468119869096,
+          "cwm-s4-1965037": 0.22506355572568826,
+          "cwm-s4-1965038": 0.1687794851804017,
+          "cwm-s4-1965039": 0.16333623487833368,
+          "cwm-s4-1965040": 0.22528974457693102,
+          "cwm-s4-1965041": 0.21085496048300667
+        }
+      },
+      "action_specific_truth": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.0,
+        "by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        }
+      },
+      "plain_learned": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.65259325041787,
+        "by_group": {
+          "cwm-s4-1965034": 0.5805553708788983,
+          "cwm-s4-1965035": 0.5969808395946623,
+          "cwm-s4-1965036": 0.7689653460536618,
+          "cwm-s4-1965037": 0.7227615134524231,
+          "cwm-s4-1965038": 0.5265577912194348,
+          "cwm-s4-1965039": 0.6608058135438044,
+          "cwm-s4-1965040": 0.6058718741021798,
+          "cwm-s4-1965041": 0.7582474544978949
+        }
+      },
+      "plain_response_with_reference_motion_truth": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.15220940220511733,
+        "by_group": {
+          "cwm-s4-1965034": 0.06350588844989563,
+          "cwm-s4-1965035": 0.1930862269655431,
+          "cwm-s4-1965036": 0.219274300730654,
+          "cwm-s4-1965037": 0.13578674820566455,
+          "cwm-s4-1965038": 0.10397626545864912,
+          "cwm-s4-1965039": 0.20657400343711388,
+          "cwm-s4-1965040": 0.1732607520158811,
+          "cwm-s4-1965041": 0.12221103237753742
+        }
+      },
+      "structured_learned": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.6689675406778923,
+        "by_group": {
+          "cwm-s4-1965034": 0.5715769924285656,
+          "cwm-s4-1965035": 0.614776372259351,
+          "cwm-s4-1965036": 0.769654545680011,
+          "cwm-s4-1965037": 0.7549876202583835,
+          "cwm-s4-1965038": 0.5620552611592595,
+          "cwm-s4-1965039": 0.6989276840458928,
+          "cwm-s4-1965040": 0.6204997590580078,
+          "cwm-s4-1965041": 0.7592620905336669
+        }
+      },
+      "structured_response_with_reference_motion_truth": {
+        "valid_points": 4416,
+        "states_with_support": 69,
+        "groups_with_support": 8,
+        "group_equal_ade_m": 0.15687134710540152,
+        "by_group": {
+          "cwm-s4-1965034": 0.08753892705889413,
+          "cwm-s4-1965035": 0.18483922209575399,
+          "cwm-s4-1965036": 0.23938484630368842,
+          "cwm-s4-1965037": 0.13199402083760475,
+          "cwm-s4-1965038": 0.11468686624658876,
+          "cwm-s4-1965039": 0.21683238704804336,
+          "cwm-s4-1965040": 0.14846351920331555,
+          "cwm-s4-1965041": 0.13123098804932298
+        }
+      }
+    }
+  },
+  "chosen_seed_per_architecture": {
+    "plain": 967101,
+    "structured": 967102
+  },
+  "development_gate_unchanged": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "dataset_sha256": "b671b80eba2cfae9a9627ff687c609d5a753699822b3bd158ca68b331996f924",
+  "training_summary_sha256": "3208164cad86c15ef0d0d80b42fd817f2073ed4068b4a6617a6573f9f831e8c0",
+  "source_sha256": "57c181413db4ee1054636006fdea3e8f5867bf70388fecb75c521473edee8781",
+  "limitations": [
+    "Post-training development diagnostic; not new selection, held-out validation, causal proof or control utility.",
+    "Exact truth is labels only, never public model inputs or online commands.",
+    "Published training ADE uses all branch-valid points, including frames without reference validity; this diagnostic compares shared support.",
+    "Joint full8 support is necessary for later original eight-step diagnostic MPC scoring; it does not prove physical safety or realized returns."
+  ]
+}
