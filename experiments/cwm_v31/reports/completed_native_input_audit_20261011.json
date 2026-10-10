@@ -129,7 +129,7 @@
         "candidate_rows_in_duplicate_buckets": 49264,
         "observed_common_prefix_points": 363498,
         "points_with_repeated_observation_at_same_input_and_offset": 363498,
-        "single_observation_point_fraction": 0,
+        "single_observation_point_fraction": 0.0,
         "duplicate_buckets_with_nonzero_shared_offset_variance": 1,
         "duplicate_buckets_with_distance_from_first_over_5cm": 0,
         "maximum_distance_from_first_response_m": 8.409085845615153e-10,
@@ -144,7 +144,7 @@
         "candidate_rows_in_duplicate_buckets": 49264,
         "observed_common_prefix_points": 363498,
         "points_with_repeated_observation_at_same_input_and_offset": 363498,
-        "single_observation_point_fraction": 0,
+        "single_observation_point_fraction": 0.0,
         "duplicate_buckets_with_nonzero_shared_offset_variance": 1,
         "duplicate_buckets_with_distance_from_first_over_5cm": 0,
         "maximum_distance_from_first_response_m": 8.409085845615153e-10,
@@ -157,7 +157,7 @@
       "raw_nonanchor_rows_float32_equal_to_anchor": 0,
       "observed_points": 0,
       "response_points_over_5cm": 0,
-      "maximum_response_m": 0
+      "maximum_response_m": 0.0
     },
     "primary_research_eligible": false,
     "enhanced_control_enabled": false,
