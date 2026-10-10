@@ -1,0 +1,108 @@
+{
+  "status": "passed_independent_data_and_thirty_model_recomputation",
+  "data_episodes": 64,
+  "data_groups": 32,
+  "train_calls": 716,
+  "development_calls": 244,
+  "full_support_calls": {
+    "train": 392,
+    "development_validation": 129
+  },
+  "models_per_run": 15,
+  "independent_training_runs": 2,
+  "weights_optimizer_rng_history_equal": true,
+  "public252_histories_verified": true,
+  "reload_prediction_bytes_equal": true,
+  "all_learned_full_cost_rankings_recomputed": true,
+  "qualification": {
+    "plain_task": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_error_vs_zero": false,
+        "median_effect_loss_vs_same_arch_mse": false,
+        "selected_gain_vs_own_motion_component": false,
+        "selected_gain_vs_constant_velocity": false,
+        "selected_gain_vs_trained_motion_only": false
+      },
+      "selected_seed": 974103,
+      "selected_gains": {
+        "own_motion_component": {
+          "groups": 8,
+          "group_equal_mean": -0.10786540076392899,
+          "percentile_95_interval": [
+            -0.22131750980849751,
+            -0.025526614748486498
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        },
+        "constant_velocity": {
+          "groups": 8,
+          "group_equal_mean": -0.11214136054389953,
+          "percentile_95_interval": [
+            -0.22762947085561636,
+            -0.02549287399998874
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        },
+        "trained_motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.08151219826206305,
+          "percentile_95_interval": [
+            -0.20571913628893024,
+            0.00940585274431522
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        }
+      }
+    },
+    "structured_task": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_error_vs_zero": false,
+        "median_effect_loss_vs_same_arch_mse": false,
+        "selected_gain_vs_own_motion_component": false,
+        "selected_gain_vs_constant_velocity": false,
+        "selected_gain_vs_trained_motion_only": false
+      },
+      "selected_seed": 974102,
+      "selected_gains": {
+        "own_motion_component": {
+          "groups": 8,
+          "group_equal_mean": -0.01732278166104839,
+          "percentile_95_interval": [
+            -0.057050352809224825,
+            0.015843061148347
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        },
+        "constant_velocity": {
+          "groups": 8,
+          "group_equal_mean": -0.0717588569912525,
+          "percentile_95_interval": [
+            -0.16328580694495395,
+            0.0
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        },
+        "trained_motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.04112969470941603,
+          "percentile_95_interval": [
+            -0.09340482571580651,
+            0.0018803551601185853
+          ],
+          "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."
+        }
+      }
+    }
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Fresh offline fixed-library task-effect learning; not self-generated library, sequential/closed-loop, original eight Levels or safety/latency qualification.",
+  "artifact_sha256": "a833ad7fe3302d32ce6b17237c7dcab19864826967dd9a099519169203405329",
+  "artifact_bytes": 33673269
+}
