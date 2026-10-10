@@ -1,0 +1,167 @@
+{
+  "status": "geometry_candidate_requires_fresh_confirmation",
+  "protocol": {
+    "version": "cwm_v7.geometry_compatibility_development.20261010",
+    "stage": "geometry_development_not_model_evaluation",
+    "seed_start": 963010,
+    "layout_seed_start": 1963010,
+    "groups": 4,
+    "target_speed_scales": [
+      0.55,
+      0.75
+    ],
+    "observation_conditions": [
+      {
+        "name": "nominal",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.15,
+          "observation_noise_std": 0.03,
+          "message_delay_steps": 2,
+          "message_dropout_probability": 0.05
+        }
+      },
+      {
+        "name": "delayed_noisy",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.22,
+          "observation_noise_std": 0.06,
+          "message_delay_steps": 4,
+          "message_dropout_probability": 0.1
+        }
+      }
+    ],
+    "scene_variation": {
+      "wall_half_extent_x_m": [
+        0.45,
+        0.65
+      ],
+      "wall_half_extent_y_m": [
+        3.85,
+        4.2
+      ],
+      "wall_height_m": [
+        9.25,
+        9.55
+      ],
+      "target_initial_x_m": [
+        -4.25,
+        -3.45
+      ],
+      "target_initial_y_m": [
+        -0.4,
+        0.4
+      ],
+      "target_altitude_m": [
+        4.3,
+        5.7
+      ],
+      "defender_x_offset_m": [
+        0.0,
+        0.35
+      ],
+      "defender_y_scale": [
+        0.92,
+        1.08
+      ],
+      "defender_z_offset_m": [
+        -0.3,
+        0.3
+      ]
+    },
+    "wall_center_x_candidates_m": [
+      0.0,
+      1.5,
+      3.0
+    ],
+    "target_branch_rule_overrides": {},
+    "maximum_command_speed_mps": 5.0,
+    "horizon_steps": 80,
+    "stress_snapshot_steps": [
+      0,
+      4
+    ],
+    "stress_probe_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "stress_scope": "80 steps of initial eight-step planned commands then held final command, original CBF each step, stop and expose termination. This is finite compatibility testing, not safe-set proof or longer MPC.",
+    "selection_rule": "Smallest predeclared nonnegative wall translation with zero target-invalid original episodes and zero target-invalid tested stress branches. Do not select on capture, response strength, branch choice or prediction quality. If none passes, report failure; never change rules or margins.",
+    "enhanced_control_enabled": false,
+    "new_model_trained": false
+  },
+  "source_hashes": {
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "cwm_v7/geometry_protocol.json": "dded97c9b5bd4551a5ff4a4b4e24d44d31264a53e791c06addfb19ee64cc3a0d",
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b"
+  },
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "v6_archive_sha256": "2d4b0cd57b7e7b016ce7557dab39822e621b831db96d01b3b05e1c7bd247ac3a",
+  "v6_traces_exact_replays": 16,
+  "v6_trace_target_invalid_episodes": 9,
+  "candidates": [
+    {
+      "wall_center_x_m": 0.0,
+      "original_target_invalid_episodes": 4,
+      "original_safe_captures": 4,
+      "stress_target_invalid_branches": 0,
+      "stress_branches": 128,
+      "stress_full_horizon_branches": 78,
+      "stress_termination_counts": {
+        "running": 78,
+        "safe_capture": 5,
+        "safety_failure": 45
+      }
+    },
+    {
+      "wall_center_x_m": 1.5,
+      "original_target_invalid_episodes": 0,
+      "original_safe_captures": 8,
+      "stress_target_invalid_branches": 0,
+      "stress_branches": 128,
+      "stress_full_horizon_branches": 82,
+      "stress_termination_counts": {
+        "running": 82,
+        "safe_capture": 7,
+        "safety_failure": 39
+      }
+    },
+    {
+      "wall_center_x_m": 3.0,
+      "original_target_invalid_episodes": 0,
+      "original_safe_captures": 8,
+      "stress_target_invalid_branches": 0,
+      "stress_branches": 128,
+      "stress_full_horizon_branches": 84,
+      "stress_termination_counts": {
+        "running": 83,
+        "safe_capture": 7,
+        "safety_failure": 38
+      }
+    }
+  ],
+  "selected_wall_center_x_m": 1.5,
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "elapsed_seconds": 188.3407990001142,
+  "limitations": [
+    "Geometry-development data; never model validation or test.",
+    "Target validity only assessed for tested finite policies and horizons; no safe-set proof.",
+    "Capture/safety termination censors later target behavior; truncated branches are disclosed.",
+    "Translation changes new scene geometry, not frozen target rules or original Level scenes."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "version": "cwm_v7.geometry_compatibility_development.20261010",
+  "stage": "geometry_development_not_model_evaluation",
+  "seed_start": 963010,
+  "layout_seed_start": 1963010,
+  "groups": 4,
+  "target_speed_scales": [0.55, 0.75],
+  "observation_conditions": [
+    {"name": "nominal", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.15, "observation_noise_std": 0.03, "message_delay_steps": 2, "message_dropout_probability": 0.05}},
+    {"name": "delayed_noisy", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.22, "observation_noise_std": 0.06, "message_delay_steps": 4, "message_dropout_probability": 0.10}}
+  ],
+  "scene_variation": {"wall_half_extent_x_m": [0.45, 0.65], "wall_half_extent_y_m": [3.85, 4.20], "wall_height_m": [9.25, 9.55], "target_initial_x_m": [-4.25, -3.45], "target_initial_y_m": [-0.40, 0.40], "target_altitude_m": [4.30, 5.70], "defender_x_offset_m": [0.0, 0.35], "defender_y_scale": [0.92, 1.08], "defender_z_offset_m": [-0.30, 0.30]},
+  "wall_center_x_candidates_m": [0.0, 1.5, 3.0],
+  "target_branch_rule_overrides": {},
+  "maximum_command_speed_mps": 5.0,
+  "horizon_steps": 80,
+  "stress_snapshot_steps": [0, 4],
+  "stress_probe_indices": [0, 1, 2, 3, 4, 5, 6, 7],
+  "stress_scope": "80 steps of initial eight-step planned commands then held final command, original CBF each step, stop and expose termination. This is finite compatibility testing, not safe-set proof or longer MPC.",
+  "selection_rule": "Smallest predeclared nonnegative wall translation with zero target-invalid original episodes and zero target-invalid tested stress branches. Do not select on capture, response strength, branch choice or prediction quality. If none passes, report failure; never change rules or margins.",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false
+}

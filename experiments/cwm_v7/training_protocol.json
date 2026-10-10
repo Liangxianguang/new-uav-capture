@@ -1,0 +1,15 @@
+{
+  "version": "cwm_v7.matched_paired_response_training.20261010",
+  "enhanced_control_enabled": false,
+  "guarded_mode_allowed": false,
+  "input_contract": "Only public 8x252 history, 4x6 belief-relative defender states, proposed/reference 8x4x3 commands and supplied frozen GRU 8x3 trajectory. Branch sign is auxiliary supervision only, never an input.",
+  "models": ["plain", "structured"],
+  "training": {"seeds": [967101, 967102, 967103], "epochs": 80, "batch_states": 32, "learning_rate": 0.001, "response_scale_m": 2.5, "residual_penalty": 0.001, "branch_auxiliary_weight": 0.1, "gradient_clip_norm": 1.0},
+  "normalization": "Mean/std of original train histories only; std floor0.01. Development validation never enters gradients/normalizers.",
+  "loss": "Group-balanced window mean paired-effect MSE under common valid masks plus matched binary branch auxiliary supervision and response energy penalty. Both models use identical labels, optimizer, batches, seeds and fixed epoch budget; graph pooling is the architecture difference.",
+  "development_gate": {"maximum_structured_to_zero_group_error_ratio_each_seed": 0.80, "maximum_structured_to_plain_median_group_error_ratio": 0.95},
+  "selection": "Final epoch only, no early stopping or sweeps. Report all three seeds per architecture; choose median development group-effect-error seed per architecture for later frozen scoring/holdout, ties by seed.",
+  "holdout_used_for_tuning": false,
+  "controls": ["frozen_gru_zero_response", "constant_velocity_zero_response"],
+  "limitations": "Structured interventional-response learning, not proven SCM identification or a closed-loop advantage. S4 remains separate from original Levels. Must test frozen-MPC decision value, original safety and exact disabled fallback before any online promotion."
+}

@@ -1,0 +1,32 @@
+{
+  "version": "cwm_v7.public_paired_training_data.20261010",
+  "authorization": "User authorized new scenes; translated S4 remains separate from original Levels.",
+  "stage": "preassigned_training_and_development_validation",
+  "seed_start": 965010,
+  "layout_seed_start": 1965010,
+  "groups": 32,
+  "variant_cycles_split": ["train", "train", "train", "train", "train", "train", "development_validation", "development_validation"],
+  "reserved_holdout_not_collected": {"seed_start": 966010, "layout_seed_start": 1966010, "groups": 8},
+  "excluded_development_layout_seed_blocks": [[1961010, 1961013], [1962010, 1962013], [1963010, 1963013], [1964010, 1964017]],
+  "wall_center_x_m": 1.5,
+  "target_motion_mode": "adaptive_branching",
+  "target_speed_scales": [0.55, 0.75],
+  "observation_conditions": [
+    {"name": "nominal", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.15, "observation_noise_std": 0.03, "message_delay_steps": 2, "message_dropout_probability": 0.05}},
+    {"name": "delayed_noisy", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.22, "observation_noise_std": 0.06, "message_delay_steps": 4, "message_dropout_probability": 0.10}}
+  ],
+  "scene_variation": {"wall_half_extent_x_m": [0.45, 0.65], "wall_half_extent_y_m": [3.85, 4.20], "wall_height_m": [9.25, 9.55], "target_initial_x_m": [-4.25, -3.45], "target_initial_y_m": [-0.40, 0.40], "target_altitude_m": [4.30, 5.70], "defender_x_offset_m": [0.0, 0.35], "defender_y_scale": [0.92, 1.08], "defender_z_offset_m": [-0.30, 0.30]},
+  "snapshot_steps": [0, 1, 2, 4, 8, 16],
+  "history_steps": 8,
+  "horizon_steps": 16,
+  "original_planner_horizon_steps": 8,
+  "branches": ["baseline_plan", "upper_pressure3", "lower_pressure3", "upper_pressure5", "lower_pressure5", "brake", "nearest_upper_pressure5", "nearest_lower_pressure5"],
+  "maximum_command_speed_mps": 5.0,
+  "effect_threshold_m": 0.05,
+  "data_gate": {"minimum_effect_point_fraction": 0.05, "minimum_branch_flip_pair_fraction": 0.05, "minimum_independent_signal_groups": 2},
+  "target_branch_rule_overrides": {},
+  "original_weights_or_safety_changed": false,
+  "private_labels_model_inputs": false,
+  "enhanced_control_enabled": false,
+  "extension": "Steps 9-16 hold the eighth command; model training uses the original first eight steps only. Mirrors remain in one split; no held-out seeds are collected or used for tuning. This is separate S4 data, never Level improvement."
+}
