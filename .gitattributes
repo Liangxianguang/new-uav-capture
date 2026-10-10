@@ -37,3 +37,7 @@
 # V28 future data/training reports retain exact native evidence bytes.
 /experiments/cwm_v28/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v28/artifacts/** -text
+
+# V29 exact original-entry regression evidence and binary archives.
+/experiments/cwm_v29/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v29/artifacts/** -text

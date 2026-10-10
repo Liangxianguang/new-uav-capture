@@ -1,0 +1,19 @@
+{
+  "version": "cwm_v29.research_sequential_selection_entry.20261010",
+  "stage": "implementation_and_off_refusal_regression_not_active_qualification",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "fallback_record_ids": [920000640, 10038],
+  "default_mode": "off",
+  "research_authorization": "Only a complete independently replayed V28 artifact certificate bound to the exact archive/current sources, and unchanged cv_rank_l2 offline gates passing. Fixed final80epoch ADE-median seeds; no best decision seed or failed V23 override. This is local research authorization, never production deployment or a cryptographic signature.",
+  "public_proposer": "Unchanged fixed failed V23 public proposer/shared bounded V27 pool, used identically for ALL scorer controls, maximum24 unique candidates/2 rounds. Not the learned V28 scorer; candidate-generation gains remain a separate contribution.",
+  "scoring_controls": ["original_gru", "constant_velocity", "own_motion", "cv_motion_only", "cv_l2", "cv_rank_l2"],
+  "selection": "At EVERY original local best-response call, first compute the original selected anchor/cost row, then public bounded candidates, six-public-array scoring forecast and unchanged original full K1 cost. First-index argmin. Newly received delayed peers each call. Original-scenario selected cost row/team metadata retained; unchanged original plan deadline, messages, speed, horizon and CBF.",
+  "timing": "Model reconstruction/readiness outside original timed plan. ALL proposal/inference/scoring time inside plan counts against unchanged original timeout. Save evidence after plan. Report end-to-end time including evidence overhead separately. No time subtraction, mocked clocks, deadline relaxation or latency success from unit tests.",
+  "fallback": "Off/refusal installs EXACT original parent planner/runtime, no optional context or model access. Runtime failures return original local selected sequence/cost row and disable further research. Real-time deadline effects or earlier changed actions cannot be undone; complete failure trajectory equivalence must be demonstrated with actual qualified checkpoint fault injections before deployment.",
+  "private_inputs": "None: no future states, branch truths, masks, costs, labels, proposal provenance or qualification bins enter network forward.",
+  "enhanced_control_enabled": false,
+  "active_research_experiment_started": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "required_later": "Actual qualified V28 checkpoint load/forward faults, research active/shadow sequential integration, immutable paired closed-loop original8Level/new-scene protocol and evaluations, reserved untouched holdout, capture/safety/latency gates and full reproducible result archive. local CBF remains empirical, not a new formal safety proof. No efficacy claimed by this interface or regression."
+}
