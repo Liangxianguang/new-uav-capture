@@ -1,0 +1,28 @@
+{
+  "status": "original_full_reload_terminal_failed_serialized_summary_equality_no_certificate",
+  "observed_exec_session": 27155,
+  "observed_process_id": 44304,
+  "actual_exit_code": 1,
+  "entry": "experiments/cwm_v28/release_ranking_training.py",
+  "entry_sha256": "9b507b2d25d934f66c7918e74164687ca2ec9538f508574e3eb1cf81666e4d50",
+  "final_observed_progress": {
+    "status": "all_final_predictions_original_costs_recomputed",
+    "run": "repeated_fixed_ranking_20261010",
+    "model": "cv_rank_l2_seed994103"
+  },
+  "exception_type": "ValueError",
+  "exception": "Independent complete training summaries differ",
+  "failed_line": 128,
+  "terminal_summary_exists": false,
+  "prior_complete_model_progress_is_not_a_pass_certificate": true,
+  "primary_summary_sha256": "87254fad514a7ee45da3f325324660b443ea638c52a166668e1833a603cfd1f7",
+  "repeated_summary_sha256": "f0f20a9a5e16fbaae2792fdbe929317964bc544f941f4c4eece382c63b576e44",
+  "new_audit_entry": "experiments/cwm_v28/release_ranking_training_v2.py",
+  "new_audit_output": "D:/uav-capture/cwm28-reload-v2-20261011",
+  "original_output_overwritten": false,
+  "checkpoint_files_rewritten": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scientific_qualification_changed": false,
+  "scope": "Observed original process terminal, traceback and absence of pass summary. Corrected full18-model audit still pending; does not turn failed causal qualification into research eligibility."
+}

@@ -1,0 +1,16 @@
+{
+  "status": "both_complete_training_runs_saved_choice_diagnosis_equal_not_reinference",
+  "primary_diagnosis_sha256": "dfb692625d61b3fa62721400828b00f2aa566700b4b636c3b8f87e55c5f402ff",
+  "repeated_input_sha256": {
+    "summary.json": "f0f20a9a5e16fbaae2792fdbe929317964bc544f941f4c4eece382c63b576e44",
+    "cv_rank_l2_seed994101.pt": "8df7d32e87b653a359d76bf771275eeceef6b5a71315e468daafac2a004e1410",
+    "cv_rank_l2_seed994101_decisions.json": "35ccb77024027131c5666890191f295c19f7b6a1db58780d1c9e0a0e2f8ccc5e"
+  },
+  "all_train_and_development_group_choice_diagnosis_equal": true,
+  "train_complete_calls": 1640,
+  "development_complete_calls": 540,
+  "primary_research_eligible": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "All fixed selected-model saved choice/cost vectors, not all model reinference, causal identification, capture, latency or promotion"
+}

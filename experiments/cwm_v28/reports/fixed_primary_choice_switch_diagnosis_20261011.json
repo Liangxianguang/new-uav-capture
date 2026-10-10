@@ -1,0 +1,405 @@
+{
+  "status": "complete_saved_fixed_primary_choice_switch_diagnosis_not_reinference",
+  "fixed_configuration": "cv_rank_l2",
+  "fixed_ade_median_seed": 994101,
+  "input_sha256": {
+    "summary.json": "87254fad514a7ee45da3f325324660b443ea638c52a166668e1833a603cfd1f7",
+    "cv_rank_l2_seed994101.pt": "e147b9c8c5bd9a0b78b4675ad3ef983a3f37f4912ce7e9bf7a692d2f7956242f",
+    "cv_rank_l2_seed994101_decisions.json": "35ccb77024027131c5666890191f295c19f7b6a1db58780d1c9e0a0e2f8ccc5e"
+  },
+  "source_sha256": {
+    "diagnose_selected_response.py": "ca0235e7085a33d33f94e8aee63553655457807d68d0891cec0802f2373d0391",
+    "ranking_qualification.py": "bb1abb8b92d2521759595be3770a4235de7ee29973624612b412f0cb025e4c7c",
+    "repeatability_identity.py": "7d883c3cc7907c2ff1542b17fa2b5d826b7210eeba4168752a0517412fc24bde"
+  },
+  "splits": {
+    "train": {
+      "calls": 1640,
+      "groups": 24,
+      "group_equal": {
+        "true_original_cost_gain": 0.23342642463784577,
+        "motion_choice_oracle_regret": 0.43265266407574127,
+        "response_choice_oracle_regret": 0.19922623943789555,
+        "choice_switch_fraction": 0.238064883128024,
+        "beneficial_choice_fraction": 0.15427940044693245,
+        "harmful_choice_fraction": 0.08378548268109154,
+        "true_cost_tie_fraction": 0.761935116871976
+      },
+      "by_group": [
+        {
+          "group": "cwm-s4-1994010",
+          "calls": 70,
+          "true_original_cost_gain": 0.0036455475751349044,
+          "motion_choice_oracle_regret": 0.004454019910339469,
+          "response_choice_oracle_regret": 0.0008084723352045638,
+          "choice_switch_fraction": 0.2857142857142857,
+          "beneficial_choice_fraction": 0.11428571428571428,
+          "harmful_choice_fraction": 0.17142857142857143,
+          "true_cost_tie_fraction": 0.7142857142857143
+        },
+        {
+          "group": "cwm-s4-1994011",
+          "calls": 58,
+          "true_original_cost_gain": 0.008114633871658535,
+          "motion_choice_oracle_regret": 0.009174183514204638,
+          "response_choice_oracle_regret": 0.0010595496425461033,
+          "choice_switch_fraction": 0.20689655172413793,
+          "beneficial_choice_fraction": 0.13793103448275862,
+          "harmful_choice_fraction": 0.06896551724137931,
+          "true_cost_tie_fraction": 0.7931034482758621
+        },
+        {
+          "group": "cwm-s4-1994012",
+          "calls": 78,
+          "true_original_cost_gain": 0.007941868705233427,
+          "motion_choice_oracle_regret": 0.12210759403109406,
+          "response_choice_oracle_regret": 0.11416572532586063,
+          "choice_switch_fraction": 0.20512820512820512,
+          "beneficial_choice_fraction": 0.15384615384615385,
+          "harmful_choice_fraction": 0.05128205128205128,
+          "true_cost_tie_fraction": 0.7948717948717948
+        },
+        {
+          "group": "cwm-s4-1994013",
+          "calls": 86,
+          "true_original_cost_gain": 0.04482309409551451,
+          "motion_choice_oracle_regret": 0.6548004103224759,
+          "response_choice_oracle_regret": 0.6099773162269614,
+          "choice_switch_fraction": 0.23255813953488372,
+          "beneficial_choice_fraction": 0.20930232558139536,
+          "harmful_choice_fraction": 0.023255813953488372,
+          "true_cost_tie_fraction": 0.7674418604651163
+        },
+        {
+          "group": "cwm-s4-1994014",
+          "calls": 66,
+          "true_original_cost_gain": 0.026581811265437346,
+          "motion_choice_oracle_regret": 0.1896340596064922,
+          "response_choice_oracle_regret": 0.16305224834105486,
+          "choice_switch_fraction": 0.42424242424242425,
+          "beneficial_choice_fraction": 0.24242424242424243,
+          "harmful_choice_fraction": 0.18181818181818182,
+          "true_cost_tie_fraction": 0.5757575757575758
+        },
+        {
+          "group": "cwm-s4-1994015",
+          "calls": 64,
+          "true_original_cost_gain": 0.016769561550448175,
+          "motion_choice_oracle_regret": 0.021161820254798958,
+          "response_choice_oracle_regret": 0.004392258704350782,
+          "choice_switch_fraction": 0.28125,
+          "beneficial_choice_fraction": 0.21875,
+          "harmful_choice_fraction": 0.0625,
+          "true_cost_tie_fraction": 0.71875
+        },
+        {
+          "group": "cwm-s4-1994016",
+          "calls": 80,
+          "true_original_cost_gain": -0.006354175232183667,
+          "motion_choice_oracle_regret": 0.41259140041050746,
+          "response_choice_oracle_regret": 0.4189455756426911,
+          "choice_switch_fraction": 0.35,
+          "beneficial_choice_fraction": 0.175,
+          "harmful_choice_fraction": 0.175,
+          "true_cost_tie_fraction": 0.65
+        },
+        {
+          "group": "cwm-s4-1994017",
+          "calls": 80,
+          "true_original_cost_gain": 0.15886326145251975,
+          "motion_choice_oracle_regret": 0.1676223820211228,
+          "response_choice_oracle_regret": 0.008759120568603063,
+          "choice_switch_fraction": 0.425,
+          "beneficial_choice_fraction": 0.2,
+          "harmful_choice_fraction": 0.225,
+          "true_cost_tie_fraction": 0.575
+        },
+        {
+          "group": "cwm-s4-1994018",
+          "calls": 48,
+          "true_original_cost_gain": 0.00081998453440472,
+          "motion_choice_oracle_regret": 0.0008677680307232668,
+          "response_choice_oracle_regret": 4.778349631854676e-05,
+          "choice_switch_fraction": 0.08333333333333333,
+          "beneficial_choice_fraction": 0.08333333333333333,
+          "harmful_choice_fraction": 0.0,
+          "true_cost_tie_fraction": 0.9166666666666666
+        },
+        {
+          "group": "cwm-s4-1994019",
+          "calls": 54,
+          "true_original_cost_gain": 0.02527779040080939,
+          "motion_choice_oracle_regret": 0.026795914930601242,
+          "response_choice_oracle_regret": 0.0015181245297918517,
+          "choice_switch_fraction": 0.25925925925925924,
+          "beneficial_choice_fraction": 0.25925925925925924,
+          "harmful_choice_fraction": 0.0,
+          "true_cost_tie_fraction": 0.7407407407407407
+        },
+        {
+          "group": "cwm-s4-1994020",
+          "calls": 80,
+          "true_original_cost_gain": 0.9305274288425348,
+          "motion_choice_oracle_regret": 1.2275026081581177,
+          "response_choice_oracle_regret": 0.29697517931558276,
+          "choice_switch_fraction": 0.15,
+          "beneficial_choice_fraction": 0.15,
+          "harmful_choice_fraction": 0.0,
+          "true_cost_tie_fraction": 0.85
+        },
+        {
+          "group": "cwm-s4-1994021",
+          "calls": 82,
+          "true_original_cost_gain": 1.0082813170641236,
+          "motion_choice_oracle_regret": 1.1411155545575586,
+          "response_choice_oracle_regret": 0.1328342374934351,
+          "choice_switch_fraction": 0.12195121951219512,
+          "beneficial_choice_fraction": 0.07317073170731707,
+          "harmful_choice_fraction": 0.04878048780487805,
+          "true_cost_tie_fraction": 0.8780487804878049
+        },
+        {
+          "group": "cwm-s4-1994022",
+          "calls": 58,
+          "true_original_cost_gain": 0.10699509613321419,
+          "motion_choice_oracle_regret": 0.11718071355899574,
+          "response_choice_oracle_regret": 0.010185617425781562,
+          "choice_switch_fraction": 0.3103448275862069,
+          "beneficial_choice_fraction": 0.20689655172413793,
+          "harmful_choice_fraction": 0.10344827586206896,
+          "true_cost_tie_fraction": 0.6896551724137931
+        },
+        {
+          "group": "cwm-s4-1994023",
+          "calls": 62,
+          "true_original_cost_gain": 0.006400264067539431,
+          "motion_choice_oracle_regret": 0.007819361009928395,
+          "response_choice_oracle_regret": 0.001419096942388964,
+          "choice_switch_fraction": 0.1935483870967742,
+          "beneficial_choice_fraction": 0.0967741935483871,
+          "harmful_choice_fraction": 0.0967741935483871,
+          "true_cost_tie_fraction": 0.8064516129032258
+        },
+        {
+          "group": "cwm-s4-1994024",
+          "calls": 82,
+          "true_original_cost_gain": 0.5493935972367281,
+          "motion_choice_oracle_regret": 0.7047924303035177,
+          "response_choice_oracle_regret": 0.15539883306678945,
+          "choice_switch_fraction": 0.24390243902439024,
+          "beneficial_choice_fraction": 0.14634146341463414,
+          "harmful_choice_fraction": 0.0975609756097561,
+          "true_cost_tie_fraction": 0.7560975609756098
+        },
+        {
+          "group": "cwm-s4-1994025",
+          "calls": 86,
+          "true_original_cost_gain": -0.04445601956605472,
+          "motion_choice_oracle_regret": 0.2833386748842203,
+          "response_choice_oracle_regret": 0.32779469445027504,
+          "choice_switch_fraction": 0.13953488372093023,
+          "beneficial_choice_fraction": 0.09302325581395349,
+          "harmful_choice_fraction": 0.046511627906976744,
+          "true_cost_tie_fraction": 0.8604651162790697
+        },
+        {
+          "group": "cwm-s4-1994026",
+          "calls": 38,
+          "true_original_cost_gain": 0.0005125714358120236,
+          "motion_choice_oracle_regret": 0.0009042137431224337,
+          "response_choice_oracle_regret": 0.0003916423073104101,
+          "choice_switch_fraction": 0.10526315789473684,
+          "beneficial_choice_fraction": 0.05263157894736842,
+          "harmful_choice_fraction": 0.05263157894736842,
+          "true_cost_tie_fraction": 0.8947368421052632
+        },
+        {
+          "group": "cwm-s4-1994027",
+          "calls": 48,
+          "true_original_cost_gain": 0.06509516399371007,
+          "motion_choice_oracle_regret": 0.06575440249629134,
+          "response_choice_oracle_regret": 0.0006592385025812794,
+          "choice_switch_fraction": 0.20833333333333334,
+          "beneficial_choice_fraction": 0.16666666666666666,
+          "harmful_choice_fraction": 0.041666666666666664,
+          "true_cost_tie_fraction": 0.7916666666666666
+        },
+        {
+          "group": "cwm-s4-1994028",
+          "calls": 80,
+          "true_original_cost_gain": 0.2748531283156881,
+          "motion_choice_oracle_regret": 0.4813625542155745,
+          "response_choice_oracle_regret": 0.20650942589988644,
+          "choice_switch_fraction": 0.375,
+          "beneficial_choice_fraction": 0.2,
+          "harmful_choice_fraction": 0.175,
+          "true_cost_tie_fraction": 0.625
+        },
+        {
+          "group": "cwm-s4-1994029",
+          "calls": 82,
+          "true_original_cost_gain": 0.5564404560099726,
+          "motion_choice_oracle_regret": 1.1007295268880197,
+          "response_choice_oracle_regret": 0.5442890708780472,
+          "choice_switch_fraction": 0.14634146341463414,
+          "beneficial_choice_fraction": 0.07317073170731707,
+          "harmful_choice_fraction": 0.07317073170731707,
+          "true_cost_tie_fraction": 0.8536585365853658
+        },
+        {
+          "group": "cwm-s4-1994030",
+          "calls": 64,
+          "true_original_cost_gain": 0.7290542436125024,
+          "motion_choice_oracle_regret": 0.8362716318757949,
+          "response_choice_oracle_regret": 0.10721738826329252,
+          "choice_switch_fraction": 0.34375,
+          "beneficial_choice_fraction": 0.25,
+          "harmful_choice_fraction": 0.09375,
+          "true_cost_tie_fraction": 0.65625
+        },
+        {
+          "group": "cwm-s4-1994031",
+          "calls": 48,
+          "true_original_cost_gain": -0.0006879712297817401,
+          "motion_choice_oracle_regret": 0.025724135477467176,
+          "response_choice_oracle_regret": 0.026412106707248917,
+          "choice_switch_fraction": 0.08333333333333333,
+          "beneficial_choice_fraction": 0.041666666666666664,
+          "harmful_choice_fraction": 0.041666666666666664,
+          "true_cost_tie_fraction": 0.9166666666666666
+        },
+        {
+          "group": "cwm-s4-1994032",
+          "calls": 64,
+          "true_original_cost_gain": 0.03136497541396066,
+          "motion_choice_oracle_regret": 0.046519701568154104,
+          "response_choice_oracle_regret": 0.015154726154193443,
+          "choice_switch_fraction": 0.34375,
+          "beneficial_choice_fraction": 0.1875,
+          "harmful_choice_fraction": 0.15625,
+          "true_cost_tie_fraction": 0.65625
+        },
+        {
+          "group": "cwm-s4-1994033",
+          "calls": 82,
+          "true_original_cost_gain": 1.1019765617593709,
+          "motion_choice_oracle_regret": 2.7354388760486685,
+          "response_choice_oracle_regret": 1.6334623142892977,
+          "choice_switch_fraction": 0.1951219512195122,
+          "beneficial_choice_fraction": 0.17073170731707318,
+          "harmful_choice_fraction": 0.024390243902439025,
+          "true_cost_tie_fraction": 0.8048780487804879
+        }
+      ]
+    },
+    "development_validation": {
+      "calls": 540,
+      "groups": 8,
+      "group_equal": {
+        "true_original_cost_gain": 0.02105845115469825,
+        "motion_choice_oracle_regret": 0.6925041102756948,
+        "response_choice_oracle_regret": 0.6714456591209965,
+        "choice_switch_fraction": 0.2720760778248749,
+        "beneficial_choice_fraction": 0.12042342097223813,
+        "harmful_choice_fraction": 0.1516526568526368,
+        "true_cost_tie_fraction": 0.727923922175125
+      },
+      "by_group": [
+        {
+          "group": "cwm-s4-1994034",
+          "calls": 58,
+          "true_original_cost_gain": -0.005878288178207631,
+          "motion_choice_oracle_regret": 0.10617244109239206,
+          "response_choice_oracle_regret": 0.1120507292705997,
+          "choice_switch_fraction": 0.20689655172413793,
+          "beneficial_choice_fraction": 0.10344827586206896,
+          "harmful_choice_fraction": 0.10344827586206896,
+          "true_cost_tie_fraction": 0.7931034482758621
+        },
+        {
+          "group": "cwm-s4-1994035",
+          "calls": 38,
+          "true_original_cost_gain": 0.0,
+          "motion_choice_oracle_regret": 0.31451029514248247,
+          "response_choice_oracle_regret": 0.31451029514248247,
+          "choice_switch_fraction": 0.0,
+          "beneficial_choice_fraction": 0.0,
+          "harmful_choice_fraction": 0.0,
+          "true_cost_tie_fraction": 1.0
+        },
+        {
+          "group": "cwm-s4-1994036",
+          "calls": 80,
+          "true_original_cost_gain": -0.007073841251486623,
+          "motion_choice_oracle_regret": 0.2682277367816199,
+          "response_choice_oracle_regret": 0.2753015780331065,
+          "choice_switch_fraction": 0.4,
+          "beneficial_choice_fraction": 0.125,
+          "harmful_choice_fraction": 0.275,
+          "true_cost_tie_fraction": 0.6
+        },
+        {
+          "group": "cwm-s4-1994037",
+          "calls": 80,
+          "true_original_cost_gain": 0.3155874319964364,
+          "motion_choice_oracle_regret": 0.8316036309167419,
+          "response_choice_oracle_regret": 0.5160161989203056,
+          "choice_switch_fraction": 0.35,
+          "beneficial_choice_fraction": 0.1,
+          "harmful_choice_fraction": 0.25,
+          "true_cost_tie_fraction": 0.65
+        },
+        {
+          "group": "cwm-s4-1994038",
+          "calls": 70,
+          "true_original_cost_gain": -0.1515088014418205,
+          "motion_choice_oracle_regret": 0.0832477572411799,
+          "response_choice_oracle_regret": 0.2347565586830004,
+          "choice_switch_fraction": 0.3142857142857143,
+          "beneficial_choice_fraction": 0.08571428571428572,
+          "harmful_choice_fraction": 0.22857142857142856,
+          "true_cost_tie_fraction": 0.6857142857142857
+        },
+        {
+          "group": "cwm-s4-1994039",
+          "calls": 48,
+          "true_original_cost_gain": -0.02221059139689115,
+          "motion_choice_oracle_regret": 0.611161985447977,
+          "response_choice_oracle_regret": 0.633372576844868,
+          "choice_switch_fraction": 0.4583333333333333,
+          "beneficial_choice_fraction": 0.2916666666666667,
+          "harmful_choice_fraction": 0.16666666666666666,
+          "true_cost_tie_fraction": 0.5416666666666666
+        },
+        {
+          "group": "cwm-s4-1994040",
+          "calls": 86,
+          "true_original_cost_gain": 0.027400609949879057,
+          "motion_choice_oracle_regret": 2.2585776341977835,
+          "response_choice_oracle_regret": 2.2311770242479043,
+          "choice_switch_fraction": 0.37209302325581395,
+          "beneficial_choice_fraction": 0.23255813953488372,
+          "harmful_choice_fraction": 0.13953488372093023,
+          "true_cost_tie_fraction": 0.627906976744186
+        },
+        {
+          "group": "cwm-s4-1994041",
+          "calls": 80,
+          "true_original_cost_gain": 0.012151089559676453,
+          "motion_choice_oracle_regret": 1.0665314013853817,
+          "response_choice_oracle_regret": 1.0543803118257051,
+          "choice_switch_fraction": 0.075,
+          "beneficial_choice_fraction": 0.025,
+          "harmful_choice_fraction": 0.05,
+          "true_cost_tie_fraction": 0.925
+        }
+      ]
+    }
+  },
+  "primary_research_eligible": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "new_scene_generated": false,
+  "gate_or_model_selected_by_diagnosis": false,
+  "scope": "ALL saved train/development full bounded_shared calls for the unchanged fixed primary ADE-median seed. Descriptive true original-cost choice switches and same-library oracle gaps, not causal identification, model reinference, native original-engine replay, capture/safety/latency, holdout, or permission to deploy truth-conditioned gates."
+}
