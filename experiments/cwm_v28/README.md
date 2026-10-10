@@ -52,3 +52,42 @@ independent packaged-evidence re-execution remain separate pending requirements.
 Later active sequential selector, untouched holdout, original completeLevels
 and new scenes closed-loop capture/safety/latency remain mandatory. Everything
 stays default off; empirical local CBF is not a new formal safety proof.
+
+## Complete archive and independent extracted re-execution
+
+`package_ranking_release.py` is a separate publication entry; it never modifies
+the running collector/auditor/trainer or protocols. It requires the completed
+data gate, independent data audit, BOTH complete nine-model runs and completed
+two-run reload evidence. Failed research qualification is retained, not changed
+to success. All64 original observations/trajectory/plan/CBF-command comparisons,
+sequential public inputs and paired labels, audit evidence/source snapshots,
+18 final weights/optimizer/RNG/history/prediction/cost/contribution records,
+motion-stage states/caches, original capsule and frozen proposer archive are
+included. Restored working trees, caches and unrelated files are excluded by a
+curated exact inventory, not a broad directory glob.
+
+The archive must match the corresponding Git checkout and preregistration
+history, with the original Python environment. It is not a bare-ZIP portability
+or cross-platform guarantee. ZIP/hash/inventory checks happen before extraction;
+traversal, Windows aliases, duplicate/case-colliding members and symlinks are
+refused. Fresh child processes then independently replay ALL64 scenes and ALL
+paired branches and reload ALL18 final models/full original costs. Checkpoints
+retain their original audited-data identity; that audit's physical/public/cost
+evidence is first independently re-executed, not replaced by a new summary hash.
+Only after BOTH real replays and input rechecks pass is a completed external
+certificate emitted. The archive's release contract explicitly requires this
+certificate; logs and incomplete artifacts are retained on failure, never
+reported as passed. Transport splits are lossless45MiB chunks; a chunk hash
+roundtrip is not a second scientific replay.
+
+```powershell
+python experiments/cwm_v28/package_ranking_release.py --data results/cwm_v28/NEW_DATA --audit results/cwm_v28/NEW_AUDIT --primary results/cwm_v28/NEW_PRIMARY --repeated results/cwm_v28/NEW_REPEATED --reload results/cwm_v28/NEW_TRAINING_AUDIT --archive results/cwm_v28/NEW_COMPLETE.zip --parts-output experiments/cwm_v28/artifacts/NEW_COMPLETE.parts.json --replay-output results/cwm_v28/NEW_ARCHIVE_REPLAY
+python experiments/cwm_v28/package_ranking_release.py --verify experiments/cwm_v28/artifacts/NEW_COMPLETE.parts.json --replay-output results/cwm_v28/NEW_INDEPENDENT_PARTS_REPLAY
+```
+
+Packaging fixture tests cover full inventories, exclusions, transport roundtrip,
+real-entry ordering and fail-closed certificates. Mocked/synthetic children are
+clearly disclosed in tests and are NOT a completed research artifact release.
+Actual full training, archive re-execution and scientific qualification remain
+pending until real output evidence exists. Archive validation alone still does
+not authorize online control or demonstrate capture/safety/latency improvements.
