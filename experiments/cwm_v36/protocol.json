@@ -1,0 +1,21 @@
+{
+  "version": "cwm_v36.fixed_streamed_matched_training_entry.20261011",
+  "v34_data_protocol_sha256": "abec8968788b1662f3be411876c9fad1e2aa3d72c09d08b48f68e4e2e8eadebf",
+  "v34_training_protocol_sha256": "87cd7c4cc59ac4006c3d969c204349a3ac6cd48873bff9bf085f6fbb6d2fa0c9",
+  "primary_configuration": "cv_prefix_rank_l2",
+  "geometry_axes": ["reference_wallx1_5", "wallx2_25", "wider_encirclement", "shorter_wall"],
+  "predictive_selection_population": "Unchanged bounded_shared BASE candidates only, ALL supported development calls and valid native masks. Same prior group/point ADE definition and final80 ADE-median seed rule. Augmented-probe prediction metrics are separate diagnostics only, never a selection population.",
+  "decision_population": "ALL complete BASE bounded_shared native calls; retain actual_unique/public_geometry subset diagnostics, never score/select an augmented-probe library. Compare realized original truth cost at each method choice; validate original actual candidates, duplicates, solver anchor and all native full-cost labels.",
+  "decision_family_weighting": "For each layout/noise family, first mean identical-support call gains within each of ALL4 axes (both mirrors together), then equal-axis mean. Mean families equally; bootstrap16 development families with ALL axes/mirrors as one block,2000 draws and seed1034701. Refuse any missing axis/family support; no favorable-axis selection. Report each axis separately, not as a promotion gate replacement.",
+  "cache_batch_contract": "Canonical deployed common reference inferred on ALL supported calls in recorded order in fixed16-call blocks; final model evaluation uses the same global blocks BEFORE split aggregation. Per-call cache files retain detached original BASE true costs, temperature, q/logq and reference; they never become neural features. Rebuild score from audited public context for each bounded minibatch.",
+  "before_motion_optimizer": "Complete V34 native data audit, source/evidence/call identities, full-TRAIN weights/normalizer, all original-score and finite-difference checks at GRU and CV references, complete group/axis cost support and published exact source/plan bytes. No partial-population optimizer.",
+  "before_response_optimizer": "Freeze/clear common motion and copy it; audit original score and derivatives again at actual canonical deployed common reference for ALL complete BASE calls. Full-query and prefix cores identical initialization/32992 total/31432 trainable parameters and same80epoch/data order/batch/loss budget. Original GRU never optimized.",
+  "output_contract": "Exclusive NEW output; preserve final9 models, optimizer/RNG80epoch histories, per-call full augmented predictions and BASE decisions, normalizer/weights, per-seed canonical caches/cost audits, used source snapshots and summaries. No best-epoch checkpoint or selection by decision gain.",
+  "two_complete_runs_required": true,
+  "independent_full_reload_required": true,
+  "original8Levels_new_scene_capture_safety_latency_fallback_holdout_required": true,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Training entry contract only. Implementation/tests/one completed offline run never authorize active control or prove efficacy. V34 data-stage training_entry_implemented=false remains its publication-time fact; that live source is not edited."
+}
