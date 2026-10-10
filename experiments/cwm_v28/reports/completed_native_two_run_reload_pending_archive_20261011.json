@@ -1,0 +1,163 @@
+{
+  "status": "completed_native_two_run_ranking_reload_pending_archive_replay",
+  "native_summary_sha256": "4e0b52ed14b07e35923f4f43f5e27518bedc99a560c38befbaf46c0cf835db14",
+  "native_output": "D:/uav-capture/cwm28-reload-v2-20261011/summary.json",
+  "actual_native_reload_exit_code": 0,
+  "observed_successor_package_process_id": 41672,
+  "native_payload_semantic_copy_not_same_file_bytes": true,
+  "native_summary": {
+    "reload_source_hashes": {
+      "release_ranking_training_v2.py": "7cfcaeedc92fa74b9d2ba2915b40b9bc36a9b38d0ef88e6dbde715ea6e7e3d71",
+      "repeatability_identity.py": "7d883c3cc7907c2ff1542b17fa2b5d826b7210eeba4168752a0517412fc24bde"
+    },
+    "status": "two_complete_fresh_ranking_runs_reloaded_original_costs_verified",
+    "models_per_run": 9,
+    "complete_runs": 2,
+    "repeatability_identity": {
+      "schema": "cwm_v28.exact_contents_individual_file_identity.v1",
+      "only_summary_field_excluded": "models[*].checkpoint_sha256",
+      "individual_final_file_hashes_verified": true,
+      "all_checkpoint_contents_bitwise_equal": true,
+      "all_final_and_motion_stage_history_bytes_equal": true,
+      "checkpoints_each_run": 12,
+      "identical_serialized_checkpoint_pairs": 0,
+      "different_serialized_checkpoint_pairs": 12,
+      "training_summaries_preserved": true,
+      "checkpoint_files_rewritten": false
+    },
+    "all_final_weights_optimizer_rng_histories_equal": true,
+    "all_prediction_bytes_reloaded": true,
+    "train_only_normalization_verified": true,
+    "actual_geometry_shared_cost_contributions_recomputed": true,
+    "data_summary_sha256": "fb94fbb24a517ad4a9622f520b8314d1720349ae06a525e8079dbc6351ddffc7",
+    "data_audit_summary_sha256": "976c9d0535dad4e58958aa47c0d673c8c978ee6d80500c1de0a95c8e6a754514",
+    "primary_summary_sha256": "87254fad514a7ee45da3f325324660b443ea638c52a166668e1833a603cfd1f7",
+    "repeated_summary_sha256": "f0f20a9a5e16fbaae2792fdbe929317964bc544f941f4c4eece382c63b576e44",
+    "primary_research_eligible": false,
+    "qualification": {
+      "cv_l2": {
+        "research_eligible": false,
+        "checks": {
+          "each_seed_ade_vs_gru": true,
+          "median_ade_vs_cv": true,
+          "median_response_vs_zero": true,
+          "anchor_response_exact_zero": true,
+          "gain_vs_own_motion": false,
+          "gain_vs_cv": false,
+          "gain_vs_motion_only": false,
+          "gain_vs_original_gru": true
+        },
+        "selected_seed": 994101,
+        "selected_gains": {
+          "own_motion": {
+            "groups": 8,
+            "group_equal_mean": 0.012465717766667682,
+            "percentile_95_interval": [
+              -0.08632555718883855,
+              0.11948500854988187
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "cv": {
+            "groups": 8,
+            "group_equal_mean": -0.022085531415878545,
+            "percentile_95_interval": [
+              -0.3423463069201016,
+              0.2054130004874951
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "motion_only": {
+            "groups": 8,
+            "group_equal_mean": -0.07295051830139446,
+            "percentile_95_interval": [
+              -0.1681149069383036,
+              0.02231547438469665
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "original_gru": {
+            "groups": 8,
+            "group_equal_mean": 1.0175459999474485,
+            "percentile_95_interval": [
+              0.660122478803943,
+              1.3561764909427934
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          }
+        },
+        "online_promoted": false
+      },
+      "cv_rank_l2": {
+        "research_eligible": false,
+        "checks": {
+          "each_seed_ade_vs_gru": true,
+          "median_ade_vs_cv": true,
+          "median_response_vs_zero": true,
+          "anchor_response_exact_zero": true,
+          "gain_vs_own_motion": false,
+          "gain_vs_cv": false,
+          "gain_vs_motion_only": false,
+          "gain_vs_original_gru": true,
+          "median_response_vs_cv_l2": true,
+          "median_ranking_kl_vs_cv_l2": true,
+          "gain_vs_cv_l2": false
+        },
+        "selected_seed": 994101,
+        "selected_gains": {
+          "own_motion": {
+            "groups": 8,
+            "group_equal_mean": 0.02105845115469825,
+            "percentile_95_interval": [
+              -0.04692820272562559,
+              0.11698807169227458
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "cv": {
+            "groups": 8,
+            "group_equal_mean": -0.013492798027847981,
+            "percentile_95_interval": [
+              -0.3508934722751456,
+              0.21369106281968278
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "motion_only": {
+            "groups": 8,
+            "group_equal_mean": -0.06435778491336389,
+            "percentile_95_interval": [
+              -0.17849936210075157,
+              0.059739768824441604
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "original_gru": {
+            "groups": 8,
+            "group_equal_mean": 1.026138733335479,
+            "percentile_95_interval": [
+              0.6529445542235569,
+              1.370912616148319
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          },
+          "cv_l2": {
+            "groups": 8,
+            "group_equal_mean": 0.008592733388030573,
+            "percentile_95_interval": [
+              -0.02215055197432678,
+              0.04743683591412595
+            ],
+            "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+          }
+        },
+        "online_promoted": false
+      }
+    },
+    "enhanced_control_enabled": false,
+    "holdout_used": false,
+    "artifact_packaged_and_replayed": false,
+    "scope": "Complete independent data replay audit plus two-run model re-inference/cost/repeatability. Artifact transport/publication replay still pending. No active selector, holdout, full-Level/new-scene closed-loop capture/safety/latency qualification."
+  },
+  "scope": "Actual18 final-model all-call inference, original-cost and fixed-gate recomputation passed. Complete archive/extracted data and model replay are running, not yet certified. Primary causal qualification remains failed; original/default-off/holdout contracts preserved."
+}
