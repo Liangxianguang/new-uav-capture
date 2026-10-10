@@ -1,0 +1,20 @@
+{
+  "version": "cwm_v20.v19_failure_decomposition.20261010",
+  "scope": "Posthoc descriptive diagnosis of previously inspected V19 train/development, not a fresh validation or new qualification. No training, seed/window selection, threshold search, promotion or holdout access.",
+  "source_artifact": "experiments/cwm_v19/artifacts/frozen_common_motion_training_20261010.zip",
+  "source_artifact_sha256": "ea497f57c2a62f5ddba457d13797659dc587e24cce8c2b488f445fb5205bf355",
+  "models": ["motion_only", "raw_response", "mediated_response"],
+  "seeds": [989101, 989102, 989103],
+  "splits": ["train", "development_validation"],
+  "truth_magnitude_bins_m": [0.0000000001, 0.01, 0.05, 0.2],
+  "bin_names": ["numerically_zero", "tiny_to_1cm", "1_to_5cm", "5_to_20cm", "over_20cm"],
+  "false_response_threshold_m": 0.05,
+  "reported_horizon_offsets": [1, 2, 3, 4, 5, 6, 7, 8],
+  "support": "Valid proposed AND valid anchor AND raw proposed != raw anchor, identical to V19 paired response gate. Anchor and all padding excluded; no missing-label imputation.",
+  "aggregation": "Gate-compatible metric: mean valid nonanchor points within mirror group, equal weight across groups. Conditional bins use only groups with support and explicitly report counts. Population contribution and fraction use every original group, including zeros in empty bins; disjoint-bin contributions sum to global error change. Also report call-balanced coordinate MSE and energy matching fixed V19 stage2 objective.",
+  "mediator_diagnosis": "Frozen saved/public-reloaded estimates only. Absolute command errors reported on observed steps using the original V15 call/group convention. Paired command-delta errors on the same causal-support points; report own agent and all-agent mean, by response bin. Private commanded labels only diagnostic truth, never inference inputs.",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "prior_gates_overridden": false
+}

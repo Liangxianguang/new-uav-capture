@@ -1,0 +1,6 @@
+# CWM source snapshots are byte-audited; Windows checkout must keep their LF.
+/experiments/cwm_v*/**/*.py text eol=lf
+/experiments/cwm_v*/**/*protocol*.json text eol=lf
+
+# V20 reports are exact emitted run bytes (including native JSON line endings).
+/experiments/cwm_v20/reports/** -text whitespace=cr-at-eol

@@ -1,0 +1,20 @@
+{
+  "status": "two_full_independent_diagnostic_runs_byte_equal",
+  "summary_sha256": "349ae06a2d27fb9cdb4fe1f0abc1a053e37591a14bd90ba6bf168e132448a817",
+  "source_artifact_sha256": "ea497f57c2a62f5ddba457d13797659dc587e24cce8c2b488f445fb5205bf355",
+  "models": 9,
+  "splits": [
+    "train",
+    "development_validation"
+  ],
+  "source_hashes": {
+    "response_diagnostics.py": "769dd305e1074f9e66e67fcdef808fb223866fbf372c037f965c8871324155f0",
+    "diagnostic_protocol.json": "2edd1725f239aa40583e3547650cbef6228815a771a372aec36eb3a91561c7e4"
+  },
+  "interpretation": "Posthoc descriptive diagnosis of previously inspected V19 train/development, not a fresh validation or new qualification. No training, seed/window selection, threshold search, promotion or holdout access.",
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "prior_gates_overridden": false,
+  "artifact_sha256": "067b2570f2c868480f7e187718fbbe4a733d82e27632247f4156f340d1f01fa8",
+  "artifact_bytes": 111399
+}
