@@ -1,5 +1,15 @@
 # V23: deployed-reference response-cost contrast, default off
 
+Latest completed-training status (2026-10-10 19:31 Shanghai): BOTH complete
+18-model runs finished, ALL FOUR response configurations failed eligibility,
+primary=cv_cost_l2 failed. No controller enabled. Full prearchive/archive and
+completed-evidence semantic audits are running, not yet passed. See
+`docs/CWM_V23_COMPLETED_TRAINING_RESULTS_20261010.md` and
+`reports/completed_training_saved_cost_description.json`. The description
+independently recalculates argmin/regret from saved costs, NOT engine costs
+or weight reinference. Older pending-training wording below is historical;
+complete research release/promotion requirements remain mandatory.
+
 V21 improved average response prediction, but all controller research gates
 failed. V22's posthoc truth replacements indicate response-ranking errors on
 expanded candidates plus common-motion generalization errors; they are not
