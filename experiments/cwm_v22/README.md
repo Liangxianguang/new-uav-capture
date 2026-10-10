@@ -15,4 +15,25 @@ Report every seed/configuration, candidate costs, help/harm and margins, train/d
 generalization, group-equal summaries and paired descriptive bootstrap intervals.
 Do not change V21's predeclared primary, selection, gates or failed qualification.
 
-Implementation/reproduction commands will be added before diagnosis runs.
+## Reproduction
+
+Use the same recorded Windows Python environment as V21. The initial protocol
+was published as `518e81d` before analysis, after V21 results were inspected.
+
+```powershell
+python -m pytest -q experiments/cwm_v22
+python experiments/cwm_v21/loss_training_release.py --verify experiments/cwm_v21/artifacts/response_loss_factorial_20261010.parts.json
+python experiments/cwm_v22/decision_diagnostics.py --output results/cwm_v22/primary
+python experiments/cwm_v22/decision_diagnostics.py --output results/cwm_v22/repeated
+```
+
+Each diagnostic process first verifies the exact full archive and re-infers
+all30models, train/dev forecasts, full original costs, gates, optimizer/RNG and
+public252 frames via V21's unchanged full audit. It reconstructs both splits'
+contexts through the original frozen engine, checks833/272complete-union calls,
+then scores all diagnostic paths. An exact-path cache shares repeated scores
+only within an identical call; no approximation or alternative cost is used.
+Actual candidate scores and selected action must reproduce the copied original
+solver. Every development cost/choice/regret shared with V21 must match exactly.
+Each split/model/population saves full decision records, not only a summary.
+Two independent outputs must match before reporting reproducible conclusions.
