@@ -21,3 +21,7 @@
 # V24 diagnostic evidence also retains exact emitted bytes under Windows.
 /experiments/cwm_v24/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v24/artifacts/** -text
+
+# V25 emitted entry replay reports and archive retain exact evidence bytes.
+/experiments/cwm_v25/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v25/artifacts/** -text

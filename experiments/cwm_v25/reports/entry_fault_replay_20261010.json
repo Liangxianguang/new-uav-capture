@@ -1,0 +1,38 @@
+{
+  "status": "passed_two_process_post_plan_fault_injection_replay",
+  "episodes_per_mode_per_run": 2,
+  "independent_runs": 2,
+  "modes": [
+    "plain",
+    "off",
+    "refusal",
+    "load_failure",
+    "prediction_failure",
+    "synthetic_shadow"
+  ],
+  "episode_indices": [
+    920000640,
+    10038
+  ],
+  "levels": [
+    5,
+    6
+  ],
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "historical_defender_target_trajectory_bytes_equal": true,
+  "planned_and_post_cbf_command_bytes_equal_to_plain": true,
+  "two_run_arrays_exact": true,
+  "enhanced_control_enabled": false,
+  "real_checkpoint_loaded": false,
+  "holdout_used": false,
+  "source_hashes": {
+    "experiments/cwm_v25/original_entry_boundary.py": "b71c8b05f1b38a06a6fa42b7beaf46e761b4c4da009d71f87be440998707a3d2",
+    "experiments/cwm_v25/qualification_gate.py": "361e0536a303f79a22a94ecafa7c830863c5ab4e7013401217129bb9005aff40",
+    "experiments/cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "experiments/cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "experiments/cwm_v23/reports/independent_model_validation.json": "19bb53649b9fae6e20eadf13c759b54e475efe65126351fcec7b0a0303f5c530"
+  },
+  "scope": "Post-plan fault-injection harness at the real historical run_episode. Load/inference fixtures have zero history/relative/CV placeholders and are NOT real learned-model public contexts. All fault injection uses noncontrolling shadow, refusal uses failed V23 status. No active local-selector integration, sequential/self-generated support or real learned-model failure coverage is proved. CPU/runtime representative regression only, not 8-level or latency qualification.",
+  "artifact_sha256": "9f5db7c2a2ec524594a4113a751f001041e6fc3994094b544b8f9b0569ab85d7",
+  "artifact_bytes": 429176
+}
