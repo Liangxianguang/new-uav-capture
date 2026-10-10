@@ -103,3 +103,17 @@ python experiments/cwm_v30/measurement_smoke.py --output D:\uav-capture\cwm30-cy
 # Only after V28 artifact-qualified fixed primary; NOT authorized/running now:
 python experiments/cwm_v30/paired_closed_loop.py --artifact VERIFIED_V28_ARTIFACT --certificate VERIFIED_V28_CERTIFICATE --output NEW_SHORT_OUTPUT
 ```
+
+`package_full_baseline.py` requires the complete original baseline AND complete
+off/refusal audit, inventories ALL trajectories/plans/CBF and native diagnostics,
+includes the pinned original capsule/source snapshots, and checks every ZIP CRC/
+length/hash/path. It then runs BOTH ALL1280 modes again in a fresh subprocess
+against extracted archive evidence; only real success issues a certificate. No
+arbitrary extracted Python execution. Optional45MiB lossless parts are created
+only afterward. Use a short new replay path; matching Git history and original
+Python runtime are required (not bare-ZIP or cross-platform proof). Packaging
+has NOT actually run while the prerequisite full audit is incomplete.
+
+```powershell
+python experiments/cwm_v30/package_full_baseline.py --baseline D:\uav-capture\cwm30-baseline-20261011 --audit D:\uav-capture\cwm30-audit-20261011 --artifact NEW_FULL_ARCHIVE --replay-output D:\uav-capture\cwm30-archive-replay-20261011 --parts-output NEW_PARTS_MANIFEST
+```
