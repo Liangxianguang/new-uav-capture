@@ -1,0 +1,275 @@
+{
+  "status": "passed_independent_public_mechanism_pilot_audit",
+  "episodes": 64,
+  "groups": 32,
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "models_per_run": 9,
+  "training_runs": 2,
+  "original_public_and_two_label_replays_equal": true,
+  "weights_optimizer_rng_history_equal": true,
+  "qualification": {
+    "branch_snapshot": {
+      "selected_median_seed": 976101,
+      "median_relative_improvements": {
+        "branch_nll_relative_improvement_vs_train_prior": 0.08238772448869902,
+        "paired_branch_brier_relative_improvement_vs_zero": -0.05484524606911689
+      },
+      "gains": {
+        "branch_nll_relative_improvement_vs_train_prior": {
+          "groups": 8,
+          "mean": 0.06934532231706708,
+          "lower": -0.283073685358596,
+          "upper": 0.40877890215807694
+        },
+        "paired_branch_brier_relative_improvement_vs_zero": {
+          "groups": 8,
+          "mean": -0.006166523173257861,
+          "lower": -0.010334666794004093,
+          "upper": -0.0025024052831891025
+        }
+      },
+      "checks": {
+        "branch_nll_relative_improvement_vs_train_prior": true,
+        "branch_nll_relative_improvement_vs_train_prior_all_seeds_improve": false,
+        "branch_nll_relative_improvement_vs_train_prior_positive_group_lower_bound": false,
+        "paired_branch_brier_relative_improvement_vs_zero": false,
+        "paired_branch_brier_relative_improvement_vs_zero_all_seeds_improve": false,
+        "paired_branch_brier_relative_improvement_vs_zero_positive_group_lower_bound": false
+      },
+      "mechanism_research_eligible": false,
+      "online_promoted": false
+    },
+    "branch_history": {
+      "selected_median_seed": 976101,
+      "median_relative_improvements": {
+        "branch_nll_relative_improvement_vs_train_prior": -0.4852039318388719,
+        "paired_branch_brier_relative_improvement_vs_zero": -0.04396114878275914
+      },
+      "gains": {
+        "branch_nll_relative_improvement_vs_train_prior": {
+          "groups": 8,
+          "mean": -0.4083936442192925,
+          "lower": -1.1707875075431229,
+          "upper": 0.23517858813336942
+        },
+        "paired_branch_brier_relative_improvement_vs_zero": {
+          "groups": 8,
+          "mean": -0.0075732976958195215,
+          "lower": -0.014640220903671383,
+          "upper": -0.0009043461135216655
+        }
+      },
+      "checks": {
+        "branch_nll_relative_improvement_vs_train_prior": false,
+        "branch_nll_relative_improvement_vs_train_prior_all_seeds_improve": false,
+        "branch_nll_relative_improvement_vs_train_prior_positive_group_lower_bound": false,
+        "paired_branch_brier_relative_improvement_vs_zero": false,
+        "paired_branch_brier_relative_improvement_vs_zero_all_seeds_improve": false,
+        "paired_branch_brier_relative_improvement_vs_zero_positive_group_lower_bound": false
+      },
+      "mechanism_research_eligible": false,
+      "online_promoted": false
+    },
+    "cbf_history": {
+      "selected_median_seed": 976102,
+      "median_relative_improvements": {
+        "cbf_vector_error_relative_improvement_vs_proposed": 0.6934606835061792
+      },
+      "gains": {
+        "cbf_vector_error_relative_improvement_vs_proposed": {
+          "groups": 8,
+          "mean": 0.44928007732639463,
+          "lower": 0.40856333190634836,
+          "upper": 0.49324844234852594
+        }
+      },
+      "checks": {
+        "cbf_vector_error_relative_improvement_vs_proposed": true,
+        "cbf_vector_error_relative_improvement_vs_proposed_all_seeds_improve": true,
+        "cbf_vector_error_relative_improvement_vs_proposed_positive_group_lower_bound": true
+      },
+      "mechanism_research_eligible": true,
+      "online_promoted": false
+    }
+  },
+  "mechanism_diagnostics": {
+    "train": {
+      "calls": 1152,
+      "groups": 24,
+      "nonanchor_candidates": 2476,
+      "true_branch_flip_pairs": 76,
+      "nonanchor_common_points": 18181,
+      "cbf_changed_command_points": 91949,
+      "observed_command_points": 107028,
+      "cbf_correction_max_mps": 2.2631322327014294,
+      "execution_error_max_mps": 1.8444410139024814e-15,
+      "response_by_true_branch": {
+        "response": {
+          "groups_with_support": 24,
+          "points": 18181,
+          "group_equal_mean_m": 0.021474803023288556,
+          "maximum_m": 2.0831422507988027
+        },
+        "same_branch_response": {
+          "groups_with_support": 24,
+          "points": 14633,
+          "group_equal_mean_m": 0.013988956112205622,
+          "maximum_m": 0.5651979785982145
+        },
+        "flipped_branch_response": {
+          "groups_with_support": 17,
+          "points": 439,
+          "group_equal_mean_m": 0.4822713324877038,
+          "maximum_m": 2.0831422507988027
+        },
+        "pending_branch_response": {
+          "groups_with_support": 24,
+          "points": 3109,
+          "group_equal_mean_m": 0.00011727985607002112,
+          "maximum_m": 0.04134201711216116
+        }
+      },
+      "by_step": {
+        "2": {
+          "calls": 192,
+          "initial_committed_calls": 0,
+          "branch_flip_pairs": 20,
+          "common_points": 3448
+        },
+        "3": {
+          "calls": 192,
+          "initial_committed_calls": 0,
+          "branch_flip_pairs": 18,
+          "common_points": 3360
+        },
+        "4": {
+          "calls": 192,
+          "initial_committed_calls": 24,
+          "branch_flip_pairs": 25,
+          "common_points": 3263
+        },
+        "5": {
+          "calls": 192,
+          "initial_committed_calls": 56,
+          "branch_flip_pairs": 10,
+          "common_points": 3113
+        },
+        "6": {
+          "calls": 192,
+          "initial_committed_calls": 120,
+          "branch_flip_pairs": 3,
+          "common_points": 2839
+        },
+        "8": {
+          "calls": 192,
+          "initial_committed_calls": 192,
+          "branch_flip_pairs": 0,
+          "common_points": 2158
+        }
+      },
+      "support_points_by_offset": [
+        2476,
+        2476,
+        2476,
+        2444,
+        2349,
+        2198,
+        1973,
+        1789
+      ]
+    },
+    "development_validation": {
+      "calls": 384,
+      "groups": 8,
+      "nonanchor_candidates": 879,
+      "true_branch_flip_pairs": 31,
+      "nonanchor_common_points": 6305,
+      "cbf_changed_command_points": 31508,
+      "observed_command_points": 36436,
+      "cbf_correction_max_mps": 1.9281326979894486,
+      "execution_error_max_mps": 1.8444410139024814e-15,
+      "response_by_true_branch": {
+        "response": {
+          "groups_with_support": 8,
+          "points": 6305,
+          "group_equal_mean_m": 0.01652832401936413,
+          "maximum_m": 1.4937760262910453
+        },
+        "same_branch_response": {
+          "groups_with_support": 8,
+          "points": 4909,
+          "group_equal_mean_m": 0.013262810331842245,
+          "maximum_m": 0.3866079732872644
+        },
+        "flipped_branch_response": {
+          "groups_with_support": 5,
+          "points": 143,
+          "group_equal_mean_m": 0.45010226165606104,
+          "maximum_m": 1.4937760262910453
+        },
+        "pending_branch_response": {
+          "groups_with_support": 8,
+          "points": 1253,
+          "group_equal_mean_m": 0.00015996635392404311,
+          "maximum_m": 0.02765140420158422
+        }
+      },
+      "by_step": {
+        "2": {
+          "calls": 64,
+          "initial_committed_calls": 0,
+          "branch_flip_pairs": 8,
+          "common_points": 1224
+        },
+        "3": {
+          "calls": 64,
+          "initial_committed_calls": 0,
+          "branch_flip_pairs": 9,
+          "common_points": 1184
+        },
+        "4": {
+          "calls": 64,
+          "initial_committed_calls": 0,
+          "branch_flip_pairs": 8,
+          "common_points": 1160
+        },
+        "5": {
+          "calls": 64,
+          "initial_committed_calls": 16,
+          "branch_flip_pairs": 3,
+          "common_points": 1060
+        },
+        "6": {
+          "calls": 64,
+          "initial_committed_calls": 40,
+          "branch_flip_pairs": 3,
+          "common_points": 960
+        },
+        "8": {
+          "calls": 64,
+          "initial_committed_calls": 64,
+          "branch_flip_pairs": 0,
+          "common_points": 717
+        }
+      },
+      "support_points_by_offset": [
+        879,
+        879,
+        859,
+        840,
+        805,
+        763,
+        685,
+        595
+      ]
+    }
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Finite S4 offline mechanism prediction only. Branch or mediator success is not target-response, decision, original8Level, safety/latency or closed-loop qualification. True labels remain supervision-only.",
+  "artifact_sha256": "9ebac503f906c94be2185ec0121319cf10085635253a69a27651c1070c52f59f",
+  "artifact_bytes": 47485035
+}
