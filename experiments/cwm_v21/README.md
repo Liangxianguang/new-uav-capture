@@ -33,3 +33,22 @@ or reassign splits. Training starts only after independent public replay and
 full data audit. Standalone scripts run in fresh Python processes with exclusive
 output directories. Reproduction entry points are added with implementation;
 this protocol/README is committed and published before collection/training.
+
+## Reproduction
+
+```powershell
+python -m pytest -q experiments/cwm_v21
+python experiments/cwm_v21/fresh_geometry_data.py --output results/cwm_v21/fresh_data
+python experiments/cwm_v21/replay_loss_public.py --data results/cwm_v21/fresh_data --output results/cwm_v21/public
+python experiments/cwm_v21/train_loss_factorial.py --data results/cwm_v21/fresh_data --public results/cwm_v21/public --output results/cwm_v21/primary
+python experiments/cwm_v21/train_loss_factorial.py --data results/cwm_v21/fresh_data --public results/cwm_v21/public --output results/cwm_v21/retrained
+python experiments/cwm_v21/loss_training_release.py --data results/cwm_v21/fresh_data --public results/cwm_v21/public --primary results/cwm_v21/primary --retrained results/cwm_v21/retrained --output results/cwm_v21/reproduced_training.zip
+```
+
+Every trainer audits original public252 frames, geometry candidates, delays,
+paired masks, train-only group weights and complete original costs before its
+optimizer. Release verification re-infers all15models on both train/dev in
+each run, recomputes bins/offsets and every complete-cost decision, compares
+weights/optimizer/RNG/history and matched common-motion weights, verifies
+fixed optimizer update counts and initializations, and recomputes all gates.
+Model/forecast/data failures must remain failures; no online control is enabled.
