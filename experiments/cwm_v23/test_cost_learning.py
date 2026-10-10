@@ -154,3 +154,25 @@ def test_unknown_origins_and_cost_weights_fail_closed():
     response = torch.zeros((3, 8, 3))
     with pytest.raises(ValueError, match='preregistered'):
         cost_response_loss(response, calls, [0], [(0, 3)], weights, {}, .001, 1.)
+
+
+@pytest.mark.parametrize('origin', ['gru', 'cv'])
+def test_nonzero_common_reference_is_exact_across_candidate_block_and_tail_rows(origin):
+    torch.set_num_threads(1)
+    torch.manual_seed(993101)
+    calls = [call('a', n=23), call('b', n=13), call('c', n=21)]
+    rng = np.random.default_rng(993101)
+    for c in calls:
+        c['values']['history'] = rng.normal(size=(8, 252))
+        c['values']['relative'] = rng.normal(size=(4, 6))
+    model = CalibratedOrigin(LocalTwoHead('motion_only'), origin)
+    torch.nn.init.normal_(model.core.motion_head.weight, std=.1)
+    inputs, slices = public_cost_inputs(calls, [0, 1, 2], np.zeros((1, 1, 252)), np.ones((1, 1, 252)))
+    prediction, motion, _ = model(*inputs)
+    for a, b in slices:
+        assert torch.equal(prediction[a:b], prediction[a:a+1].expand(b-a, -1, -1))
+        assert torch.equal(motion[a:b], motion[a:a+1].expand(b-a, -1, -1))
+    # No candidate action may affect the anchored reference, even at finite bits.
+    changed = (*inputs[:2], inputs[2] * 10., *inputs[3:])
+    assert torch.equal(model(*changed)[0], prediction)
+    assert not torch.equal(prediction[0], prediction[slices[-1][0]])

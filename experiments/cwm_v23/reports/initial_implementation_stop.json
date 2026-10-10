@@ -1,0 +1,22 @@
+{
+  "status": "implementation_stopped_before_response_training_no_qualification",
+  "source_commit": "e0ec3df",
+  "attempt_directory": "results/cwm_v23/primary_20261010",
+  "verified_terminal_session": 66556,
+  "exit_code": 1,
+  "data_audit_passed": true,
+  "initial_gru_and_cv_original_cost_gradient_audits_passed": true,
+  "complete_union_calls": 1088,
+  "first_gru_motion_seed": 993101,
+  "first_gru_motion_epochs_finished": 80,
+  "response_training_started": false,
+  "final_checkpoints_saved": false,
+  "development_research_qualification_produced": false,
+  "exception": "ValueError: Action-independent deployed reference required",
+  "independent_nonzero_random_head_reproduction_max_difference_m": 1.7881393432617188e-7,
+  "fix": "Evaluate unchanged common core once per exact public reference context, gather across candidate rows; keep exact common equality and all protocols unchanged.",
+  "missing_evidence": "The interrupted process did not save the transient motion weights/optimizer/history file. Terminal output records epochs20/40/60/80; no complete trained-model artifact is claimed.",
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329"
+}

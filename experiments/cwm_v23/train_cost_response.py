@@ -176,6 +176,11 @@ def run_cost_training(data, public, output):
                 indices['train'], mean, scale, weights, counts, {}, {**config, 'seed': seed}, protocol)
             trained = {'model_state': copy.deepcopy(common.state_dict()), 'optimizer_state': copy.deepcopy(optimizer.state_dict()),
                 'initial_state_digest': initial, 'torch_rng_state': torch.get_rng_state(), 'sampler_rng_state': rng}
+            # Preserve the completed pretraining stage BEFORE a later strict
+            # score/cache audit can stop this run. This adds no optimization.
+            torch.save({**trained, 'origin': origin, 'seed': seed, 'protocol': protocol,
+                'source_hashes': hashes, 'online_promoted': False}, output / f'{origin}_seed{seed}_motion_stage.pt')
+            save_json(output / f'{origin}_seed{seed}_motion_stage_history.json', history)
             common.eval().requires_grad_(False)
             for p in common.parameters():
                 p.grad = None
@@ -293,7 +298,17 @@ def main():
     for name in ('data', 'public', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
-    run_cost_training(args.data, args.public, args.output)
+    try:
+        run_cost_training(args.data, args.public, args.output)
+    except Exception as error:
+        if args.output.is_dir() and not (args.output / 'summary.json').exists():
+            failure = args.output / 'implementation_failure.json'
+            if not failure.exists():
+                with failure.open('x', encoding='utf8') as file:
+                    json.dump({'status': 'incomplete_attempt_no_qualification',
+                        'exception_type': type(error).__name__, 'exception': str(error)[:300],
+                        'enhanced_control_enabled': False, 'holdout_used': False}, file, indent=2)
+        raise
 
 
 if __name__ == '__main__':

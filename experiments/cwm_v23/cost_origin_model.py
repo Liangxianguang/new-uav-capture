@@ -43,7 +43,21 @@ class CalibratedOrigin(nn.Module):
     def calibration(self, history, relative, proposed, anchor, backbone, cv):
         if cv.shape != backbone.shape or cv.dtype != backbone.dtype or not torch.isfinite(cv).all():
             raise ValueError('Finite public CV path contract mismatch')
-        _, calibration, _ = self.core(history, relative, proposed, anchor, backbone)
+        # Batched float32 kernels may differ at the last bits for repeated rows
+        # at different block/tail positions. A common motion MUST NOT become
+        # candidate-dependent through that rounding. Encode each identical
+        # public reference context once and gather it, without new features or
+        # altered core parameters/losses. Proposed actions are intentionally not
+        # part of a reference-context key; V10 motion_only never uses them.
+        with torch.no_grad():
+            key = torch.cat([v.detach().double().flatten(1) for v in
+                             (history, relative, anchor, backbone, cv)], dim=1)
+            if not torch.isfinite(key).all():
+                raise ValueError('Finite public reference context required')
+            unique, inverse = torch.unique(key, dim=0, return_inverse=True)
+            first = (inverse[None] == torch.arange(len(unique), device=inverse.device)[:, None]).long().argmax(1)
+        _, unique_calibration, _ = self.core(history[first], relative[first], anchor[first], anchor[first], backbone[first])
+        calibration = unique_calibration[inverse]
         return backbone if self.origin == 'gru' else cv, calibration
 
     def forward(self, history, relative, proposed, anchor, backbone, cv):

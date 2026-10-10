@@ -12,3 +12,8 @@
 
 # V22 emitted summaries and full diagnosis archives retain exact evidence bytes.
 /experiments/cwm_v22/reports/** -text whitespace=cr-at-eol
+
+# V23 preserves exact emitted scientific evidence and lossless ZIP transport.
+/experiments/cwm_v23/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v23/artifacts/*.part* -text
+/experiments/cwm_v23/artifacts/*.parts.json -text whitespace=cr-at-eol

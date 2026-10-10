@@ -77,7 +77,7 @@ before collecting. No claim is made that this amendment ensures a passed gate.
 
 ```powershell
 python -m pytest -q experiments/cwm_v21 experiments/cwm_v22 experiments/cwm_v23
-python experiments/cwm_v23/train_cost_response.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/primary_20261010
+python experiments/cwm_v23/train_cost_response.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/primary_fixed_20261010
 python experiments/cwm_v23/train_cost_response.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/retrained_20261010
 ```
 
@@ -117,3 +117,22 @@ historical TRAIN-fixture original-engine checks. Those fixtures are implementati
 tests only, never new V23 model fitting, normalization or scientific validation.
 Complete two-run research artifact auditing/public release and all online
 requirements remain necessary; no new controller is enabled by these scripts.
+
+### Retained initial implementation stop
+
+The first `primary_20261010` attempt with source commit `e0ec3df` passed the full
+data and both initial-origin cost/gradient audits, trained the first GRU motion
+core for80epochs, and STOPPED before response training at the strict common-path
+check. No final model checkpoint/qualification was produced by that attempt.
+Independent random nonzero-head reproduction found identical repeated public
+contexts differing by1.7881393432617188e-7m at batched float32 block/tail positions.
+This is an implementation rounding bug, not a response/development outcome.
+
+Fix: run the UNCHANGED common core once per exact public reference context and
+gather its calibration across candidates. Proposed actions are excluded from
+the grouping key; CV remains an analytic wrapper input only, not a neural
+feature. Anchor actions are passed through the same motion-only core, which
+never uses proposed actions. Common-path equality remains EXACT, not a looser
+tolerance. Architecture, data/split, losses, seeds, budget, primary and gates
+are unchanged. New full attempts use a fresh output directory, retain the old
+source/audit files and stop record, and restart the FULL fixed budgets.
