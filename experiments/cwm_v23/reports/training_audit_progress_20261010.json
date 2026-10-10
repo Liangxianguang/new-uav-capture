@@ -1,0 +1,51 @@
+{
+  "status": "full_positive_audit_passed_archive_and_negative_checks_pending",
+  "as_of_shanghai": "2026-10-10 19:41",
+  "source_commit": "63335f6630c8701c73ae72e4f0de8c5b213deede",
+  "full_positive_completed_evidence_audit": {
+    "status": "passed",
+    "command": "python experiments/cwm_v23/check_completed_cost_evidence.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --primary results/cwm_v23/primary_fixed_20261010 --retrained results/cwm_v23/retrained_20261010 --restored results/cwm_v23/semantic_check_restored_20261010",
+    "observed_terminal_phase_output": "full_positive_completed_evidence_audit_passed",
+    "whole_process_terminal": false,
+    "models_per_run": 18,
+    "independent_runs": 2,
+    "all_train_dev_forecasts_reinferred": true,
+    "complete_original_engine_actual_union_decisions_recomputed": true,
+    "initial_and_calibrated_original_cost_gradient_audits_recomputed": true,
+    "deployed_reference_scale_label_gradient_caches_recomputed": true,
+    "frozen_motion_stage_optimizer_rng_history_checked": true,
+    "complete_independent_run_checkpoints_and_histories_equal": true,
+    "unchanged_qualification_gates_recomputed": true,
+    "research_eligible_by_response_configuration": {
+      "gru_l2": false,
+      "gru_cost_l2": false,
+      "cv_l2": false,
+      "cv_cost_l2": false
+    },
+    "primary_research_eligible": false
+  },
+  "full_model_archive": {
+    "prearchive_release_summary": "passed_independent_fresh_deployed_cost_contrast_audit",
+    "release_summary_digest_matches_archive_manifest": true,
+    "archive_audit": "running",
+    "independent_archive_parts_audit": "not_yet_executed",
+    "model_parts_published": false
+  },
+  "completed_evidence_negative_semantic_checks": "running_not_yet_all_passed",
+  "fresh_local_checkout": {
+    "checkout_commit": "63335f6630c8701c73ae72e4f0de8c5b213deede",
+    "network_clone": false,
+    "core_autocrlf": true,
+    "ordinary_tests_passed": 129,
+    "ordinary_test_seconds": 5.35,
+    "cost_origin_model_sha256": "a699c11888c6fb83dd2a50c8a8bd4de14d4d8701cd054c0c7253a5f628e6d504",
+    "saved_cost_description_sha256": "94138bd9fb3978aa6db3964baeece670906bfbabbf80b1283be033447f8d8e03",
+    "regenerated_saved_cost_description_exact": true,
+    "scope": "Ordinary implementation tests and saved-cost description only; not independent archive-engine replay or cross-platform guarantee."
+  },
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "goal_complete": false,
+  "remaining": "Archive postaudit, full negative semantic checks, independent parts audit/publishing, whole original-entry off/refusal/failure equivalence, sequential/self-generated candidates, untouched holdout, original8Levels/newscene enhanced closed-loop capture/safety/latency. No failed eligibility override."
+}
