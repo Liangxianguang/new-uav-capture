@@ -1,0 +1,911 @@
+{
+  "status": "finite_scene_diagnostic_finished_not_model_qualification",
+  "protocol": {
+    "version": "cwm_v16.new_scene_single_axis_diagnostic.20261010",
+    "stage": "new_scene_development_not_model_validation_or_holdout",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "groups": 8,
+    "layout_seed_start": 1986010,
+    "variants": [
+      {
+        "name": "reference_wallx1_5",
+        "seed_start": 986010,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "wallx2_25",
+        "seed_start": 986110,
+        "wall_center_x_m": 2.25,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "wider_encirclement",
+        "seed_start": 986210,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.4,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "shorter_wall",
+        "seed_start": 986310,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 0.8
+      }
+    ],
+    "target_speed_scales": [
+      0.55,
+      0.75
+    ],
+    "observation_conditions": [
+      {
+        "name": "nominal",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.15,
+          "observation_noise_std": 0.03,
+          "message_delay_steps": 2,
+          "message_dropout_probability": 0.05
+        }
+      },
+      {
+        "name": "delayed_noisy",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.22,
+          "observation_noise_std": 0.06,
+          "message_delay_steps": 4,
+          "message_dropout_probability": 0.1
+        }
+      }
+    ],
+    "scene_variation": {
+      "wall_half_extent_x_m": [
+        0.45,
+        0.65
+      ],
+      "wall_half_extent_y_m": [
+        3.85,
+        4.2
+      ],
+      "wall_height_m": [
+        9.25,
+        9.55
+      ],
+      "target_initial_x_m": [
+        -4.25,
+        -3.45
+      ],
+      "target_initial_y_m": [
+        -0.4,
+        0.4
+      ],
+      "target_altitude_m": [
+        4.3,
+        5.7
+      ],
+      "defender_x_offset_m": [
+        0.0,
+        0.35
+      ],
+      "defender_y_scale": [
+        0.92,
+        1.08
+      ],
+      "defender_z_offset_m": [
+        -0.3,
+        0.3
+      ]
+    },
+    "reserved_holdout_not_collected": {
+      "episode_seed_start": 966010,
+      "layout_seed_start": 1966010,
+      "groups": 8
+    },
+    "target_branch_rule_overrides": {},
+    "maximum_command_speed_mps": 5.0,
+    "horizon_steps": 80,
+    "snapshot_steps": [
+      2,
+      4,
+      6,
+      8
+    ],
+    "noise_seed": 986501,
+    "response_horizons": [
+      8,
+      16
+    ],
+    "effect_threshold_m": 0.05,
+    "scene_gate": {
+      "maximum_original_target_invalid_episodes": 0,
+      "maximum_stress_target_invalid_branches": 0,
+      "minimum_signal_groups_at_8_steps": 2,
+      "minimum_effect_over_threshold_fraction_at_8_steps": 0.05
+    },
+    "scope": "All64preassigned episodes, retain route failures, skips and terminated prefixes. Eight unchanged V6 joint probes at fixed snapshots,80step held-command stress. Public reference generates probes; truth/branch/command/execution only diagnostic labels. Not actual local candidate decision evaluation, not extended MPC. Match original noise episode seed to group/mirror across variants; unique episode indices are artifact identities. No scene selection by capture/response; a positive diagnostic requires separate fresh confirmation before training.",
+    "enhanced_control_enabled": false,
+    "new_model_trained": false,
+    "private_labels_model_inputs": false,
+    "holdout_used": false
+  },
+  "source_hashes": {
+    "cwm_v16/collect_scenes.py": "dc698ecc0029d688ac77f999c5a2ebe479f92c4c3891a430de7592b855ad3baf",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "cwm_v16/scene_protocol.json": "bc8d311e2f8d40ab7b1782e5e721dfd12fd6645898f7cf51a29384c3e2246c16",
+    "cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5"
+  },
+  "assigned_scenes": 64,
+  "episodes": 64,
+  "windows": 256,
+  "skips": 0,
+  "scene_sha256": "8199bcf051188a228d8ebc19424afdd97485650d2cd85e921d72af61d2e53455",
+  "variants": [
+    {
+      "variant": "reference_wallx1_5",
+      "assigned_episodes": 16,
+      "route_invalid_scenes": 0,
+      "completed_episodes": 16,
+      "original_outcomes": {
+        "safe_capture_success": 16,
+        "collision": 0,
+        "boundary_violation": 0,
+        "timeout": 0,
+        "target_invalid_episode": 0
+      },
+      "windows": 64,
+      "stress_target_invalid_branches": 0,
+      "response": {
+        "8": {
+          "horizon": 8,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 392,
+              "mean_response_m": 0.33349910234945435,
+              "over_threshold_fraction": 0.6887755102040817,
+              "over_threshold_points": 270,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 419,
+              "mean_response_m": 0.3631410813254364,
+              "over_threshold_fraction": 0.7326968973747017,
+              "over_threshold_points": 307,
+              "full_pairs": 41,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 427,
+              "mean_response_m": 0.3376040130917725,
+              "over_threshold_fraction": 0.6159250585480094,
+              "over_threshold_points": 263,
+              "full_pairs": 42,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 448,
+              "mean_response_m": 0.3762934783056352,
+              "over_threshold_fraction": 0.703125,
+              "over_threshold_points": 315,
+              "full_pairs": 56,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 357,
+              "mean_response_m": 0.20294569516918193,
+              "over_threshold_fraction": 0.6274509803921569,
+              "over_threshold_points": 224,
+              "full_pairs": 28,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 392,
+              "mean_response_m": 0.2634538713762405,
+              "over_threshold_fraction": 0.6811224489795918,
+              "over_threshold_points": 267,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 434,
+              "mean_response_m": 0.352597371438587,
+              "over_threshold_fraction": 0.652073732718894,
+              "over_threshold_points": 283,
+              "full_pairs": 42,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 441,
+              "mean_response_m": 0.46463937890496565,
+              "over_threshold_fraction": 0.7346938775510204,
+              "over_threshold_points": 324,
+              "full_pairs": 49,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 3310,
+          "group_equal_mean_response_m": 0.33677174899515916,
+          "group_equal_over_threshold_fraction": 0.679482938221057
+        },
+        "16": {
+          "horizon": 16,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 462,
+              "mean_response_m": 0.515764051508462,
+              "over_threshold_fraction": 0.7359307359307359,
+              "over_threshold_points": 340,
+              "full_pairs": 7,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 562,
+              "mean_response_m": 0.6717536754024609,
+              "over_threshold_fraction": 0.800711743772242,
+              "over_threshold_points": 450,
+              "full_pairs": 13,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 707,
+              "mean_response_m": 1.0017657067350056,
+              "over_threshold_fraction": 0.7595473833097596,
+              "over_threshold_points": 537,
+              "full_pairs": 34,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 875,
+              "mean_response_m": 1.1972631634154722,
+              "over_threshold_fraction": 0.848,
+              "over_threshold_points": 742,
+              "full_pairs": 49,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 483,
+              "mean_response_m": 0.5342360096524355,
+              "over_threshold_fraction": 0.7246376811594203,
+              "over_threshold_points": 350,
+              "full_pairs": 14,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 532,
+              "mean_response_m": 0.5525815421823252,
+              "over_threshold_fraction": 0.7650375939849624,
+              "over_threshold_points": 407,
+              "full_pairs": 14,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 658,
+              "mean_response_m": 0.8813555514827457,
+              "over_threshold_fraction": 0.7674772036474165,
+              "over_threshold_points": 505,
+              "full_pairs": 28,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 728,
+              "mean_response_m": 1.1413872771224494,
+              "over_threshold_fraction": 0.8392857142857143,
+              "over_threshold_points": 611,
+              "full_pairs": 35,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 5007,
+          "group_equal_mean_response_m": 0.8120133721876697,
+          "group_equal_over_threshold_fraction": 0.7800785070112813
+        }
+      },
+      "finite_legality_gate_passed": true,
+      "response_support_gate_passed": true,
+      "eligible_for_fresh_confirmation": true,
+      "model_training_authorized_by_this_report": false
+    },
+    {
+      "variant": "wallx2_25",
+      "assigned_episodes": 16,
+      "route_invalid_scenes": 0,
+      "completed_episodes": 16,
+      "original_outcomes": {
+        "safe_capture_success": 16,
+        "collision": 0,
+        "boundary_violation": 0,
+        "timeout": 0,
+        "target_invalid_episode": 0
+      },
+      "windows": 64,
+      "stress_target_invalid_branches": 1,
+      "response": {
+        "8": {
+          "horizon": 8,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 406,
+              "mean_response_m": 0.343512313818815,
+              "over_threshold_fraction": 0.6995073891625616,
+              "over_threshold_points": 284,
+              "full_pairs": 35,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 419,
+              "mean_response_m": 0.36328158952257533,
+              "over_threshold_fraction": 0.7326968973747017,
+              "over_threshold_points": 307,
+              "full_pairs": 41,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 427,
+              "mean_response_m": 0.3380050914440868,
+              "over_threshold_fraction": 0.6159250585480094,
+              "over_threshold_points": 263,
+              "full_pairs": 42,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 448,
+              "mean_response_m": 0.3762958980192468,
+              "over_threshold_fraction": 0.7053571428571429,
+              "over_threshold_points": 316,
+              "full_pairs": 56,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 357,
+              "mean_response_m": 0.20306452811801795,
+              "over_threshold_fraction": 0.6274509803921569,
+              "over_threshold_points": 224,
+              "full_pairs": 28,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 392,
+              "mean_response_m": 0.26379474666482017,
+              "over_threshold_fraction": 0.6811224489795918,
+              "over_threshold_points": 267,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 434,
+              "mean_response_m": 0.3529118267211267,
+              "over_threshold_fraction": 0.652073732718894,
+              "over_threshold_points": 283,
+              "full_pairs": 42,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 441,
+              "mean_response_m": 0.4648590450752594,
+              "over_threshold_fraction": 0.7346938775510204,
+              "over_threshold_points": 324,
+              "full_pairs": 49,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 3324,
+          "group_equal_mean_response_m": 0.33821562992299353,
+          "group_equal_over_threshold_fraction": 0.6811034409480099
+        },
+        "16": {
+          "horizon": 16,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 532,
+              "mean_response_m": 0.6006587421581024,
+              "over_threshold_fraction": 0.7706766917293233,
+              "over_threshold_points": 410,
+              "full_pairs": 14,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 562,
+              "mean_response_m": 0.6719286574338006,
+              "over_threshold_fraction": 0.800711743772242,
+              "over_threshold_points": 450,
+              "full_pairs": 13,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 707,
+              "mean_response_m": 1.010222358974814,
+              "over_threshold_fraction": 0.7609618104667609,
+              "over_threshold_points": 538,
+              "full_pairs": 34,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 875,
+              "mean_response_m": 1.200933408297854,
+              "over_threshold_fraction": 0.8491428571428571,
+              "over_threshold_points": 743,
+              "full_pairs": 49,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 483,
+              "mean_response_m": 0.5339018400066254,
+              "over_threshold_fraction": 0.7246376811594203,
+              "over_threshold_points": 350,
+              "full_pairs": 14,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 539,
+              "mean_response_m": 0.5640989403844205,
+              "over_threshold_fraction": 0.7680890538033395,
+              "over_threshold_points": 414,
+              "full_pairs": 14,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 658,
+              "mean_response_m": 0.8846267892140273,
+              "over_threshold_fraction": 0.7674772036474165,
+              "over_threshold_points": 505,
+              "full_pairs": 28,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 728,
+              "mean_response_m": 1.1404241899020395,
+              "over_threshold_fraction": 0.8392857142857143,
+              "over_threshold_points": 611,
+              "full_pairs": 35,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 5084,
+          "group_equal_mean_response_m": 0.8258493657964605,
+          "group_equal_over_threshold_fraction": 0.7851228445008842
+        }
+      },
+      "finite_legality_gate_passed": false,
+      "response_support_gate_passed": true,
+      "eligible_for_fresh_confirmation": false,
+      "model_training_authorized_by_this_report": false
+    },
+    {
+      "variant": "wider_encirclement",
+      "assigned_episodes": 16,
+      "route_invalid_scenes": 0,
+      "completed_episodes": 16,
+      "original_outcomes": {
+        "safe_capture_success": 16,
+        "collision": 0,
+        "boundary_violation": 0,
+        "timeout": 0,
+        "target_invalid_episode": 0
+      },
+      "windows": 64,
+      "stress_target_invalid_branches": 2,
+      "response": {
+        "8": {
+          "horizon": 8,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 385,
+              "mean_response_m": 0.3341310666089023,
+              "over_threshold_fraction": 0.6935064935064935,
+              "over_threshold_points": 267,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 419,
+              "mean_response_m": 0.3531728544351642,
+              "over_threshold_fraction": 0.7255369928400954,
+              "over_threshold_points": 304,
+              "full_pairs": 41,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 441,
+              "mean_response_m": 0.3749571353338909,
+              "over_threshold_fraction": 0.6780045351473923,
+              "over_threshold_points": 299,
+              "full_pairs": 49,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 434,
+              "mean_response_m": 0.3760962401714855,
+              "over_threshold_fraction": 0.695852534562212,
+              "over_threshold_points": 302,
+              "full_pairs": 49,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 343,
+              "mean_response_m": 0.19583013582692663,
+              "over_threshold_fraction": 0.6384839650145773,
+              "over_threshold_points": 219,
+              "full_pairs": 21,
+              "flip_pairs": 18
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 392,
+              "mean_response_m": 0.24943911646168943,
+              "over_threshold_fraction": 0.6454081632653061,
+              "over_threshold_points": 253,
+              "full_pairs": 28,
+              "flip_pairs": 10
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 427,
+              "mean_response_m": 0.3561343321357587,
+              "over_threshold_fraction": 0.6510538641686182,
+              "over_threshold_points": 278,
+              "full_pairs": 42,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 441,
+              "mean_response_m": 0.44891931368737154,
+              "over_threshold_fraction": 0.7074829931972789,
+              "over_threshold_points": 312,
+              "full_pairs": 49,
+              "flip_pairs": 12
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 3282,
+          "group_equal_mean_response_m": 0.33608502433264864,
+          "group_equal_over_threshold_fraction": 0.6794161927127468
+        },
+        "16": {
+          "horizon": 16,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 455,
+              "mean_response_m": 0.514654034989601,
+              "over_threshold_fraction": 0.7406593406593407,
+              "over_threshold_points": 337,
+              "full_pairs": 7,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 624,
+              "mean_response_m": 0.7630143537738847,
+              "over_threshold_fraction": 0.8157051282051282,
+              "over_threshold_points": 509,
+              "full_pairs": 20,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 735,
+              "mean_response_m": 1.0694293095579097,
+              "over_threshold_fraction": 0.8068027210884354,
+              "over_threshold_points": 593,
+              "full_pairs": 35,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 770,
+              "mean_response_m": 1.0888621427244365,
+              "over_threshold_fraction": 0.8285714285714286,
+              "over_threshold_points": 638,
+              "full_pairs": 42,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 462,
+              "mean_response_m": 0.5206639501113376,
+              "over_threshold_fraction": 0.7316017316017316,
+              "over_threshold_points": 338,
+              "full_pairs": 14,
+              "flip_pairs": 18
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 532,
+              "mean_response_m": 0.4818997522805267,
+              "over_threshold_fraction": 0.7368421052631579,
+              "over_threshold_points": 392,
+              "full_pairs": 14,
+              "flip_pairs": 10
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 616,
+              "mean_response_m": 0.7792141628167886,
+              "over_threshold_fraction": 0.7548701298701299,
+              "over_threshold_points": 465,
+              "full_pairs": 21,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 825,
+              "mean_response_m": 1.2503431059594732,
+              "over_threshold_fraction": 0.8436363636363636,
+              "over_threshold_points": 696,
+              "full_pairs": 48,
+              "flip_pairs": 12
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 5019,
+          "group_equal_mean_response_m": 0.8085101015267447,
+          "group_equal_over_threshold_fraction": 0.7823361186119645
+        }
+      },
+      "finite_legality_gate_passed": false,
+      "response_support_gate_passed": true,
+      "eligible_for_fresh_confirmation": false,
+      "model_training_authorized_by_this_report": false
+    },
+    {
+      "variant": "shorter_wall",
+      "assigned_episodes": 16,
+      "route_invalid_scenes": 0,
+      "completed_episodes": 16,
+      "original_outcomes": {
+        "safe_capture_success": 16,
+        "collision": 0,
+        "boundary_violation": 0,
+        "timeout": 0,
+        "target_invalid_episode": 0
+      },
+      "windows": 64,
+      "stress_target_invalid_branches": 1,
+      "response": {
+        "8": {
+          "horizon": 8,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 392,
+              "mean_response_m": 0.3338714202957081,
+              "over_threshold_fraction": 0.6887755102040817,
+              "over_threshold_points": 270,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 419,
+              "mean_response_m": 0.36348900224400504,
+              "over_threshold_fraction": 0.7326968973747017,
+              "over_threshold_points": 307,
+              "full_pairs": 41,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 434,
+              "mean_response_m": 0.3460469892001699,
+              "over_threshold_fraction": 0.6221198156682027,
+              "over_threshold_points": 270,
+              "full_pairs": 42,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 448,
+              "mean_response_m": 0.37629307508770304,
+              "over_threshold_fraction": 0.7053571428571429,
+              "over_threshold_points": 316,
+              "full_pairs": 56,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 357,
+              "mean_response_m": 0.203029429339074,
+              "over_threshold_fraction": 0.6274509803921569,
+              "over_threshold_points": 224,
+              "full_pairs": 28,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 392,
+              "mean_response_m": 0.26354225866423964,
+              "over_threshold_fraction": 0.6811224489795918,
+              "over_threshold_points": 267,
+              "full_pairs": 28,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 427,
+              "mean_response_m": 0.3437940649637844,
+              "over_threshold_fraction": 0.6463700234192038,
+              "over_threshold_points": 276,
+              "full_pairs": 42,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 441,
+              "mean_response_m": 0.4649848083243521,
+              "over_threshold_fraction": 0.7346938775510204,
+              "over_threshold_points": 324,
+              "full_pairs": 49,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 3310,
+          "group_equal_mean_response_m": 0.3368813810148795,
+          "group_equal_over_threshold_fraction": 0.6798233370557627
+        },
+        "16": {
+          "horizon": 16,
+          "groups_with_valid_support": 8,
+          "by_group": {
+            "cwm-newscene-1986010": {
+              "valid_points": 462,
+              "mean_response_m": 0.5167536250068735,
+              "over_threshold_fraction": 0.7359307359307359,
+              "over_threshold_points": 340,
+              "full_pairs": 7,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986011": {
+              "valid_points": 534,
+              "mean_response_m": 0.5912338433590764,
+              "over_threshold_fraction": 0.7902621722846442,
+              "over_threshold_points": 422,
+              "full_pairs": 6,
+              "flip_pairs": 14
+            },
+            "cwm-newscene-1986012": {
+              "valid_points": 756,
+              "mean_response_m": 1.0039327113319203,
+              "over_threshold_fraction": 0.7738095238095238,
+              "over_threshold_points": 585,
+              "full_pairs": 40,
+              "flip_pairs": 16
+            },
+            "cwm-newscene-1986013": {
+              "valid_points": 875,
+              "mean_response_m": 1.197932303975194,
+              "over_threshold_fraction": 0.8491428571428571,
+              "over_threshold_points": 743,
+              "full_pairs": 49,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986014": {
+              "valid_points": 483,
+              "mean_response_m": 0.5328550550171147,
+              "over_threshold_fraction": 0.7246376811594203,
+              "over_threshold_points": 350,
+              "full_pairs": 14,
+              "flip_pairs": 19
+            },
+            "cwm-newscene-1986015": {
+              "valid_points": 532,
+              "mean_response_m": 0.554109991698829,
+              "over_threshold_fraction": 0.7650375939849624,
+              "over_threshold_points": 407,
+              "full_pairs": 14,
+              "flip_pairs": 12
+            },
+            "cwm-newscene-1986016": {
+              "valid_points": 651,
+              "mean_response_m": 0.8834782862482232,
+              "over_threshold_fraction": 0.7649769585253456,
+              "over_threshold_points": 498,
+              "full_pairs": 28,
+              "flip_pairs": 20
+            },
+            "cwm-newscene-1986017": {
+              "valid_points": 728,
+              "mean_response_m": 1.1438215241934502,
+              "over_threshold_fraction": 0.8392857142857143,
+              "over_threshold_points": 611,
+              "full_pairs": 35,
+              "flip_pairs": 14
+            }
+          },
+          "signal_groups": [
+            "cwm-newscene-1986010",
+            "cwm-newscene-1986011",
+            "cwm-newscene-1986012",
+            "cwm-newscene-1986013",
+            "cwm-newscene-1986014",
+            "cwm-newscene-1986015",
+            "cwm-newscene-1986016",
+            "cwm-newscene-1986017"
+          ],
+          "valid_points": 5021,
+          "group_equal_mean_response_m": 0.8030146676038352,
+          "group_equal_over_threshold_fraction": 0.7803854046404004
+        }
+      },
+      "finite_legality_gate_passed": false,
+      "response_support_gate_passed": true,
+      "eligible_for_fresh_confirmation": false,
+      "model_training_authorized_by_this_report": false
+    }
+  ],
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "elapsed_seconds": 566.0816045999527,
+  "scope": "All64preassigned episodes, retain route failures, skips and terminated prefixes. Eight unchanged V6 joint probes at fixed snapshots,80step held-command stress. Public reference generates probes; truth/branch/command/execution only diagnostic labels. Not actual local candidate decision evaluation, not extended MPC. Match original noise episode seed to group/mirror across variants; unique episode indices are artifact identities. No scene selection by capture/response; a positive diagnostic requires separate fresh confirmation before training."
+}

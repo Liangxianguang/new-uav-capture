@@ -1,0 +1,2144 @@
+{
+  "status": "independent_original_and_public_joint_probes_equal",
+  "source_hashes": {
+    "cwm_v16/collect_scenes.py": "dc698ecc0029d688ac77f999c5a2ebe479f92c4c3891a430de7592b855ad3baf",
+    "cwm_v16/scene_protocol.json": "bc8d311e2f8d40ab7b1782e5e721dfd12fd6645898f7cf51a29384c3e2246c16",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "cwm_v16/replay_scenes.py": "cd9567db0539c268e5626a466ac2d8bea0c65a0fe347992e433f50f712b00260",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225"
+  },
+  "protocol": {
+    "version": "cwm_v16.new_scene_single_axis_diagnostic.20261010",
+    "stage": "new_scene_development_not_model_validation_or_holdout",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "groups": 8,
+    "layout_seed_start": 1986010,
+    "variants": [
+      {
+        "name": "reference_wallx1_5",
+        "seed_start": 986010,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "wallx2_25",
+        "seed_start": 986110,
+        "wall_center_x_m": 2.25,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "wider_encirclement",
+        "seed_start": 986210,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.4,
+        "wall_y_multiplier": 1.0
+      },
+      {
+        "name": "shorter_wall",
+        "seed_start": 986310,
+        "wall_center_x_m": 1.5,
+        "defender_y_multiplier": 1.0,
+        "wall_y_multiplier": 0.8
+      }
+    ],
+    "target_speed_scales": [
+      0.55,
+      0.75
+    ],
+    "observation_conditions": [
+      {
+        "name": "nominal",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.15,
+          "observation_noise_std": 0.03,
+          "message_delay_steps": 2,
+          "message_dropout_probability": 0.05
+        }
+      },
+      {
+        "name": "delayed_noisy",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.22,
+          "observation_noise_std": 0.06,
+          "message_delay_steps": 4,
+          "message_dropout_probability": 0.1
+        }
+      }
+    ],
+    "scene_variation": {
+      "wall_half_extent_x_m": [
+        0.45,
+        0.65
+      ],
+      "wall_half_extent_y_m": [
+        3.85,
+        4.2
+      ],
+      "wall_height_m": [
+        9.25,
+        9.55
+      ],
+      "target_initial_x_m": [
+        -4.25,
+        -3.45
+      ],
+      "target_initial_y_m": [
+        -0.4,
+        0.4
+      ],
+      "target_altitude_m": [
+        4.3,
+        5.7
+      ],
+      "defender_x_offset_m": [
+        0.0,
+        0.35
+      ],
+      "defender_y_scale": [
+        0.92,
+        1.08
+      ],
+      "defender_z_offset_m": [
+        -0.3,
+        0.3
+      ]
+    },
+    "reserved_holdout_not_collected": {
+      "episode_seed_start": 966010,
+      "layout_seed_start": 1966010,
+      "groups": 8
+    },
+    "target_branch_rule_overrides": {},
+    "maximum_command_speed_mps": 5.0,
+    "horizon_steps": 80,
+    "snapshot_steps": [
+      2,
+      4,
+      6,
+      8
+    ],
+    "noise_seed": 986501,
+    "response_horizons": [
+      8,
+      16
+    ],
+    "effect_threshold_m": 0.05,
+    "scene_gate": {
+      "maximum_original_target_invalid_episodes": 0,
+      "maximum_stress_target_invalid_branches": 0,
+      "minimum_signal_groups_at_8_steps": 2,
+      "minimum_effect_over_threshold_fraction_at_8_steps": 0.05
+    },
+    "scope": "All64preassigned episodes, retain route failures, skips and terminated prefixes. Eight unchanged V6 joint probes at fixed snapshots,80step held-command stress. Public reference generates probes; truth/branch/command/execution only diagnostic labels. Not actual local candidate decision evaluation, not extended MPC. Match original noise episode seed to group/mirror across variants; unique episode indices are artifact identities. No scene selection by capture/response; a positive diagnostic requires separate fresh confirmation before training.",
+    "enhanced_control_enabled": false,
+    "new_model_trained": false,
+    "private_labels_model_inputs": false,
+    "holdout_used": false
+  },
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "data_summary_sha256": "253823ac66155912c117663b9a79ae13065e1d6645e51304fe5a97f3024caafc",
+  "episodes": [
+    {
+      "episode_index": 986010,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "03237ea557e8e13436bfeb5abc31e5aa0213ef1bfa15c501ee8e847e9fa884ac"
+    },
+    {
+      "episode_index": 986110,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "ad8ebeb565ff7caaf94b7eaae7859e0586804bdbc6282863f7e57034f17b330f"
+    },
+    {
+      "episode_index": 986210,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "66acbbaca0215b589a92848c785616a271b7e9907817bb4e9a7a48b18e628ba8"
+    },
+    {
+      "episode_index": 986310,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1d5aa2175938e38bc05a38d4287cc55abe16f5920945dd2170209e2ded0e92a1"
+    },
+    {
+      "episode_index": 986011,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "9b572f530fa7939276fe221b21ab340df07a45135db87b017a7fd59e8e9516d4"
+    },
+    {
+      "episode_index": 986111,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "9bbdaa88cbcf3123e890eadf81aaf7995e213185e7a0a302d7cf45aa979fa100"
+    },
+    {
+      "episode_index": 986211,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "6aca6acdd719865138d991f75e11daca96664eabbe6969fd9b8ff833c8e1f0ea"
+    },
+    {
+      "episode_index": 986311,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "b3c7f41ea6c811945a1148f541084816330525032bd985d7be3d93b61a6d1788"
+    },
+    {
+      "episode_index": 986012,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "f918657cd46640dc26d0dc7f3f6b6076a599607f131574a6397dde2fa05d0f5c"
+    },
+    {
+      "episode_index": 986112,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "63946d9011bd184fc2d445b62cfcd52c49e527b4aa9b5bd736aa7fba4ea2609e"
+    },
+    {
+      "episode_index": 986212,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "e3fa2f3f1d5a5b5b3469c1d859ff4250771bdf36953e627430f0a2b0f77ab08c"
+    },
+    {
+      "episode_index": 986312,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "7310ad8ac9f8d03065bac33f12b515278fc2356e19192b1a1bdcd63f65476181"
+    },
+    {
+      "episode_index": 986013,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a57cc4f6ebb59240dd26e779d99d6b0e2253a1d9bf7f7f74881dcceb452b8dd8"
+    },
+    {
+      "episode_index": 986113,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "499a765cc6541952791a70f5e770f868cbf58e5f9accf2625ffdbcce8b768475"
+    },
+    {
+      "episode_index": 986213,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "8d64e921ad650c5da7a92b9b980e827992f0193765e7da631047dd1a396f6204"
+    },
+    {
+      "episode_index": 986313,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "ed529464f807f621addd32b121473fabe84c2b6ad6d2045669d268a70e56e966"
+    },
+    {
+      "episode_index": 986014,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "69be05886825cfcde76b6a71b3c7ee449dd5794e06de8dd2d65d654a231df385"
+    },
+    {
+      "episode_index": 986114,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "00811e47de5c32a9089aedb4e05962566ee1c41a9b42be80fa1ad31b91657f92"
+    },
+    {
+      "episode_index": 986214,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "319e01c39f833cf747a98b4e68798b639740cf34dbf4308ed1b61f957b40d299"
+    },
+    {
+      "episode_index": 986314,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "c944989d2b4993148e2329130d16dad7df2fe73cd3327314e5ed3f79969114e5"
+    },
+    {
+      "episode_index": 986015,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "5803574bc4a4fb226316634aeee2aca8358a3e31696673b0b66f6ffce5cb6032"
+    },
+    {
+      "episode_index": 986115,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cf3c47fdb2fdec4d7f31724ccc953748b25b1880a50715cbeb3370cc010a3640"
+    },
+    {
+      "episode_index": 986215,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "7a25481279075504678dfdcbfbe2a5abf8753d233717b92f6b274981f02473f3"
+    },
+    {
+      "episode_index": 986315,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "3383cb3b360c55c270f037a229bf885286e3d4030af187a2696c46d09915d32a"
+    },
+    {
+      "episode_index": 986016,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "47d3e0679377335ae3bf32c568cbcb755002de22c04225557e78a8853a13d4e2"
+    },
+    {
+      "episode_index": 986116,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "33f0e046cb1ce89fb05dde8423df7bfcb7948670df0c8df2f1e8f880b6510a4d"
+    },
+    {
+      "episode_index": 986216,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4897c3a89500e4e2765287f253c9d9582e669c0046d9e8d84a30c4ea61639c87"
+    },
+    {
+      "episode_index": 986316,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "581359fc9035f98f652b2f40f6f589ea022e245aa64c426e0c96dab333306e6c"
+    },
+    {
+      "episode_index": 986017,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "fff8f772643a04237c50114cd1832729f861195d9c9d86cedb56a0c9bf5d8ade"
+    },
+    {
+      "episode_index": 986117,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "6e5b4f50213b2abfdf6ce2c98ffc88e949d57d3d08a6fc4c1d1ccf679d5c9d34"
+    },
+    {
+      "episode_index": 986217,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "833787dd7478946ef912820e2d9844cb2c00902afef51898abcae40373425990"
+    },
+    {
+      "episode_index": 986317,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "2ba1753e258e18d16acfb139fecdf07850e5c4bc544518da28f71fbb55565073"
+    },
+    {
+      "episode_index": 986018,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "891ad86477d598f7a4ebc8b0899a9544fd8f4ad7975010f6e0c1614e2c00a495"
+    },
+    {
+      "episode_index": 986118,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "ed79c875441657c2ddf724b131cab5f30951eb184624800459973f3a3c3be253"
+    },
+    {
+      "episode_index": 986218,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "61515667eb1022047f889c3b9a3c8166ff57eccd4d862150442c67688fb85513"
+    },
+    {
+      "episode_index": 986318,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "bd0be65c604cb3d31f06d5406dab7942472f8777dc50a7c6005306f40ce1a377"
+    },
+    {
+      "episode_index": 986019,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "69b61f93a293b7f33ba9846a5dd512ddad53ca21993b78c7294dcea3edec3117"
+    },
+    {
+      "episode_index": 986119,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1b672db1a817d225b58650c8d8557c6bd401e31c345b9e00e2df89510647f9ce"
+    },
+    {
+      "episode_index": 986219,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d2b52e90ead6296a57b2a2c77f2278b3bb69a989949e49a2717b191ccd8f65b5"
+    },
+    {
+      "episode_index": 986319,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d314939c1d2ee701b833538aac2ced493208e2ea9927de45ace989a005ee2e3e"
+    },
+    {
+      "episode_index": 986020,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "96aeb20950c3abb0f677298e73860609e0db4bce10ed3c3f67d214c43c7a9e06"
+    },
+    {
+      "episode_index": 986120,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "73dee2fd99148625ca79ff18b047891449fc3ec91f85be1a84d0f41f1f700946"
+    },
+    {
+      "episode_index": 986220,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "c6ea4bc89bbc156a7611301dc97e43cd39a8340234db9ac085f5124f51183cf4"
+    },
+    {
+      "episode_index": 986320,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "2b28f019ca0f6e6e47795092736baa8c834e8770addbd2a49a2e85c5775a529e"
+    },
+    {
+      "episode_index": 986021,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "78be41f23ebcb0c1bb9888251260fbdd3b749ae65cf2b3c5ecc93bb3b2c23980"
+    },
+    {
+      "episode_index": 986121,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1d7731289007456c142ce96a662dfb37f0e75fb3700e72b495a5f8d2d46579d9"
+    },
+    {
+      "episode_index": 986221,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "09b862c4593548fad0b1c22b573ac272470411b61e782c2ef327d589e50d896a"
+    },
+    {
+      "episode_index": 986321,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "97c2cfb41f344d127151e3fed5925495413c2dadc7d1e1dba4e12a77ca2a1345"
+    },
+    {
+      "episode_index": 986022,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1bb926d5410fdb6231cb9a23be36fbff63a07e05d80a80e681fe9b6ccfc9a782"
+    },
+    {
+      "episode_index": 986122,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "27988e83d472714d15ef063ffd7ba8622baa728bf215df6786d5b3267b87fa8f"
+    },
+    {
+      "episode_index": 986222,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4a4a63d0249ad55580c17362ecda38a29263bbde3847e2d5875db1166d708066"
+    },
+    {
+      "episode_index": 986322,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a7e015a16bb6c6608acfc90639d689adf00ccb37c137217118f4f6199634642d"
+    },
+    {
+      "episode_index": 986023,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "f112d926ef23fb82796cbba7420fad18f47dfb9ff1919dbb7c56ca05c2049cef"
+    },
+    {
+      "episode_index": 986123,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "e0bb89fea8890e6d44f4efdf83635f611dc164d60aab9ed7c735a36f6eaf49de"
+    },
+    {
+      "episode_index": 986223,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d94c3ebccc7423095ef70157c509f4c5d27935a13e4808687edd5ba3a9d31cb7"
+    },
+    {
+      "episode_index": 986323,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "812fb63d3f9ad4c2e7d36c7a0d95bf3133c492b8a7748de27c5ca5312f5a0d96"
+    },
+    {
+      "episode_index": 986024,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "b3013f200ea7b094c1af21fc6eec97886be94acd3c638791f7e3cadf6a00f369"
+    },
+    {
+      "episode_index": 986124,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "bd9b7a8deb61cf5e59e8b295bc8813b0a2cc870b01bca423ff4865dd292d6aab"
+    },
+    {
+      "episode_index": 986224,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "59da65c63354e07ab6f6780ddb083e6bff73f2d6500afcd9725fdce663eeec9a"
+    },
+    {
+      "episode_index": 986324,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cd6ff0fdb085434852d85d82c5de4758076156bd1adea3ff528477562b2234f5"
+    },
+    {
+      "episode_index": 986025,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d078d68ac83508eaed3be0a415371a46b6aec39dd3f96181664aec94f2e2af45"
+    },
+    {
+      "episode_index": 986125,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "33ac77a625b20dd82bf6b6832771e75f9b15701f5c2db085fca37482752b0c81"
+    },
+    {
+      "episode_index": 986225,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "afdfaf77a1bfe0f74700813ad65e4dd8c85c5415286c171bd11fb3385886361e"
+    },
+    {
+      "episode_index": 986325,
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture",
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "678bc2a836ba440d175e6f2643377d2cd4f9cfa60f2d0e7f217b3c49d2366e54"
+    }
+  ],
+  "checked_windows": [
+    {
+      "episode_index": 986010,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986010,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986010,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986010,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986110,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986110,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986110,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986110,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986210,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986210,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986210,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986210,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986310,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986310,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986310,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986310,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986011,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986011,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986011,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986011,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986111,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986111,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986111,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986111,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986211,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986211,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986211,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986211,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986311,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986311,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986311,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986311,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986012,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986012,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986012,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986012,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986112,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986112,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986112,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986112,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986212,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986212,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986212,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986212,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986312,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986312,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986312,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986312,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986013,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986013,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986013,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986013,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986113,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986113,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986113,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986113,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986213,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986213,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986213,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986213,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986313,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986313,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986313,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986313,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986014,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986014,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986014,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986014,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986114,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986114,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986114,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986114,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986214,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986214,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986214,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986214,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986314,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986314,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986314,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986314,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986015,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986015,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986015,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986015,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986115,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986115,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986115,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986115,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986215,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986215,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986215,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986215,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986315,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986315,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986315,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986315,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986016,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986016,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986016,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986016,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986116,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986116,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986116,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986116,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986216,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986216,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986216,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986216,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986316,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986316,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986316,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986316,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986017,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986017,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986017,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986017,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986117,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986117,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986117,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986117,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986217,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986217,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986217,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986217,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986317,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986317,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986317,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986317,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986018,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986018,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986018,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986018,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986118,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986118,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986118,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986118,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986218,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986218,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986218,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986218,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986318,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986318,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986318,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986318,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986019,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986019,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986019,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986019,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986119,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986119,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986119,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986119,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986219,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986219,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986219,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986219,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986319,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986319,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986319,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986319,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986020,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986020,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986020,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986020,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986120,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986120,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986120,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986120,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986220,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986220,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986220,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986220,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986320,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986320,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986320,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986320,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986021,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986021,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986021,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986021,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986121,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986121,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986121,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986121,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986221,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986221,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986221,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986221,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986321,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986321,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986321,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986321,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986022,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986022,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986022,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986022,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986122,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986122,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986122,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986122,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986222,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986222,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986222,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986222,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986322,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986322,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986322,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986322,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986023,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986023,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986023,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986023,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986123,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986123,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986123,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986123,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986223,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986223,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986223,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986223,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986323,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986323,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986323,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986323,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986024,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986024,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986024,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986024,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986124,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986124,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986124,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986124,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986224,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986224,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986224,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986224,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986324,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986324,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986324,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986324,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986025,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986025,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986025,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986025,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986125,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986125,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986125,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986125,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986225,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986225,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986225,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986225,
+      "step": 8,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986325,
+      "step": 2,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986325,
+      "step": 4,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986325,
+      "step": 6,
+      "public_probes_byte_equal": true
+    },
+    {
+      "episode_index": 986325,
+      "step": 8,
+      "public_probes_byte_equal": true
+    }
+  ],
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false
+}
