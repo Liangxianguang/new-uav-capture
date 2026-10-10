@@ -1,0 +1,53 @@
+{
+  "version": "cwm_v14.public_mechanism_identifiability_pilot.20261010",
+  "models": [
+    "branch_snapshot",
+    "branch_history",
+    "cbf_history"
+  ],
+  "training": {
+    "seeds": [
+      976101,
+      976102,
+      976103
+    ],
+    "epochs": 40,
+    "batch_calls": 32,
+    "learning_rate": 0.001,
+    "gradient_clip": 1,
+    "history_hidden": 24,
+    "shared_hidden": 64,
+    "branch_classes": [
+      -1,
+      0,
+      1
+    ],
+    "cbf_delta_scale_mps": 5,
+    "branch_prior_smoothing": 1,
+    "cbf_energy_penalty": 0.0001
+  },
+  "input_contract": "Only train-normalized public252 history, public/delayed4x6 context and proposed8x4x3; model predicts candidate+reference by concatenating reference before candidates. Step used by matched train-prior control only. No true target, branch, commanded, executed, defender future, valid mask, label, or terminal information in network.",
+  "support": "Branch uses target-valid observed prefix. CBF uses observed prefix even when target-invalid, since command is observed; never padding. Group-equal calls and candidate-point mean; include candidate and separate reference, disclose duplicate anchor.",
+  "controls": [
+    "training_prior_per_snapshot_and_offset",
+    "zero_paired_branch_response",
+    "proposed_as_cbf_command",
+    "branch_snapshot_no_history"
+  ],
+  "selection": "Fixed forty epochs, all3 seeds, median metrics, no early stopping/best seed. Both architecture gates separately; no model deployment promotion.",
+  "gates": {
+    "branch_nll_relative_improvement_vs_train_prior": 0.05,
+    "paired_branch_brier_relative_improvement_vs_zero": 0.05,
+    "cbf_vector_error_relative_improvement_vs_proposed": 0.2,
+    "group_gain_95pct_lower_bound_strictly_positive": true,
+    "bootstrap_seed": 976701,
+    "bootstrap_draws": 2000,
+    "all_seeds_improve_primary_metrics": true
+  },
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "holdout_used": false,
+  "private_labels_model_inputs": false,
+  "prior_gate_override_allowed": false,
+  "limitations": "Finite S4 offline mechanism prediction only. Branch or mediator success is not target-response, decision, original8Level, safety/latency or closed-loop qualification. True labels remain supervision-only."
+}
