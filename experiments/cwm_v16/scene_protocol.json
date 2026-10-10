@@ -1,0 +1,33 @@
+{
+  "version": "cwm_v16.new_scene_single_axis_diagnostic.20261010",
+  "stage": "new_scene_development_not_model_validation_or_holdout",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "groups": 8,
+  "layout_seed_start": 1986010,
+  "variants": [
+    {"name": "reference_wallx1_5", "seed_start": 986010, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.0, "wall_y_multiplier": 1.0},
+    {"name": "wallx2_25", "seed_start": 986110, "wall_center_x_m": 2.25, "defender_y_multiplier": 1.0, "wall_y_multiplier": 1.0},
+    {"name": "wider_encirclement", "seed_start": 986210, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.4, "wall_y_multiplier": 1.0},
+    {"name": "shorter_wall", "seed_start": 986310, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.0, "wall_y_multiplier": 0.8}
+  ],
+  "target_speed_scales": [0.55, 0.75],
+  "observation_conditions": [
+    {"name": "nominal", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.15, "observation_noise_std": 0.03, "message_delay_steps": 2, "message_dropout_probability": 0.05}},
+    {"name": "delayed_noisy", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.22, "observation_noise_std": 0.06, "message_delay_steps": 4, "message_dropout_probability": 0.10}}
+  ],
+  "scene_variation": {"wall_half_extent_x_m": [0.45, 0.65], "wall_half_extent_y_m": [3.85, 4.20], "wall_height_m": [9.25, 9.55], "target_initial_x_m": [-4.25, -3.45], "target_initial_y_m": [-0.40, 0.40], "target_altitude_m": [4.30, 5.70], "defender_x_offset_m": [0.0, 0.35], "defender_y_scale": [0.92, 1.08], "defender_z_offset_m": [-0.30, 0.30]},
+  "reserved_holdout_not_collected": {"episode_seed_start": 966010, "layout_seed_start": 1966010, "groups": 8},
+  "target_branch_rule_overrides": {},
+  "maximum_command_speed_mps": 5.0,
+  "horizon_steps": 80,
+  "snapshot_steps": [2, 4, 6, 8],
+  "noise_seed": 986501,
+  "response_horizons": [8, 16],
+  "effect_threshold_m": 0.05,
+  "scene_gate": {"maximum_original_target_invalid_episodes": 0, "maximum_stress_target_invalid_branches": 0, "minimum_signal_groups_at_8_steps": 2, "minimum_effect_over_threshold_fraction_at_8_steps": 0.05},
+  "scope": "All64preassigned episodes, retain route failures, skips and terminated prefixes. Eight unchanged V6 joint probes at fixed snapshots,80step held-command stress. Public reference generates probes; truth/branch/command/execution only diagnostic labels. Not actual local candidate decision evaluation, not extended MPC. Match original noise episode seed to group/mirror across variants; unique episode indices are artifact identities. No scene selection by capture/response; a positive diagnostic requires separate fresh confirmation before training.",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false
+}
