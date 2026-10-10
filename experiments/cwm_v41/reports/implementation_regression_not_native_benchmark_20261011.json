@@ -1,0 +1,78 @@
+{
+  "status": "complete_v28_through_v41_implementation_regression_no_native_qualified_benchmark_preload",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 experiments/cwm_v39 experiments/cwm_v40 experiments/cwm_v41 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 750,
+  "seconds": 100.07,
+  "v41_synthetic_tests": 49,
+  "earlier_combined_before_manifest_binding_extension": {
+    "actual_exit_code": 0,
+    "passed": 746,
+    "seconds": 101.2,
+    "scope": "Earlier collected source, not the final published manifest-binding implementation."
+  },
+  "earlier_v41_standalone_final_before_four_manifest_tests": {
+    "actual_exit_code": 0,
+    "passed": 45,
+    "seconds": 2.38
+  },
+  "initial_failures_preserved": [
+    {
+      "actual_exit_code": 1,
+      "passed": 37,
+      "failed": 1,
+      "seconds": 2.64,
+      "cause": "Synthetic report and certificate shared the same qualification dictionary; mutation changed both, defeating the intended independent certificate mismatch test.",
+      "repair": "Deep-copy fixture qualification, and independently require both legacy L2 and ranking gates to remain failed/default-off in selected-row validation."
+    },
+    {
+      "actual_exit_code": 1,
+      "passed": 44,
+      "failed": 1,
+      "seconds": 2.4,
+      "cause": "Synthetic orchestration read hook intercepted the actual frozen training protocol and returned the toy report instead.",
+      "repair": "Allow the actual pinned training-protocol read through the fixture hook."
+    }
+  ],
+  "actual_existing_legacy_evidence_byte_check": {
+    "actual_exit_code": 0,
+    "status": "actual_pinned_legacy_bytes_and_native_certificate_validated_no_model_load",
+    "artifact": {
+      "sha256": "8580199311357b3fad2f829fcb390bfa2686c9c78cfd9333f766c3e746f9b7b1",
+      "bytes": 347970680,
+      "members": 6998
+    },
+    "certificate_sha256": "58f759987122f1753d6b8fe32b95de05992f8cc8edfd8bceb2fb65787e088668",
+    "new_scientific_replay_performed": false,
+    "legacy_model_loaded": false,
+    "prefix_model_loaded": false
+  },
+  "live_v34_source_freeze_check": {
+    "source_snapshot_files": 44,
+    "mismatches": []
+  },
+  "collection_observed_during_this_stage_not_a_completed_data_gate": {
+    "collector_pid": 19204,
+    "collector_live": true,
+    "completed_episodes": 97,
+    "total_episodes": 512,
+    "recorded_calls": 4672,
+    "original_trace_mismatch": 0,
+    "original_target_invalid_episodes": 0,
+    "unexpected_call_status": 0,
+    "collection_summary_exists": false,
+    "independent_audit_summary_exists": false
+  },
+  "benchmark_scorer_preload_implemented": true,
+  "synthetic_scope": "Initialized untrained legacy architecture weights exercise actual cold state/normalizer/frozen motion/public forward/RNG preservation. Synthetic80-row history checks fixed budget only. Archive/certificate/inventory authorities are mocked in orchestrated successful-preload tests; no native qualification is inferred. Actual tiny ZIP manifests exercise evidence-redefinition, strict JSON types, duplicate-key and omitted-member refusal.",
+  "native_v34_scientific_training_performed": false,
+  "native_v38_complete_scientific_archive_exists": false,
+  "native_qualified_benchmark_scorers_preloaded": false,
+  "native_legacy_failed_l2_model_preloaded": false,
+  "native_v39_paired_runner_implemented": false,
+  "active_model_fault_fallback_performed": false,
+  "holdout_used": false,
+  "enhanced_control_enabled": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implementation and existing-evidence byte checks only. All real scientific prerequisites, fixed primary offline benefit, complete paired original8Levels/newscene capture/safety/latency, active fault-fallback, independent native outcome replay and untouched holdout remain required. Legacy L2 remains failed and is not a matched prefix-causality control."
+}
