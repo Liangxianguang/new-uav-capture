@@ -1,0 +1,59 @@
+{
+  "version": "cwm_v15.frozen_public_cbf_mediated_response.20261010",
+  "mediator_archive_sha256": "9ebac503f906c94be2185ec0121319cf10085635253a69a27651c1070c52f59f",
+  "mediator_kind": "cbf_history",
+  "mediator_seed": 976102,
+  "mediator_selection": "V14 fixed development error median seed; never reselect using V15 results.",
+  "models": [
+    "motion_only",
+    "raw_plain",
+    "mediated_plain"
+  ],
+  "training": {
+    "seeds": [
+      979101,
+      979102,
+      979103
+    ],
+    "epochs": 80,
+    "batch_calls": 32,
+    "learning_rate": 0.001,
+    "gradient_clip_norm": 1,
+    "motion_scale_m": 2.5,
+    "response_scale_m": 2.5,
+    "motion_weight": 1,
+    "response_weight": 1,
+    "residual_penalty": 0.001
+  },
+  "architecture": "Identical V10 plain two-head trainable core. Mediated actions are public-only frozen V14 inference, cached outside optimizer; raw/mediated core init and sampling matched. Motion_only independently trains original reference inputs. No branch head, no task-loss sweep.",
+  "input_contract": "Public8x252 history, delayed4x6 relative context, original supplied GRU8x3 and raw proposed/anchor8x4x3. Mediated core sees frozen public estimated proposed/anchor commands; private command/execution/target/branch/valid/termination never network inputs. Raw commands kept for masks and original-cost scoring. No private mediator oracle.",
+  "loss": "Unchanged group-balanced masked reference-motion MSE + anchored paired-response MSE + .001 energy; no resampling, no imputed future, no minimum predicted cost reward.",
+  "selection": "Final80epoch. All3seeds reported, fixed ADE-median seed for each configuration; no best seed/epoch or fresh dev tuning.",
+  "normalization": "V15 train public histories only with minimum std .01; frozen V14 mediator uses its original train normalizer.",
+  "development_gate": {
+    "maximum_each_seed_ade_ratio_vs_gru": 0.8,
+    "maximum_median_ade_ratio_vs_cv": 0.95,
+    "maximum_median_response_error_ratio_vs_zero": 0.95,
+    "maximum_median_response_error_ratio_vs_raw": 0.95,
+    "minimum_selected_group_gain_lower_bound_vs_own_motion": 0,
+    "minimum_selected_group_gain_lower_bound_vs_cv": 0,
+    "minimum_selected_group_gain_lower_bound_vs_motion_only": 0,
+    "minimum_selected_group_gain_lower_bound_vs_raw": 0
+  },
+  "additional_data_gate": {
+    "minimum_full_support_train_calls": 100,
+    "minimum_full_support_development_calls": 32
+  },
+  "decision_bootstrap": {
+    "draws": 2000,
+    "seed": 979701,
+    "interpretation": "Group-equal fresh-development descriptive percentile intervals; not untouched holdout."
+  },
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "mediator_in_optimizer": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Offline eligibility does not promote controller. Whole module off/failure equivalence, actual sequential/self-generated candidates, untouched holdout, original8Levels and new-scene closed-loop/safety/latency required."
+}
