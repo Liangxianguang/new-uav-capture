@@ -1,0 +1,3398 @@
+{
+  "status": "passed_fixed_public_models_and_actual_local_information_recomputation",
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "fixed_models": {
+    "motion_only": {
+      "seed": 979101,
+      "checkpoint_sha256": "f91dc3e71b5783a7d3ec8fb49f16cf6d8297e9ba39a41f086c3009fc945f10e0"
+    },
+    "raw_plain": {
+      "seed": 979101,
+      "checkpoint_sha256": "9ccef0c28e6d87a815085fc45b4bbe2b39318bfdb44d8150f5c855fc06550646"
+    },
+    "mediated_plain": {
+      "seed": 979101,
+      "checkpoint_sha256": "77f0d7067b82f901e09e3fdba2343da44cca8c829eeeef124b6a9ff2058ef4d2"
+    }
+  },
+  "candidate_mapping_recomputed": true,
+  "actual_original_solver_costs_reproduced": true,
+  "oracle_not_model_input": true,
+  "all_full_cost_rankings_recomputed": true,
+  "populations": {
+    "train": {
+      "actual_unique": {
+        "response_support": {
+          "calls": 1152,
+          "groups": 24,
+          "groups_with_nonanchor_support": 22,
+          "valid_nonanchor_points": 1862,
+          "full_support_calls": 868,
+          "group_equal_mean_response_m": 0.0027504788618107397,
+          "group_equal_over_threshold_fraction": 0.008024736819073052,
+          "by_group": {
+            "cwm-s4-1978010": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 83,
+              "response_sum_m": 0.03224044686962028,
+              "over_threshold_points": 0,
+              "full_support_calls": 29,
+              "mean_response_m": 0.0003884391189110877,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978011": {
+              "calls": 48,
+              "candidates": 52,
+              "valid_nonanchor_points": 29,
+              "response_sum_m": 0.04107015015895486,
+              "over_threshold_points": 0,
+              "full_support_calls": 31,
+              "mean_response_m": 0.0014162120744467194,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978012": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 90,
+              "response_sum_m": 1.0910085720781848,
+              "over_threshold_points": 4,
+              "full_support_calls": 38,
+              "mean_response_m": 0.012122317467535386,
+              "over_threshold_fraction": 0.044444444444444446
+            },
+            "cwm-s4-1978013": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 94,
+              "response_sum_m": 0.0740624397628273,
+              "over_threshold_points": 0,
+              "full_support_calls": 44,
+              "mean_response_m": 0.0007878982953492265,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978014": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 88,
+              "response_sum_m": 0.038125181339618654,
+              "over_threshold_points": 0,
+              "full_support_calls": 33,
+              "mean_response_m": 0.00043324069704112105,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978015": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 89,
+              "response_sum_m": 0.2226321268660183,
+              "over_threshold_points": 1,
+              "full_support_calls": 36,
+              "mean_response_m": 0.0025014845715282956,
+              "over_threshold_fraction": 0.011235955056179775
+            },
+            "cwm-s4-1978016": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 92,
+              "response_sum_m": 0.09672556400114965,
+              "over_threshold_points": 0,
+              "full_support_calls": 40,
+              "mean_response_m": 0.0010513648260994527,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978017": {
+              "calls": 48,
+              "candidates": 59,
+              "valid_nonanchor_points": 86,
+              "response_sum_m": 0.3145690738912945,
+              "over_threshold_points": 0,
+              "full_support_calls": 41,
+              "mean_response_m": 0.003657779928968541,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978018": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 88,
+              "response_sum_m": 0.047749694503589346,
+              "over_threshold_points": 0,
+              "full_support_calls": 34,
+              "mean_response_m": 0.0005426101648135153,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978019": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 87,
+              "response_sum_m": 1.2827161427034242,
+              "over_threshold_points": 7,
+              "full_support_calls": 35,
+              "mean_response_m": 0.01474386370923476,
+              "over_threshold_fraction": 0.08045977011494253
+            },
+            "cwm-s4-1978020": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 90,
+              "response_sum_m": 0.15331479999828035,
+              "over_threshold_points": 0,
+              "full_support_calls": 39,
+              "mean_response_m": 0.0017034977777586706,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978021": {
+              "calls": 48,
+              "candidates": 58,
+              "valid_nonanchor_points": 78,
+              "response_sum_m": 0.11370187090460397,
+              "over_threshold_points": 0,
+              "full_support_calls": 41,
+              "mean_response_m": 0.0014577162936487689,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978022": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 83,
+              "response_sum_m": 0.047683540659870086,
+              "over_threshold_points": 0,
+              "full_support_calls": 28,
+              "mean_response_m": 0.0005745004898779528,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978023": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 82,
+              "response_sum_m": 0.07775977798884538,
+              "over_threshold_points": 0,
+              "full_support_calls": 33,
+              "mean_response_m": 0.0009482899754737242,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978024": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 92,
+              "response_sum_m": 0.0764272501834149,
+              "over_threshold_points": 0,
+              "full_support_calls": 41,
+              "mean_response_m": 0.0008307309802545097,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978025": {
+              "calls": 48,
+              "candidates": 48,
+              "valid_nonanchor_points": 0,
+              "response_sum_m": 0.0,
+              "over_threshold_points": 0,
+              "full_support_calls": 47,
+              "mean_response_m": null,
+              "over_threshold_fraction": null
+            },
+            "cwm-s4-1978026": {
+              "calls": 48,
+              "candidates": 59,
+              "valid_nonanchor_points": 83,
+              "response_sum_m": 0.12569121853780763,
+              "over_threshold_points": 0,
+              "full_support_calls": 31,
+              "mean_response_m": 0.0015143520305759956,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978027": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 80,
+              "response_sum_m": 0.1300194487190931,
+              "over_threshold_points": 0,
+              "full_support_calls": 26,
+              "mean_response_m": 0.0016252431089886638,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978028": {
+              "calls": 48,
+              "candidates": 48,
+              "valid_nonanchor_points": 0,
+              "response_sum_m": 0.0,
+              "over_threshold_points": 0,
+              "full_support_calls": 40,
+              "mean_response_m": null,
+              "over_threshold_fraction": null
+            },
+            "cwm-s4-1978029": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 87,
+              "response_sum_m": 0.2435477177497778,
+              "over_threshold_points": 0,
+              "full_support_calls": 36,
+              "mean_response_m": 0.002799399054595147,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978030": {
+              "calls": 48,
+              "candidates": 58,
+              "valid_nonanchor_points": 79,
+              "response_sum_m": 0.16848444588147726,
+              "over_threshold_points": 0,
+              "full_support_calls": 33,
+              "mean_response_m": 0.0021327145048288263,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978031": {
+              "calls": 48,
+              "candidates": 62,
+              "valid_nonanchor_points": 99,
+              "response_sum_m": 0.7554439410620941,
+              "over_threshold_points": 4,
+              "full_support_calls": 31,
+              "mean_response_m": 0.007630746879415092,
+              "over_threshold_fraction": 0.04040404040404041
+            },
+            "cwm-s4-1978032": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 92,
+              "response_sum_m": 0.1406502535127898,
+              "over_threshold_points": 0,
+              "full_support_calls": 40,
+              "mean_response_m": 0.0015288071033998892,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978033": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 91,
+              "response_sum_m": 0.01085865754527474,
+              "over_threshold_points": 0,
+              "full_support_calls": 41,
+              "mean_response_m": 0.0001193259070909312,
+              "over_threshold_fraction": 0.0
+            }
+          }
+        },
+        "decisions": {
+          "calls": 868,
+          "groups": 24,
+          "methods": {
+            "action_specific_truth": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 1
+            },
+            "constant_velocity": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "cv_plus_exact_response": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "fixed_reference_truth": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 1
+            },
+            "gru_plus_exact_response": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "original_gru": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            }
+          },
+          "comparisons": {
+            "original_gru__to__gru_plus_exact_response": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "constant_velocity__to__cv_plus_exact_response": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "fixed_reference_truth__to__action_specific_truth": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "original_gru__to__fixed_reference_truth": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.00011823482884408696,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0003547044865322609
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 1
+            }
+          },
+          "response_errors": {}
+        }
+      },
+      "expanded_union": {
+        "response_support": {
+          "calls": 1152,
+          "groups": 24,
+          "groups_with_nonanchor_support": 24,
+          "valid_nonanchor_points": 19657,
+          "full_support_calls": 840,
+          "group_equal_mean_response_m": 0.019635694237633186,
+          "group_equal_over_threshold_fraction": 0.08719334796600185,
+          "by_group": {
+            "cwm-s4-1978010": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 829,
+              "response_sum_m": 6.485519511545758,
+              "over_threshold_points": 33,
+              "full_support_calls": 27,
+              "mean_response_m": 0.007823304597763278,
+              "over_threshold_fraction": 0.039806996381182146
+            },
+            "cwm-s4-1978011": {
+              "calls": 48,
+              "candidates": 121,
+              "valid_nonanchor_points": 529,
+              "response_sum_m": 17.85642770553043,
+              "over_threshold_points": 66,
+              "full_support_calls": 31,
+              "mean_response_m": 0.0337550618251993,
+              "over_threshold_fraction": 0.12476370510396975
+            },
+            "cwm-s4-1978012": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 897,
+              "response_sum_m": 16.35185105163137,
+              "over_threshold_points": 90,
+              "full_support_calls": 38,
+              "mean_response_m": 0.018229488351874438,
+              "over_threshold_fraction": 0.10033444816053512
+            },
+            "cwm-s4-1978013": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 940,
+              "response_sum_m": 11.246988098771821,
+              "over_threshold_points": 61,
+              "full_support_calls": 44,
+              "mean_response_m": 0.011964880956140235,
+              "over_threshold_fraction": 0.06489361702127659
+            },
+            "cwm-s4-1978014": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 881,
+              "response_sum_m": 23.187261780156824,
+              "over_threshold_points": 67,
+              "full_support_calls": 32,
+              "mean_response_m": 0.02631925287191467,
+              "over_threshold_fraction": 0.07604994324631101
+            },
+            "cwm-s4-1978015": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 887,
+              "response_sum_m": 22.11848876875354,
+              "over_threshold_points": 78,
+              "full_support_calls": 34,
+              "mean_response_m": 0.024936289479992716,
+              "over_threshold_fraction": 0.08793686583990981
+            },
+            "cwm-s4-1978016": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 921,
+              "response_sum_m": 20.798158189305184,
+              "over_threshold_points": 82,
+              "full_support_calls": 40,
+              "mean_response_m": 0.02258214787112398,
+              "over_threshold_fraction": 0.08903365906623235
+            },
+            "cwm-s4-1978017": {
+              "calls": 48,
+              "candidates": 162,
+              "valid_nonanchor_points": 884,
+              "response_sum_m": 13.28752768612331,
+              "over_threshold_points": 70,
+              "full_support_calls": 40,
+              "mean_response_m": 0.015031139916429084,
+              "over_threshold_fraction": 0.07918552036199095
+            },
+            "cwm-s4-1978018": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 880,
+              "response_sum_m": 4.475216603528856,
+              "over_threshold_points": 28,
+              "full_support_calls": 32,
+              "mean_response_m": 0.005085473413100973,
+              "over_threshold_fraction": 0.031818181818181815
+            },
+            "cwm-s4-1978019": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 867,
+              "response_sum_m": 12.957825841643777,
+              "over_threshold_points": 72,
+              "full_support_calls": 35,
+              "mean_response_m": 0.014945589206048186,
+              "over_threshold_fraction": 0.08304498269896193
+            },
+            "cwm-s4-1978020": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 900,
+              "response_sum_m": 13.99741636516804,
+              "over_threshold_points": 83,
+              "full_support_calls": 39,
+              "mean_response_m": 0.01555268485018671,
+              "over_threshold_fraction": 0.09222222222222222
+            },
+            "cwm-s4-1978021": {
+              "calls": 48,
+              "candidates": 156,
+              "valid_nonanchor_points": 838,
+              "response_sum_m": 9.010513800295913,
+              "over_threshold_points": 58,
+              "full_support_calls": 41,
+              "mean_response_m": 0.010752403102978416,
+              "over_threshold_fraction": 0.06921241050119331
+            },
+            "cwm-s4-1978022": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 827,
+              "response_sum_m": 22.802162852313,
+              "over_threshold_points": 74,
+              "full_support_calls": 25,
+              "mean_response_m": 0.027572143715009673,
+              "over_threshold_fraction": 0.08948004836759371
+            },
+            "cwm-s4-1978023": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 812,
+              "response_sum_m": 15.694452938599884,
+              "over_threshold_points": 72,
+              "full_support_calls": 29,
+              "mean_response_m": 0.019328144013054046,
+              "over_threshold_fraction": 0.08866995073891626
+            },
+            "cwm-s4-1978024": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 923,
+              "response_sum_m": 13.688598879567968,
+              "over_threshold_points": 61,
+              "full_support_calls": 41,
+              "mean_response_m": 0.014830551332142977,
+              "over_threshold_fraction": 0.06608884073672806
+            },
+            "cwm-s4-1978025": {
+              "calls": 48,
+              "candidates": 96,
+              "valid_nonanchor_points": 382,
+              "response_sum_m": 29.404956737691087,
+              "over_threshold_points": 84,
+              "full_support_calls": 46,
+              "mean_response_m": 0.07697632653845835,
+              "over_threshold_fraction": 0.2198952879581152
+            },
+            "cwm-s4-1978026": {
+              "calls": 48,
+              "candidates": 162,
+              "valid_nonanchor_points": 848,
+              "response_sum_m": 5.624868751542411,
+              "over_threshold_points": 31,
+              "full_support_calls": 31,
+              "mean_response_m": 0.0066330999428566165,
+              "over_threshold_fraction": 0.036556603773584904
+            },
+            "cwm-s4-1978027": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 799,
+              "response_sum_m": 10.876687337027084,
+              "over_threshold_points": 58,
+              "full_support_calls": 23,
+              "mean_response_m": 0.013612875265365563,
+              "over_threshold_fraction": 0.07259073842302878
+            },
+            "cwm-s4-1978028": {
+              "calls": 48,
+              "candidates": 96,
+              "valid_nonanchor_points": 375,
+              "response_sum_m": 10.32372621417736,
+              "over_threshold_points": 76,
+              "full_support_calls": 40,
+              "mean_response_m": 0.027529936571139623,
+              "over_threshold_fraction": 0.20266666666666666
+            },
+            "cwm-s4-1978029": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 868,
+              "response_sum_m": 17.43922980834638,
+              "over_threshold_points": 54,
+              "full_support_calls": 34,
+              "mean_response_m": 0.020091278581044217,
+              "over_threshold_fraction": 0.06221198156682028
+            },
+            "cwm-s4-1978030": {
+              "calls": 48,
+              "candidates": 156,
+              "valid_nonanchor_points": 827,
+              "response_sum_m": 9.368393175842337,
+              "over_threshold_points": 55,
+              "full_support_calls": 33,
+              "mean_response_m": 0.011328165871635232,
+              "over_threshold_fraction": 0.06650544135429262
+            },
+            "cwm-s4-1978031": {
+              "calls": 48,
+              "candidates": 178,
+              "valid_nonanchor_points": 906,
+              "response_sum_m": 18.936756786846583,
+              "over_threshold_points": 97,
+              "full_support_calls": 26,
+              "mean_response_m": 0.02090149755722581,
+              "over_threshold_fraction": 0.10706401766004416
+            },
+            "cwm-s4-1978032": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 920,
+              "response_sum_m": 13.410845281513632,
+              "over_threshold_points": 70,
+              "full_support_calls": 40,
+              "mean_response_m": 0.014577005740775688,
+              "over_threshold_fraction": 0.07608695652173914
+            },
+            "cwm-s4-1978033": {
+              "calls": 48,
+              "candidates": 169,
+              "valid_nonanchor_points": 917,
+              "response_sum_m": 9.993392760802578,
+              "over_threshold_points": 61,
+              "full_support_calls": 39,
+              "mean_response_m": 0.010897920131736726,
+              "over_threshold_fraction": 0.06652126499454744
+            }
+          }
+        },
+        "decisions": {
+          "calls": 840,
+          "groups": 24,
+          "methods": {
+            "action_specific_truth": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 4.254963939293016,
+                "percentile_95_interval": [
+                  3.5848286290970552,
+                  4.9365103146719385
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 709
+            },
+            "constant_velocity": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.193781454546306,
+                "percentile_95_interval": [
+                  0.09747849201490634,
+                  0.32196217055053616
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 4.06118248474671,
+                "percentile_95_interval": [
+                  3.3494909912024666,
+                  4.809852448217542
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 783
+            },
+            "cv_plus_exact_response": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.15089478783232213,
+                "percentile_95_interval": [
+                  0.07567622733980543,
+                  0.2445511676526414
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 4.104069151460694,
+                "percentile_95_interval": [
+                  3.3955980531165117,
+                  4.826265155250967
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 754
+            },
+            "fixed_reference_truth": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 0.10227502994033617,
+                "percentile_95_interval": [
+                  0.04522208234553845,
+                  0.16853056139368178
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 4.15268890935268,
+                "percentile_95_interval": [
+                  3.460642800565512,
+                  4.871271835445421
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 730
+            },
+            "gru_plus_exact_response": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 1.137394331412958,
+                "percentile_95_interval": [
+                  0.9274399163259773,
+                  1.326610396546723
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 3.1175696078800583,
+                "percentile_95_interval": [
+                  2.561232416005971,
+                  3.7574747072622308
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 346
+            },
+            "original_gru": {
+              "regret": {
+                "groups": 24,
+                "group_equal_mean": 1.0125304292726425,
+                "percentile_95_interval": [
+                  0.8318588516318002,
+                  1.1943895726639295
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 24,
+                "group_equal_mean": 3.242433510020374,
+                "percentile_95_interval": [
+                  2.689237591101645,
+                  3.879810587517928
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 378
+            }
+          },
+          "comparisons": {
+            "original_gru__to__gru_plus_exact_response": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": -0.12486390214031536,
+                "percentile_95_interval": [
+                  -0.2273851060121824,
+                  -0.04296120149412454
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 38
+            },
+            "constant_velocity__to__cv_plus_exact_response": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.04288666671398387,
+                "percentile_95_interval": [
+                  -0.0320289024967776,
+                  0.11596708437215345
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 35
+            },
+            "fixed_reference_truth__to__action_specific_truth": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.10227502994033617,
+                "percentile_95_interval": [
+                  0.04522208234553845,
+                  0.16853056139368178
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 26
+            },
+            "original_gru__to__fixed_reference_truth": {
+              "gain": {
+                "groups": 24,
+                "group_equal_mean": 0.9102553993323065,
+                "percentile_95_interval": [
+                  0.7204476672832573,
+                  1.1018062925306509
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 387
+            }
+          },
+          "response_errors": {}
+        }
+      }
+    },
+    "development_validation": {
+      "actual_unique": {
+        "response_support": {
+          "calls": 384,
+          "groups": 8,
+          "groups_with_nonanchor_support": 5,
+          "valid_nonanchor_points": 429,
+          "full_support_calls": 272,
+          "group_equal_mean_response_m": 0.007703805019522024,
+          "group_equal_over_threshold_fraction": 0.023174603174603174,
+          "by_group": {
+            "cwm-s4-1978034": {
+              "calls": 48,
+              "candidates": 48,
+              "valid_nonanchor_points": 0,
+              "response_sum_m": 0.0,
+              "over_threshold_points": 0,
+              "full_support_calls": 25,
+              "mean_response_m": null,
+              "over_threshold_fraction": null
+            },
+            "cwm-s4-1978035": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 84,
+              "response_sum_m": 1.7125416318407498,
+              "over_threshold_points": 6,
+              "full_support_calls": 30,
+              "mean_response_m": 0.020387400379056547,
+              "over_threshold_fraction": 0.07142857142857142
+            },
+            "cwm-s4-1978036": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 90,
+              "response_sum_m": 1.4054372937919999,
+              "over_threshold_points": 4,
+              "full_support_calls": 40,
+              "mean_response_m": 0.015615969931022222,
+              "over_threshold_fraction": 0.044444444444444446
+            },
+            "cwm-s4-1978037": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 94,
+              "response_sum_m": 0.05645194669589753,
+              "over_threshold_points": 0,
+              "full_support_calls": 45,
+              "mean_response_m": 0.0006005526244244418,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978038": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 78,
+              "response_sum_m": 0.06311763171395192,
+              "over_threshold_points": 0,
+              "full_support_calls": 23,
+              "mean_response_m": 0.0008092004065891272,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978039": {
+              "calls": 48,
+              "candidates": 60,
+              "valid_nonanchor_points": 83,
+              "response_sum_m": 0.09178984579097615,
+              "over_threshold_points": 0,
+              "full_support_calls": 28,
+              "mean_response_m": 0.001105901756517785,
+              "over_threshold_fraction": 0.0
+            },
+            "cwm-s4-1978040": {
+              "calls": 48,
+              "candidates": 48,
+              "valid_nonanchor_points": 0,
+              "response_sum_m": 0.0,
+              "over_threshold_points": 0,
+              "full_support_calls": 40,
+              "mean_response_m": null,
+              "over_threshold_fraction": null
+            },
+            "cwm-s4-1978041": {
+              "calls": 48,
+              "candidates": 48,
+              "valid_nonanchor_points": 0,
+              "response_sum_m": 0.0,
+              "over_threshold_points": 0,
+              "full_support_calls": 41,
+              "mean_response_m": null,
+              "over_threshold_fraction": null
+            }
+          }
+        },
+        "decisions": {
+          "calls": 272,
+          "groups": 8,
+          "methods": {
+            "action_specific_truth": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "constant_velocity": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "cv_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "fixed_reference_truth": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "gru_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "mediated_plain": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "mediated_plain_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "mediated_plain_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "motion_only": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "motion_only_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "motion_only_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "original_gru": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "raw_plain": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "raw_plain_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            },
+            "raw_plain_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 0
+            }
+          },
+          "comparisons": {
+            "original_gru__to__gru_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "constant_velocity__to__cv_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "fixed_reference_truth__to__action_specific_truth": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "original_gru__to__fixed_reference_truth": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "motion_only_motion_component__to__motion_only": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "motion_only_motion_component__to__motion_only_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "raw_plain_motion_component__to__raw_plain": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "raw_plain_motion_component__to__raw_plain_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "mediated_plain_motion_component__to__mediated_plain": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "mediated_plain_motion_component__to__mediated_plain_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            }
+          },
+          "response_errors": {
+            "motion_only": {
+              "by_group": {
+                "cwm-s4-1978035": 0.03008159175601609,
+                "cwm-s4-1978036": 0.01731576290240443,
+                "cwm-s4-1978037": 0.0005844361030572602,
+                "cwm-s4-1978038": 0.0006882133104090519,
+                "cwm-s4-1978039": 0.0011341411752658875
+              },
+              "groups": 5,
+              "group_equal_mean_m": 0.009960829049430544
+            },
+            "raw_plain": {
+              "by_group": {
+                "cwm-s4-1978035": 0.03691944766624571,
+                "cwm-s4-1978036": 0.023656734625121946,
+                "cwm-s4-1978037": 0.00399287489554875,
+                "cwm-s4-1978038": 0.0044898007489065994,
+                "cwm-s4-1978039": 0.007679235397179782
+              },
+              "groups": 5,
+              "group_equal_mean_m": 0.01534761866660056
+            },
+            "mediated_plain": {
+              "by_group": {
+                "cwm-s4-1978035": 0.03472605548060409,
+                "cwm-s4-1978036": 0.021188377704920217,
+                "cwm-s4-1978037": 0.0049192818970866655,
+                "cwm-s4-1978038": 0.004330259220601903,
+                "cwm-s4-1978039": 0.006245341843249583
+              },
+              "groups": 5,
+              "group_equal_mean_m": 0.01428186322929249
+            }
+          }
+        }
+      },
+      "expanded_union": {
+        "response_support": {
+          "calls": 384,
+          "groups": 8,
+          "groups_with_nonanchor_support": 8,
+          "valid_nonanchor_points": 5342,
+          "full_support_calls": 259,
+          "group_equal_mean_response_m": 0.025938537122221127,
+          "group_equal_over_threshold_fraction": 0.11347824606320861,
+          "by_group": {
+            "cwm-s4-1978034": {
+              "calls": 48,
+              "candidates": 96,
+              "valid_nonanchor_points": 329,
+              "response_sum_m": 6.338770200164507,
+              "over_threshold_points": 40,
+              "full_support_calls": 25,
+              "mean_response_m": 0.01926677872390428,
+              "over_threshold_fraction": 0.12158054711246201
+            },
+            "cwm-s4-1978035": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 835,
+              "response_sum_m": 17.91629120955251,
+              "over_threshold_points": 85,
+              "full_support_calls": 26,
+              "mean_response_m": 0.021456636179104805,
+              "over_threshold_fraction": 0.10179640718562874
+            },
+            "cwm-s4-1978036": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 899,
+              "response_sum_m": 22.039573763619618,
+              "over_threshold_points": 89,
+              "full_support_calls": 38,
+              "mean_response_m": 0.024515654909476773,
+              "over_threshold_fraction": 0.09899888765294772
+            },
+            "cwm-s4-1978037": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 940,
+              "response_sum_m": 29.60533185562562,
+              "over_threshold_points": 75,
+              "full_support_calls": 43,
+              "mean_response_m": 0.03149503388896343,
+              "over_threshold_fraction": 0.0797872340425532
+            },
+            "cwm-s4-1978038": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 768,
+              "response_sum_m": 9.861540991226176,
+              "over_threshold_points": 71,
+              "full_support_calls": 20,
+              "mean_response_m": 0.012840548165659084,
+              "over_threshold_fraction": 0.09244791666666667
+            },
+            "cwm-s4-1978039": {
+              "calls": 48,
+              "candidates": 168,
+              "valid_nonanchor_points": 828,
+              "response_sum_m": 8.956439002316458,
+              "over_threshold_points": 46,
+              "full_support_calls": 26,
+              "mean_response_m": 0.010816955316807316,
+              "over_threshold_fraction": 0.05555555555555555
+            },
+            "cwm-s4-1978040": {
+              "calls": 48,
+              "candidates": 96,
+              "valid_nonanchor_points": 368,
+              "response_sum_m": 8.61763481016309,
+              "over_threshold_points": 59,
+              "full_support_calls": 40,
+              "mean_response_m": 0.02341748589718231,
+              "over_threshold_fraction": 0.16032608695652173
+            },
+            "cwm-s4-1978041": {
+              "calls": 48,
+              "candidates": 96,
+              "valid_nonanchor_points": 375,
+              "response_sum_m": 23.887201461251628,
+              "over_threshold_points": 74,
+              "full_support_calls": 41,
+              "mean_response_m": 0.06369920389667101,
+              "over_threshold_fraction": 0.19733333333333333
+            }
+          }
+        },
+        "decisions": {
+          "calls": 259,
+          "groups": 8,
+          "methods": {
+            "action_specific_truth": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.352756955185482,
+                "percentile_95_interval": [
+                  3.031042968530005,
+                  5.76587457897827
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 217
+            },
+            "constant_velocity": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.11723414323171971,
+                "percentile_95_interval": [
+                  0.006339963689503926,
+                  0.27467598007518174
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.2355228119537625,
+                "percentile_95_interval": [
+                  2.8144646696668993,
+                  5.706539990167046
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 236
+            },
+            "cv_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.10389921153163928,
+                "percentile_95_interval": [
+                  0.013696907468640605,
+                  0.23507759530000477
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.248857743653843,
+                "percentile_95_interval": [
+                  2.850034104662046,
+                  5.69435492129574
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 226
+            },
+            "fixed_reference_truth": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.031032186776405637,
+                "percentile_95_interval": [
+                  0.0035849805986476126,
+                  0.07664832862692908
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.3217247684090765,
+                "percentile_95_interval": [
+                  2.9756178687687096,
+                  5.739165090004314
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 224
+            },
+            "gru_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 1.440879019487536,
+                "percentile_95_interval": [
+                  0.9913807620137458,
+                  1.9425463094553352
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 2.9118779356979463,
+                "percentile_95_interval": [
+                  1.6469865215500137,
+                  4.3656275717655815
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 81
+            },
+            "mediated_plain": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.12341228274403707,
+                "percentile_95_interval": [
+                  0.03148958734590974,
+                  0.24864339945568836
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.229344672441444,
+                "percentile_95_interval": [
+                  2.8489379548267526,
+                  5.69005936647867
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 209
+            },
+            "mediated_plain_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.09962142712837543,
+                "percentile_95_interval": [
+                  0.027882480190137764,
+                  0.19106828661072345
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.253135528057106,
+                "percentile_95_interval": [
+                  2.853036682146793,
+                  5.695664016408034
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 216
+            },
+            "mediated_plain_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.09487242485173664,
+                "percentile_95_interval": [
+                  0.03329331384485568,
+                  0.16708533963103134
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.257884530333746,
+                "percentile_95_interval": [
+                  2.8830598234443308,
+                  5.704900492355783
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 208
+            },
+            "motion_only": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.07693908569647756,
+                "percentile_95_interval": [
+                  0.00849999566780135,
+                  0.1734137950438241
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.275817869489004,
+                "percentile_95_interval": [
+                  2.877108218225006,
+                  5.711648471197309
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 217
+            },
+            "motion_only_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.07693908569647756,
+                "percentile_95_interval": [
+                  0.00849999566780135,
+                  0.1734137950438241
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.275817869489004,
+                "percentile_95_interval": [
+                  2.877108218225006,
+                  5.711648471197309
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 217
+            },
+            "motion_only_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.06392879289976341,
+                "percentile_95_interval": [
+                  0.016005286142560665,
+                  0.12752831468046036
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.288828162285718,
+                "percentile_95_interval": [
+                  2.912079077223704,
+                  5.73636432671377
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 209
+            },
+            "original_gru": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 1.333104070034372,
+                "percentile_95_interval": [
+                  0.9578174475269243,
+                  1.7501748858197412
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 3.01965288515111,
+                "percentile_95_interval": [
+                  1.742200842666165,
+                  4.458557782862567
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 93
+            },
+            "raw_plain": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.08010055477051765,
+                "percentile_95_interval": [
+                  0.012651468928252859,
+                  0.18073592939811045
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.272656400414964,
+                "percentile_95_interval": [
+                  2.8795853370735705,
+                  5.7100816187647085
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 219
+            },
+            "raw_plain_motion_component": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.09144832835869832,
+                "percentile_95_interval": [
+                  0.012875029851513195,
+                  0.20525964881818545
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.261308626826784,
+                "percentile_95_interval": [
+                  2.853673707379265,
+                  5.7067839896977075
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 218
+            },
+            "raw_plain_motion_plus_exact_response": {
+              "regret": {
+                "groups": 8,
+                "group_equal_mean": 0.061824010707067556,
+                "percentile_95_interval": [
+                  0.015462332509436412,
+                  0.12157607644707706
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "gain_vs_actual_solver": {
+                "groups": 8,
+                "group_equal_mean": 4.2909329444784134,
+                "percentile_95_interval": [
+                  2.915489139852161,
+                  5.737485098388478
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes_vs_actual_solver": 211
+            }
+          },
+          "comparisons": {
+            "original_gru__to__gru_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": -0.10777494945316402,
+                "percentile_95_interval": [
+                  -0.2296729641598035,
+                  -0.005005119489595061
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 12
+            },
+            "constant_velocity__to__cv_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.013334931700080412,
+                "percentile_95_interval": [
+                  -0.03492714447817095,
+                  0.07741546377544622
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 10
+            },
+            "fixed_reference_truth__to__action_specific_truth": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.031032186776405637,
+                "percentile_95_interval": [
+                  0.0035849805986476126,
+                  0.07664832862692908
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 7
+            },
+            "original_gru__to__fixed_reference_truth": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 1.3020718832579663,
+                "percentile_95_interval": [
+                  0.9265499830159807,
+                  1.7256190161161065
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 145
+            },
+            "motion_only_motion_component__to__motion_only": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.0,
+                "percentile_95_interval": [
+                  0.0,
+                  0.0
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 0
+            },
+            "motion_only_motion_component__to__motion_only_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.013010292796714153,
+                "percentile_95_interval": [
+                  -0.024119908950910575,
+                  0.07038460099925023
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 10
+            },
+            "raw_plain_motion_component__to__raw_plain": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.011347773588180657,
+                "percentile_95_interval": [
+                  0.00021488455907485714,
+                  0.026135630575120725
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 10
+            },
+            "raw_plain_motion_component__to__raw_plain_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.02962431765163076,
+                "percentile_95_interval": [
+                  -0.010094250620269554,
+                  0.10155450623308505
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 7
+            },
+            "mediated_plain_motion_component__to__mediated_plain": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": -0.023790855615661632,
+                "percentile_95_interval": [
+                  -0.08534602255022021,
+                  0.028213724051395644
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 10
+            },
+            "mediated_plain_motion_component__to__mediated_plain_motion_plus_exact_response": {
+              "gain": {
+                "groups": 8,
+                "group_equal_mean": 0.004749002276638787,
+                "percentile_95_interval": [
+                  -0.03558800609335161,
+                  0.04758469703039586
+                ],
+                "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+              },
+              "choice_changes": 8
+            }
+          },
+          "response_errors": {
+            "motion_only": {
+              "by_group": {
+                "cwm-s4-1978034": 0.021334441323290907,
+                "cwm-s4-1978035": 0.026513352575240772,
+                "cwm-s4-1978036": 0.022299916945987684,
+                "cwm-s4-1978037": 0.03264515075289621,
+                "cwm-s4-1978038": 0.0104334719385037,
+                "cwm-s4-1978039": 0.01297131771607608,
+                "cwm-s4-1978040": 0.022854410168078657,
+                "cwm-s4-1978041": 0.06788357324678082
+              },
+              "groups": 8,
+              "group_equal_mean_m": 0.027116954333356855
+            },
+            "raw_plain": {
+              "by_group": {
+                "cwm-s4-1978034": 0.0365152741926783,
+                "cwm-s4-1978035": 0.0320636018278598,
+                "cwm-s4-1978036": 0.026774303659914938,
+                "cwm-s4-1978037": 0.03404583104214258,
+                "cwm-s4-1978038": 0.010158265212302826,
+                "cwm-s4-1978039": 0.017628783180411035,
+                "cwm-s4-1978040": 0.0745917705351233,
+                "cwm-s4-1978041": 0.08448739930513839
+              },
+              "groups": 8,
+              "group_equal_mean_m": 0.0395331536194464
+            },
+            "mediated_plain": {
+              "by_group": {
+                "cwm-s4-1978034": 0.03889024087047,
+                "cwm-s4-1978035": 0.02842376656852023,
+                "cwm-s4-1978036": 0.021194400103945646,
+                "cwm-s4-1978037": 0.03428410607152014,
+                "cwm-s4-1978038": 0.009003085900089781,
+                "cwm-s4-1978039": 0.015102682844407973,
+                "cwm-s4-1978040": 0.048148126126103356,
+                "cwm-s4-1978041": 0.10489133831133715
+              },
+              "groups": 8,
+              "group_equal_mean_m": 0.037492218349549286
+            }
+          }
+        }
+      }
+    }
+  },
+  "paired_intersection": {
+    "train": {
+      "actual_unique": {
+        "calls": 840,
+        "groups": 24,
+        "methods": {
+          "action_specific_truth": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 1
+          },
+          "constant_velocity": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "cv_plus_exact_response": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "fixed_reference_truth": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 1
+          },
+          "gru_plus_exact_response": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "original_gru": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          }
+        },
+        "comparisons": {
+          "original_gru__to__gru_plus_exact_response": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "constant_velocity__to__cv_plus_exact_response": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "fixed_reference_truth__to__action_specific_truth": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "original_gru__to__fixed_reference_truth": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.0001251898187760921,
+              "percentile_95_interval": [
+                0.0,
+                0.00037556945632827624
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 1
+          }
+        },
+        "response_errors": {}
+      },
+      "expanded_union": {
+        "calls": 840,
+        "groups": 24,
+        "methods": {
+          "action_specific_truth": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 4.254963939293016,
+              "percentile_95_interval": [
+                3.5848286290970552,
+                4.9365103146719385
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 709
+          },
+          "constant_velocity": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.193781454546306,
+              "percentile_95_interval": [
+                0.09747849201490634,
+                0.32196217055053616
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 4.06118248474671,
+              "percentile_95_interval": [
+                3.3494909912024666,
+                4.809852448217542
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 783
+          },
+          "cv_plus_exact_response": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.15089478783232213,
+              "percentile_95_interval": [
+                0.07567622733980543,
+                0.2445511676526414
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 4.104069151460694,
+              "percentile_95_interval": [
+                3.3955980531165117,
+                4.826265155250967
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 754
+          },
+          "fixed_reference_truth": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 0.10227502994033617,
+              "percentile_95_interval": [
+                0.04522208234553845,
+                0.16853056139368178
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 4.15268890935268,
+              "percentile_95_interval": [
+                3.460642800565512,
+                4.871271835445421
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 730
+          },
+          "gru_plus_exact_response": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 1.137394331412958,
+              "percentile_95_interval": [
+                0.9274399163259773,
+                1.326610396546723
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 3.1175696078800583,
+              "percentile_95_interval": [
+                2.561232416005971,
+                3.7574747072622308
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 346
+          },
+          "original_gru": {
+            "regret": {
+              "groups": 24,
+              "group_equal_mean": 1.0125304292726425,
+              "percentile_95_interval": [
+                0.8318588516318002,
+                1.1943895726639295
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 24,
+              "group_equal_mean": 3.242433510020374,
+              "percentile_95_interval": [
+                2.689237591101645,
+                3.879810587517928
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 378
+          }
+        },
+        "comparisons": {
+          "original_gru__to__gru_plus_exact_response": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": -0.12486390214031536,
+              "percentile_95_interval": [
+                -0.2273851060121824,
+                -0.04296120149412454
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 38
+          },
+          "constant_velocity__to__cv_plus_exact_response": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.04288666671398387,
+              "percentile_95_interval": [
+                -0.0320289024967776,
+                0.11596708437215345
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 35
+          },
+          "fixed_reference_truth__to__action_specific_truth": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.10227502994033617,
+              "percentile_95_interval": [
+                0.04522208234553845,
+                0.16853056139368178
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 26
+          },
+          "original_gru__to__fixed_reference_truth": {
+            "gain": {
+              "groups": 24,
+              "group_equal_mean": 0.9102553993323065,
+              "percentile_95_interval": [
+                0.7204476672832573,
+                1.1018062925306509
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 387
+          }
+        },
+        "response_errors": {}
+      }
+    },
+    "development_validation": {
+      "actual_unique": {
+        "calls": 259,
+        "groups": 8,
+        "methods": {
+          "action_specific_truth": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "constant_velocity": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "cv_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "fixed_reference_truth": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "gru_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "mediated_plain": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "mediated_plain_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "mediated_plain_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "motion_only": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "motion_only_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "motion_only_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "original_gru": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "raw_plain": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "raw_plain_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          },
+          "raw_plain_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 0
+          }
+        },
+        "comparisons": {
+          "original_gru__to__gru_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "constant_velocity__to__cv_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "fixed_reference_truth__to__action_specific_truth": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "original_gru__to__fixed_reference_truth": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "motion_only_motion_component__to__motion_only": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "motion_only_motion_component__to__motion_only_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "raw_plain_motion_component__to__raw_plain": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "raw_plain_motion_component__to__raw_plain_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "mediated_plain_motion_component__to__mediated_plain": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "mediated_plain_motion_component__to__mediated_plain_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          }
+        },
+        "response_errors": {
+          "motion_only": {
+            "by_group": {
+              "cwm-s4-1978035": 0.03008159175601609,
+              "cwm-s4-1978036": 0.01731576290240443,
+              "cwm-s4-1978037": 0.0005844361030572602,
+              "cwm-s4-1978038": 0.0004221865565624507,
+              "cwm-s4-1978039": 0.0011341411752658875
+            },
+            "groups": 5,
+            "group_equal_mean_m": 0.009907623698661225
+          },
+          "raw_plain": {
+            "by_group": {
+              "cwm-s4-1978035": 0.03691944766624571,
+              "cwm-s4-1978036": 0.023656734625121946,
+              "cwm-s4-1978037": 0.00399287489554875,
+              "cwm-s4-1978038": 0.004406633484139921,
+              "cwm-s4-1978039": 0.007679235397179782
+            },
+            "groups": 5,
+            "group_equal_mean_m": 0.015330985213647222
+          },
+          "mediated_plain": {
+            "by_group": {
+              "cwm-s4-1978035": 0.03472605548060409,
+              "cwm-s4-1978036": 0.021188377704920217,
+              "cwm-s4-1978037": 0.0049192818970866655,
+              "cwm-s4-1978038": 0.00450445491096788,
+              "cwm-s4-1978039": 0.006245341843249583
+            },
+            "groups": 5,
+            "group_equal_mean_m": 0.014316702367365685
+          }
+        }
+      },
+      "expanded_union": {
+        "calls": 259,
+        "groups": 8,
+        "methods": {
+          "action_specific_truth": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.352756955185482,
+              "percentile_95_interval": [
+                3.031042968530005,
+                5.76587457897827
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 217
+          },
+          "constant_velocity": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.11723414323171971,
+              "percentile_95_interval": [
+                0.006339963689503926,
+                0.27467598007518174
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.2355228119537625,
+              "percentile_95_interval": [
+                2.8144646696668993,
+                5.706539990167046
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 236
+          },
+          "cv_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.10389921153163928,
+              "percentile_95_interval": [
+                0.013696907468640605,
+                0.23507759530000477
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.248857743653843,
+              "percentile_95_interval": [
+                2.850034104662046,
+                5.69435492129574
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 226
+          },
+          "fixed_reference_truth": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.031032186776405637,
+              "percentile_95_interval": [
+                0.0035849805986476126,
+                0.07664832862692908
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.3217247684090765,
+              "percentile_95_interval": [
+                2.9756178687687096,
+                5.739165090004314
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 224
+          },
+          "gru_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 1.440879019487536,
+              "percentile_95_interval": [
+                0.9913807620137458,
+                1.9425463094553352
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 2.9118779356979463,
+              "percentile_95_interval": [
+                1.6469865215500137,
+                4.3656275717655815
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 81
+          },
+          "mediated_plain": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.12341228274403707,
+              "percentile_95_interval": [
+                0.03148958734590974,
+                0.24864339945568836
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.229344672441444,
+              "percentile_95_interval": [
+                2.8489379548267526,
+                5.69005936647867
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 209
+          },
+          "mediated_plain_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.09962142712837543,
+              "percentile_95_interval": [
+                0.027882480190137764,
+                0.19106828661072345
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.253135528057106,
+              "percentile_95_interval": [
+                2.853036682146793,
+                5.695664016408034
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 216
+          },
+          "mediated_plain_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.09487242485173664,
+              "percentile_95_interval": [
+                0.03329331384485568,
+                0.16708533963103134
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.257884530333746,
+              "percentile_95_interval": [
+                2.8830598234443308,
+                5.704900492355783
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 208
+          },
+          "motion_only": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.07693908569647756,
+              "percentile_95_interval": [
+                0.00849999566780135,
+                0.1734137950438241
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.275817869489004,
+              "percentile_95_interval": [
+                2.877108218225006,
+                5.711648471197309
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 217
+          },
+          "motion_only_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.07693908569647756,
+              "percentile_95_interval": [
+                0.00849999566780135,
+                0.1734137950438241
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.275817869489004,
+              "percentile_95_interval": [
+                2.877108218225006,
+                5.711648471197309
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 217
+          },
+          "motion_only_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.06392879289976341,
+              "percentile_95_interval": [
+                0.016005286142560665,
+                0.12752831468046036
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.288828162285718,
+              "percentile_95_interval": [
+                2.912079077223704,
+                5.73636432671377
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 209
+          },
+          "original_gru": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 1.333104070034372,
+              "percentile_95_interval": [
+                0.9578174475269243,
+                1.7501748858197412
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 3.01965288515111,
+              "percentile_95_interval": [
+                1.742200842666165,
+                4.458557782862567
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 93
+          },
+          "raw_plain": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.08010055477051765,
+              "percentile_95_interval": [
+                0.012651468928252859,
+                0.18073592939811045
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.272656400414964,
+              "percentile_95_interval": [
+                2.8795853370735705,
+                5.7100816187647085
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 219
+          },
+          "raw_plain_motion_component": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.09144832835869832,
+              "percentile_95_interval": [
+                0.012875029851513195,
+                0.20525964881818545
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.261308626826784,
+              "percentile_95_interval": [
+                2.853673707379265,
+                5.7067839896977075
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 218
+          },
+          "raw_plain_motion_plus_exact_response": {
+            "regret": {
+              "groups": 8,
+              "group_equal_mean": 0.061824010707067556,
+              "percentile_95_interval": [
+                0.015462332509436412,
+                0.12157607644707706
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "gain_vs_actual_solver": {
+              "groups": 8,
+              "group_equal_mean": 4.2909329444784134,
+              "percentile_95_interval": [
+                2.915489139852161,
+                5.737485098388478
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes_vs_actual_solver": 211
+          }
+        },
+        "comparisons": {
+          "original_gru__to__gru_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": -0.10777494945316402,
+              "percentile_95_interval": [
+                -0.2296729641598035,
+                -0.005005119489595061
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 12
+          },
+          "constant_velocity__to__cv_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.013334931700080412,
+              "percentile_95_interval": [
+                -0.03492714447817095,
+                0.07741546377544622
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 10
+          },
+          "fixed_reference_truth__to__action_specific_truth": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.031032186776405637,
+              "percentile_95_interval": [
+                0.0035849805986476126,
+                0.07664832862692908
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 7
+          },
+          "original_gru__to__fixed_reference_truth": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 1.3020718832579663,
+              "percentile_95_interval": [
+                0.9265499830159807,
+                1.7256190161161065
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 145
+          },
+          "motion_only_motion_component__to__motion_only": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.0,
+              "percentile_95_interval": [
+                0.0,
+                0.0
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 0
+          },
+          "motion_only_motion_component__to__motion_only_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.013010292796714153,
+              "percentile_95_interval": [
+                -0.024119908950910575,
+                0.07038460099925023
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 10
+          },
+          "raw_plain_motion_component__to__raw_plain": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.011347773588180657,
+              "percentile_95_interval": [
+                0.00021488455907485714,
+                0.026135630575120725
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 10
+          },
+          "raw_plain_motion_component__to__raw_plain_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.02962431765163076,
+              "percentile_95_interval": [
+                -0.010094250620269554,
+                0.10155450623308505
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 7
+          },
+          "mediated_plain_motion_component__to__mediated_plain": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": -0.023790855615661632,
+              "percentile_95_interval": [
+                -0.08534602255022021,
+                0.028213724051395644
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 10
+          },
+          "mediated_plain_motion_component__to__mediated_plain_motion_plus_exact_response": {
+            "gain": {
+              "groups": 8,
+              "group_equal_mean": 0.004749002276638787,
+              "percentile_95_interval": [
+                -0.03558800609335161,
+                0.04758469703039586
+              ],
+              "interpretation": "Previously inspected V15 train/development groups; descriptive only, not fresh validation or untouched holdout."
+            },
+            "choice_changes": 8
+          }
+        },
+        "response_errors": {
+          "motion_only": {
+            "by_group": {
+              "cwm-s4-1978034": 0.021334441323290907,
+              "cwm-s4-1978035": 0.026513352575240772,
+              "cwm-s4-1978036": 0.022299916945987684,
+              "cwm-s4-1978037": 0.03264515075289621,
+              "cwm-s4-1978038": 0.0104334719385037,
+              "cwm-s4-1978039": 0.01297131771607608,
+              "cwm-s4-1978040": 0.022854410168078657,
+              "cwm-s4-1978041": 0.06788357324678082
+            },
+            "groups": 8,
+            "group_equal_mean_m": 0.027116954333356855
+          },
+          "raw_plain": {
+            "by_group": {
+              "cwm-s4-1978034": 0.0365152741926783,
+              "cwm-s4-1978035": 0.0320636018278598,
+              "cwm-s4-1978036": 0.026774303659914938,
+              "cwm-s4-1978037": 0.03404583104214258,
+              "cwm-s4-1978038": 0.010158265212302826,
+              "cwm-s4-1978039": 0.017628783180411035,
+              "cwm-s4-1978040": 0.0745917705351233,
+              "cwm-s4-1978041": 0.08448739930513839
+            },
+            "groups": 8,
+            "group_equal_mean_m": 0.0395331536194464
+          },
+          "mediated_plain": {
+            "by_group": {
+              "cwm-s4-1978034": 0.03889024087047,
+              "cwm-s4-1978035": 0.02842376656852023,
+              "cwm-s4-1978036": 0.021194400103945646,
+              "cwm-s4-1978037": 0.03428410607152014,
+              "cwm-s4-1978038": 0.009003085900089781,
+              "cwm-s4-1978039": 0.015102682844407973,
+              "cwm-s4-1978040": 0.048148126126103356,
+              "cwm-s4-1978041": 0.10489133831133715
+            },
+            "groups": 8,
+            "group_equal_mean_m": 0.037492218349549286
+          }
+        }
+      }
+    }
+  },
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "prior_gate_overridden": false,
+  "scope": "Diagnostic decomposition on already published V15 data; no new model selection, no scene qualification or causal effect identifiability claim. Next training requires separate protocol and fresh groups. Original eight Levels/whole-module off and failure/sequential/self-generated/holdout/closed-loop safety and latency remain required.",
+  "artifact_sha256": "913881438cc8eeec26ab7ed3dbfd9858876c6be495ad95aff4b1b2fac1589f8d",
+  "artifact_bytes": 652646
+}
