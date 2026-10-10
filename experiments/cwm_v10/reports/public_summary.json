@@ -1,0 +1,530 @@
+{
+  "status": "public_history_and_backbone_replay_equal",
+  "data_summary_sha256": "ae211ed85219addecd597e06fcc484ebfc2cd6048613538b6f2e0c15dbfea330",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "checked_calls": 1280,
+  "episodes": [
+    {
+      "episode_index": 970010,
+      "trajectory_sha256": "84c3659cfccc523a2efc4ec64d37f3a3926c0a2cc921f0a1cb7d0e9fb01d27e7",
+      "frames_sha256": "a3304e17d10d885c98546311506bef3844d2877d475fbe5b286cb1edb827d664",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970011,
+      "trajectory_sha256": "c1c2c4ce098d934b9fd7fbaa72abc9d9bc52ca9fb2d8b30e0cecae1e22e42d1d",
+      "frames_sha256": "de1a1c9f8608e63b6825532c7e5cb67e0a102ef4c626d2fe472d8d7633220804",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970012,
+      "trajectory_sha256": "9c2091d4b413c466b2ca8742c0a96aed618a3ebf1f8b293b68f8a78c0d6d476f",
+      "frames_sha256": "627cea2c7d2e8f1471f6d2e5862ad58ad1acb362f068e098283b7d59202ce84b",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970013,
+      "trajectory_sha256": "58edea348e93f2d527372f90ed98072bf3b5680e8cb6f82167e37710a82911ba",
+      "frames_sha256": "1b3064fb95712261db8caad9ba212ab1cb3faca45190bee8e165ea0b1bf7f485",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970014,
+      "trajectory_sha256": "cf4877fabf13ce99740dc8bbc08b5fcf5066a60ef5ffa35cb6f331e1813e24ae",
+      "frames_sha256": "e69d035fcdfde0a1eef68a14f2bb3e09d55c9c6d9f5fee19e20357415b40787a",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970015,
+      "trajectory_sha256": "625f9498ee2d95a78bb11dbb7b09dfe7c1e7ce7e00efe9852f25dc704e45e325",
+      "frames_sha256": "175e8f2c14d350ead8653ec2690b0f5e0226b4384586e2d102b1ff9f0d8d848a",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970016,
+      "trajectory_sha256": "b96ff51e7cc47aff986a602048b528c6ebae890f695205fe33ac5dc64401c37d",
+      "frames_sha256": "b1af2e304f493b9222bbdb3ab496f45329e5793505bac3c74b679e1e9a8c0e55",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970017,
+      "trajectory_sha256": "79c78fcd2a8f6b738a3c82fa91bb35675b91b1f84d5cfabfacc945f9b68cedea",
+      "frames_sha256": "ff280dac92311ad0119e275fc2ef4d30ade92693acec9fdbe8906740c4a33ef3",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970018,
+      "trajectory_sha256": "c751feec90cd6c77b6d7391f7ff27ccd356cb69f999c0f97833d73d01e84cb6a",
+      "frames_sha256": "d07fc8a43074a1e390f3e2bf0fc45a24ff30a3b055c1cc5e1f155760953dc872",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970019,
+      "trajectory_sha256": "e652a37be4a1c74d162c0a10bae68694a69bfc84e0a998e34362ea96d7a22481",
+      "frames_sha256": "781fc3a72a704fb461e3793e23d690b6a316ffd6c196740d2f25293029a34ef9",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970020,
+      "trajectory_sha256": "56340f9dbab6ba228352682539775c915d8bccc17873f9256dc4e920082177ec",
+      "frames_sha256": "5efc6c948c6c3405ca295b39dd6b1b0b945c7dbb3a004f803a5e637389dd87b6",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970021,
+      "trajectory_sha256": "218e0d0be35244de72f402136ec4c86b8fafe003ca64ff3122afe545152534a7",
+      "frames_sha256": "9a0705e2332b587aa3981c451b808bade672ba0cf40a2a5fdfda6e43d528aed5",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970022,
+      "trajectory_sha256": "fbb5f14461890dc60c56b0aeb901024133e32432784730c6935ec046e96a4c8a",
+      "frames_sha256": "9eaf10e0b1405d6b4fae29129519d7f3c6f11c787c8db8667f8d72113900b05e",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970023,
+      "trajectory_sha256": "df3feb2046a85fb403b22e9301c25874e16d0ebf66ad5522e9041dc9b2bfd8fe",
+      "frames_sha256": "b18b7eaaf922636212f969390bf671af0fcad454113ca7b474a1b45cd73f5f7e",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970024,
+      "trajectory_sha256": "8257e64a3545bf77a6a74eed509d97114927a2be754321d59aa67778e13d0f60",
+      "frames_sha256": "94d9e6856db7a2a641e9dccd9f2f5308b17cb52b0eb99bb809498ad643e24141",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970025,
+      "trajectory_sha256": "94a686f889524b8a3e68c8cc0ccf13034eec2d7c3a98635669055fd38880222d",
+      "frames_sha256": "e6a4de37bb4f4b45de96ad45b83a4089dfe03164d70903d451492686f5431d42",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970026,
+      "trajectory_sha256": "a7343b6095da1a5e8ddcf71be25c4f76c414d0ab7c3c56fde716aacd047653c4",
+      "frames_sha256": "bb655ea636c7bc7e5344c5566e304bb644a0b64f24e6c30a3c8fa7641e831912",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970027,
+      "trajectory_sha256": "be2a30aa96cc7d814fc7f1bb9453d7a7af0d995e03fea2471791a8f96a85f95a",
+      "frames_sha256": "913d136369a075afd6fe54be096200dc053e50ddb6668919e8dbe2b5b4fc1d46",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970028,
+      "trajectory_sha256": "d04e1044074ea0798c74313d0b1b91368d5fb9d24c813507dd54e1ca510333c4",
+      "frames_sha256": "28b3ef442a32c6a03dd67d0cd363005f5e9817de8c6bfe65719dddba6a12b074",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970029,
+      "trajectory_sha256": "9d520282832b94f705488d79658d9b8ba88409dc4848f1269b8fde6c1caa6de1",
+      "frames_sha256": "28f7c1b22c3bc2a6e26e44e09212cebd1158b310776046e5955d8372c6044103",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970030,
+      "trajectory_sha256": "7a669dc9e59b14b710d1d9bfd02ab5bf47711a5342898c177d0d5522c292d4f6",
+      "frames_sha256": "4ecc7820e7d03caf0cfc35bb4b9fc28a062626a42fd2a14841255700f37644d9",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970031,
+      "trajectory_sha256": "deca732b9323cd86faf63b8572b05c2bb14250cdf318ecaf7d78a9096871dc91",
+      "frames_sha256": "9db9ffb9fc2cb7438412c41df18a2eab13bede8e174a8d63dbb25d6ffe36380c",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970032,
+      "trajectory_sha256": "fd936710e5b0345ab440c8182540b1879e4cdf1c9a09bb8da913157ed3e75d3e",
+      "frames_sha256": "b9b223d61cf6039daeddbfae182dc0367cc1486ff3886764044687fc958bf374",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970033,
+      "trajectory_sha256": "a9b3e7374b3e0441d06139cb8d91c562c76b53c59b13fa09087dac21b000e0c0",
+      "frames_sha256": "30ba9051b62bfedd00ecb31e914aa9876b9c73cbdcad03857642c289b05bac54",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970034,
+      "trajectory_sha256": "490da06506746caf06f38d5db5b19a5ed81f2618513a2fe0723513736acfed3b",
+      "frames_sha256": "07e3e1d7755408f0f31942083d097a5c569646fa2197a66df796b0adca6e70d3",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970035,
+      "trajectory_sha256": "7992bff9f2287595c2296d11777c4329e3d9ea721c275e8da171eeba76dd9704",
+      "frames_sha256": "063fb800dddefbdf857a3a24d2dfca11ca7fca0faa1a2b38fb75b2831a43bd75",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970036,
+      "trajectory_sha256": "9c8f0e79470a104f7e1c28cf0c4a87c226f782010d6440d4071a98ac89617ec5",
+      "frames_sha256": "20d2ed666f885b8f269749f7c6be7ccbd473139a2b065a64795a26dfab6cb850",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970037,
+      "trajectory_sha256": "df7678d8964c08877e4aa2ea781a13b7997286148615df13c4751292b61fcc72",
+      "frames_sha256": "4243843390451ded94745e63a5de972c5293ff789049793b635bd749180f62ef",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970038,
+      "trajectory_sha256": "844ca264fc9425eb13712e88a7f6db7a120002fd7e6b0f8533fac9818f3e2d57",
+      "frames_sha256": "8ef690821526538a92ce6958652917accc7884e4b3e7e584d81ee320197d6dc5",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970039,
+      "trajectory_sha256": "d4c816ae3aa8927b359618c87bdd5de8a7c5e59c73245aa5768d40ac0c0910ca",
+      "frames_sha256": "948e0192f0efedcea0fabbccf946ad8578152dfd0f7ca386508755244957e69b",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970040,
+      "trajectory_sha256": "1369ce93e3d0f2e26da9eb2421b9270b2d1709067807edc5500441f63f2432ec",
+      "frames_sha256": "ba9b6c7c6a35789778623eb95b5254efe971796e3cb072aaff4ec65bffe8441f",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970041,
+      "trajectory_sha256": "2aa788d156607868cf4b27a6c846ea2f7093851fb0793d32a78045675ae9ee8a",
+      "frames_sha256": "3a1ae7124144bcc3e08e72b3c39be1dc5a4fb6551715afd2e860ff4bf808f5a2",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970042,
+      "trajectory_sha256": "90edfeaefe43955a54209813b129dd5046c559aa29f382da1932a07c2f63b97a",
+      "frames_sha256": "c292f36e0583a4d142b7d3a45d6934aa76be673f57d763c64700b0ada5a6773e",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970043,
+      "trajectory_sha256": "8763eeb183a14c6fe68386eb37a7e0fa9e626e59afb8a939a285e03e3db00cc6",
+      "frames_sha256": "1fb1c7ced72949881fe1058ba8a16302a3792c47343e8e8c7b1ae9c26390886e",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970044,
+      "trajectory_sha256": "4bfe81e8ab908fe08b72ca4094686172ca9ad0e58f83e7ded54475c38e3c9ee1",
+      "frames_sha256": "56ad2ddbe39bfb246ea6ee10f94084d145a6db4d24c44ec707da218ad7425f6d",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970045,
+      "trajectory_sha256": "4fb8de49292a95a0735e4c023922800eb6ac5387826d018452610c41da7058c0",
+      "frames_sha256": "79a6615426213c3a01432eb333c1fb563c6314cdd8957df88207a337ca9f3819",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970046,
+      "trajectory_sha256": "318bc4f84f7201d796edd5a460f382c917250e423099cd9c479ad47d80a5228a",
+      "frames_sha256": "895b78c5c870151720dcf9aa67e5a888bdd6fb879f4f59cc2984ed1ced7ea01c",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970047,
+      "trajectory_sha256": "93d5097172658ae27cc9ce12dbf150b3596bd94ccad1f6655dca211b7a37f1cb",
+      "frames_sha256": "c43cd07d96e062fefb2d9e2fc2bc14f6b5a916cc6abe2d5147217781edf71186",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970048,
+      "trajectory_sha256": "d62221c2005d3c5d084097bdb87ce76211c02075a2e12a13ce5f3374520c0957",
+      "frames_sha256": "f7d395f141dda087e27d07943e7334eb1006742261c3b7a6b9958560dd45cdd0",
+      "frames": 16,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970049,
+      "trajectory_sha256": "973592be4c95f451198d1858478e302247c5758d63755c8f10b8a6d777d1e101",
+      "frames_sha256": "879bdb76b047014cec0c74273370360bde51747718b9506be88e62879076f7ad",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970050,
+      "trajectory_sha256": "2fe4f67fe0f3ed31b74affbcaec8bbeaa1ad4be714fb209950a9d2fc4a7121b5",
+      "frames_sha256": "2b3114d9dd35f1dae65b701c1756ea27d77b6c1d5298feb9d2742f76bb301197",
+      "frames": 11,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970051,
+      "trajectory_sha256": "c2cad31b79e5de6cdf48090ad132c4ec09becc9878d02a9dfa6eeb2abd2e96ab",
+      "frames_sha256": "f3c748acb636c05e36a0693af469c95d1aed689c162ca50c266e717500aa3ae1",
+      "frames": 11,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970052,
+      "trajectory_sha256": "1fc84b86ad66e553d71a8215aa411f8f8f7de38180ac30cd9353cdc792cecea0",
+      "frames_sha256": "223d188c86ea312736a8d6790df86836e88ea4241a84b5c85dbf92a30fac51c5",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970053,
+      "trajectory_sha256": "183f4ed50911258e5ae4d72a2d61ff1958395b7914db2319f1fdaa862fbcfeac",
+      "frames_sha256": "ac6e921b9ec5504b7f85f2d643f6cc32e2e5c6594611512379057a85f8c77f87",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970054,
+      "trajectory_sha256": "1da64d6cf9c0b3a0876302a7da74bf93a5813eb48b29fb554f0ad14153a5529a",
+      "frames_sha256": "51218ca6366ea29bbdaead2e6f3b0f839de80a507fb1be11740c458960757726",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970055,
+      "trajectory_sha256": "bd2b656a135f3ef7980adba5095374f6cced3b4d05bfbd79ffaf88137f171fdd",
+      "frames_sha256": "c5f68c98ff3ef985135c0595e86eac2fa444e91d07ee443541e5ecdd167cc52d",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970056,
+      "trajectory_sha256": "c3b2db26bc27dc8e471a49925d312d5e6c973b4a35a29b8f5c1fbcb25405bdb0",
+      "frames_sha256": "7fa5845e9ea6fd79a66b2755906a2852af2a0e91d462bbccca28e6d34001bddd",
+      "frames": 16,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970057,
+      "trajectory_sha256": "2fe3770d7b0d563c775e9819fe230b8c4de266bd87e362120a1f08a3112fa021",
+      "frames_sha256": "3d24513105770510085531c00f33650721d85c270a9fc14c3980c2332361d0ee",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970058,
+      "trajectory_sha256": "2d1135b358f2019d8528fdf38e145decb81987c8ce3533f51850c1a40682fe35",
+      "frames_sha256": "7fd57fa0ec6fe57b0a4cb6e3a6757bfa46beb03e1daa2d57202b5b35fa9428ff",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970059,
+      "trajectory_sha256": "6a4804967ef1481a88d2f0ae6b6ddf0462c24936393055ad0a7a8ab850fd7d2d",
+      "frames_sha256": "45029e17c1473a568b426ad1bd17f1aecc3660cd7b7e6dffe65e5263e881281d",
+      "frames": 12,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970060,
+      "trajectory_sha256": "ebb159e5d6d2e2ed0bbea44533505552591b7ea25760259bf818dd44248cf1b2",
+      "frames_sha256": "a9c65e53a341f47c4b8496f1ff1af2aefc250d307b5eb38ff8d2c364540b2b7d",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970061,
+      "trajectory_sha256": "0e8b8346631bbbee777d3c7150651abf02ca32d4e610800744ca7b147457ef40",
+      "frames_sha256": "6fb7e627fdb59ec2b4fbe1ebc1dd1fd569dcb17f88f2cc15e9941d2dce568e54",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970062,
+      "trajectory_sha256": "f49a8b1893966fc4c7ea034699431c0dd3a4de93ccf1d75c01c5e04a1891afd1",
+      "frames_sha256": "2c5ae30080b23770c6059d08d809c487ae234bebdcac127ad283e40c0cd27adb",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970063,
+      "trajectory_sha256": "7fee92655e586d3f5e2965f4f57d0082b2c9c855da7a1a4d2f65025cecd97d25",
+      "frames_sha256": "5efe363355d67ea1a70680b62a1e40db702bb2a979f6786907aa5ef1b30872ee",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970064,
+      "trajectory_sha256": "6bbf8017514fe4c9a8ca2633d455c76d7403b880970dcd55ddbde3aec3bc27ff",
+      "frames_sha256": "6184a9f336c3f3ae786c47500918b6d2476a4aeb3dba5144b89a3674c1258885",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970065,
+      "trajectory_sha256": "8557ca7da1417cf2ed66ae36e55c5180f802769182f4a8741e8591bfcf2bb1e4",
+      "frames_sha256": "68d8cd800a1d48ed93f148103c9255e52ecb5a56af76197acf145c83114956af",
+      "frames": 15,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970066,
+      "trajectory_sha256": "a1817b5404f97aacad0f6a7911158a0072dd280b706d05cfe8ed363c0d3fbbc3",
+      "frames_sha256": "4b828a61df10d762e34570f1701ca5e299b2d6108e1e5edadb058694049d9dd5",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970067,
+      "trajectory_sha256": "0f07f153853e97d599943d496f882ecf9288998f57dda139dc57b3c16a457826",
+      "frames_sha256": "c845d027c3d70aac03d6f1441a544bec17d0093d18037b99171dd3c9a773962e",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970068,
+      "trajectory_sha256": "5c264d126adb6f0ba65b38a93450474c02b53f87ff67f5ba7e0b7323ff4526f1",
+      "frames_sha256": "129be36e8b7443ab6cf3986f82aaf1bbd236b9608fe1fb1d033bba320f7b5862",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970069,
+      "trajectory_sha256": "e88b71bb11f284459f8f84f656ed8dcd7303b879cb4902f36d5e8e362fc43b39",
+      "frames_sha256": "92f2dbd71706c38e946d1e540426551633fe348cdddf290cae49c8f614d5411a",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970070,
+      "trajectory_sha256": "42b0577595f358a71fe86e44bc27d87336796a64ebba1f721a2e1ffc34c38392",
+      "frames_sha256": "4b98794d80c1ed716f856e0910c21c507514aaa9afa799067bbf76f472040209",
+      "frames": 14,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970071,
+      "trajectory_sha256": "d26788046de3e2c167622c916797f0e07f615c43e4dc5f40810eab92fabc9f28",
+      "frames_sha256": "d751d9593aceb967b4ee6c0299024f37c02b7056f9a705205a950afc5fd29a4f",
+      "frames": 13,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970072,
+      "trajectory_sha256": "b16cf46c735315c761d1d4de751e0997f228404d582d71e5b34338ecb04ae7d5",
+      "frames_sha256": "9919602d9b9dbbee35b64f9e87c7f1305ac3a50458e3eea928e216deea50d477",
+      "frames": 16,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    },
+    {
+      "episode_index": 970073,
+      "trajectory_sha256": "917bc0d4c545cf764ec6b9750c2359961de302cec392e37173785da9c076856d",
+      "frames_sha256": "e5837dd4b3c26ae984d7e33f9fd5d3ecdafad21a62ee1947d28818e305a05542",
+      "frames": 16,
+      "original_arrays_byte_equal": true,
+      "safe_capture_success": true
+    }
+  ],
+  "source_hashes": {
+    "cwm_v10/replay_public.py": "313b1eabf2af6e424c478e47ca1e8e7cde49c4c231c6ae4d8309ac849483700a",
+    "cwm_v9/local_shadow.py": "2c74a3cfa4d4af99e6041ec7948d38661f4845e603fb165b07e0ee8d53b8f84b",
+    "cwm_v9/public_provider.py": "ae9c67ba6df6dbd33c0b13691b227d541c254fa3ab240d656f35e505cfdab34a",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca"
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false
+}

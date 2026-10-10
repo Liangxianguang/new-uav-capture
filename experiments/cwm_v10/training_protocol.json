@@ -1,0 +1,16 @@
+{
+  "version": "cwm_v10.two_head_fixed_budget.20261010",
+  "models": ["motion_only", "plain", "structured"],
+  "public_inputs": "8x252 original policy history, 4x6 own/current and received/delayed state, proposed and anchor 8x4x3 commands, frozen supplied GRU 8x3; no future truth, branch labels or current true peer plans.",
+  "training": {"seeds": [971101, 971102, 971103], "epochs": 80, "batch_calls": 32, "learning_rate": 0.001, "gradient_clip_norm": 1.0, "motion_scale_m": 2.5, "response_scale_m": 2.5, "motion_weight": 1.0, "response_weight": 1.0, "residual_penalty": 0.001},
+  "loss": "Group-balanced mean per local call: masked reference-motion coordinate MSE and masked paired-response coordinate MSE, equal weights; no post-terminal labels. Motion-only independently trains the same plain reference head with response fixed zero.",
+  "normalization": "Only train-call public histories, coordinate mean/std with minimum scale .01.",
+  "selection": "Fixed final epoch; middle of three seeds ordered by development group-equal all-branch ADE, then seed. No best seed/epoch selection or sweep.",
+  "development_gate": {"maximum_structured_to_gru_ade_ratio_each_seed": 0.8, "maximum_structured_to_cv_median_ade_ratio": 0.95, "maximum_structured_to_plain_median_response_error_ratio": 0.95},
+  "later_decision_qualification": "Same-library full frozen local costs with cloned action-specific truth; compare CV, trained motion-only and ordinary two-head, as well as GRU expanded-library control. Positive ADE gate never authorizes control. Self-generated-library shadow and closed-loop holdout/safety/latency are still required.",
+  "original_gru_in_optimizer": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "qualification_gate_override_allowed": false,
+  "interpretation": "New fresh development split for the fixed V10 design, not final untouched holdout. Optional common-motion correction means reference prediction may change when enabled; response remains exactly zero at anchor. Disabling the whole optional module, not reference-response equality, preserves the original model. Graph pooling alone does not establish an identified SCM."
+}

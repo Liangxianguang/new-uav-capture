@@ -1,0 +1,316 @@
+{
+  "status": "exploratory_fixed_library_complete_not_promoted",
+  "development_calls": 192,
+  "rankable_calls": 136,
+  "methods": {
+    "original_gru": {
+      "mean_diagnostic_regret": 0.8402146685690697,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": -0.6694611423327229,
+        "percentile_95_interval": [
+          -0.9152926820200091,
+          -0.4060817195644556
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": -0.6872169613943016,
+        "percentile_95_interval": [
+          -0.9080476265374106,
+          -0.4614659342827757
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "constant_velocity": {
+      "mean_diagnostic_regret": 0.17023195489646786,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.6694611423327229,
+        "percentile_95_interval": [
+          0.4060817195644556,
+          0.9152926820200089
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": -0.017755819061578703,
+        "percentile_95_interval": [
+          -0.08127952743333103,
+          0.047828676001437725
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "trained_motion_only": {
+      "mean_diagnostic_regret": 0.15639104479734725,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.6872169613943016,
+        "percentile_95_interval": [
+          0.46146593428277494,
+          0.9080476265374106
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.017755819061578703,
+        "percentile_95_interval": [
+          -0.047828676001437725,
+          0.08127952743333101
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "plain_motion_component": {
+      "mean_diagnostic_regret": 0.14846243939192444,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.6958732425562694,
+        "percentile_95_interval": [
+          0.47446623107991925,
+          0.9092731686950619
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.026412100223546477,
+        "percentile_95_interval": [
+          -0.048433144176016664,
+          0.1009665179074716
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.008656281161967773,
+        "percentile_95_interval": [
+          -0.003714206699296538,
+          0.025381805559471282
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "structured_motion_component": {
+      "mean_diagnostic_regret": 0.1769176548534964,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.6654178224568538,
+        "percentile_95_interval": [
+          0.4126087246357988,
+          0.9029238031663092
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": -0.004043319875869131,
+        "percentile_95_interval": [
+          -0.061402097414183746,
+          0.04177299363005342
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": -0.021799138937447837,
+        "percentile_95_interval": [
+          -0.0647020000415841,
+          0.008778259403675114
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "plain_two_head": {
+      "mean_diagnostic_regret": 0.14805743310127886,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.6963035617400802,
+        "percentile_95_interval": [
+          0.46934582437759037,
+          0.9178335808451707
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.0268424194073574,
+        "percentile_95_interval": [
+          -0.045104519915396414,
+          0.09690275644371282
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.009086600345778696,
+        "percentile_95_interval": [
+          -0.00584482085231933,
+          0.027581942131820816
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "structured_two_head": {
+      "mean_diagnostic_regret": 0.12482707543515938,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.7194312056035297,
+        "percentile_95_interval": [
+          0.44858605091768566,
+          0.9927899073564549
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.04997006327080671,
+        "percentile_95_interval": [
+          -0.03057041654190738,
+          0.14978873958924654
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.03221424420922801,
+        "percentile_95_interval": [
+          -0.04590510062998149,
+          0.13129609328518083
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "reference_truth": {
+      "mean_diagnostic_regret": 0.054029647995283356,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.7862480871760421,
+        "percentile_95_interval": [
+          0.5510526258228781,
+          1.004830724621353
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.11678694484331922,
+        "percentile_95_interval": [
+          0.04238463637670539,
+          0.19721760352779422
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.09903112578174053,
+        "percentile_95_interval": [
+          0.027749804403679336,
+          0.20997461604845155
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "action_specific_truth": {
+      "mean_diagnostic_regret": 0.0,
+      "gain_vs_gru": {
+        "groups": 8,
+        "group_equal_mean": 0.8433745102981045,
+        "percentile_95_interval": [
+          0.5732076625734936,
+          1.1025413304985159
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_cv": {
+        "groups": 8,
+        "group_equal_mean": 0.17391336796538168,
+        "percentile_95_interval": [
+          0.09768856848329847,
+          0.2577621326522473
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      },
+      "gain_vs_trained_motion_only": {
+        "groups": 8,
+        "group_equal_mean": 0.15615754890380298,
+        "percentile_95_interval": [
+          0.06362917220528841,
+          0.2686040217354923
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    }
+  },
+  "learned_response_increment": {
+    "plain": {
+      "choice_changes": 5,
+      "gain": {
+        "groups": 8,
+        "group_equal_mean": 0.00043031918381092327,
+        "percentile_95_interval": [
+          -0.012458566653475589,
+          0.014486360886364458
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "structured": {
+      "choice_changes": 9,
+      "gain": {
+        "groups": 8,
+        "group_equal_mean": 0.05401338314667584,
+        "percentile_95_interval": [
+          -0.0067659115559419725,
+          0.1359074666362274
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    }
+  },
+  "selected_median_seeds": {
+    "motion_only": 971101,
+    "plain": 971101,
+    "structured": 971103
+  },
+  "prior_training_gate_passed": false,
+  "prior_training_gate_overridden": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "data_summary_sha256": "ae211ed85219addecd597e06fcc484ebfc2cd6048613538b6f2e0c15dbfea330",
+  "training_summary_sha256": "03c75ee9314bb4995d2ebfedaceed6f4a74e2ae1deb863fb6ac471e1761c4215",
+  "elapsed_seconds": 1.6025497000664473,
+  "limitations": "Fresh V10 development already inspected by training metrics; descriptive, not independent test. Same frozen V9-generated pool, not new-model self-generation or sequential/closed-loop control. Raw forecasts and label-only truth have no dynamics/safety certificate. Failed training gate cannot be overridden by this diagnostic."
+}

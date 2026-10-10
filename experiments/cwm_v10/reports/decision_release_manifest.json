@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "rankable_calls": 136,
+  "development_calls": 192,
+  "independent_records_byte_equal": true,
+  "prior_gate_overridden": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Recompute ranks/attribution from paired recorded scores on actual fixed support and compare frozen reference scores. New-head scores are reproduced by the two diagnostic runs, not independently recomputed by this archive verifier.",
+  "artifact_sha256": "e5a19a3bdd99c58e332d5698a5d8fae6722f72083b1ed61b16da0d5eb188dac3",
+  "artifact_bytes": 116277
+}

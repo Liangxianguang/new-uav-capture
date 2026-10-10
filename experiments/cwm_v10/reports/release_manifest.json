@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "data_episodes": 64,
+  "data_groups": 32,
+  "train_calls": 576,
+  "development_calls": 192,
+  "original_public_replay_calls": 1280,
+  "models_per_run": 9,
+  "independent_training_runs": 2,
+  "weights_optimizer_rng_equal": true,
+  "reload_prediction_bytes_equal": true,
+  "train_only_normalization_verified": true,
+  "development_gate_passed": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Fresh-group offline two-head training and exact original/public replay; not decision-value, closed-loop success, safety/latency or deployment qualification.",
+  "artifact_sha256": "4c0f138df0797c89dab7c5132ceb8b91664df40ac98f3ef7dd8fca748ac9356e",
+  "artifact_bytes": 23931705
+}
