@@ -37,3 +37,13 @@ before entering its optimizer. The release verifier reloads all18 trained
 models across two runs, reproduces public forecasts and original full-cost
 rankings, confirms matched frozen motion weights and compares entire checkpoint
 trees including optimizer and RNG states. No learned model is promoted by it.
+
+Released artifact: `artifacts/frozen_common_motion_training_20261010.zip`,
+66,153,272 bytes, SHA256
+`ea497f57c2a62f5ddba457d13797659dc587e24cce8c2b488f445fb5205bf355`.
+Both response configurations failed the response and decision gates. ADE
+median motion/raw/mediated is 0.308292/0.298425/0.300220m; GRU is 0.658321m
+and CV is 0.350314m. Response median raw/mediated is 0.085681/0.087103m,
+not better than zero response at 0.084831m. ADE-median seed 989103 is fixed
+for all configurations; it is not a best response-error seed. Neither model
+is promoted.

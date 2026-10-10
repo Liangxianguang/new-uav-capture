@@ -104,9 +104,12 @@ def audit(read,configs,restored):
                 raise ValueError('Checkpoint train normalizer differs')
             with torch.random.fork_rng(devices=[]):
                 if name == 'motion_only':
-                    model = LocalTwoHead('motion_only')
+                    model = LocalTwoHead('motion_only',protocol['training']['motion_scale_m'],protocol['training']['response_scale_m'])
                 else:
-                    model = FrozenCommonResponse(LocalTwoHead('motion_only'),LocalTwoHead('plain'),name == 'mediated_response')
+                    model = FrozenCommonResponse(
+                        LocalTwoHead('motion_only',protocol['training']['motion_scale_m'],protocol['training']['response_scale_m']),
+                        LocalTwoHead('plain',protocol['training']['motion_scale_m'],protocol['training']['response_scale_m']),
+                        name == 'mediated_response')
             model.load_state_dict(checkpoint['model_state'],strict=True)
             model.eval().requires_grad_(False)
             common = model if name == 'motion_only' else model.common
@@ -183,6 +186,8 @@ def main():
         integrity = verify_manifest(args.verify)
         with zipfile.ZipFile(args.verify) as archive:
             result = audit(archive.read,configs,restored)
+            if json.loads(archive.read('release_summary.json')) != result:
+                raise ValueError('Archived release summary differs from independent recomputation')
         print(json.dumps({'status':result['status'],**integrity}),flush=True)
         return
     if any(getattr(args,n) is None for n in ('data','public','primary','retrained','output')):
@@ -208,7 +213,9 @@ def main():
         archive.writestr('ARTIFACT_MANIFEST.json',json.dumps({n:hashlib.sha256(v).hexdigest() for n,v in members.items()},indent=2))
     integrity = verify_manifest(args.output)
     with zipfile.ZipFile(args.output) as archive:
-        audit(archive.read,configs,restored)
+        recomputed = audit(archive.read,configs,restored)
+        if json.loads(archive.read('release_summary.json')) != recomputed or recomputed != result:
+            raise ValueError('Archived release summary differs from independent recomputation')
     reports = ROOT/'reports'
     reports.mkdir(exist_ok=True)
     for name in ('data','public','primary'):

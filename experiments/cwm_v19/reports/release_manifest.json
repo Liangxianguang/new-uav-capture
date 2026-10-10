@@ -1,0 +1,130 @@
+{
+  "status": "passed_independent_frozen_common_motion_response_training_audit",
+  "data_episodes": 64,
+  "data_groups": 32,
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "full_development_calls": 271,
+  "models_per_run": 9,
+  "independent_training_runs": 2,
+  "weights_optimizer_rng_history_equal": true,
+  "public252_frame_reencoding_verified": true,
+  "frozen_shared_common_motion_weights_equal": true,
+  "public_model_prediction_bytes_equal": true,
+  "all_original_full_cost_decisions_recomputed": true,
+  "train_only_normalization_verified": true,
+  "selected_median_seeds": {
+    "motion_only": 989103,
+    "raw_response": 989103,
+    "mediated_response": 989103
+  },
+  "qualification": {
+    "raw_response": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": false,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 989103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": -0.004101934988319967,
+          "percentile_95_interval": [
+            -0.04079046265644712,
+            0.029920346325915052
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": 0.05459038522963121,
+          "percentile_95_interval": [
+            -0.011598727161096634,
+            0.1337310221378676
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.004101934988319967,
+          "percentile_95_interval": [
+            -0.04079046265644712,
+            0.029920346325915052
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        }
+      },
+      "online_promoted": false
+    },
+    "mediated_response": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": false,
+        "anchor_response_exact_zero": true,
+        "median_response_vs_raw": false,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "gain_vs_raw": false
+      },
+      "selected_seed": 989103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.03536507358177016,
+          "percentile_95_interval": [
+            -0.04562936580327944,
+            0.12938691759584348
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": 0.0940573937997213,
+          "percentile_95_interval": [
+            -0.021098817443784224,
+            0.23919963588659365
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": 0.03536507358177016,
+          "percentile_95_interval": [
+            -0.04562936580327944,
+            0.12938691759584348
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        },
+        "raw": {
+          "groups": 8,
+          "group_equal_mean": 0.03946700857009011,
+          "percentile_95_interval": [
+            -0.014784050250894097,
+            0.1115177394385069
+          ],
+          "interpretation": "Group-equal fresh-development descriptive intervals; not untouched holdout or control performance."
+        }
+      },
+      "online_promoted": false
+    }
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Offline research eligibility only. Whole module off/refusal/failure exact original equivalence, untouched holdout, actual sequential/self-generated local candidates, original8Levels and new-scene closed-loop capture/safety/latency before any promotion.",
+  "artifact": {
+    "sha256": "ea497f57c2a62f5ddba457d13797659dc587e24cce8c2b488f445fb5205bf355",
+    "bytes": 66153272,
+    "members": 3584
+  }
+}
