@@ -1,0 +1,148 @@
+{
+  "status": "complete_native_v28_archive_replay_failed_primary_not_deployed",
+  "native_output": "D:/uav-capture/cwm28-ar2-20261011/summary.json",
+  "native_summary_sha256": "58f759987122f1753d6b8fe32b95de05992f8cc8edfd8bceb2fb65787e088668",
+  "actual_archive_driver_exit_code": 0,
+  "native_payload_semantic_copy_not_same_file_bytes": true,
+  "parts_manifest": "experiments/cwm_v28/artifacts/complete_fixed_ranking_v2_20261011.parts.json",
+  "parts_manifest_sha256": "dbcc249b13ddd00e48f439c3f51469c93734cdc4ebb12a8083281d76cf1a0793",
+  "transport_join_output": "D:/uav-capture/cwm28-publication-transport-20261011",
+  "transport_join_is_not_another_scientific_replay": true,
+  "native_summary": {
+  "status": "complete_fixed_ranking_archive_independently_replayed",
+  "artifact": {
+    "sha256": "8580199311357b3fad2f829fcb390bfa2686c9c78cfd9333f766c3e746f9b7b1",
+    "bytes": 347970680,
+    "members": 6998
+  },
+  "real_public_context_all_branch_replay_passed": true,
+  "all64_original_trajectories_plans_commands_equal": true,
+  "all18_final_models_original_costs_reloaded": true,
+  "two_complete_runs_equal": true,
+  "artifact_packaged_and_replayed": true,
+  "primary_research_eligible": false,
+  "qualification": {
+    "cv_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "gain_vs_original_gru": true
+      },
+      "selected_seed": 994101,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.012465717766667682,
+          "percentile_95_interval": [
+            -0.08632555718883855,
+            0.11948500854988187
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.022085531415878545,
+          "percentile_95_interval": [
+            -0.3423463069201016,
+            0.2054130004874951
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.07295051830139446,
+          "percentile_95_interval": [
+            -0.1681149069383036,
+            0.02231547438469665
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.0175459999474485,
+          "percentile_95_interval": [
+            0.660122478803943,
+            1.3561764909427934
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        }
+      },
+      "online_promoted": false
+    },
+    "cv_rank_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "gain_vs_original_gru": true,
+        "median_response_vs_cv_l2": true,
+        "median_ranking_kl_vs_cv_l2": true,
+        "gain_vs_cv_l2": false
+      },
+      "selected_seed": 994101,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.02105845115469825,
+          "percentile_95_interval": [
+            -0.04692820272562559,
+            0.11698807169227458
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.013492798027847981,
+          "percentile_95_interval": [
+            -0.3508934722751456,
+            0.21369106281968278
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.06435778491336389,
+          "percentile_95_interval": [
+            -0.17849936210075157,
+            0.059739768824441604
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.026138733335479,
+          "percentile_95_interval": [
+            0.6529445542235569,
+            1.370912616148319
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        },
+        "cv_l2": {
+          "groups": 8,
+          "group_equal_mean": 0.008592733388030573,
+          "percentile_95_interval": [
+            -0.02215055197432678,
+            0.04743683591412595
+          ],
+          "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."
+        }
+      },
+      "online_promoted": false
+    }
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Archive + corresponding Git checkout/history + original Python environment. Offline qualification only; no active selector, untouched holdout or complete-Level/new-scene closed-loop safety/capture/latency claim."
+}
+}
