@@ -1,0 +1,507 @@
+{
+  "status": "development_value_diagnostic_complete_not_promoted",
+  "protocol": {
+    "version": "cwm_v8.s4_frozen_decision_value.20261010",
+    "source_archive": "experiments/cwm_v7/artifacts/paired_training_20261010.zip",
+    "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+    "split": "development_validation",
+    "horizon_steps": 8,
+    "candidate_count": 8,
+    "selected_median_seeds": {
+      "plain": 967101,
+      "structured": 967102
+    },
+    "information_conditions": [
+      "original_gru",
+      "plain_learned",
+      "structured_learned",
+      "constant_velocity",
+      "gru_plus_exact_response",
+      "fixed_reference_truth",
+      "reference_truth_plus_plain_response",
+      "reference_truth_plus_structured_response",
+      "action_specific_truth"
+    ],
+    "cost": "Complete frozen distributed DN-MPC _team_scenario_costs with original post-plan delayed-message state, original risk aggregation, 8-step proposed commands; no substitute distance cost or modified weights.",
+    "support": "All eight probes must have actual valid target support for all eight steps. Jointly exclude incomplete windows from every information condition. No score padding after termination.",
+    "tie_absolute_cost_tolerance": 1e-09,
+    "group_bootstrap_draws": 2000,
+    "group_bootstrap_seed": 968101,
+    "research_signal": {
+      "minimum_positive_gain_groups": 2,
+      "minimum_choice_changes": 1,
+      "minimum_group_equal_diagnostic_cost_gain": 1e-06
+    },
+    "enhanced_control_enabled": false,
+    "new_model_training_enabled": false,
+    "holdout_used": false,
+    "prior_training_gate_override_allowed": false,
+    "interpretation": "Development-only exploratory information-value diagnostic. Truth paths/corrections are raw diagnostic containers, not dynamics-certified forecasts, deployable inputs or formal performance bounds. Team ranking of eight probes is not the actual sequential distributed optimizer, future CBF/execution or a closed-loop success/safety test. Positive signal only motivates a separate fixed training hypothesis, never controller promotion."
+  },
+  "statistics": {
+    "all_windows": 80,
+    "rankable_windows": 69,
+    "excluded_incomplete_windows": 11,
+    "methods": {
+      "original_gru": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "plain_learned": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "structured_learned": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "constant_velocity": {
+        "choice_changes_vs_original_gru": 2,
+        "tie_optimal_choices": 67,
+        "mean_regret_in_diagnostic_cost": 1.9247902229103866,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": -1.6601315672602084,
+          "percentile_95_interval": [
+            -4.980394701780625,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "gru_plus_exact_response": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "fixed_reference_truth": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "reference_truth_plus_plain_response": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "reference_truth_plus_structured_response": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "action_specific_truth": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 69,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      }
+    },
+    "motion_research_signal": false,
+    "response_research_signal_given_motion": false,
+    "comparisons": {
+      "motion_correction": {
+        "choice_changes": 0,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      },
+      "exact_response_on_original_gru": {
+        "choice_changes": 0,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      },
+      "exact_response_given_motion_truth": {
+        "choice_changes": 0,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      },
+      "plain_response_given_motion_truth": {
+        "choice_changes": 0,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      },
+      "structured_response_given_motion_truth": {
+        "choice_changes": 0,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      }
+    }
+  },
+  "episodes": [
+    {
+      "episode_index": 965058,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "25fee30add79217103dfe158aa62af0e0dddb8d3ea83ea49f9efb7e6591bdc81",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965059,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a73831337a630293487dda38b3f8cebb11460e034df2ade64d9846ab809f4fa7",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965060,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d93e947b7a9c1615257a6320797e2334e94a057c3bd0f8029d23c2be357e7514",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965061,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "f9069ca5f2278ef1a5b43cacaf1f3a51111c19f86b384bf37a50ebe6876c7c2e",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965062,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1a87acbdfe70b77655c1b2aea6cea256738f0dfc52448ddf8abde9bdc322cd8a",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965063,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4fc1cbc579a700ad86f7a40225ae36168ca12fcd9f5ff88872f21dec41b06a59",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965064,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a4dd3686be79b2e5212eddc27e03d3c7984820237f63ac1249c5421262e935d8",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965065,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "43d206988a3b56e767ffcb8af4a5fea47d0bfe04858b3a19ef293b24bff421bb",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965066,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cffc3580881e948de67b2702e1dce3d9f72bdf1a4d788ad46b88d7f023a095fa",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965067,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "fa6f554711b0e71c2b44fa8be1b036ed21ecbab4442b955aa8a48a35aa079cce",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965068,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "5048441105e0ea42bf81a1dc120492fbb23a5a2fc55ba5484a4ca3870d08f810",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965069,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "49c86fb3f3fb249d5ea67ec1c95be1ab19762ec8f14b1ab3b12e9cc0eacb3393",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965070,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "6dc52e09a37e3093ba9861a86dfabc889d42af07acd27c64bff9a3e3a4e4c802",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965071,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "70e4c2f565fcd913416b80e4a181404a29d3d014116b751b77282452526600d0",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965072,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "8aad788afaae6f57d4c54d6b9322b06c31216978c4ab8257407a1656f36ca6d0",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965073,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4493a2374d3dca235dc46fd0ab6d73493ecd425c18a9b98b81d5bb4a4de6af36",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    }
+  ],
+  "source_hashes": {
+    "cwm_v8/s4_value.py": "8b3fe37274738324818a6c3989cfc21f92a06ca6c38a6c21f80f561a0d894c95",
+    "cwm_v8/protocol.json": "e5fd41d743b352236804c4a0e65edbe50546a3e5c988d6f1e22c9d30118723ce",
+    "cwm_v5/decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "cwm_v7/train_response.py": "be6befccdb0673d3561434ee4928431c5240fc11080727aff127733528c1bc41",
+    "cwm_v7/response_model.py": "8c943cc009809ef25b7681f0889fab46b0ae6a0261a41ad761650dfc4a8ce69e",
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5"
+  },
+  "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "chosen_model_outputs_reloaded_byte_equal": true,
+  "prior_training_gate_passed": false,
+  "prior_training_gate_overridden": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "elapsed_seconds": 13.922524099936709,
+  "limitations": [
+    "Previously inspected S4 development data, not original Levels or untouched holdout.",
+    "Ranks eight predefined proposed-command probes using copied full team scores; not sequential optimizer choices, actual CBF execution or realized capture/safety.",
+    "Oracle conditions are raw label-only information probes, not deployable inputs or formal bounds.",
+    "All information conditions share joint full8 support; no post-terminal scoring.",
+    "Research-signal flags do not authorize training-gate override or controller promotion."
+  ]
+}

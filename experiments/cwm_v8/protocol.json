@@ -1,0 +1,21 @@
+{
+  "version": "cwm_v8.s4_frozen_decision_value.20261010",
+  "source_archive": "experiments/cwm_v7/artifacts/paired_training_20261010.zip",
+  "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+  "split": "development_validation",
+  "horizon_steps": 8,
+  "candidate_count": 8,
+  "selected_median_seeds": {"plain": 967101, "structured": 967102},
+  "information_conditions": ["original_gru", "plain_learned", "structured_learned", "constant_velocity", "gru_plus_exact_response", "fixed_reference_truth", "reference_truth_plus_plain_response", "reference_truth_plus_structured_response", "action_specific_truth"],
+  "cost": "Complete frozen distributed DN-MPC _team_scenario_costs with original post-plan delayed-message state, original risk aggregation, 8-step proposed commands; no substitute distance cost or modified weights.",
+  "support": "All eight probes must have actual valid target support for all eight steps. Jointly exclude incomplete windows from every information condition. No score padding after termination.",
+  "tie_absolute_cost_tolerance": 1e-9,
+  "group_bootstrap_draws": 2000,
+  "group_bootstrap_seed": 968101,
+  "research_signal": {"minimum_positive_gain_groups": 2, "minimum_choice_changes": 1, "minimum_group_equal_diagnostic_cost_gain": 0.000001},
+  "enhanced_control_enabled": false,
+  "new_model_training_enabled": false,
+  "holdout_used": false,
+  "prior_training_gate_override_allowed": false,
+  "interpretation": "Development-only exploratory information-value diagnostic. Truth paths/corrections are raw diagnostic containers, not dynamics-certified forecasts, deployable inputs or formal performance bounds. Team ranking of eight probes is not the actual sequential distributed optimizer, future CBF/execution or a closed-loop success/safety test. Positive signal only motivates a separate fixed training hypothesis, never controller promotion."
+}
