@@ -41,3 +41,20 @@ Retain both complete training runs/all15models per run, failed gates and
 training/development evidence. Even a passed offline experiment cannot enable
 the controller without original-entry fallback, sequential candidates, holdout,
 original8Levels/new-scene closed-loop, safety and latency validation.
+
+## Fresh data entry points
+
+```powershell
+python -m pytest -q experiments/cwm_v23
+python experiments/cwm_v23/fresh_cost_data.py --output results/cwm_v23/fresh_data
+python experiments/cwm_v23/replay_cost_public.py --data results/cwm_v23/fresh_data --output results/cwm_v23/public
+```
+
+The collector uses the unchanged qualified V18 public geometry library and
+original-controller shadow branches; it does not instantiate a new learned
+controller. Split assignment is fixed and failed data gates retained. Public
+replay retains full original observation/252feature traces. The independent
+`cost_data_audit.py` reconstructs geometry, candidates, delays, all252history,
+paired masks/labels, train/dev support and complete original cost/selection
+before any future training. Training implementation and results are pending;
+data collection or a protocol alone does not mean a new model has been trained.
