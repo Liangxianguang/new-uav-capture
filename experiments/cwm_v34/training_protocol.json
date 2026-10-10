@@ -1,0 +1,35 @@
+{
+  "version": "cwm_v34.matched_prefix_query_ranking_plan.20261011",
+  "primary_configuration": "cv_prefix_rank_l2",
+  "models": ["cv_motion_only", "cv_full_query_rank_l2", "cv_prefix_rank_l2"],
+  "training": {
+    "seeds": [1034101, 1034102, 1034103], "motion_epochs": 80, "response_epochs": 80,
+    "batch_calls": 16, "learning_rate": 0.001, "gradient_clip_norm": 1,
+    "motion_scale_m": 2.5, "response_scale_m": 2.5, "residual_penalty": 0.001,
+    "ranking_weight": 0.1, "cost_temperature_floor": 1, "independent_complete_runs": 2
+  },
+  "architecture": "V23 unchanged CV CalibratedOrigin motion core with originalGRU public context, trained only on complete fresh TRAIN and then frozen/copied. V33 PrefixQueryResponse(True/False) response pair has identical32992 total/31432 trainable parameters, copied initialization,8query computation shapes and hard prefix-anchor zero rule. ONLY masking future proposed+anchor commands differs. Original GRU never optimized. Old V28 is not relabeled as matched-compute control.",
+  "physical_loss": "V21-style full-TRAIN group/point-equal nonanchor vectorL2 paired response loss plus.001 response-coordinate energy over ALL prefix_augmented valid points. Weights fixed once for complete TRAIN groups; fixed minibatch denominator. Original invalid/terminal masks only; no benefit-based filtering. Same labels/order/optimizer/epochs in both controls.",
+  "ranking_loss": "V28 original full cost KL(q||p), weight.1, same frozen M and temperature max(1,all-base-true-cost populationstd). ONLY complete original bounded_shared base indices, never larger augmented candidate library. Private truths/costs detached labels only, not features/proposals/forward. Matching cost/input audits required before optimizer.",
+  "selection": "Final epoch80 for ALL3 seeds. Existing ADE-median seed rule separately per family with fixed seed tie ordering; prefix is fixed primary, cannot switch to full-query control or an earlier epoch. Development never selects a new loss, temperature, gate, scenario subset or geometry. No best-seed cherry-picking.",
+  "development_gate": {
+    "maximum_each_seed_ade_ratio_vs_gru": 0.8,
+    "maximum_median_ade_ratio_vs_cv": 0.95,
+    "maximum_median_response_error_ratio_vs_zero": 0.95,
+    "minimum_selected_gain_lower_bound_vs_own_motion": 0,
+    "minimum_selected_gain_lower_bound_vs_cv": 0,
+    "minimum_selected_gain_lower_bound_vs_motion_only": 0,
+    "minimum_selected_gain_lower_bound_vs_full_query": 0,
+    "minimum_selected_gain_lower_bound_vs_original_gru": 0
+  },
+  "decision_bootstrap": {"draws": 2000, "seed": 1034701, "unit": "Layout/noise family, all4axes and mirrors together. Equal-group/all-axis original same-base cost comparisons; report axes separately, no favorable-axis promotion."},
+  "normalization": "Fresh TRAIN-only float64 block-Welford normalization. In recorded supported-call order, each8x252 history block contributes8frames: merge its axis0 mean and centered square sum into running mean/M2 via delta, n_old*8/n_new, then populationstd=sqrt(max(0,M2/n)), floor.01. Shape1x1x252. Uniform frame/call weight, NOT candidate multiplicity or label-mask weight. Complete population and exact normalizer audit must precede optimizer. No development arrays/labels; original frozenGRU normalization unchanged.",
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "common_motion_in_response_optimizer": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "training_entry_implemented": false,
+  "remaining": "This frozen plan is NOT permission to optimize now: finish complete new collection/data gates, ALL independent public/prefix/branch/full-cost audit, implement and test bounded-memory training/input/normalizer/cost/parameter checks, repeat/reload full9models. Keep original8Levels and new geometry paired closed-loop/safety/latency/fallback and unchanged reservedholdout confirmation requirements. Old V28/V30 gates cannot be waived; no deployment promotion from a prototype or TRAIN diagnostic."
+}
