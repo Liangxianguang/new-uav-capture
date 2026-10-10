@@ -9,3 +9,6 @@
 /experiments/cwm_v21/artifacts/*.part* -text
 /experiments/cwm_v21/artifacts/*.parts.json -text whitespace=cr-at-eol
 /experiments/cwm_v21/reports/** -text whitespace=cr-at-eol
+
+# V22 emitted summaries and full diagnosis archives retain exact evidence bytes.
+/experiments/cwm_v22/reports/** -text whitespace=cr-at-eol

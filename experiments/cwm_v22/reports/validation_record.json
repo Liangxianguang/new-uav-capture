@@ -1,0 +1,23 @@
+{
+  "version": "cwm_v22.completed_diagnostic_validation.20261010",
+  "archive_sha256": "6df16a2d166c285ad06c068a3ff41b4995062a18e62d008605342bd20b8bbccf",
+  "archive_bytes": 35784351,
+  "manifest_members": 126,
+  "summary_sha256_all_three_runs": "66dce21a9347f6326416facb3ec7913adcd75ddefed97cba72f48059beac1d54",
+  "independent_initial_diagnoses": 2,
+  "evidence_files_per_run": 61,
+  "complete_records_per_run": 33150,
+  "all_initial_evidence_bytes_equal": true,
+  "prearchive_and_postarchive_record_audits_passed": true,
+  "independent_full_recomputed_release_audit_passed": true,
+  "full_recompute_includes_v21_30_model_audit_and_every_v22_original_cost": true,
+  "v21_v22_v23_ordinary_tests_passed": 66,
+  "ordinary_test_seconds": 3.10,
+  "ordinary_tests_not_a_substitute_for_full_completed_evidence": true,
+  "posthoc_previously_inspected_data": true,
+  "new_model_trained": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "prior_qualification_overridden": false,
+  "scope": "Full evidence diagnosis in recorded Windows runtime, not fresh validation, causal identification, closed-loop capture, whole optional module fallback, or cross-platform qualification."
+}
