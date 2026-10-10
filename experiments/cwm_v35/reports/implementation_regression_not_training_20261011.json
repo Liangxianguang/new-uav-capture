@@ -1,0 +1,15 @@
+{
+  "status": "complete_v28_through_v35_regression_no_v35_native_training",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 517,
+  "seconds": 87.55,
+  "v35_synthetic_tests": 39,
+  "v35_native_data_preparation_executed": false,
+  "scientific_trainer_implemented": false,
+  "new_scientific_training_performed": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Bounded audited loader, TRAIN-only normalization, full-population weights and original augmented-physical/base-only-ranking batch primitives. Synthetic mocked audit authorities and tensor gradients are NOT native replay, neural optimization, capture, causal effect, latency or deployment qualification."
+}
