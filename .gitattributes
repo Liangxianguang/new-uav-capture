@@ -17,3 +17,7 @@
 /experiments/cwm_v23/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v23/artifacts/*.part* -text
 /experiments/cwm_v23/artifacts/*.parts.json -text whitespace=cr-at-eol
+
+# V24 diagnostic evidence also retains exact emitted bytes under Windows.
+/experiments/cwm_v24/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v24/artifacts/** -text
