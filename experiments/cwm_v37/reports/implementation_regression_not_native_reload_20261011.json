@@ -1,0 +1,17 @@
+{
+  "status": "complete_v28_through_v37_regression_no_native_v36_training_v37_reload",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 590,
+  "seconds": 85.50,
+  "v37_synthetic_tests": 28,
+  "independent_scientific_reload_entry_implemented": true,
+  "native_v34_scientific_training_performed": false,
+  "native_v37_scientific_reload_performed": false,
+  "synthetic_optimizer_restoration_performed": true,
+  "synthetic_optimizer_scope": "Tiny2call full80epoch motion/prefix optimizer fixtures. Actual model/Adam/sampler/Torch RNG restoration without optimizer.step; mocked original-cost authorities in toy prediction/JSONL replay. No native V34 population training or efficacy.",
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implementation regression only. ALL two-run checkpoints/history/source inventory, strict optimizer budget/moments/RNG reconstruction, independent original-cost/prediction/derivative replay and fixed gates remain mandatory on real completed scientific data/runs. Tests do not qualify capture, causal identification, safety, latency, archive replay or deployment."
+}
