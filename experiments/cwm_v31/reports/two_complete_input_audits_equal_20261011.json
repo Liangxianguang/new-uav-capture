@@ -1,0 +1,13 @@
+{
+  "status": "two_complete_train_input_audits_exactly_equal",
+  "first_summary_sha256": "90dc567dcae43960c607f3141b9b6af0a4c83bbb25000384e9d48c34bff92bc8",
+  "repeated_summary_sha256": "90dc567dcae43960c607f3141b9b6af0a4c83bbb25000384e9d48c34bff92bc8",
+  "full_summary_bytes_equal": true,
+  "all_typed_summary_fields_equal": true,
+  "saved_and_current_used_sources_equal": true,
+  "checked_used_sources": 42,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "development_arrays_loaded_into_diagnostics": false,
+  "scope": "Actual two separate all2304 TRAIN diagnostic processes, not model/native-engine reinference, capture, new scenes or causal identification"
+}
