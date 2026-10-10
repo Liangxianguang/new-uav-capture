@@ -60,3 +60,10 @@ V21–V25完整实现测试169项通过（20.56s）。其中8项V25真实归档�
 目标轨迹、CBF后命令七种伪造拒绝。数组伪造同时修改两轮结果，因此不能
 仅靠两轮一致性过关；仍必须匹配历史轨迹或未包裹入口命令。普通测试数量
 不是捕获率提升、真实checkpoint集成或全场景资格的证据。
+
+已在`results/cwm_v25/fresh_checkout_20261010`完成独立本地Git检出验收：
+检出commit`a2e0602bcf4b2a192d98b60cdc376e8d69dae5ad`，工作区干净；
+归档复核再次返回`passed_two_process_post_plan_fault_injection_replay`和同一
+归档SHA256；V21–V25全部169项测试通过（23.53s）。这是本地来源的Git
+clone，不是GitHub网络克隆或跨平台验证。真实入口测试再次在独立Python
+进程运行，确认提交后的源码/依赖/归档足以复算代表性故障注入证据。
