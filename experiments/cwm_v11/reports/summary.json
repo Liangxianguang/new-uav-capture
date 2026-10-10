@@ -1,0 +1,122 @@
+{
+  "status": "full_local_score_and_piecewise_gradient_verified_not_promoted",
+  "calls": 768,
+  "score_methods": [
+    "original_gru",
+    "constant_velocity",
+    "reference_truth",
+    "action_specific_truth",
+    "plain_two_head",
+    "structured_two_head",
+    "stress"
+  ],
+  "candidates": 2356,
+  "score_max_absolute_error": 3.410605131648481e-13,
+  "gradient_checked_coordinates": 5019,
+  "gradient_skipped_nonsmooth_coordinates": 0,
+  "gradient_max_absolute_error": 6.30307184223966e-09,
+  "training_calls": 576,
+  "training_full_support_calls": 403,
+  "training_groups": 24,
+  "training_oracle_response_gain": {
+    "groups": 24,
+    "group_equal_mean": 0.1737065842502977,
+    "percentile_95_interval": [
+      0.04384386095635778,
+      0.33942262001579965
+    ],
+    "interpretation": "Training groups only; descriptive mechanism evidence, not generalization or untouched validation/test."
+  },
+  "training_choice_changes": 17,
+  "training_positive_gain_calls": 17,
+  "training_sub5cm_max_response_positive_gain_calls": 1,
+  "training_role_switch_candidates": 0,
+  "training_group_equal": {
+    "mean_response_m": 0.017530348997093548,
+    "maximum_response_m": 0.12138302370035624,
+    "effect_linearization_max_error": 0.2881054387351531,
+    "first_order_regret": 0.020488299340125863,
+    "gradient_norm_median": 20.045319063598402
+  },
+  "training_learned_with_truth_reference": {
+    "plain": {
+      "regret_with_true_reference": 0.09132988733937658,
+      "normalized_task_effect_loss": 0.002754429370863507,
+      "paired_response_error_m_including_anchor": 0.014465565720169016
+    },
+    "structured": {
+      "regret_with_true_reference": 0.03999866064366655,
+      "normalized_task_effect_loss": 0.0024468096589576986,
+      "paired_response_error_m_including_anchor": 0.013172945833489906
+    }
+  },
+  "enhanced_control_enabled": false,
+  "new_model_training_enabled": false,
+  "holdout_used": false,
+  "prior_gate_overridden": false,
+  "limitations": "K=1 frozen non-QDR/non-FC/no escape-gap/reachability objective only. Exact constant original safety/control terms, not a safety certificate or executable adapter. Local derivatives omit discrete role/kink derivatives; skips counted. TRAIN ONLY mechanism diagnosis; no new accuracy/generalization/control claim. Raw paths including invalid/padded labels used solely for numerical cost audit, never full-horizon task labels. V10 failed gate unchanged.",
+  "protocol": {
+    "version": "cwm_v11.full_local_score_audit.20261010",
+    "training_archive_sha256": "4c0f138df0797c89dab7c5132ceb8b91664df40ac98f3ef7dd8fca748ac9356e",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "scope": "Verify full K=1 original local scores on all V10 calls; mechanism/sensitivity diagnostics use TRAIN ONLY. No retraining, no new control, no independent-test claim.",
+    "score_rtol": 1e-10,
+    "score_atol": 1e-08,
+    "finite_difference_step_m": 1e-05,
+    "finite_difference_coordinates": [
+      [
+        0,
+        0
+      ],
+      [
+        3,
+        1
+      ],
+      [
+        7,
+        2
+      ]
+    ],
+    "finite_difference_candidate_indices": "first, middle and last, deduplicated",
+    "gradient_rtol": 1e-05,
+    "gradient_atol": 1e-05,
+    "nondifferentiable_second_difference_per_step_threshold": 0.001,
+    "stress_offset_m": 0.2,
+    "stress_seed": 972101,
+    "strong_response_threshold_m": 0.05,
+    "bootstrap_seed": 972102,
+    "bootstrap_draws": 2000,
+    "new_model_training_enabled": false,
+    "enhanced_control_enabled": false,
+    "holdout_used": false,
+    "prior_gate_override_allowed": false
+  },
+  "source_hashes": {
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "cwm_v10/train_two_head.py": "b9992bc49fbd4ccb1a87fa411bdb0c0fa32850d490b3920f358ece750ddb7ffe",
+    "cwm_v10/two_head_model.py": "0b856372d03a1cedbd1ba0ce63caf8be01602d60ff9d547e93804dcd0af9b27a",
+    "cwm_v11/audit_task_score.py": "2679efcb45ef8ab3d045fefea9762b07d85389cf6a2e3c1035b961f88c275996",
+    "cwm_v11/protocol.json": "ecfc11350701e76ecc14d8c478831e7c26f621dc287851e5610ede494ae7af6f",
+    "cwm_v11/task_score.py": "42bbd1ded249e756e785357bda7bbe3d514e441447a0582f75b4920a0b482e85",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v5/decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "cwm_v7/collect_training.py": "d294f8409b8b11f1bacea79d9d2457337b89c47c48a804ae755633f96de2edb9",
+    "cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "cwm_v7/response_model.py": "8c943cc009809ef25b7681f0889fab46b0ae6a0261a41ad761650dfc4a8ce69e",
+    "cwm_v7/train_response.py": "be6befccdb0673d3561434ee4928431c5240fc11080727aff127733528c1bc41",
+    "cwm_v7/training_release.py": "dcd13df2406d2791eb09d1fdf6707f67ba0ee9e3ed0c4210785afccfcb2b0319",
+    "cwm_v8/s4_value.py": "8b3fe37274738324818a6c3989cfc21f92a06ca6c38a6c21f80f561a0d894c95",
+    "cwm_v9/local_shadow.py": "2c74a3cfa4d4af99e6041ec7948d38661f4845e603fb165b07e0ee8d53b8f84b",
+    "cwm_v9/local_shadow_release.py": "ec034fb2748b7e8d6c70b3d05e24d81e2a84d538972c21a4e511c7623e5677a1",
+    "cwm_v9/public_provider.py": "ae9c67ba6df6dbd33c0b13691b227d541c254fa3ab240d656f35e505cfdab34a"
+  },
+  "elapsed_seconds": 14.40511230006814
+}

@@ -1,0 +1,8 @@
+{
+  "status": "passed_independent_full_recomputation",
+  "calls": 768,
+  "repeated_records_byte_equal": true,
+  "artifact_sha256": "e576dd22c9afeea9a068172defe8d59493ee96892c09a96dff73a220caec2f9e",
+  "artifact_bytes": 389153,
+  "scope": "Recompute seven full-cost methods and original finite-difference gradients on all V10 calls, and TRAIN ONLY exact/linear/learned response attribution from pinned data and reloaded weights. No control qualification."
+}

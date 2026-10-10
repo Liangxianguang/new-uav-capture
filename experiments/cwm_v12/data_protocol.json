@@ -1,0 +1,33 @@
+{
+  "version": "cwm_v12.fresh_task_effect_training_data.20261010",
+  "stage": "fresh_preassigned_train_and_development",
+  "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+  "v9_archive_sha256": "1933fe7443590ac9dd301590a92784fc72b704091b529c3d3d39501313d64c8a",
+  "geometry_archive_sha256": "aacfddf2ee51b6bdc9547cdfb9a518c64f65e7c718e086fb6aa7835ab65ebe5e",
+  "seed_start": 973010,
+  "layout_seed_start": 1973010,
+  "groups": 32,
+  "variant_cycles_split": ["train", "train", "train", "train", "train", "train", "development_validation", "development_validation"],
+  "reserved_holdout_not_collected": {"seed_start": 966010, "layout_seed_start": 1966010, "groups": 8},
+  "wall_center_x_m": 1.5,
+  "target_motion_mode": "adaptive_branching",
+  "target_speed_scales": [0.55, 0.75],
+  "observation_conditions": [
+    {"name": "nominal", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.15, "observation_noise_std": 0.03, "message_delay_steps": 2, "message_dropout_probability": 0.05}},
+    {"name": "delayed_noisy", "overrides": {"detection_range": 14.0, "detection_dropout_probability": 0.22, "observation_noise_std": 0.06, "message_delay_steps": 4, "message_dropout_probability": 0.10}}
+  ],
+  "scene_variation": {"wall_half_extent_x_m": [0.45, 0.65], "wall_half_extent_y_m": [3.85, 4.20], "wall_height_m": [9.25, 9.55], "target_initial_x_m": [-4.25, -3.45], "target_initial_y_m": [-0.40, 0.40], "target_altitude_m": [4.30, 5.70], "defender_x_offset_m": [0.0, 0.35], "defender_y_scale": [0.92, 1.08], "defender_z_offset_m": [-0.30, 0.30]},
+  "snapshot_steps": [0, 1, 2, 4, 8, 12, 16, 24],
+  "history_steps": 8,
+  "horizon_steps": 8,
+  "selected_median_seeds": {"plain": 967101, "structured": 967102},
+  "local_call_selection": "First actual invocation per agent per fixed snapshot; retain skips and full traces. Later fixed snapshots extend local decision coverage, not label-based sampling.",
+  "candidate_pool": "Frozen V9 union from original library, constant velocity and fixed V7 median response models; independent of V12 weights and future labels.",
+  "noise_seed": 973101,
+  "tie_absolute_cost_tolerance": 1e-9,
+  "target_branch_rule_overrides": {},
+  "enhanced_control_enabled": false,
+  "private_labels_model_inputs": false,
+  "holdout_collected": false,
+  "data_gate": {"maximum_original_target_invalid_episodes": 0, "minimum_train_groups": 24, "minimum_development_groups": 8, "minimum_common_valid_nonanchor_points_each_split": 100}
+}

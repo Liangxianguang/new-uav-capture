@@ -1,0 +1,19 @@
+{
+  "version": "cwm_v12.fixed_task_effect_loss_comparison.20261010",
+  "audit_archive_sha256": "e576dd22c9afeea9a068172defe8d59493ee96892c09a96dff73a220caec2f9e",
+  "models": ["motion_only", "plain_mse", "structured_mse", "plain_task", "structured_task"],
+  "architecture": "Unchanged V10 LocalTwoHead, architecture kind plain/structured; matched ordinary/structured budgets. MSE and task pairs share initializations and batch order per seed. Original GRU is never optimized.",
+  "training": {"seeds": [974101, 974102, 974103], "epochs": 80, "batch_calls": 32, "learning_rate": 0.001, "gradient_clip_norm": 1.0, "motion_scale_m": 2.5, "response_scale_m": 2.5, "motion_weight": 1.0, "response_weight": 1.0, "residual_penalty": 0.001, "task_effect_weight": 1.0},
+  "loss": "Original V10 group-balanced masked motion MSE + paired response MSE + residual energy; task variants additionally use V11 exact normalized paired COST EFFECT error with detached true reference labels on fully valid calls ONLY. No low-predicted-cost/ranking reward, no label-based resampling; partial support still contributes physical masked supervision.",
+  "normalization": "Only the fresh V12 train histories; no V10/V12 development normalization or finetuning.",
+  "selection": "Fixed final epoch; middle of three seeds ordered by fresh development group-equal all-branch ADE, then seed. No best seed/epoch/sweep. Report every seed, every architecture, all losses and controls.",
+  "additional_data_gate": {"minimum_full_support_train_calls": 100, "minimum_full_support_development_calls": 32},
+  "development_gate": {"maximum_task_to_gru_ade_ratio_each_seed": 0.8, "maximum_task_to_cv_median_ade_ratio": 0.95, "maximum_task_to_zero_response_median_error_ratio": 0.95, "maximum_task_to_same_arch_mse_median_effect_loss_ratio": 0.95, "minimum_selected_group_gain_interval_lower_bound_vs_motion_component": 0.0, "minimum_selected_group_gain_interval_lower_bound_vs_cv": 0.0, "minimum_selected_group_gain_interval_lower_bound_vs_trained_motion_only": 0.0},
+  "gate_scope": "Evaluate ordinary-task and structured-task separately. Passing is research eligibility only, never online promotion. Selected gain bounds must be strictly positive using same frozen local library/full common support. Causal-response usefulness requires improvement over zero response and own motion, not merely architecture superiority or common-motion gains. V10 gate remains failed.",
+  "decision_bootstrap": {"draws": 2000, "seed": 974104, "interpretation": "Fresh V12 development gate, not reserved holdout; no tuning after inspection."},
+  "original_gru_in_optimizer": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Independent retraining and source/trajectory audit; new-model self-generated library and sequential shadow; default-off/failure fallback; untouched holdout, original eight Levels, new-scene closed-loop, safety and latency. Whole optional module off preserves original; response-anchor zero alone does not."
+}

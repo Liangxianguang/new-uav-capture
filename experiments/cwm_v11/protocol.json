@@ -1,0 +1,23 @@
+{
+  "version": "cwm_v11.full_local_score_audit.20261010",
+  "training_archive_sha256": "4c0f138df0797c89dab7c5132ceb8b91664df40ac98f3ef7dd8fca748ac9356e",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "scope": "Verify full K=1 original local scores on all V10 calls; mechanism/sensitivity diagnostics use TRAIN ONLY. No retraining, no new control, no independent-test claim.",
+  "score_rtol": 1e-10,
+  "score_atol": 1e-8,
+  "finite_difference_step_m": 1e-5,
+  "finite_difference_coordinates": [[0, 0], [3, 1], [7, 2]],
+  "finite_difference_candidate_indices": "first, middle and last, deduplicated",
+  "gradient_rtol": 1e-5,
+  "gradient_atol": 1e-5,
+  "nondifferentiable_second_difference_per_step_threshold": 1e-3,
+  "stress_offset_m": 0.20,
+  "stress_seed": 972101,
+  "strong_response_threshold_m": 0.05,
+  "bootstrap_seed": 972102,
+  "bootstrap_draws": 2000,
+  "new_model_training_enabled": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false
+}
