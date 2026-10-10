@@ -1,0 +1,35 @@
+{
+  "status": "complete_v28_through_v38_implementation_regression_no_native_v38_archive",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 645,
+  "seconds": 92.85,
+  "v38_synthetic_tests": 55,
+  "initial_regression_invocation": {
+    "incorrect_test_path": "scripts/test_publish_exact_github_api.py",
+    "actual_exit_code": 1,
+    "tests_executed": 0,
+    "correction": "Located actual tests/test_publish_exact_github_api.py using rg; reran complete command above. Initial collection failure is not counted as validation."
+  },
+  "actual_incomplete_native_input_refusal": {
+    "data": "D:\\uav-capture\\cwm34-data-20261011",
+    "audit": "D:\\uav-capture\\cwm34-audit-20261011",
+    "entry": "experiments/cwm_v38/package_streamed_release.py",
+    "python_exit_code": 1,
+    "failure": "Missing native independent audit summary rejected by AuditedCorpus before archive/replay creation.",
+    "archive_created": false,
+    "replay_output_created": false,
+    "scientific_input_modified": false,
+    "native_scientific_replay_performed": false
+  },
+  "full_archive_extracted_scientific_replay_entry_implemented": true,
+  "native_v34_collection_complete": false,
+  "native_v36_scientific_training_performed": false,
+  "native_v37_scientific_reload_performed": false,
+  "native_v38_complete_archive_created": false,
+  "native_v38_extracted_scientific_replay_performed": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implementation tests use synthetic archives/typed costs/NPY arrays, mocked native authorities and fixture traces. Full512 native evidence inventory assembly, all18 restoration reports, exclusive safe extraction, child sequencing/nonzero refusal, omission/mutation refusal and typed/array comparison are exercised. No scientific optimizer, causal identification, efficacy, capture/safety/latency or active-model fault fallback is qualified."
+}
