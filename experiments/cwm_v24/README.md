@@ -33,3 +33,15 @@ is saved. Full diagnostic archive/third original-engine recomputation is require
 before calling the whole diagnostic release independently reproduced. Unit tests
 do not mean actual diagnostic runs have passed. No optimizer/model selection,
 new controller, holdout access or failed-gate override occurs in this stage.
+
+## Complete diagnosis release
+
+```powershell
+python experiments/cwm_v24/candidate_cardinality_release.py --primary results/cwm_v24/primary_20261010 --repeated results/cwm_v24/repeated_20261010 --output experiments/cwm_v24/artifacts/public_candidate_cardinality_20261010.zip
+python experiments/cwm_v24/candidate_cardinality_release.py --verify experiments/cwm_v24/artifacts/public_candidate_cardinality_20261010.zip --artifact experiments/cwm_v23/artifacts/fresh_cost_data_release_20261010.parts.json --recompute-output results/cwm_v24/independent_recomputed_20261010
+```
+
+Saved-record and manifest checks run before/after packing both complete outputs.
+The independent verify command reruns the COMPLETE original DATA/public cost
+audit and every1,536public candidate reconstruction, then demands byte-exact
+new records/summary. It does not count a checksum-only check as that replay.
