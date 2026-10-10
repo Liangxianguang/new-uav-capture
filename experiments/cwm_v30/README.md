@@ -34,6 +34,12 @@ they remain saved, not silently dropped or latency-qualified. Fixture tests are
 NOT actual full replays. Complete result packaging/archive replay and active
 model faults remain separate requirements.
 
+The independent audit scans EVERY step in streaming order, stores only per-episode
+byte offsets/counts, then decodes all steps of the episode being replayed. File
+digests use bounded1MiB chunks. No step/episode subsampling or support reduction;
+reordered/repeated/interleaved blocks are rejected. Native non-timing JSON scalar
+types/signs are exact too (True cannot impersonate1, nor +0.0 become-0.0).
+
 ```powershell
 python experiments/cwm_v30/audit_full_baseline.py --reference D:\uav-capture\cwm30-baseline-20261011 --output D:\uav-capture\cwm30-audit-20261011
 ```
@@ -44,8 +50,11 @@ generated geometry shifts on new identities, reserved16episode holdout ONLY afte
 qualified artifact and passing development closed-loop gates. S4 new geometry
 specification comes from prior V16 public axes, not reused scene outcomes; values
 are fixed BEFORE evaluation. No new/holdout scene generation is called by this
-baseline-only entry. The active paired runner/gates and sealed holdout entry still
-need implementation and real verification; listing a protocol is not execution.
+baseline-only entry. `paired_closed_loop.py` and `closed_loop_gates.py` now
+implement the fixed complete development execution/statistical entry, but active
+execution remains unperformed/unqualified. The sealed holdout entry and all real
+active/fault/archive evidence still need implementation/verification; listing
+code or a protocol is not execution.
 
 The primary outcome is restricted SAFE capture time: failures/unsafe/invalids
 cost the original25s horizon, so success-only timing cannot hide regressions.
@@ -65,3 +74,32 @@ or later libraries identical. Exact same-library response contribution remains
 the V28 all-call offline comparison. Model-fault equivalence, full result archive
 and independently replayed active/holdout safety/capture/latency evidence remain
 required, not fulfilled by protocol/population tests or baseline capture rates.
+
+The paired DEVELOPMENT entry requires the full independently replayed V28 fixed
+primary release, exact published source HEAD, all7 policies on ALL1280 original
+and ALL64 newly generated scenes. A failed primary refuses before new generation
+or active entry; route/call errors retain evidence and STOP, never filter/replace
+scenes, choose another model or silently claim CWM while using original control.
+There is deliberately NO holdout CLI. Saved-outcome statistics always report
+holdout authorization/native replay/deployment as false; an arithmetic pass is
+not a native result. Fresh-axis bootstrap resamples the same layout groups across
+axes; original Levels/variants/groups are equal weighted, with L0 diagnostic.
+
+`measured_original_cycle.py` only observes the actual original evaluator's
+`control_started` timestamp at its environment-step boundary. No clock/deadline
+replacement, subtraction or changed physical configuration. End-to-end samples
+include inference/proposals/original costs/CBF, V29 call-output IO, numeric command
+observer and native environment step/history; first and warmup samples retained.
+This is a conservative full simulation-cycle measurement, not inference-only
+timing; preload and post-episode artifact writes are separately outside the
+control cycle. A fixed two-record ORIGINAL-only smoke is provided; even a real
+successful smoke does not qualify full-Level or active latency/model faults.
+
+The V30 evidence adapter adds the already-public ordinal to V29's copied call
+before its unchanged serializer runs. V29 released source bytes are preserved.
+
+```powershell
+python experiments/cwm_v30/measurement_smoke.py --output D:\uav-capture\cwm30-cycle-smoke-20261011
+# Only after V28 artifact-qualified fixed primary; NOT authorized/running now:
+python experiments/cwm_v30/paired_closed_loop.py --artifact VERIFIED_V28_ARTIFACT --certificate VERIFIED_V28_CERTIFICATE --output NEW_SHORT_OUTPUT
+```

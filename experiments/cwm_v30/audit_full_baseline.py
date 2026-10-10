@@ -17,7 +17,7 @@ import torch
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path[:0] = [str(HERE), str(HERE.parent/'cwm_v29'), str(HERE.parent/'cwm_v28')]
-from baseline_full_levels import Baseline, REMOTE, BRANCH, sha, verify, json_diagnostics, summarize, write_json
+from baseline_full_levels import Baseline, REMOTE, BRANCH, verify, json_diagnostics, summarize, write_json
 from closed_loop_populations import original_population, restricted_safe_capture_time
 from sequential_entry import SequentialResearchEntry
 from package_ranking_release import safe_name
@@ -33,15 +33,72 @@ def read_json(path):
     return json.loads(path.read_bytes())
 
 
+def sha(path):
+    value = hashlib.sha256()
+    with path.open('rb') as stream:
+        while chunk := stream.read(1024*1024):
+            value.update(chunk)
+    return value.hexdigest()
+
+
 def read_lines(path):
-    return [json.loads(line) for line in path.read_text(encoding='utf8').splitlines() if line]
+    with path.open('r', encoding='utf8') as stream:
+        return [json.loads(line) for line in stream if line.strip()]
+
+
+def index_steps(path, records):
+    """Scan ALL diagnostics, retaining byte offsets/counts, not all step dicts."""
+    assigned = {r['episode_index']: r for r in records}
+    expected_order = [r['episode_index'] for r in records]
+    index, last = {}, None
+    with path.open('rb') as stream:
+        while True:
+            start = stream.tell()
+            line = stream.readline()
+            if not line:
+                break
+            row = json.loads(line)
+            identifier = row['episode_index']
+            if identifier not in assigned:
+                raise ValueError('Unexpected original step identity')
+            if identifier != last:
+                if identifier in index or len(index) >= len(expected_order) or identifier != expected_order[len(index)]:
+                    raise ValueError('Full original episode-step blocks reordered/repeated')
+                index[identifier] = {'start': start, 'stop': start, 'count': 0}
+                last = identifier
+            item = index[identifier]
+            item['count'] += 1
+            item['stop'] = stream.tell()
+            if row['step'] != item['count'] or item['count'] > 250:
+                raise ValueError('Complete ordered original step support required')
+            if any(row[k] != assigned[identifier][k] for k in ('level', 'variant')):
+                raise ValueError('Original step Level/variant differs')
+    if list(index) != expected_order or any(v['count'] < 1 for v in index.values()):
+        raise ValueError('Complete ALL-episode original step support required')
+    return index
+
+
+def episode_steps(path, item):
+    rows = []
+    with path.open('rb') as stream:
+        stream.seek(item['start'])
+        while stream.tell() < item['stop']:
+            rows.append(json.loads(stream.readline()))
+        if stream.tell() != item['stop'] or len(rows) != item['count']:
+            raise ValueError('Indexed native episode step bytes changed')
+    return rows
 
 
 def require_equal(reference, actual, excluded, label):
     left = {k: v for k, v in reference.items() if k not in excluded}
-    right = {k: v for k, v in json_diagnostics(actual).items() if k not in excluded}
-    if left != right:
-        different = sorted(k for k in set(left)|set(right) if left.get(k) != right.get(k))
+    normalized = json.loads(json.dumps(json_diagnostics(actual), allow_nan=False))
+    right = {k: v for k, v in normalized.items() if k not in excluded}
+    def canonical(value):
+        return json.dumps(value, sort_keys=True, allow_nan=False)
+    # Python considers True==1, 1==1.0 and +0.0==-0.0. Native emitted JSON
+    # types/signs must also agree, not merely approximate numeric equality.
+    if canonical(left) != canonical(right):
+        different = sorted(k for k in set(left)|set(right) if k not in left or k not in right or canonical(left[k]) != canonical(right[k]))
         raise ValueError(label + ' differs: ' + ', '.join(different[:12]))
 
 
@@ -111,18 +168,7 @@ def validate_saved(reference, capsule):
     by_level = summarize(rows)
     if report['by_level'] != by_level or report['original8Level_equal_macro'] != macro(by_level):
         raise ValueError('Full group-aware original aggregate differs')
-    steps = {r['episode_index']: [] for r in records}
-    for row in read_lines(reference/'steps.jsonl'):
-        identifier = row['episode_index']
-        if identifier not in steps:
-            raise ValueError('Unexpected original step identity')
-        steps[identifier].append(row)
-    for record in records:
-        series = steps[record['episode_index']]
-        if not series or [s['step'] for s in series] != list(range(1, len(series)+1)) or len(series) > 250:
-            raise ValueError('Complete ordered original step support required')
-        if any(s['level'] != record['level'] or s['variant'] != record['variant'] for s in series):
-            raise ValueError('Original step Level/variant differs')
+    steps = index_steps(reference/'steps.jsonl', records)
     verify_inventory(reference, hashes)
     return report, records, rows, steps, hashes
 
@@ -176,7 +222,7 @@ def run(reference, output):
                     require_equal(expected, row, EPISODE_TIMING|{'trajectory_sha256', 'commands_sha256'}, 'Native episode diagnostics/outcomes')
                     observed = [json_diagnostics({'level': record['level'], 'variant': record['variant'],
                         'episode_index': record['episode_index'], **s}) for s in actual_steps]
-                    expected_steps = steps[record['episode_index']]
+                    expected_steps = episode_steps(reference/'steps.jsonl', steps[record['episode_index']])
                     if len(observed) != len(expected_steps):
                         raise ValueError('Complete native step count differs')
                     for a, b in zip(expected_steps, observed):

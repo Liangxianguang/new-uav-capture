@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -53,6 +54,16 @@ def test_only_explicit_wall_clock_fields_excluded_diagnostics_not_safety():
         audit.require_equal(left, right, audit.STEP_TIMING, 'step')
 
 
+@pytest.mark.parametrize('left,right', [(True, 1), (1., 1), (0., -0.)])
+def test_native_json_scalar_type_and_sign_not_hidden_by_python_equality(left, right):
+    with pytest.raises(ValueError, match='native'):
+        audit.require_equal({'native': left}, {'native': right}, frozenset(), 'diagnostics')
+
+
+def test_nested_native_integer_keys_follow_actual_json_emission_not_python_mapping():
+    audit.require_equal({'native': {'1': True}}, {'native': {1: np.bool_(True)}}, frozenset(), 'diagnostics')
+
+
 @pytest.mark.parametrize('name', ['../outside', '/absolute', 'C:/outside'])
 def test_evidence_inventory_paths_cannot_escape(tmp_path, name):
     with pytest.raises(ValueError):
@@ -67,6 +78,47 @@ def test_inventory_rechecks_hashes_not_existence_only(tmp_path):
     target.write_bytes(b'changed')
     with pytest.raises(ValueError, match='hash/path'):
         audit.verify_inventory(tmp_path, hashes)
+
+
+def test_streamed_digest_matches_full_sha_with_multiple_chunks(tmp_path):
+    path = tmp_path/'multi.bin'
+    raw = b'original-evidence'*160000
+    path.write_bytes(raw)
+    assert audit.sha(path) == hashlib.sha256(raw).hexdigest()
+
+
+def test_step_index_is_complete_and_decodes_only_requested_episode(tmp_path):
+    records = [{'episode_index': i, 'level': 1, 'variant': 'v'} for i in (10, 20)]
+    rows = [{'episode_index': r['episode_index'], 'level': 1, 'variant': 'v', 'step': s, 'diagnostics': [1, 2, 3]}
+            for r in records for s in (1., 2.)]
+    path = tmp_path/'steps.jsonl'
+    path.write_text(''.join(json.dumps(r)+'\n' for r in rows), encoding='utf8')
+    index = audit.index_steps(path, records)
+    assert list(index) == [10, 20]
+    assert all(v['count'] == 2 for v in index.values())
+    assert all(set(v) == {'start', 'stop', 'count'} for v in index.values())
+    assert audit.episode_steps(path, index[20]) == rows[2:]
+
+
+@pytest.mark.parametrize('fault', ['missing', 'reorder', 'interleave', 'repeat_step', 'wrong_level'])
+def test_streaming_cannot_drop_reorder_or_interleave_any_native_steps(tmp_path, fault):
+    records = [{'episode_index': i, 'level': 1, 'variant': 'v'} for i in (10, 20)]
+    rows = [{'episode_index': r['episode_index'], 'level': 1, 'variant': 'v', 'step': s}
+            for r in records for s in (1., 2.)]
+    if fault == 'missing':
+        rows = rows[:2]
+    elif fault == 'reorder':
+        rows = rows[2:]+rows[:2]
+    elif fault == 'interleave':
+        rows = [rows[0], rows[2], rows[1], rows[3]]
+    elif fault == 'repeat_step':
+        rows[1]['step'] = 1.
+    else:
+        rows[0]['level'] = 2
+    path = tmp_path/'steps.jsonl'
+    path.write_text(''.join(json.dumps(r)+'\n' for r in rows), encoding='utf8')
+    with pytest.raises(ValueError):
+        audit.index_steps(path, records)
 
 
 @pytest.fixture
