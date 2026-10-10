@@ -1,0 +1,745 @@
+{
+  "status": "completed_native_full_original_off_refusal_audit_pending_archive_replay",
+  "native_summary_sha256": "ff8cf4009a0b027451bc64ad1b64c465ca41ca1cb4f117e41377300904a7ca87",
+  "native_output": "D:/uav-capture/cwm30-audit-20261011/summary.json",
+  "actual_native_audit_exit_code": 0,
+  "native_payload_semantic_copy_not_same_file_bytes": true,
+  "scope": "Complete original off/refusal replay passed. Archive extracted replay remains live. Not causal efficacy, holdout, latency or formal safety qualification.",
+  "native_summary": {
+  "status": "independent_full_original_population_off_refusal_replay_passed",
+  "baseline_summary_sha256": "a97c1f89cd57ec21de07e8c107c3147d90bc06f57de23c3bda4846517945e983",
+  "protocol": {
+    "version": "cwm_v30.full_levels_fresh_geometry_paired_closed_loop.20261011",
+    "stage": "preregistered_closed_loop_plan_and_full_original_baseline_not_enhancement_qualification",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "original_population": {
+      "scenes_member": "results/phase91_zero_cbf_curriculum_v5/validation/scenes.jsonl",
+      "scenes_sha256": "ab25e24f7f2b93c342f1371300ee8c79d42b4a947c90927e20dcab61d5c5597f",
+      "curriculum_member": "configs/phase91_mappo_pursuit_first_v9.yaml",
+      "curriculum_sha256": "a72d77d7b1f2ff7120141a143f3a3f986cd5a5048c271a65c2e3619c38cebd3a",
+      "level_variants": {
+        "0": [
+          "open_static"
+        ],
+        "1": [
+          "open_slow"
+        ],
+        "2": [
+          "open_nominal"
+        ],
+        "3": [
+          "single_obstacle"
+        ],
+        "4": [
+          "mixed_three"
+        ],
+        "5": [
+          "mixed_three_evasive"
+        ],
+        "6": [
+          "dense_mixed"
+        ],
+        "7": [
+          "fast_target",
+          "agile_target"
+        ],
+        "8": [
+          "sensor_degraded"
+        ]
+      },
+      "episodes_each_variant": 128,
+      "total_episodes": 1280,
+      "primary_levels": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "warmup_level_reported_separately": 0,
+      "ordering": "level, declared variant order, mirror_group_id, mirror_pair_member, episode_index",
+      "scope": "ALL frozen existing development validation records, not a sampled easier subset. Preserve existing singleton groups (notably L5), all complete mirrors, invalid/failed/time-out episodes. Existing development corpus is NOT untouched holdout. L7 both variants retained; L0 not mixed into the main8Level aggregate."
+    },
+    "fresh_new_scene_development": {
+      "groups": 8,
+      "layout_seed_start": 2002010,
+      "variants": [
+        {
+          "name": "reference_wallx1_5",
+          "seed_start": 1002010,
+          "wall_center_x_m": 1.5,
+          "defender_y_multiplier": 1.0,
+          "wall_y_multiplier": 1.0
+        },
+        {
+          "name": "wallx2_25",
+          "seed_start": 1002110,
+          "wall_center_x_m": 2.25,
+          "defender_y_multiplier": 1.0,
+          "wall_y_multiplier": 1.0
+        },
+        {
+          "name": "wider_encirclement",
+          "seed_start": 1002210,
+          "wall_center_x_m": 1.5,
+          "defender_y_multiplier": 1.4,
+          "wall_y_multiplier": 1.0
+        },
+        {
+          "name": "shorter_wall",
+          "seed_start": 1002310,
+          "wall_center_x_m": 1.5,
+          "defender_y_multiplier": 1.0,
+          "wall_y_multiplier": 0.8
+        }
+      ],
+      "geometry_source": "Unchanged public V16 four-axis specification on FRESH identities. No V16/V28 scenes or labels reused for new-model evaluation; no geometry/capture/response-based scene filtering, replacement or parameter search.",
+      "groups_across_axes": "Same8 layout/noise groups and mirror members across all4 axes,64 episodes. Noise may diverge after different policies consume different histories; pairing asserts identical initial/noise seeds, not identical realized future noise.",
+      "generation_authorized_now": false
+    },
+    "reserved_holdout_not_collected": {
+      "seed_start": 966010,
+      "layout_seed_start": 1966010,
+      "groups": 8,
+      "geometry": "Original reserved S4 wallx1.5 distribution, unchanged V28 public speed/observation/scene variation specification;16 episodes.",
+      "release_condition": "Only fixed V28 primary passed full independent artifact replay AND all predeclared closed-loop development capture/safety/latency gates. One frozen confirmation, no tuning, no best seed/epoch/gate switching, no reuse after failure. Not generated or inspected by the baseline entry."
+    },
+    "methods": [
+      "original",
+      "original_gru_shared",
+      "constant_velocity_shared",
+      "own_motion_shared",
+      "cv_motion_only_shared",
+      "cv_l2_shared",
+      "cv_rank_l2_shared"
+    ],
+    "primary_method": "cv_rank_l2_shared",
+    "method_order": "Rotate fixed method list by SHA256(cohort/episode_index) mod7 to reduce systematic order bias; identical complete scene population and initial/environment/controller sampling seeds for all methods. No best-method selection.",
+    "model_selection": "Only independently replayed V28 archive, fixed final80epoch, all3seeds retained and preregistered ADE-median chosen per configuration. Failed primary prohibits active evaluation. Matched primary frozen common defines own_motion; independent ADE-median motion/L2 controls also reported. Never activate failed V23 teacher as scorer.",
+    "proposal_library": "Unchanged V29 common fixed failed V23 PUBLIC proposer/V27 shared bound24 candidates/2 rounds for EVERY expanded scoring control. Original is unexpanded original solver. Libraries regenerate from each method's actual received context; later closed-loop states differ, so this is a paired POLICY comparison, not a claim of identical realized libraries at diverged states. Exact same-library response contribution already requires V28 all-call offline comparisons.",
+    "primary_outcome": "Restricted safe-capture time in seconds: actual safe capture time if safe_capture_success with no collision/boundary/target-invalid episode, otherwise fixed original25s horizon. Failed/invalid/timeout episodes retained, never conditional-on-success timing. Positive paired baseline_time-primary_time means improvement.",
+    "aggregation": "Original primary aggregate is equal-weight8Level mean of equal-weight declared variants, then existing mirror-group means; L7 two variants equal-weight and L0 separately diagnostic. Fresh axes equal-weight4variants then8 shared layout groups; all per-level/per-variant absolute capture/safety/failure metrics reported. No treating sequential calls/windows as independent scenes.",
+    "development_gates": {
+      "restricted_safe_capture_time_gain_lower95_vs_original_own_motion_and_l2_strictly_above_seconds": 0,
+      "original_each_level_safe_capture_rate_gain_lower95_minimum": -0.02,
+      "new_scene_each_variant_safe_capture_rate_gain_lower95_minimum": -0.02,
+      "maximum_new_collision_episodes_vs_paired_original": 0,
+      "maximum_new_boundary_violation_episodes_vs_paired_original": 0,
+      "maximum_new_target_invalid_episodes_vs_paired_original": 0,
+      "maximum_new_local_solver_failure_steps_vs_paired_original": 0,
+      "maximum_end_to_end_control_latency_p95_ms": 100,
+      "confidence_scope": "Fixed population group-resampling descriptive intervals, not formal safety/generalization proof. Stratify original variants/levels and fresh shared layout groups. ALL required checks, both original and new-scene cohorts, must pass. Primary cannot switch to another configuration/control."
+    },
+    "holdout_confirmation": "Same fixed restricted-time positive lower95 vs original/own_motion/L2, safe-capture noninferiority lower95>=-0.02 and no additional collision/boundary/target-invalid/local-failure outcomes and fixed latency p95<=100ms. Small8group uncertainty reported. No post-holdout gate changes or deployment promotion from a failed confirmation.",
+    "bootstrap": {
+      "draws": 2000,
+      "seed": 1002501
+    },
+    "latency": "CPU original environment, original GRU252/DN-MPC/local CBF, torch1thread. ALL research capture-copy/proposal/inference/full original score time stays inside original planner timeout; IO outside plan still included in end-to-end latency. Preload/readiness time reported separately. No subtraction, deadline relaxation, fake clocks or timing claims from synthetic tests. Original native timing fields and actual observer cycle timing retained; first/warmup timing support disclosed.",
+    "diagnostic_serialization": "Legacy nonfinite diagnostics (for example no-obstacle infinity) retain explicit tagged JSON values, never converted to zero, silently dropped or fed to a model. Physical outcomes and required time/cost metrics remain validated; numerical trajectories are saved unchanged.",
+    "max_steps": 250,
+    "dt_seconds": 0.1,
+    "horizon_steps": 8,
+    "maximum_command_speed_mps": 5,
+    "cbf_margin_m": 0.35,
+    "new_training_or_tuning_allowed": false,
+    "deployment_control_enabled": false,
+    "active_research_experiment_started": false,
+    "holdout_used": false,
+    "prior_gate_override_allowed": false,
+    "baseline_collection_allowed": "Only complete original development population with EXACT unchanged original classes. May run before V28 qualification. Published exact protocol/source commit required BEFORE new baseline outputs. Never calls/generates fresh or reserved holdout scenes.",
+    "remaining": "Implement/check actual paired active evaluation runner and fixed statistical/latency gate entry, independent model-fault equivalence, new-scene generation, sealed holdout confirmation and complete result archive/replay. This protocol or baseline-only run is NOT causal-model efficacy, active control qualification or new formal CBF safety proof."
+  },
+  "modes": {
+    "off": {
+      "episodes": 1280,
+      "original_parent_classes_used": true,
+      "optional_context_or_model_read": false,
+      "full_trajectory_plan_cbf_bytes_equal": true,
+      "all_nontiming_native_episode_and_step_diagnostics_equal": true,
+      "episodes_sha256": "6a52a0c3c4664cbd4494bb060adde9a0f4422758d015c94064c82baeada1ec8f",
+      "steps_sha256": "9b90070e167238155b24aa1b934d0c4b4bb0c1ca3421e4cf8c5cf5c9eeca9cf2",
+      "by_level": {
+        "0": {
+          "episodes": 128,
+          "variants": {
+            "open_static": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.09375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.09375
+        },
+        "1": {
+          "episodes": 128,
+          "variants": {
+            "open_slow": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.1234375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.1234375
+        },
+        "2": {
+          "episodes": 128,
+          "variants": {
+            "open_nominal": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 1.9046875
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 1.9046875
+        },
+        "3": {
+          "episodes": 128,
+          "variants": {
+            "single_obstacle": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.22578125
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.22578125
+        },
+        "4": {
+          "episodes": 128,
+          "variants": {
+            "mixed_three": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.2765625
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.2765625
+        },
+        "5": {
+          "episodes": 128,
+          "variants": {
+            "mixed_three_evasive": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.6140625
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.6140625
+        },
+        "6": {
+          "episodes": 128,
+          "variants": {
+            "dense_mixed": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.953125,
+              "collision_rate": 0.046875,
+              "boundary_violation_rate": 0.0234375,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.953125,
+              "group_equal_collision_rate": 0.046875,
+              "group_equal_boundary_violation_rate": 0.0234375,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 5.1859375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.953125,
+          "variant_equal_collision_rate": 0.046875,
+          "variant_equal_boundary_violation_rate": 0.0234375,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 5.1859375
+        },
+        "7": {
+          "episodes": 256,
+          "variants": {
+            "agile_target": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.984375,
+              "collision_rate": 0.015625,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.984375,
+              "group_equal_collision_rate": 0.015625,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.7945312500000004
+            },
+            "fast_target": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.29375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.9921875,
+          "variant_equal_collision_rate": 0.0078125,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 3.5441406250000003
+        },
+        "8": {
+          "episodes": 128,
+          "variants": {
+            "sensor_degraded": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.984375,
+              "collision_rate": 0.015625,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.984375,
+              "group_equal_collision_rate": 0.015625,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.75859375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.984375,
+          "variant_equal_collision_rate": 0.015625,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 3.75859375
+        }
+      }
+    },
+    "refusal": {
+      "episodes": 1280,
+      "original_parent_classes_used": true,
+      "optional_context_or_model_read": false,
+      "full_trajectory_plan_cbf_bytes_equal": true,
+      "all_nontiming_native_episode_and_step_diagnostics_equal": true,
+      "episodes_sha256": "dbd93949b2d8da7147d3234b1c1c940f91e826866e61816037a8586963199c02",
+      "steps_sha256": "82ce75ae9aa30d819fc5660dbf7bdab80483b2edd7ceb794bfa2405327f329b2",
+      "by_level": {
+        "0": {
+          "episodes": 128,
+          "variants": {
+            "open_static": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.09375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.09375
+        },
+        "1": {
+          "episodes": 128,
+          "variants": {
+            "open_slow": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.1234375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.1234375
+        },
+        "2": {
+          "episodes": 128,
+          "variants": {
+            "open_nominal": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 1.9046875
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 1.9046875
+        },
+        "3": {
+          "episodes": 128,
+          "variants": {
+            "single_obstacle": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.22578125
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.22578125
+        },
+        "4": {
+          "episodes": 128,
+          "variants": {
+            "mixed_three": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.2765625
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.2765625
+        },
+        "5": {
+          "episodes": 128,
+          "variants": {
+            "mixed_three_evasive": {
+              "episodes": 128,
+              "groups": 128,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 2.6140625
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 1.0,
+          "variant_equal_collision_rate": 0.0,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 2.6140625
+        },
+        "6": {
+          "episodes": 128,
+          "variants": {
+            "dense_mixed": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.953125,
+              "collision_rate": 0.046875,
+              "boundary_violation_rate": 0.0234375,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.953125,
+              "group_equal_collision_rate": 0.046875,
+              "group_equal_boundary_violation_rate": 0.0234375,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 5.1859375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.953125,
+          "variant_equal_collision_rate": 0.046875,
+          "variant_equal_boundary_violation_rate": 0.0234375,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 5.1859375
+        },
+        "7": {
+          "episodes": 256,
+          "variants": {
+            "agile_target": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.984375,
+              "collision_rate": 0.015625,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.984375,
+              "group_equal_collision_rate": 0.015625,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.7945312500000004
+            },
+            "fast_target": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 1.0,
+              "collision_rate": 0.0,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 1.0,
+              "group_equal_collision_rate": 0.0,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.29375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.9921875,
+          "variant_equal_collision_rate": 0.0078125,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 3.5441406250000003
+        },
+        "8": {
+          "episodes": 128,
+          "variants": {
+            "sensor_degraded": {
+              "episodes": 128,
+              "groups": 64,
+              "safe_capture_success_rate": 0.984375,
+              "collision_rate": 0.015625,
+              "boundary_violation_rate": 0.0,
+              "timeout_rate": 0.0,
+              "target_invalid_episode_rate": 0.0,
+              "group_equal_safe_capture_success_rate": 0.984375,
+              "group_equal_collision_rate": 0.015625,
+              "group_equal_boundary_violation_rate": 0.0,
+              "group_equal_timeout_rate": 0.0,
+              "group_equal_target_invalid_episode_rate": 0.0,
+              "group_equal_restricted_safe_capture_time_seconds": 3.75859375
+            }
+          },
+          "variant_equal_safe_capture_success_rate": 0.984375,
+          "variant_equal_collision_rate": 0.015625,
+          "variant_equal_boundary_violation_rate": 0.0,
+          "variant_equal_timeout_rate": 0.0,
+          "variant_equal_target_invalid_episode_rate": 0.0,
+          "variant_equal_restricted_safe_capture_time_seconds": 3.75859375
+        }
+      }
+    }
+  },
+  "source_hashes": {
+    "experiments/cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "experiments/cwm_v9/public_provider.py": "ae9c67ba6df6dbd33c0b13691b227d541c254fa3ab240d656f35e505cfdab34a",
+    "experiments/cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "experiments/cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "experiments/cwm_v30/baseline_full_levels.py": "fe91116a6b79a0f737f2ce3d1ae064217a740c8061444e366f7c25c254f83d24",
+    "experiments/cwm_v29/research_bundle.py": "e096df2504ac495ba1d4c18c11776f64c1b753762945dd814946c1630f4e7132",
+    "experiments/cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "experiments/cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "experiments/cwm_v18/geometry_probes.py": "571c8b985e1328139cfe40b4015d5d4dd77e7256b0fead940a39e0ea5e28544c",
+    "experiments/cwm_v5/decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "experiments/cwm_v8/s4_value.py": "8b3fe37274738324818a6c3989cfc21f92a06ca6c38a6c21f80f561a0d894c95",
+    "experiments/cwm_v7/collect_training.py": "d294f8409b8b11f1bacea79d9d2457337b89c47c48a804ae755633f96de2edb9",
+    "experiments/cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "experiments/cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "experiments/cwm_v27/bounded_candidates.py": "44afdbf8d0765caeaa5aadaccc428bdd633639218387bfa5e853a9d1c942d529",
+    "experiments/cwm_v28/package_ranking_release.py": "39361d8c52ad940af830277678cd0ca46249a0eefd7e1e173dc526db5e14e5e9",
+    "experiments/cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "experiments/cwm_v25/original_entry_boundary.py": "b71c8b05f1b38a06a6fa42b7beaf46e761b4c4da009d71f87be440998707a3d2",
+    "experiments/cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "experiments/cwm_v29/sequential_entry.py": "c5cbdcdddf32cefc526ad143053fd46c46577ecefb7ddf9ded33da8183bb42e4",
+    "experiments/cwm_v25/qualification_gate.py": "361e0536a303f79a22a94ecafa7c830863c5ab4e7013401217129bb9005aff40",
+    "experiments/cwm_v29/local_selector.py": "9d84a85a8f63ac9b744ef816117883ca201a578163a0858897167de44c2b4cf3",
+    "experiments/cwm_v30/closed_loop_populations.py": "e70318ffe9d7c5c2ea7e51b80a681655cbcb991a74ba02d93a8266cad2bebccb",
+    "experiments/cwm_v7/response_model.py": "8c943cc009809ef25b7681f0889fab46b0ae6a0261a41ad761650dfc4a8ce69e",
+    "experiments/cwm_v9/local_shadow.py": "2c74a3cfa4d4af99e6041ec7948d38661f4845e603fb165b07e0ee8d53b8f84b",
+    "experiments/cwm_v11/task_score.py": "42bbd1ded249e756e785357bda7bbe3d514e441447a0582f75b4920a0b482e85",
+    "experiments/cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "experiments/cwm_v21/artifact_transport.py": "7480a16368bb929bdb1fa3fc83648254f76f1e193374b66644b63d497d693763",
+    "experiments/cwm_v30/audit_full_baseline.py": "f1f7922be72e97a220ee11e692b7b401af38f507dddaa7484b1547d863c4061e",
+    "experiments/cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "experiments/cwm_v7/train_response.py": "be6befccdb0673d3561434ee4928431c5240fc11080727aff127733528c1bc41",
+    "experiments/cwm_v30/closed_loop_protocol.json": "713865e69f201bbe7865d2609ca3f7cd337bd3004eaa28103e93774dd0e8032b"
+  },
+  "audited_baseline_manifest_sha256": "d90246fa1181bc4434397b5d0699c286ea13e826389fad63d94c6cd492881316",
+  "original8Level_equal_macro": {
+    "variant_equal_safe_capture_success_rate": 0.9912109375,
+    "variant_equal_collision_rate": 0.0087890625,
+    "variant_equal_boundary_violation_rate": 0.0029296875,
+    "variant_equal_timeout_rate": 0.0,
+    "variant_equal_target_invalid_episode_rate": 0.0,
+    "variant_equal_restricted_safe_capture_time_seconds": 2.954150390625
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "new_model_trained": false,
+  "active_model_faults_exercised": false,
+  "latency_qualified": false,
+  "artifact_packaged_and_replayed": false,
+  "excluded_nondeterministic_step_fields": [
+    "planner_latency_ms",
+    "predictor_latency_ms",
+    "qdr_latency_ms",
+    "rnic_latency_ms",
+    "safety_latency_ms",
+    "total_control_latency_ms"
+  ],
+  "excluded_nondeterministic_episode_fields": [
+    "mean_planner_latency_ms",
+    "mean_predictor_latency_ms",
+    "mean_rnic_latency_ms",
+    "mean_safety_latency_ms",
+    "mean_total_control_latency_ms",
+    "qdr_latency_ms"
+  ],
+  "scope": "ALL1280 original development episodes in EACH off/refusal mode. Actual original evaluator, numeric trajectories/plans/CBF and all non-timing native diagnostics replayed. Timing retained, not certified. Not active efficacy, actual-model faults, fresh scene/holdout confirmation or cross-platform/formal safety proof."
+}
+}
