@@ -1,0 +1,18 @@
+{
+  "status": "two_disabled_entry_regressions_archived_and_real_original_entry_replayed",
+  "artifact_sha256": "4a5e71c0b233f4d78168af98fb532ad3897c22ef4b41025829eaae8fa3a171f0",
+  "artifact_bytes": 406085,
+  "members": 85,
+  "fixed_historical_record_ids": [
+    920000640,
+    10038
+  ],
+  "all_original_trajectories_plans_cbf_commands_replayed": true,
+  "optional_model_or_context_read": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "active_research_selector_exercised": false,
+  "actual_v28_checkpoint_faults_exercised": false,
+  "latency_qualified": false,
+  "scope": "Two historical records, exact off/refusal paths only. NOT V28 training, active selector, full Levels, safety/latency qualification or capture gains."
+}
