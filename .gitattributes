@@ -25,3 +25,7 @@
 # V25 emitted entry replay reports and archive retain exact evidence bytes.
 /experiments/cwm_v25/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v25/artifacts/** -text
+
+# V26 complete real-checkpoint shadow evidence retains native emitted bytes.
+/experiments/cwm_v26/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v26/artifacts/** -text

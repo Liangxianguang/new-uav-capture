@@ -1,0 +1,18 @@
+{
+  "version": "cwm_v26.real_public_sequential_shadow.20261010",
+  "stage": "implementation_regression_of_failed_v23_not_new_model_training_or_qualification",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "model_archive_sha256": "2ec8d4165e2b56c99f1781c38e54122a481ef63dc3f8aacf1069d53ace11ca78",
+  "configuration": "cv_cost_l2",
+  "seed": 993102,
+  "record_ids": [920000640, 10038],
+  "modes": ["plain", "off", "refusal", "load_failure", "prediction_failure", "real_shadow"],
+  "public_inputs": "Original252 eight-frame public history, actual local candidates/selected anchor, received delayed peer positions/velocities/plans, original GRU path, original public belief CV. No true future, branch labels, privileged current peer plans or cost labels are passed to the model.",
+  "scheduling": "Copy all sequential local-selection calls; run shadow forecasts only after original DN-MPC plan returns. Never overwrite plan/actions, deadlines or CBF parameters. Missing received peer plans are logged and skipped, never filled with zero or privileged plans.",
+  "data_use": "Two fixed historical regression records only. No fitting, model/seed selection, candidate expansion or reserved holdout access. This is not generalization evidence.",
+  "required": "Two independent replay processes; exact historical trajectories and plain commands/plans; all supported sequential calls forecast; off/refusal zero model reads; actual checkpoint load/forward fault paths exercised; source/checkpoint/capsule integrity; post-archive independent public context and inference audit.",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "remaining": "Active sequential local-selector integration, self-generated candidates, independent new-data model decision qualification, untouched holdout and original full Levels/new-scene paired capture/safety/latency validation. local CBF remains empirical, not a new formal guarantee."
+}

@@ -1,0 +1,17 @@
+{
+  "status": "passed_full_actual_shadow_semantic_checks",
+  "checks": [
+    "full_actual_completed_shadow_positive_audit_passed",
+    "enabled_semantic_forgery_rejected",
+    "omitted_call_semantic_forgery_rejected",
+    "control_semantic_forgery_rejected",
+    "checkpoint_semantic_forgery_rejected",
+    "filled_peer_semantic_forgery_rejected",
+    "history_semantic_forgery_rejected",
+    "forecast_semantic_forgery_rejected",
+    "command_semantic_forgery_rejected"
+  ],
+  "artifact_sha256": "fb6a0ee23702c94ad1714b5666a0389a41bba545426c2aa21804429e9a9eb217",
+  "complete_positive_status": "passed_independent_real_public_sequential_shadow_audit",
+  "enhanced_control_enabled": false
+}

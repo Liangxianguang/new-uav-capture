@@ -1,0 +1,21 @@
+{
+  "status": "passed_independent_real_public_sequential_shadow_audit",
+  "independent_runs": 2,
+  "episodes_per_mode_per_run": 2,
+  "sequential_calls_per_fault_shadow_mode": 412,
+  "supported_calls": 388,
+  "missing_received_peer_calls": 24,
+  "real_forecasts_reinferred_per_run": 388,
+  "checkpoint_sha256": "907f6c8c7df68ee53c626d0b8ade973e6053be53f2973b30366df1d444ecfa14",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "model_archive_sha256": "2ec8d4165e2b56c99f1781c38e54122a481ef63dc3f8aacf1069d53ace11ca78",
+  "historical_trajectories_and_original_plans_commands_exact": true,
+  "independent_public252_delayed_contexts_exact": true,
+  "original_candidates_and_local_cost_choices_recomputed": true,
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "scope": "Active sequential local-selector integration, self-generated candidates, independent new-data model decision qualification, untouched holdout and original full Levels/new-scene paired capture/safety/latency validation. local CBF remains empirical, not a new formal guarantee.",
+  "artifact_sha256": "fb6a0ee23702c94ad1714b5666a0389a41bba545426c2aa21804429e9a9eb217",
+  "artifact_bytes": 21193500
+}
