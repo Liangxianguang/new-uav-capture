@@ -1,0 +1,81 @@
+{
+  "status": "passed_independent_frozen_mediator_and_eighteen_core_recomputation",
+  "data_episodes": 64,
+  "data_groups": 32,
+  "train_calls": 1152,
+  "development_calls": 384,
+  "full_support_calls": {
+    "train": 840,
+    "development_validation": 259
+  },
+  "models_per_run": 9,
+  "independent_training_runs": 2,
+  "weights_optimizer_rng_history_equal": true,
+  "public252_histories_verified": true,
+  "public_mediator_estimates_byte_equal": true,
+  "reload_prediction_bytes_equal": true,
+  "all_learned_full_cost_rankings_recomputed": true,
+  "mediator_checkpoint_sha256": "60450c735f213a145589e03cf9539ea7f452516cf03f68a17992c2d68acacd8a",
+  "mediator_unchanged": true,
+  "qualification": {
+    "mediated_plain": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": false,
+        "median_response_vs_raw": false,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion_component": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "gain_vs_raw": false
+      },
+      "selected_seed": 979101,
+      "selected_gains": {
+        "own_motion_component": {
+          "groups": 8,
+          "group_equal_mean": -0.023790855615661632,
+          "percentile_95_interval": [
+            -0.08158870032489265,
+            0.028213724051395644
+          ],
+          "interpretation": "Group-equal fresh-development descriptive percentile intervals; not untouched holdout."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.006178139512317358,
+          "percentile_95_interval": [
+            -0.09842511671498984,
+            0.10379436260005885
+          ],
+          "interpretation": "Group-equal fresh-development descriptive percentile intervals; not untouched holdout."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.0464731970475595,
+          "percentile_95_interval": [
+            -0.11515529818503045,
+            0.00990256975731072
+          ],
+          "interpretation": "Group-equal fresh-development descriptive percentile intervals; not untouched holdout."
+        },
+        "raw": {
+          "groups": 8,
+          "group_equal_mean": -0.0433117279735194,
+          "percentile_95_interval": [
+            -0.1093072613541613,
+            0.007140897585780484
+          ],
+          "interpretation": "Group-equal fresh-development descriptive percentile intervals; not untouched holdout."
+        }
+      },
+      "online_promoted": false
+    }
+  },
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Offline eligibility does not promote controller. Whole module off/failure equivalence, actual sequential/self-generated candidates, untouched holdout, original8Levels and new-scene closed-loop/safety/latency required.",
+  "artifact_sha256": "4cb80ba58cbd149afc23b9bd1c5733382f13db352167201a6f62ceab71cb978b",
+  "artifact_bytes": 43361522
+}
