@@ -118,7 +118,10 @@ def audit_data(read, configs, restored):
         snapshot = json.loads(raw)
         context = decode_public(snapshot)
         frame = frames_by_id[row['episode_index']][row['step']]
-        if not compare_public(frame['observation'],context['observation']) or not np.array_equal(frame['backbone'],context['backbone']):
+        extra = set(context['observation'])-set(frame['observation'])
+        if extra != {'world_lower_bounds','world_upper_bounds'} or not np.array_equal(context['observation']['world_lower_bounds'],[-10.,-10.,.5]) or not np.array_equal(context['observation']['world_upper_bounds'],[10.,10.,10.]):
+            raise ValueError('Original planner world boundary context changed')
+        if any(k not in context['observation'] or not compare_public(v,context['observation'][k]) for k,v in frame['observation'].items()) or not np.array_equal(frame['backbone'],context['backbone']):
             raise ValueError('Actual local context/GRU differs from original public replay')
         call = restore_public_call(snapshot,*configs,context['backbone'])
         if call['agent'] != row['agent'] or call['ordinal'] != row['ordinal']:
