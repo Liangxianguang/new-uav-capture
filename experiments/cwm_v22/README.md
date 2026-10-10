@@ -37,3 +37,20 @@ Actual candidate scores and selected action must reproduce the copied original
 solver. Every development cost/choice/regret shared with V21 must match exactly.
 Each split/model/population saves full decision records, not only a summary.
 Two independent outputs must match before reporting reproducible conclusions.
+
+Archive **all**61evidence files from each run (60decision sets plus summary),
+not just summary metrics. The record audit checks original complete costs,
+choices, tie flags, regrets, order-averaged repairs, group summaries and paired
+bootstrap values, and compares every evidence byte across the two runs.
+Full release verification then independently re-executes the complete pinned
+V21 audit and every V22 oracle-path original-engine calculation, comparing all
+recomputed record bytes with the release. Matching hashes alone is insufficient.
+
+```powershell
+python experiments/cwm_v22/diagnostic_release.py --primary results/cwm_v22/primary --repeated results/cwm_v22/repeated --output results/cwm_v22/reproduced_diagnosis.zip
+python experiments/cwm_v22/diagnostic_release.py --verify results/cwm_v22/reproduced_diagnosis.zip --recompute-output results/cwm_v22/verify_recomputed
+```
+
+Both output paths must be new. The archive contains no baseline overwrite or
+new trained model; it retains V21's failed qualification and requires the pinned
+published V21 artifact parts to re-execute verification.

@@ -115,6 +115,13 @@ optimizer、Torch/sampler RNG、历史和summary一致；公开252逐步帧、�
 修改Torch RNG且同步更新checkpoint哈希仍拒绝。不是只比较summary哈希。
 V21/V22联合普通测试43项通过(4.31s)，与上述语义审计分开报告。
 
+从本地已提交分支新clone，显式`core.autocrlf=true`初始检出，得到
+`4f51cc3aafa04ca9845a9c35b342b9d6212ce816`。新检出43项通过(4.79s)，
+training_summary精确SHA仍为上述d3a171…，release_manifest精确SHA为
+`90ac4024c0f26e19c212f9bb538cd13b417400b0de6bd8523188de26ba2702d2`，
+独立进程从检出分片重新做完整V21审计通过，完整ZIP身份/bytes/members不变。
+这是指定Windows检出的复现证据，不是增强控制器或跨平台验证。
+
 完整ZIP身份：SHA256
 `dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139`，
 130,595,771bytes、3,706个manifest覆盖成员。三个无损分片大小分别

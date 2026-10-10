@@ -6,6 +6,16 @@
   "prearchive_full_audit_passed": true,
   "postarchive_full_audit_passed": true,
   "independent_process_parts_full_audit_passed": true,
+  "fresh_local_clone": {
+    "commit": "4f51cc3aafa04ca9845a9c35b342b9d6212ce816",
+    "explicit_autocrlf_true_initial_checkout": true,
+    "ordinary_v21_v22_tests_passed": 43,
+    "ordinary_test_seconds": 4.79,
+    "training_summary_sha256": "d3a17102601b650769880e258f3f9c00b89fcf6f87c1166a8ad7e15ce577d48b",
+    "release_manifest_sha256": "90ac4024c0f26e19c212f9bb538cd13b417400b0de6bd8523188de26ba2702d2",
+    "independent_parts_full_audit_passed": true,
+    "scope": "Recorded Windows runtime and local committed clone, not cloud or cross-platform reproduction."
+  },
   "completed_evidence_cli": {
     "status": "four_completed_evidence_semantic_checks_passed",
     "positive_status": "passed_independent_fresh_response_loss_factorial_audit",
