@@ -1,0 +1,30 @@
+{
+  "version": "cwm_v21.raw_response_loss_factorial.20261010",
+  "primary_configuration": "raw_point_l2",
+  "models": ["motion_only", "raw_call_mse", "raw_point_mse", "raw_call_l2", "raw_point_l2"],
+  "response_configurations": {
+    "raw_call_mse": {"geometry": "coordinate_mse", "weighting": "call"},
+    "raw_point_mse": {"geometry": "coordinate_mse", "weighting": "point"},
+    "raw_call_l2": {"geometry": "vector_l2", "weighting": "call"},
+    "raw_point_l2": {"geometry": "vector_l2", "weighting": "point"}
+  },
+  "training": {"seeds": [990101, 990102, 990103], "motion_epochs": 80, "response_epochs": 80, "batch_calls": 32, "learning_rate": 0.001, "gradient_clip_norm": 1, "motion_scale_m": 2.5, "response_scale_m": 2.5, "residual_penalty": 0.001},
+  "architecture": "Unchanged V19 FrozenCommonResponse and V10 LocalTwoHead. Per seed pretrain raw-reference common motion, freeze it entirely, then train four separate raw-action anchored response cores with matched initialization and minibatch order. No mediator. Original GRU + SAME frozen common motion + response.",
+  "loss": "Nonanchor paired support = valid candidate AND valid anchor AND raw commands differ. MSE=sum coordinate squares/3; L2=vector norm with torch zero subgradient at exact zero. Call means within groups or all points within groups. Full-train population weights fixed before training: Ncalls/Ngroups * 1/group_call_count for call, Ncalls/Ngroups * call_valid_point_count/group_total_valid_points for point. Minibatch mean(weight*call_loss), fixed denominator=batch_size; avoids random ratio normalization. Same .001 coordinate response energy penalty under each weighting. No label-bin gating, resampling or horizon masking.",
+  "loss_scale_limit": "MSE(m²) and L2(m) have different gradients/units; optimizer settings fixed, no scale or learning-rate sweep. Factorial conclusions are for these specified training objectives and budgets, not optimizer-invariant loss geometry alone.",
+  "normalization": "Fresh train public history only; std floor .01.",
+  "selection": "Report final80 epochs of all3seeds for all5configurations; select ADE-median seed separately per configuration. raw_point_l2 is predeclared primary; other configurations cannot replace it posthoc as the primary success. Two independent full training runs must reproduce all15weights/optimizer/RNG/history/predictions.",
+  "development_gate": {"maximum_each_seed_ade_ratio_vs_gru": 0.8, "maximum_median_ade_ratio_vs_cv": 0.95, "maximum_median_response_error_ratio_vs_zero": 0.95, "minimum_selected_gain_lower_bound_vs_own_motion": 0, "minimum_selected_gain_lower_bound_vs_cv": 0, "minimum_selected_gain_lower_bound_vs_motion_only": 0},
+  "decision_bootstrap": {"draws": 2000, "seed": 990701, "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."},
+  "primary_improvement_checks": "Primary raw_point_l2 additionally needs median response <= raw_call_mse AND positive selected decision-gain interval lower bound vs raw_call_mse. All four response configurations still require response-vs-zero and original complete-cost decision gates vs own motion/CV/motion_only. Failure retained, never gate-relaxed.",
+  "factorial_comparisons": [["raw_point_mse", "raw_call_mse"], ["raw_call_l2", "raw_call_mse"], ["raw_point_l2", "raw_point_mse"], ["raw_point_l2", "raw_call_l2"], ["raw_point_l2", "raw_call_mse"]],
+  "diagnostics": "All-seed train/dev vector error, coordinate MSE, zero/1cm/5cm/20cm bins and all offsets using fixed V20 decomposition, descriptive only. Compare expanded vs actual library separately from learned response. Do not use truth bins to gate inference.",
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "mediator_in_optimizer": false,
+  "common_motion_in_response_optimizer": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Research eligibility only. Whole module off/refusal/failure exact original equivalence, sequential/self-generated local candidates, untouched holdout, original8Levels and new-scene enhanced closed-loop capture/safety/latency remain mandatory before any promotion."
+}
