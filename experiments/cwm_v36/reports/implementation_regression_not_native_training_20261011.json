@@ -1,0 +1,18 @@
+{
+  "status": "complete_v28_through_v36_regression_no_native_v36_training",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 562,
+  "seconds": 90.97,
+  "v36_synthetic_tests": 45,
+  "scientific_trainer_implemented": true,
+  "independent_scientific_reload_entry_implemented": false,
+  "native_v34_scientific_training_performed": false,
+  "synthetic_neural_optimizer_smokes_performed": true,
+  "synthetic_optimizer_scope": "Tiny2call fixed80epoch motion plumbing repeated twice plus prefix-response plumbing; mocked/toy data/cache authorities. No V34 native population optimizer or deployable released trained weights.",
+  "earlier_evaluation_fixture_failure": "Initial synthetic evaluation fixture used SimpleNamespace without __len__, causing TypeError; replaced with explicit ToyCorpus.__len__. Actual scientific corpus already implements __len__. Corrected synthetic evaluation and final joint regression passed.",
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implementation regression only: full fixed training entry, original-score/canonical-cache optimizer prerequisites, frozen common ownership, BASE-only selection/ranking and family/all-axis development gates, bounded-memory JSONL/prediction output and original float32 prefix identity. No native efficacy, causal identification, independent model reload, original8Level/new-scene closed-loop safety/capture/latency or deployment confirmation."
+}

@@ -26,3 +26,7 @@ bounded_shared基础库的全部开发支持；额外探针的预测指标只另
 一次离线完成也不足以部署；两次完整训练、独立全重载、受控归档、
 原8Level/新场景闭环捕获/安全/时延/回退及原holdout仍未完成。
 独立科学重载入口待下一阶段实现。详见`experiments/cwm_v36/README.md`。
+
+最终V28–V36/API联合回归实际退出0，562项通过（90.97秒），其中
+V36合成测试45项。可追溯范围、玩具优化与初次合成fixture失败/修复见
+`experiments/cwm_v36/reports/implementation_regression_not_native_training_20261011.json`。
