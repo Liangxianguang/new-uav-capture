@@ -1,0 +1,22 @@
+{
+  "schema": "cwm_v21.lossless_archive_parts.v1",
+  "full_archive_sha256": "dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139",
+  "full_archive_bytes": 130595771,
+  "parts": [
+    {
+      "name": "response_loss_factorial_20261010.part001",
+      "bytes": 47185920,
+      "sha256": "23d658ad54df3dd5ff8c349c8a49a41c7b2224440374f8a2f4160e492e2f2674"
+    },
+    {
+      "name": "response_loss_factorial_20261010.part002",
+      "bytes": 47185920,
+      "sha256": "5cdfec83fb2961f7e90e736720e2bb8d73ce318b939d29cd6e5a117ede3a9fcd"
+    },
+    {
+      "name": "response_loss_factorial_20261010.part003",
+      "bytes": 36223931,
+      "sha256": "f944ef0dbe3e4792031382eb0039e646f3befc75c00c2abee0cf8514e64e6fd3"
+    }
+  ]
+}

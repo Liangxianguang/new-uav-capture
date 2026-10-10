@@ -1,0 +1,31 @@
+{
+  "version": "cwm_v21.completed_validation_record.20261010",
+  "archive_sha256": "dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139",
+  "archive_bytes": 130595771,
+  "manifest_members": 3706,
+  "prearchive_full_audit_passed": true,
+  "postarchive_full_audit_passed": true,
+  "independent_process_parts_full_audit_passed": true,
+  "completed_evidence_cli": {
+    "status": "four_completed_evidence_semantic_checks_passed",
+    "positive_status": "passed_independent_fresh_response_loss_factorial_audit",
+    "forged_public_forecast_rejected": true,
+    "forged_primary_qualification_rejected": true,
+    "forged_retraining_rng_rejected_even_with_updated_hash": true,
+    "ordinary_pytest_does_not_execute_this_cli": true
+  },
+  "ordinary_tests": {
+    "v21_command": "python -m pytest experiments/cwm_v21 -q",
+    "v21_passed": 31,
+    "v21_seconds": 4.71,
+    "v21_v22_command": "python -m pytest experiments/cwm_v21 experiments/cwm_v22 -q",
+    "v21_v22_passed": 43,
+    "v21_v22_seconds": 4.31,
+    "separate_runs_not_added_together": true
+  },
+  "reproduction_scope": "Two independent complete training runs and archive re-inference in the recorded Windows runtime. No universal cross-platform or enhanced closed-loop qualification claim.",
+  "primary_research_eligible": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "whole_optional_module_fallback_and_closed_loop_still_required": true
+}

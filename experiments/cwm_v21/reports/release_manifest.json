@@ -1,0 +1,326 @@
+{
+  "status": "passed_independent_fresh_response_loss_factorial_audit",
+  "models_per_run": 15,
+  "independent_runs": 2,
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "full_development_calls": 272,
+  "all_train_development_forecasts_reinferred": true,
+  "weights_optimizer_rng_history_equal": true,
+  "public252_frames_and_original_costs_verified": true,
+  "matched_frozen_common_motion_equal": true,
+  "train_only_population_weights_verified": true,
+  "all_bins_offsets_diagnostics_recomputed": true,
+  "selected_median_seeds": {
+    "motion_only": 990103,
+    "raw_call_mse": 990103,
+    "raw_point_mse": 990103,
+    "raw_call_l2": 990103,
+    "raw_point_l2": 990103
+  },
+  "qualification": {
+    "raw_call_mse": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": false,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 990103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.09029386502185761,
+          "percentile_95_interval": [
+            -0.053835355320183825,
+            0.29503353161498097
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.0012221502235061493,
+          "percentile_95_interval": [
+            -0.15603981601704303,
+            0.15755698936017193
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": 0.09029386502185761,
+          "percentile_95_interval": [
+            -0.053835355320183825,
+            0.29503353161498097
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        }
+      },
+      "online_promoted": false
+    },
+    "raw_point_mse": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": false,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 990103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.06775234949087293,
+          "percentile_95_interval": [
+            -0.07212354369732213,
+            0.2860814061337704
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.02376366575449083,
+          "percentile_95_interval": [
+            -0.18943946235807066,
+            0.1436421204919096
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": 0.06775234949087293,
+          "percentile_95_interval": [
+            -0.07212354369732213,
+            0.2860814061337704
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        }
+      },
+      "online_promoted": false
+    },
+    "raw_call_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 990103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.02083127538462083,
+          "percentile_95_interval": [
+            -0.04098019027226227,
+            0.10634078652666433
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.07068473986074293,
+          "percentile_95_interval": [
+            -0.18819222074376413,
+            0.032135054225630025
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": 0.02083127538462083,
+          "percentile_95_interval": [
+            -0.04098019027226227,
+            0.10634078652666433
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        }
+      },
+      "online_promoted": false
+    },
+    "raw_point_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "median_response_vs_call_mse": true,
+        "gain_vs_call_mse": false
+      },
+      "selected_seed": 990103,
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": -0.015584803227666642,
+          "percentile_95_interval": [
+            -0.044639820031967155,
+            0.00729214004630409
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.1071008184730304,
+          "percentile_95_interval": [
+            -0.2409336855183917,
+            0.01794035477425875
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.015584803227666642,
+          "percentile_95_interval": [
+            -0.044639820031967155,
+            0.00729214004630409
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        },
+        "raw_call_mse": {
+          "groups": 8,
+          "group_equal_mean": -0.10587866824952424,
+          "percentile_95_interval": [
+            -0.3015085149031857,
+            0.020039998386645278
+          ],
+          "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+        }
+      },
+      "online_promoted": false
+    }
+  },
+  "factorial_comparisons": {
+    "raw_point_mse_vs_raw_call_mse": {
+      "all_seed_response_gain_m": {
+        "990101": 0.0034021228379001733,
+        "990102": 0.000603587463522598,
+        "990103": -0.0009293794412428696
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.022541515530984678,
+        "percentile_95_interval": [
+          -0.04937359277218985,
+          0.00011129533136518526
+        ],
+        "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+      },
+      "descriptive_only": true
+    },
+    "raw_call_l2_vs_raw_call_mse": {
+      "all_seed_response_gain_m": {
+        "990101": 0.025923599242143255,
+        "990102": 0.01651694311058749,
+        "990103": 0.015489308079847025
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.06946258963723677,
+        "percentile_95_interval": [
+          -0.1908033615659489,
+          0.019551728237018128
+        ],
+        "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+      },
+      "descriptive_only": true
+    },
+    "raw_point_l2_vs_raw_point_mse": {
+      "all_seed_response_gain_m": {
+        "990101": 0.022422613534465397,
+        "990102": 0.009444900331311346,
+        "990103": 0.016029885023979312
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.08333715271853956,
+        "percentile_95_interval": [
+          -0.2891396766168734,
+          0.036822497783759955
+        ],
+        "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+      },
+      "descriptive_only": true
+    },
+    "raw_point_l2_vs_raw_call_l2": {
+      "all_seed_response_gain_m": {
+        "990101": -9.886286977768555e-05,
+        "990102": -0.006468455315753546,
+        "990103": -0.00038880249711058246
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.036416078612287475,
+        "percentile_95_interval": [
+          -0.11071304628574385,
+          0.0014648104488814355
+        ],
+        "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+      },
+      "descriptive_only": true
+    },
+    "raw_point_l2_vs_raw_call_mse": {
+      "all_seed_response_gain_m": {
+        "990101": 0.02582473637236557,
+        "990102": 0.010048487794833943,
+        "990103": 0.015100505582736443
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.10587866824952424,
+        "percentile_95_interval": [
+          -0.3015085149031857,
+          0.020039998386645278
+        ],
+        "interpretation": "Fixed fresh-development group-equal descriptive intervals, not untouched holdout or closed-loop control."
+      },
+      "descriptive_only": true
+    }
+  },
+  "primary_research_eligible": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Research eligibility only. Whole module off/refusal/failure exact original equivalence, sequential/self-generated local candidates, untouched holdout, original8Levels and new-scene enhanced closed-loop capture/safety/latency remain mandatory before any promotion.",
+  "artifact": {
+    "sha256": "dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139",
+    "bytes": 130595771,
+    "members": 3706
+  },
+  "transport": {
+    "schema": "cwm_v21.lossless_archive_parts.v1",
+    "full_archive_sha256": "dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139",
+    "full_archive_bytes": 130595771,
+    "parts": [
+      {
+        "name": "response_loss_factorial_20261010.part001",
+        "bytes": 47185920,
+        "sha256": "23d658ad54df3dd5ff8c349c8a49a41c7b2224440374f8a2f4160e492e2f2674"
+      },
+      {
+        "name": "response_loss_factorial_20261010.part002",
+        "bytes": 47185920,
+        "sha256": "5cdfec83fb2961f7e90e736720e2bb8d73ce318b939d29cd6e5a117ede3a9fcd"
+      },
+      {
+        "name": "response_loss_factorial_20261010.part003",
+        "bytes": 36223931,
+        "sha256": "f944ef0dbe3e4792031382eb0039e646f3befc75c00c2abee0cf8514e64e6fd3"
+      }
+    ]
+  }
+}
