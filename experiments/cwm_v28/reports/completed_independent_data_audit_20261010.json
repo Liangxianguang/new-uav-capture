@@ -1,0 +1,184 @@
+{
+  "status": "independent_fresh_sequential_public_branch_cost_audit_passed",
+  "data_summary_sha256": "fb94fbb24a517ad4a9622f520b8314d1720349ae06a525e8079dbc6351ddffc7",
+  "protocol": {
+    "version": "cwm_v28.fresh_bounded_sequential_ranking_data.20261010",
+    "stage": "fresh_preassigned_train_and_development",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "proposal_checkpoint_sha256": "907f6c8c7df68ee53c626d0b8ade973e6053be53f2973b30366df1d444ecfa14",
+    "proposal_archive_sha256": "fb6a0ee23702c94ad1714b5666a0389a41bba545426c2aa21804429e9a9eb217",
+    "proposal_configuration": "cv_cost_l2 seed993102; fixed failed V23 primary, used ONLY to create public research proposals, not to control or select a best teacher",
+    "seed_start": 994010,
+    "layout_seed_start": 1994010,
+    "groups": 32,
+    "train_groups": 24,
+    "development_groups": 8,
+    "split_assignment": "First24 mirror groups train, last8 development_validation; both members together. Fixed four speed/observation variants cycle equally in both splits. No filtering or replacement of difficult/invalid episodes or calls.",
+    "reserved_holdout_not_collected": {
+      "seed_start": 966010,
+      "layout_seed_start": 1966010,
+      "groups": 8
+    },
+    "wall_center_x_m": 1.5,
+    "target_motion_mode": "adaptive_branching",
+    "target_speed_scales": [
+      0.55,
+      0.75
+    ],
+    "observation_conditions": [
+      {
+        "name": "nominal",
+        "overrides": {
+          "detection_range": 14,
+          "detection_dropout_probability": 0.15,
+          "observation_noise_std": 0.03,
+          "message_delay_steps": 2,
+          "message_dropout_probability": 0.05
+        }
+      },
+      {
+        "name": "delayed_noisy",
+        "overrides": {
+          "detection_range": 14,
+          "detection_dropout_probability": 0.22,
+          "observation_noise_std": 0.06,
+          "message_delay_steps": 4,
+          "message_dropout_probability": 0.1
+        }
+      }
+    ],
+    "scene_variation": {
+      "wall_half_extent_x_m": [
+        0.45,
+        0.65
+      ],
+      "wall_half_extent_y_m": [
+        3.85,
+        4.2
+      ],
+      "wall_height_m": [
+        9.25,
+        9.55
+      ],
+      "target_initial_x_m": [
+        -4.25,
+        -3.45
+      ],
+      "target_initial_y_m": [
+        -0.4,
+        0.4
+      ],
+      "target_altitude_m": [
+        4.3,
+        5.7
+      ],
+      "defender_x_offset_m": [
+        0,
+        0.35
+      ],
+      "defender_y_scale": [
+        0.92,
+        1.08
+      ],
+      "defender_z_offset_m": [
+        -0.3,
+        0.3
+      ]
+    },
+    "target_branch_rule_overrides": {},
+    "snapshot_steps": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "local_call_selection": "ALL sequential invocations at each fixed snapshot step, including later best-response rounds. Save explicit missing-peer records. Copy public context inside original timeout; expand and roll cloned branches only after plan returns. IDs include ordinal, never overwrite later calls from the same agent.",
+    "horizon_steps": 8,
+    "history_steps": 8,
+    "maximum_command_speed_mps": 5,
+    "candidate_generation": "Frozen V27 shared-source bounded expansion: unchanged V18 public geometry prefix then original generator invoked on CV/common-motion/action-response forecasts, maximum24 unique actions and2 rounds. Fixed failed V23 proposer shared by ALL new scoring models. Final delayed joint context and predictions rebuilt. Missing peer or model/generator failure explicitly retained, never filled with truth/zero/current unreceived plans.",
+    "candidate_populations": [
+      "actual_unique",
+      "public_geometry",
+      "bounded_shared"
+    ],
+    "common_support_rule": "Use complete bounded_shared horizon support for all three decision populations and all model comparisons. Also report per-population support separately as diagnostic. Mask terminal-incomplete physical response points; do not impute complete cost labels or silently drop groups.",
+    "noise_seed": 994001,
+    "effect_threshold_m": 0.05,
+    "tie_absolute_cost_tolerance": 1e-09,
+    "data_gate": {
+      "maximum_original_target_invalid_episodes": 0,
+      "maximum_probe_target_invalid_branches": 0,
+      "minimum_groups_with_nonanchor_support": 32,
+      "minimum_signal_groups": 8,
+      "minimum_group_equal_over_threshold_fraction": 0.05,
+      "minimum_full_support_calls": 132,
+      "minimum_full_support_train_calls": 100,
+      "minimum_full_support_development_calls": 32,
+      "minimum_signal_groups_each_split": 2,
+      "minimum_common_valid_nonanchor_points_each_split": 100,
+      "maximum_proposal_failure_calls": 0
+    },
+    "enhanced_control_enabled": false,
+    "new_model_trained": false,
+    "private_labels_model_inputs": false,
+    "holdout_used": false,
+    "scope": "Fresh independent32 mirror groups in the previously qualified S4 distribution, NOT original completeLevels/new-scene closed-loop efficacy. Private paired labels generated only after all public proposals/inputs are frozen. Do not modify original GRU seed745101,252 encoder, DN-MPC,local CBF,speed,safety margins or target rules. Training must wait for complete data gate and independent public/branch/cost audit."
+  },
+  "source_hashes": {
+    "experiments/cwm_v28/data_protocol.json": "c04143633bab335274cd519680e672ff8048db1562c44237410a6e86d4400cae",
+    "experiments/cwm_v9/local_shadow_release.py": "ec034fb2748b7e8d6c70b3d05e24d81e2a84d538972c21a4e511c7623e5677a1",
+    "experiments/cwm_v9/public_provider.py": "ae9c67ba6df6dbd33c0b13691b227d541c254fa3ab240d656f35e505cfdab34a",
+    "experiments/cwm_v14/public_mechanism_model.py": "7468c38407773f1411c4370a9e4ade399f0b6ed76c339fb4d9f8b84109d81721",
+    "experiments/cwm_v9/local_shadow.py": "2c74a3cfa4d4af99e6041ec7948d38661f4845e603fb165b07e0ee8d53b8f84b",
+    "experiments/cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "experiments/cwm_v7/response_model.py": "8c943cc009809ef25b7681f0889fab46b0ae6a0261a41ad761650dfc4a8ce69e",
+    "experiments/cwm_v15/mediated_model.py": "a4459a306629b39007848f962ee1f986c02f1fc535c052e32a5f7e9050d10bf7",
+    "experiments/cwm_v7/training_release.py": "dcd13df2406d2791eb09d1fdf6707f67ba0ee9e3ed0c4210785afccfcb2b0319",
+    "experiments/cwm_v10/two_head_release.py": "747d3b930760a4e4fd558452c47d1580325a3343dbf8cdbb1fe74b8b9f2135ce",
+    "experiments/cwm_v26/checkpoint_provider.py": "fdbc0bd6add81a8509835bbeb7962d58d175de1bfe9f0708874944a42ef3ad25",
+    "experiments/cwm_v21/artifact_transport.py": "7480a16368bb929bdb1fa3fc83648254f76f1e193374b66644b63d497d693763",
+    "experiments/cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "experiments/cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "experiments/cwm_v5/decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "experiments/cwm_v17/support_audit.py": "117c142b8bbbb21b8f08ae40b7af715599d49ef74e8d0b11c014e3f8ce2e3c23",
+    "experiments/cwm_v10/collect_local.py": "af3f14d2610b20d9513552c030d29da0a78ffda83219ed6fa6954f056508b421",
+    "experiments/cwm_v28/collect_ranking_data.py": "099b3028d17aaceb49bbe5f5dfb2cb2e17bc3d0d58f609e64e79035a7bbf83da",
+    "experiments/cwm_v10/train_two_head.py": "b9992bc49fbd4ccb1a87fa411bdb0c0fa32850d490b3920f358ece750ddb7ffe",
+    "experiments/cwm_v7/collect_training.py": "d294f8409b8b11f1bacea79d9d2457337b89c47c48a804ae755633f96de2edb9",
+    "experiments/cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "experiments/cwm_v28/training_protocol.json": "e7225ae68a25dbbea966e0be8bc076a88ed99e19a5e7f8bee8f89fcee9a717a2",
+    "experiments/cwm_v11/task_score.py": "42bbd1ded249e756e785357bda7bbe3d514e441447a0582f75b4920a0b482e85",
+    "experiments/cwm_v7/diagnose_geometry.py": "22035345ab621e44883e57c779c8de6e1a9f624c7a85c3e39c676ae1e3421440",
+    "experiments/cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "experiments/cwm_v15/data_audit_v15.py": "cf657ed820966e29b7a840c5e83660aedaabbe4eee70dcb599e570b13012abb9",
+    "experiments/cwm_v10/two_head_model.py": "0b856372d03a1cedbd1ba0ce63caf8be01602d60ff9d547e93804dcd0af9b27a",
+    "experiments/cwm_v8/s4_value.py": "8b3fe37274738324818a6c3989cfc21f92a06ca6c38a6c21f80f561a0d894c95",
+    "experiments/cwm_v15/train_mediated_response.py": "3186655bfb448fee2c6d1e2f8b879c6dc4dc71689880252567287c11aab8e701",
+    "experiments/cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "experiments/cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "experiments/cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "experiments/cwm_v28/audit_ranking_data.py": "e223c761d8161a2d8e365c392661b683e1553fa9fd9b4ccffecea323a1f5bd8f",
+    "experiments/cwm_v10/replay_public.py": "313b1eabf2af6e424c478e47ca1e8e7cde49c4c231c6ae4d8309ac849483700a",
+    "experiments/cwm_v18/geometry_probes.py": "571c8b985e1328139cfe40b4015d5d4dd77e7256b0fead940a39e0ea5e28544c",
+    "experiments/cwm_v23/cost_origin_model.py": "a699c11888c6fb83dd2a50c8a8bd4de14d4d8701cd054c0c7253a5f628e6d504",
+    "experiments/cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "experiments/cwm_v25/qualification_gate.py": "361e0536a303f79a22a94ecafa7c830863c5ab4e7013401217129bb9005aff40",
+    "experiments/cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "experiments/cwm_v7/train_response.py": "be6befccdb0673d3561434ee4928431c5240fc11080727aff127733528c1bc41",
+    "experiments/cwm_v27/bounded_candidates.py": "44afdbf8d0765caeaa5aadaccc428bdd633639218387bfa5e853a9d1c942d529"
+  },
+  "checked_calls": 3072,
+  "supported_calls": 3072,
+  "audited_data_manifest_sha256": "034754070a5d4c6f42077ae58914c8d7f290f73e95cadb42a9d5ad29962f09dd",
+  "checked_calls_sha256": "829fb8ede00bc5bdc4a201941d599a65699edbcaa715ed666d606a5e6cc2bc89",
+  "full_label_cost_checks_sha256": "3e91addef7ca5c1bbb7e718a21a0ed7e3c431aaba1b7c33eb8d9cbcfe22758b0",
+  "complete_cost_calls": 2180,
+  "data_gate_passed": true,
+  "training_authorized_by_this_report": true,
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false
+}
