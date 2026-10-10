@@ -1,0 +1,25 @@
+{
+  "version": "cwm_v31.train_only_exact_public_input_ambiguity_audit.20261011",
+  "source_data_summary_sha256": "fb94fbb24a517ad4a9622f520b8314d1720349ae06a525e8079dbc6351ddffc7",
+  "source_primary_summary_sha256": "87254fad514a7ee45da3f325324660b443ea638c52a166668e1833a603cfd1f7",
+  "source_complete_data_audit_sha256": "976c9d0535dad4e58958aa47c0d673c8c978ee6d80500c1de0a95c8e6a754514",
+  "split": "train",
+  "expected_train_calls": 2304,
+  "expected_train_groups": 24,
+  "primary_configuration": "cv_rank_l2",
+  "selection": "Existing V28 fixed ADE-median choice, no new selection. Only TRAIN arrays enter diagnostics; development arrays are hashed for prior complete data integrity, never loaded into statistics.",
+  "keys": {
+    "response_core": "Exact float32 normalized 8x252 history, scaled delayed4x6 context, scaled8x4x3 proposed and anchor actions, scaled float32 originalGRU8x3 forecast, and float32 anchor-equality flag. No future state, target label, masks, cost, branch, CBF command or execution input.",
+    "whole_optional_model": "Same response-core tensors plus exact public float64 analyticCV8x3 path. Equal keys conservatively imply equal deterministic forward information, not equal unreceived/private state. Duplicate SHA bucket membership is checked with exact feature bytes before merging."
+  },
+  "support": "ALL raw nonanchor candidate rows, using existing common valid target prefix for label-only response target-anchor. Preserve groups, duplicates, candidate multiplicity and terminal masks; no terminal imputation or future-response filtering.",
+  "quantization": "Only the exact dtype/scaling already used by V28; no chosen bins, rounding tolerance, distances or nearest-neighbor bandwidth.",
+  "descriptive_response_threshold_m": 0.05,
+  "statistics": "Exact duplicate buckets and shared-observed-offset conflicts. Train group-point-equal weighted conditional mean coordinateMSE is an empirical deterministic-predictor lower bound on this finite key representation, NOT a vectorL2 lower bound, Bayes/generalization bound or causal identifiability test. Report singleton support explicitly. No observed conflict does not prove sufficient inputs.",
+  "private_labels_model_inputs": false,
+  "enhanced_control_enabled": false,
+  "new_training_started": false,
+  "holdout_used": false,
+  "old_qualification_override_allowed": false,
+  "scope": "Post-hoc V28 TRAIN information audit after the earlier development failure was observed. Protocol published before this diagnostic run, not untouched validation or permission to redesign old failed gates. No model re-inference, native branch replay, new scenes, active controller, capture/safety/latency, or overall goal completion."
+}
