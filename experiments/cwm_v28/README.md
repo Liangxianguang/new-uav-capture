@@ -31,12 +31,24 @@ ranking-vs-L2 criteria. No best-seed/epoch/gate switching or holdout tuning.
 ```powershell
 python -m pytest experiments/cwm_v27 experiments/cwm_v28 -q
 python experiments/cwm_v28/collect_ranking_data.py --output results/cwm_v28/NEW_DATA
+python experiments/cwm_v28/audit_ranking_data.py --data results/cwm_v28/NEW_DATA --output results/cwm_v28/NEW_AUDIT
+python experiments/cwm_v28/train_ranking_response.py --data results/cwm_v28/NEW_DATA --audit results/cwm_v28/NEW_AUDIT --output results/cwm_v28/NEW_PRIMARY
+python experiments/cwm_v28/train_ranking_response.py --data results/cwm_v28/NEW_DATA --audit results/cwm_v28/NEW_AUDIT --output results/cwm_v28/NEW_REPEATED
+python experiments/cwm_v28/release_ranking_training.py --data results/cwm_v28/NEW_DATA --audit results/cwm_v28/NEW_AUDIT --primary results/cwm_v28/NEW_PRIMARY --repeated results/cwm_v28/NEW_REPEATED --output results/cwm_v28/NEW_TRAINING_AUDIT
 ```
 
 Collector completion and data-gate pass alone DO NOT authorize training. A
 separate independent public252/received-context/candidate/branch/full-cost audit
-is required. The trainer/release audit are still pending implementation; the
-training protocol and loss are frozen first, not claimed as trained results.
+is required. The independent auditor, fixed-budget trainer and two-run reload
+validator are implemented, but actual complete data/training/reload validation
+is still pending. Synthetic optimizer tests are NOT production training results.
+The data auditor uses fresh original observations and separate sequential hooks;
+it re-rolls every paired branch and checks source/scene/message/plan/CBF/cost
+contracts. The trainer refuses to create an optimizer without complete audited
+data. Reload validation recomputes every final prediction, original-cost choice,
+library contribution, median seed and gate and compares both full model,
+optimizer, sampler/Torch RNG and history trees. Full artifact packaging and
+independent packaged-evidence re-execution remain separate pending requirements.
 Later active sequential selector, untouched holdout, original completeLevels
 and new scenes closed-loop capture/safety/latency remain mandatory. Everything
 stays default off; empirical local CBF is not a new formal safety proof.
