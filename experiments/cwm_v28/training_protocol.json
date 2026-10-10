@@ -1,0 +1,40 @@
+{
+  "version": "cwm_v28.fixed_shared_library_cost_distribution_ranking.20261010",
+  "primary_configuration": "cv_rank_l2",
+  "models": ["cv_motion_only", "cv_l2", "cv_rank_l2"],
+  "training": {
+    "seeds": [994101, 994102, 994103], "motion_epochs": 80, "response_epochs": 80,
+    "batch_calls": 16, "learning_rate": 0.001, "gradient_clip_norm": 1,
+    "motion_scale_m": 2.5, "response_scale_m": 2.5, "residual_penalty": 0.001,
+    "ranking_weight": 0.1, "cost_temperature_floor": 1, "independent_complete_runs": 2
+  },
+  "architecture": "Unchanged V23 CalibratedOrigin CV-origin motion core with originalGRU neural context and unchangedV10 LocalTwoHead. Pretrain one motion core per seed only on V28 train; freeze/clear gradients, copy identical motion into both response models. Identical plain response initialization/order and80epoch budget. No new labels, proposal provenance, costs or privileged variables as forward features. Original GRU/controller/CBF never optimized. No direct actor; network returns target reference + anchored response.",
+  "physical_loss": "UnchangedV21 full-train group-equal point-weighted nonanchor vectorL2 paired response loss +.001 response coordinate energy. Weights fixed once on complete train population; fixed minibatch-size denominator. Valid mask only, no truth bins or observed-benefit deployment gates.",
+  "ranking_loss": "Only complete bounded_shared calls. Score C_original(M+R), where M is frozen common public motion reference. Target q=softmax(-C_original(T_action)/tau), tau=max(1,population_std over ALL candidate true full costs for that training call), detached label-only. Predicted logp=log_softmax(-C_original(M+R)/tau). KL(q||p) summed candidates, averaged calls with fixed Ntrain/(Ngroups*Ncomplete_calls(group)) weights and batch-size denominator. All original target-independent offsets retained. No true reference fed to prediction, no backprop into M/tau/q. Anchor exact0. KL aligns relative candidate cost distribution; does not simply reward low predicted cost. No loss/temperature sweep. cv_l2 ranking_weight0; cv_rank_l2 fixed.1.",
+  "reference_score_audit": "Before optimizer, verify full scores against original engine and V11 finite-difference derivative contract. After motion pretraining, repeat at frozen deployed M. Original-cost evaluation after training uses original engine, not only differentiable surrogate. Unsupported objective/cost derivative or missing full groups stops without relaxing gates.",
+  "normalization": "Only freshV28 train public252 histories, stdfloor.01. No V23train/dev or V28dev/holdout used for normalization or optimization. Fixed failed V23 checkpoint is ONLY a frozen public proposal mechanism shared across all candidate/scoring controls, disclosed separately; its training is not counted as new-model gain.",
+  "selection": "Retain all final80epoch models and all3seeds. ADE-median seed per configuration, tie by seed. Primary fixed cv_rank_l2 before fresh collection; never choose best decision seed/epoch or switch main method. Two independent9-model runs must exactly reproduce optimizer/RNG/history/predictions and summaries before publication of trained-model conclusions.",
+  "decision_populations": ["actual_unique", "public_geometry", "bounded_shared"],
+  "contribution_separation": "On identical complete bounded_shared call support: same-score candidate-library comparisons isolate expansion; same-library cv_l2 vs cv_rank_l2 isolates ranking supervision; each response vs its own frozen motion and independent cv_motion_only isolates response vs motion calibration. OriginalGRU and uncalibrated publicCV scored on ALL libraries. Report controls alone and original selected-anchor outcomes. Do NOT compare regrets relative to different library minima as an expansion gain; compare realized true cost at selected action across libraries, or use one common shared minimum.",
+  "development_gate": {
+    "maximum_each_seed_ade_ratio_vs_gru": 0.8,
+    "maximum_median_ade_ratio_vs_cv": 0.95,
+    "maximum_median_response_error_ratio_vs_zero": 0.95,
+    "minimum_selected_gain_lower_bound_vs_own_motion": 0,
+    "minimum_selected_gain_lower_bound_vs_cv": 0,
+    "minimum_selected_gain_lower_bound_vs_motion_only": 0,
+    "minimum_selected_gain_lower_bound_vs_cv_l2": 0,
+    "minimum_selected_gain_lower_bound_vs_original_gru": 0,
+    "maximum_primary_median_response_error_ratio_vs_cv_l2": 1,
+    "maximum_primary_median_ranking_kl_ratio_vs_cv_l2": 0.95
+  },
+  "decision_bootstrap": {"draws": 2000, "seed": 994701, "interpretation": "FreshV28 development mirror-group equal descriptive intervals; not untouchedholdout/capture confirmation. All positive required lower bounds are strict >0."},
+  "qualification_boundary": "V23 remains failed; its original six-family cost-contrast gates are never overridden. V28 is a separately preregistered3-family ranking hypothesis on fresh data, with original basic accuracy/decision thresholds retained plus explicit ranking/control comparisons. Passing V28 offline does not promote the module.",
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "common_motion_in_response_optimizer": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Complete independent data audit, training repeatability/reload audit; active sequential local-selector integration with whole-module off/refusal/exception original equality; untouched reserved holdout; original completeLevels and new scenes paired closed-loop capture/safety/latency. More candidates, lower KL/ADE or shadow compatibility alone cannot satisfy the user goal. Original fallback remains default. local CBF is empirical filtering, no new formal safety claim."
+}
