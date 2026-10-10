@@ -43,6 +43,14 @@ collapse, weighted conditional least squares, singleton limits, terminal
 padding, hash-collision rejection and nonfinite inputs. These do NOT substitute
 for the complete actual TRAIN audit or model/native-engine re-inference.
 
+An additional12 synthetic workflow tests exercise the complete file-loading
+path with publication mocked: development arrays are never opened for
+statistics, original normalizers are recomputed, all inputs remain unchanged,
+manifest/array/normalizer/checkpoint/summary tampering is refused, mutations
+during analysis do not sign completion, and user-owned output is never
+overwritten. The full34 V31 tests pass. Synthetic fixture summaries explicitly
+identify their toy scope; they are NOT real V28 audits or new model results.
+
 The original GRU/controller/CBF/252 encoding, live jobs, V28 fixed selection,
 scientific failure gates and reserved holdout stay unchanged. This stage does
 not generate new scenes, start training, qualify active capture or complete
