@@ -49,8 +49,11 @@ def test_fixed_primary_and_matched_two_by_two_protocol():
     assert p['primary_configuration'] == 'cv_cost_l2'
     assert p['training']['seeds'] == [993101, 993102, 993103]
     assert p['training']['cost_contrast_weight'] == .1
+    assert p['training']['common_motion_models_per_seed'] == 2
+    assert len(p['models']) == 6
+    assert p['motion_controls'] == {'frozen_gru_calibrated': 'gru_motion_only', 'frozen_cv_calibrated': 'cv_motion_only'}
     assert set((v['motion_reference'], v['auxiliary_cost_contrast']) for v in p['response_configurations'].values()) == {
-        ('frozen_learned', False), ('frozen_learned', True), ('public_cv', False), ('public_cv', True)}
+        ('frozen_gru_calibrated', False), ('frozen_gru_calibrated', True), ('frozen_cv_calibrated', False), ('frozen_cv_calibrated', True)}
     assert not any(p[k] for k in ('enhanced_control_enabled', 'original_gru_in_optimizer',
                                  'common_motion_in_response_optimizer', 'private_labels_model_inputs',
                                  'mediator_in_optimizer', 'holdout_used', 'prior_gate_override_allowed'))
