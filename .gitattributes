@@ -41,3 +41,7 @@
 # V29 exact original-entry regression evidence and binary archives.
 /experiments/cwm_v29/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v29/artifacts/** -text
+
+# V30 exact emitted full-population research evidence.
+/experiments/cwm_v30/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v30/artifacts/** -text

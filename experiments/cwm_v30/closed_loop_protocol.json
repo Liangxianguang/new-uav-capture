@@ -1,0 +1,70 @@
+{
+  "version": "cwm_v30.full_levels_fresh_geometry_paired_closed_loop.20261011",
+  "stage": "preregistered_closed_loop_plan_and_full_original_baseline_not_enhancement_qualification",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "original_population": {
+    "scenes_member": "results/phase91_zero_cbf_curriculum_v5/validation/scenes.jsonl",
+    "scenes_sha256": "ab25e24f7f2b93c342f1371300ee8c79d42b4a947c90927e20dcab61d5c5597f",
+    "curriculum_member": "configs/phase91_mappo_pursuit_first_v9.yaml",
+    "curriculum_sha256": "a72d77d7b1f2ff7120141a143f3a3f986cd5a5048c271a65c2e3619c38cebd3a",
+    "level_variants": {
+      "0": ["open_static"], "1": ["open_slow"], "2": ["open_nominal"],
+      "3": ["single_obstacle"], "4": ["mixed_three"], "5": ["mixed_three_evasive"],
+      "6": ["dense_mixed"], "7": ["fast_target", "agile_target"], "8": ["sensor_degraded"]
+    },
+    "episodes_each_variant": 128,
+    "total_episodes": 1280,
+    "primary_levels": [1, 2, 3, 4, 5, 6, 7, 8],
+    "warmup_level_reported_separately": 0,
+    "ordering": "level, declared variant order, mirror_group_id, mirror_pair_member, episode_index",
+    "scope": "ALL frozen existing development validation records, not a sampled easier subset. Preserve existing singleton groups (notably L5), all complete mirrors, invalid/failed/time-out episodes. Existing development corpus is NOT untouched holdout. L7 both variants retained; L0 not mixed into the main8Level aggregate."
+  },
+  "fresh_new_scene_development": {
+    "groups": 8, "layout_seed_start": 2002010,
+    "variants": [
+      {"name": "reference_wallx1_5", "seed_start": 1002010, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.0, "wall_y_multiplier": 1.0},
+      {"name": "wallx2_25", "seed_start": 1002110, "wall_center_x_m": 2.25, "defender_y_multiplier": 1.0, "wall_y_multiplier": 1.0},
+      {"name": "wider_encirclement", "seed_start": 1002210, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.4, "wall_y_multiplier": 1.0},
+      {"name": "shorter_wall", "seed_start": 1002310, "wall_center_x_m": 1.5, "defender_y_multiplier": 1.0, "wall_y_multiplier": 0.8}
+    ],
+    "geometry_source": "Unchanged public V16 four-axis specification on FRESH identities. No V16/V28 scenes or labels reused for new-model evaluation; no geometry/capture/response-based scene filtering, replacement or parameter search.",
+    "groups_across_axes": "Same8 layout/noise groups and mirror members across all4 axes,64 episodes. Noise may diverge after different policies consume different histories; pairing asserts identical initial/noise seeds, not identical realized future noise.",
+    "generation_authorized_now": false
+  },
+  "reserved_holdout_not_collected": {
+    "seed_start": 966010, "layout_seed_start": 1966010, "groups": 8,
+    "geometry": "Original reserved S4 wallx1.5 distribution, unchanged V28 public speed/observation/scene variation specification;16 episodes.",
+    "release_condition": "Only fixed V28 primary passed full independent artifact replay AND all predeclared closed-loop development capture/safety/latency gates. One frozen confirmation, no tuning, no best seed/epoch/gate switching, no reuse after failure. Not generated or inspected by the baseline entry."
+  },
+  "methods": ["original", "original_gru_shared", "constant_velocity_shared", "own_motion_shared", "cv_motion_only_shared", "cv_l2_shared", "cv_rank_l2_shared"],
+  "primary_method": "cv_rank_l2_shared",
+  "method_order": "Rotate fixed method list by SHA256(cohort/episode_index) mod7 to reduce systematic order bias; identical complete scene population and initial/environment/controller sampling seeds for all methods. No best-method selection.",
+  "model_selection": "Only independently replayed V28 archive, fixed final80epoch, all3seeds retained and preregistered ADE-median chosen per configuration. Failed primary prohibits active evaluation. Matched primary frozen common defines own_motion; independent ADE-median motion/L2 controls also reported. Never activate failed V23 teacher as scorer.",
+  "proposal_library": "Unchanged V29 common fixed failed V23 PUBLIC proposer/V27 shared bound24 candidates/2 rounds for EVERY expanded scoring control. Original is unexpanded original solver. Libraries regenerate from each method's actual received context; later closed-loop states differ, so this is a paired POLICY comparison, not a claim of identical realized libraries at diverged states. Exact same-library response contribution already requires V28 all-call offline comparisons.",
+  "primary_outcome": "Restricted safe-capture time in seconds: actual safe capture time if safe_capture_success with no collision/boundary/target-invalid episode, otherwise fixed original25s horizon. Failed/invalid/timeout episodes retained, never conditional-on-success timing. Positive paired baseline_time-primary_time means improvement.",
+  "aggregation": "Original primary aggregate is equal-weight8Level mean of equal-weight declared variants, then existing mirror-group means; L7 two variants equal-weight and L0 separately diagnostic. Fresh axes equal-weight4variants then8 shared layout groups; all per-level/per-variant absolute capture/safety/failure metrics reported. No treating sequential calls/windows as independent scenes.",
+  "development_gates": {
+    "restricted_safe_capture_time_gain_lower95_vs_original_own_motion_and_l2_strictly_above_seconds": 0,
+    "original_each_level_safe_capture_rate_gain_lower95_minimum": -0.02,
+    "new_scene_each_variant_safe_capture_rate_gain_lower95_minimum": -0.02,
+    "maximum_new_collision_episodes_vs_paired_original": 0,
+    "maximum_new_boundary_violation_episodes_vs_paired_original": 0,
+    "maximum_new_target_invalid_episodes_vs_paired_original": 0,
+    "maximum_new_local_solver_failure_steps_vs_paired_original": 0,
+    "maximum_end_to_end_control_latency_p95_ms": 100,
+    "confidence_scope": "Fixed population group-resampling descriptive intervals, not formal safety/generalization proof. Stratify original variants/levels and fresh shared layout groups. ALL required checks, both original and new-scene cohorts, must pass. Primary cannot switch to another configuration/control."
+  },
+  "holdout_confirmation": "Same fixed restricted-time positive lower95 vs original/own_motion/L2, safe-capture noninferiority lower95>=-0.02 and no additional collision/boundary/target-invalid/local-failure outcomes and fixed latency p95<=100ms. Small8group uncertainty reported. No post-holdout gate changes or deployment promotion from a failed confirmation.",
+  "bootstrap": {"draws": 2000, "seed": 1002501},
+  "latency": "CPU original environment, original GRU252/DN-MPC/local CBF, torch1thread. ALL research capture-copy/proposal/inference/full original score time stays inside original planner timeout; IO outside plan still included in end-to-end latency. Preload/readiness time reported separately. No subtraction, deadline relaxation, fake clocks or timing claims from synthetic tests. Original native timing fields and actual observer cycle timing retained; first/warmup timing support disclosed.",
+  "diagnostic_serialization": "Legacy nonfinite diagnostics (for example no-obstacle infinity) retain explicit tagged JSON values, never converted to zero, silently dropped or fed to a model. Physical outcomes and required time/cost metrics remain validated; numerical trajectories are saved unchanged.",
+  "max_steps": 250, "dt_seconds": 0.1, "horizon_steps": 8,
+  "maximum_command_speed_mps": 5, "cbf_margin_m": 0.35,
+  "new_training_or_tuning_allowed": false,
+  "deployment_control_enabled": false,
+  "active_research_experiment_started": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "baseline_collection_allowed": "Only complete original development population with EXACT unchanged original classes. May run before V28 qualification. Published exact protocol/source commit required BEFORE new baseline outputs. Never calls/generates fresh or reserved holdout scenes.",
+  "remaining": "Implement/check actual paired active evaluation runner and fixed statistical/latency gate entry, independent model-fault equivalence, new-scene generation, sealed holdout confirmation and complete result archive/replay. This protocol or baseline-only run is NOT causal-model efficacy, active control qualification or new formal CBF safety proof."
+}
