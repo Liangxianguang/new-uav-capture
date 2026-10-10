@@ -1,0 +1,31 @@
+{
+  "version": "cwm_v23.deployment_reference_cost_contrast.20261010",
+  "primary_configuration": "cv_cost_l2",
+  "models": ["motion_only", "learned_l2", "learned_cost_l2", "cv_l2", "cv_cost_l2"],
+  "response_configurations": {
+    "learned_l2": {"motion_reference": "frozen_learned", "auxiliary_cost_contrast": false},
+    "learned_cost_l2": {"motion_reference": "frozen_learned", "auxiliary_cost_contrast": true},
+    "cv_l2": {"motion_reference": "public_cv", "auxiliary_cost_contrast": false},
+    "cv_cost_l2": {"motion_reference": "public_cv", "auxiliary_cost_contrast": true}
+  },
+  "training": {"seeds": [993101, 993102, 993103], "motion_epochs": 80, "response_epochs": 80, "batch_calls": 32, "learning_rate": 0.001, "gradient_clip_norm": 1, "motion_scale_m": 2.5, "response_scale_m": 2.5, "residual_penalty": 0.001, "cost_contrast_weight": 0.1},
+  "architecture": "Original GRU unchanged. Per seed pretrain and fully freeze the unchanged V19 common-motion network. Four identically initialized unchanged V10 plain anchored response cores share batch order. New wrapper chooses frozen learned common reference or analytic public CV; CV uses only independently reconstructed original public belief reference/velocity, not current target truth. Both return GRU + optional motion calibration + anchored learned response. All core trainable parameter budgets match; a frozen common network is retained but not used as reference by CV variants. No mediator or extra neural features.",
+  "physical_loss": "Unchanged V21 group-equal point-weighted vector L2 on valid nonanchor paired response points plus .001 coordinate response energy. Full-train population weights fixed once; minibatch denominator=batch_size, not sum of random weights. Original GRU and pretrained common motion never optimized by the response stage.",
+  "cost_contrast_loss": "Fully valid UNION-horizon calls only. M is detached deployed learned/CV reference. Predicted action effect = C_original(M+R)-C_original(M). Label effect = C_original(T_action)-C_original(T_anchor), detached private supervision only. Per nonanchor candidate absolute effect error divided by max(1, norm of target-path gradient of C_original at M)). Average nonanchor candidates per call, then groups. Cost population weights Ntrain/Ngroups/full_call_count(group), zero for incomplete calls; fixed batch_size denominator. No terminal imputation, truth-bin weighting, low-predicted-cost reward or differentiation into M. Use unchanged V11 full score, including target-independent offsets; validate costs and gradients against original engine before optimization. Unsupported objectives fail closed.",
+  "difference_from_v12": "V12's squared task effect on a TRUE reference with weight1 and joint motion/response training failed and remains failed. This tests L1 contrast at the actual frozen DEPLOYED reference, weight.1, frozen common motion, vector-L2 physical response loss, group-population weighting excluding anchor, and the already qualified expanded geometry library. It is a new falsifiable design, not a claim that adding task loss works.",
+  "normalization": "Only new V23 train public histories; std floor .01. Public CV reference/velocity independently reconstructed by data audit. No inspected V21 data used for training, normalization or checkpoint selection.",
+  "selection": "All final80epoch models and all3seeds retained; ADE-median seed per configuration. Primary cv_cost_l2 fixed before collection/training, cannot switch to a winning secondary posthoc. Two complete independent training runs must match all15model checkpoints, optimizer/RNG/history, forecasts and summaries.",
+  "development_gate": {"maximum_each_seed_ade_ratio_vs_gru": 0.8, "maximum_median_ade_ratio_vs_cv": 0.95, "maximum_median_response_error_ratio_vs_zero": 0.95, "minimum_selected_gain_lower_bound_vs_own_motion": 0, "minimum_selected_gain_lower_bound_vs_cv": 0, "minimum_selected_gain_lower_bound_vs_motion_only": 0},
+  "primary_improvement_checks": "Primary additionally needs median response error <= cv_l2, median normalized deployed-reference cost-contrast L1 <= .95 cv_l2, and positive selected decision-gain interval lower bounds vs matched cv_l2 and learned_cost_l2. All comparisons use the same original full complete-cost union support; report actual_unique too. CV own_motion and CV controls coincide mathematically, their two checks are not independent evidence.",
+  "factorial_comparisons": [["learned_cost_l2", "learned_l2"], ["cv_cost_l2", "cv_l2"], ["cv_l2", "learned_l2"], ["cv_cost_l2", "learned_cost_l2"]],
+  "decision_bootstrap": {"draws": 2000, "seed": 993701, "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."},
+  "diagnostics": "All train/dev seeds, legal-point vector response error and magnitude bins/offsets, normalized deployment cost contrast, actual/union original full costs/choices/regrets, weak-response false positives, strong-response error and fixed common weights. No truth-dependent deployment gate or threshold/loss sweep.",
+  "enhanced_control_enabled": false,
+  "original_gru_in_optimizer": false,
+  "common_motion_in_response_optimizer": false,
+  "mediator_in_optimizer": false,
+  "private_labels_model_inputs": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Offline research eligibility only. Whole optional module off/refusal/failure exact original-entry equivalence, sequential/self-generated candidates, untouched holdout, original8Levels and new-scene enhanced closed-loop capture/safety/latency remain mandatory before any promotion. Preserve original weights/capsule and all historical failures."
+}
