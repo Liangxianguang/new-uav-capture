@@ -26,6 +26,16 @@ def audit_sources(read,stage,report):
             raise ValueError('Saved/current factorial source differs')
 
 
+def verify_protocol_bytes(saved,expected):
+    # Existing training used this Windows runtime's Path.read_text default.
+    # The UTF8 source contains a superscript in a descriptive field. Compare
+    # source BYTES, not json.loads(bytes) against locale-decoded record text.
+    # Recorded protocol is still strictly checked above against the same
+    # frozen run source; no checkpoint, source, numeric protocol or gate changes.
+    if saved != expected:
+        raise ValueError('Saved preregistered protocol bytes changed')
+
+
 def audit(read,configs,restored):
     calls,_ = audit_data(read,configs,restored)
     protocol = json.loads((ROOT/'training_protocol.json').read_text())
@@ -46,8 +56,8 @@ def audit(read,configs,restored):
         if any(report[k] for k in ('enhanced_control_enabled','baseline_weights_included','holdout_used','prior_gate_overridden','common_motion_in_response_optimizer')):
             raise ValueError('Frozen factorial contract violated')
         audit_sources(read,stage,report)
-        if json.loads(read(stage+'/source/cwm_v21/training_protocol.json')) != protocol:
-            raise ValueError('Saved protocol differs')
+        verify_protocol_bytes(read(stage+'/source/cwm_v21/training_protocol.json'),
+                              (ROOT/'training_protocol.json').read_bytes())
         for source in ('data','public'):
             if report[source+'_summary_sha256'] != hashlib.sha256(read(source+'/summary.json')).hexdigest():
                 raise ValueError('Data/public provenance differs')

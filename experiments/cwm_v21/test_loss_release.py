@@ -9,7 +9,15 @@ import torch
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT))
-from loss_training_release import tensor_tree_equal,verify_manifest
+from loss_training_release import tensor_tree_equal,verify_manifest,verify_protocol_bytes
+
+
+def test_protocol_source_bytes_pinned_despite_locale_text_difference():
+    original = '{"units":"m²","threshold":0.95}'.encode('utf8')
+    assert json.loads(original) != json.loads(original.decode('cp1252'))
+    verify_protocol_bytes(original,original)
+    with pytest.raises(ValueError,match='protocol bytes'):
+        verify_protocol_bytes(original.replace(b'0.95',b'0.99'),original)
 
 
 def test_repeat_comparison_includes_rng_and_optimizer_not_only_weights():
