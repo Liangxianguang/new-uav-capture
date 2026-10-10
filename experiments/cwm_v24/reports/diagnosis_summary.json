@@ -1,0 +1,125 @@
+{
+  "status": "posthoc_public_candidate_cardinality_finished_not_promoted",
+  "protocol": {
+    "version": "cwm_v24.public_candidate_cardinality.posthoc.20261010",
+    "stage": "diagnosis_of_inspected_v23_not_new_training_or_validation",
+    "data_archive_sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64",
+    "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+    "source_data_protocol": "cwm_v23.fresh_deployment_cost_contrast_data.20261010",
+    "source_calls": 1536,
+    "source_groups": 32,
+    "splits": [
+      "train",
+      "development_validation"
+    ],
+    "supports": [
+      "all_collected",
+      "complete_union"
+    ],
+    "expected_perimeter_scales": [
+      0.75,
+      1.0
+    ],
+    "expected_target_paths_per_call": 1,
+    "expected_raw_local_candidates": 2,
+    "public_input_boundary": "Original public observation, original one-path GRU, delayed received peer positions and original planner configuration only. No target truth, future label or learned response used for role/candidate reconstruction.",
+    "duplicate_diagnosis": "Rebuild the frozen non-QDR local generator independently. Must match all original candidate bytes. Classify exact duplicates as interceptor-perimeter invariance, speed-clipping-induced collapse (unclipped diagnostic paths differ), or other public geometry degeneracy. Unclipped commands are diagnostic-only, never executed/scored or supplied to a controller; original 5m/s limit remains.",
+    "prior_inspected_evidence": "V23 all seed metrics/failed gates and saved cost choices were inspected. Actual complete-union support818train/270dev has 1-2 distinct candidates; dev229single/41double. No response configuration changes own-motion actual choice. Original source shows K=1 reference deduplication and two perimeter scales. This is explicitly posthoc, not preregistered fresh validation.",
+    "full_original_data_public_cost_audit_required": true,
+    "fixed_population_no_subsets": true,
+    "two_independent_runs_required": true,
+    "group_equal_reporting": true,
+    "enhanced_control_enabled": false,
+    "new_model_trained": false,
+    "holdout_used": false,
+    "prior_gates_overridden": false,
+    "scope": "Locate why optional response re-scoring lacks candidate diversity, not identify causes of capture failure or qualify a model. Preserve all V23 failures. Protocol/code published before running this additional diagnostic. Full optional-entry fallback, sequential/model-generated candidates, new-data training, untouched holdout and original8Levels/newscene enhanced closed-loop capture/safety/latency remain required."
+  },
+  "calls": 1536,
+  "records_sha256": "633539141d2549d8778beb930a53290f68d95fdc9f6a73e1aa26bb5f52196deb",
+  "data_archive_sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64",
+  "full_original_data_public_cost_audit_passed": true,
+  "all_independent_original_candidate_bytes_equal": true,
+  "supports": {
+    "train": {
+      "all_collected": {
+        "calls": 1152,
+        "groups": 24,
+        "unique_candidate_count_histogram": {
+          "1": 932,
+          "2": 220
+        },
+        "duplicate_reason_counts": {
+          "distinct": 220,
+          "interceptor_perimeter_invariant": 932
+        },
+        "group_equal_duplicate_reason_fractions": {
+          "distinct": 0.1909722222222222,
+          "interceptor_perimeter_invariant": 0.8090277777777778
+        },
+        "group_equal_single_candidate_fraction": 0.8090277777777778
+      },
+      "complete_union": {
+        "calls": 818,
+        "groups": 24,
+        "unique_candidate_count_histogram": {
+          "1": 649,
+          "2": 169
+        },
+        "duplicate_reason_counts": {
+          "distinct": 169,
+          "interceptor_perimeter_invariant": 649
+        },
+        "group_equal_duplicate_reason_fractions": {
+          "distinct": 0.20787086369571087,
+          "interceptor_perimeter_invariant": 0.7921291363042892
+        },
+        "group_equal_single_candidate_fraction": 0.7921291363042892
+      }
+    },
+    "development_validation": {
+      "all_collected": {
+        "calls": 384,
+        "groups": 8,
+        "unique_candidate_count_histogram": {
+          "1": 328,
+          "2": 56
+        },
+        "duplicate_reason_counts": {
+          "distinct": 56,
+          "interceptor_perimeter_invariant": 328
+        },
+        "group_equal_duplicate_reason_fractions": {
+          "distinct": 0.14583333333333331,
+          "interceptor_perimeter_invariant": 0.8541666666666667
+        },
+        "group_equal_single_candidate_fraction": 0.8541666666666667
+      },
+      "complete_union": {
+        "calls": 270,
+        "groups": 8,
+        "unique_candidate_count_histogram": {
+          "1": 229,
+          "2": 41
+        },
+        "duplicate_reason_counts": {
+          "distinct": 41,
+          "interceptor_perimeter_invariant": 229
+        },
+        "group_equal_duplicate_reason_fractions": {
+          "distinct": 0.15060874612900577,
+          "interceptor_perimeter_invariant": 0.8493912538709942
+        },
+        "group_equal_single_candidate_fraction": 0.8493912538709942
+      }
+    }
+  },
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "source_hashes": {
+    "candidate_cardinality.py": "f8b9500481b4ffaeddf9ccbd071f8f16b11e97286564a351a8bb772b6d880379",
+    "diagnostic_protocol.json": "00bc7a181100afb42b5f2c75dbfc66efb6c810d8acdb3b3d4db727944e8bbf09"
+  },
+  "scope": "Locate why optional response re-scoring lacks candidate diversity, not identify causes of capture failure or qualify a model. Preserve all V23 failures. Protocol/code published before running this additional diagnostic. Full optional-entry fallback, sequential/model-generated candidates, new-data training, untouched holdout and original8Levels/newscene enhanced closed-loop capture/safety/latency remain required."
+}
