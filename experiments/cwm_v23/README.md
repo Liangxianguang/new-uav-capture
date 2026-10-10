@@ -58,7 +58,8 @@ controller. Split assignment is fixed and failed data gates retained. Public
 replay retains full original observation/252feature traces. The independent
 `cost_data_audit.py` reconstructs geometry, candidates, delays, all252history,
 paired masks/labels, train/dev support and complete original cost/selection
-before any future training. Training implementation and results are pending;
+before training. Training implementation is now supplied below; full results
+and complete independent retraining/release verification are still pending;
 data collection or a protocol alone does not mean a new model has been trained.
 
 ## Precollection amendment
@@ -71,3 +72,48 @@ matched80epoch motion calibration; both completely freeze before response
 training. The primary, new seeds, splits and gates stay fixed. The prior commit
 is retained, no V23 outcome inspected, and revised protocol must be published
 before collecting. No claim is made that this amendment ensures a passed gate.
+
+## Fixed training implementation (not a trained-model success report)
+
+```powershell
+python -m pytest -q experiments/cwm_v21 experiments/cwm_v22 experiments/cwm_v23
+python experiments/cwm_v23/train_cost_response.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/primary_20261010
+python experiments/cwm_v23/train_cost_response.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/retrained_20261010
+```
+
+No optimizer is instantiated until independent full data audit and original
+cost/piecewise-gradient audits at both initial public origins have passed.
+After matched80epoch motion calibration, both common models are frozen and
+gradients cleared; deployed-reference full-cost/gradient audits must then pass
+again before response optimization. The V11 numerical tolerances and explicit
+nonsmooth-coordinate accounting are reused unchanged. Scores include all
+target-independent original terms and reject unsupported objectives.
+
+`cost_origin_model.py` adds an analytic PUBLIC CV path as a sixth wrapper tensor,
+but all unchanged neural cores still receive only the original five tensors
+and original GRU context. Learned-calibration energy does not penalize the
+deterministic CV-minus-GRU offset. Both motion origins use unchanged V10 masked
+coordinate-MSE/group-call pretraining; response uses fixed full-population
+point-L2/energy weights, and task variants use the fixed .1 deployed L1 loss.
+Only complete UNION calls enter full-cost supervision; incomplete calls get
+zero cost population weight, with a fixed batch-size denominator.
+
+The deployed reference cache is generated with canonical per-split batch32
+evaluation, and final forecasts must match cached references exactly. This
+avoids treating response-minibatch-dependent floating-point rounding as a new
+motion reference. All candidate responses remain action-anchored, and private
+future/labels/costs are supervision only, never forward inputs.
+
+All18 models/run retain final checkpoints, optimizer/RNG, history, train/dev
+predictions, magnitude/offset diagnostics, deployed-cache/cost-gradient audits,
+and both original-engine actual/union costs/choices/regrets on the SAME complete
+union support. `cost_qualification.py` preserves all gates and uses the matching
+origin's independently median-selected motion control. CV means uncalibrated
+public CV. Primary requires both extra response-control decision improvements;
+actual-library diagnostics cannot replace union gates or online validation.
+
+Tests include synthetic two-independent-run optimization checks and archived
+historical TRAIN-fixture original-engine checks. Those fixtures are implementation
+tests only, never new V23 model fitting, normalization or scientific validation.
+Complete two-run research artifact auditing/public release and all online
+requirements remain necessary; no new controller is enabled by these scripts.
