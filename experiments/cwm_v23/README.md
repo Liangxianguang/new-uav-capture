@@ -1,5 +1,18 @@
 # V23: deployed-reference response-cost contrast, default off
 
+Final complete V23 audit update (~20:10 Shanghai): prearchive/postarchive FULL
+audits, separate-process full parts-archive audit with clean local-checkout code,
+and ALL SIX real completed-evidence semantic checks PASSED. This reproduces a
+FAILED research experiment, NOT a successful enhanced controller. All four
+response configurations remain ineligible/default off. Complete archive:
+195,963,891bytes/3,809manifest members, five lossless <=45MiB parts, SHA256
+`2ec8d4165e2b56c99f1781c38e54122a481ef63dc3f8aacf1069d53ace11ca78`.
+See `reports/independent_model_validation.json`. The independent process read
+parts from the research checkout; self-contained checkout replay can additionally
+be run after the part commit. Older pending-stage paragraphs below are historical.
+Original-entry whole-module fallback, new qualified model, sequential candidates,
+untouched holdout, original8Levels/newscene capture/safety/latency are still missing.
+
 Latest completed-training status (2026-10-10 19:31 Shanghai): BOTH complete
 18-model runs finished, ALL FOUR response configurations failed eligibility,
 primary=cv_cost_l2 failed. No controller enabled. Full prearchive/archive and

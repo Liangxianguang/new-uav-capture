@@ -1,0 +1,340 @@
+{
+  "status": "passed_independent_fresh_deployed_cost_contrast_audit",
+  "models_per_run": 18,
+  "independent_runs": 2,
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "full_cost_calls": {
+    "train": 818,
+    "development_validation": 270
+  },
+  "all_train_development_forecasts_reinferred": true,
+  "weights_optimizer_rng_history_equal": true,
+  "public252_frames_and_original_actual_union_costs_verified": true,
+  "initial_and_calibrated_full_scores_piecewise_gradients_recomputed": true,
+  "deployed_reference_scale_label_gradient_caches_recomputed": true,
+  "matched_frozen_common_motion_equal": true,
+  "train_only_population_weights_verified": true,
+  "all_bins_offsets_diagnostics_recomputed": true,
+  "selected_median_seeds": {
+    "gru_motion_only": 993101,
+    "cv_motion_only": 993102,
+    "gru_l2": 993101,
+    "gru_cost_l2": 993101,
+    "cv_l2": 993102,
+    "cv_cost_l2": 993102
+  },
+  "qualification": {
+    "gru_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 993101,
+      "matching_motion_control": "gru_motion_only",
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": -0.031401352951856684,
+          "percentile_95_interval": [
+            -0.08276133246447387,
+            0.01534817415642903
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.2805565466351414,
+          "percentile_95_interval": [
+            -0.513422098646149,
+            -0.07481182557564264
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.031401352951856684,
+          "percentile_95_interval": [
+            -0.08276133246447387,
+            0.01534817415642903
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        }
+      },
+      "online_promoted": false
+    },
+    "gru_cost_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": false,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 993101,
+      "matching_motion_control": "gru_motion_only",
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": -0.0017169108483002862,
+          "percentile_95_interval": [
+            -0.03941258357571991,
+            0.03943453990872954
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.25087210453158504,
+          "percentile_95_interval": [
+            -0.4907216529049199,
+            -0.04605722966441204
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.0017169108483002862,
+          "percentile_95_interval": [
+            -0.03941258357571991,
+            0.03943453990872954
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        }
+      },
+      "online_promoted": false
+    },
+    "cv_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false
+      },
+      "selected_seed": 993102,
+      "matching_motion_control": "cv_motion_only",
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": 0.015555072375054513,
+          "percentile_95_interval": [
+            -0.012818199069001439,
+            0.046960541949576905
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.004043842269410743,
+          "percentile_95_interval": [
+            -0.10422432188076068,
+            0.09018200830179356
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": 0.015555072375054513,
+          "percentile_95_interval": [
+            -0.012818199069001439,
+            0.046960541949576905
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        }
+      },
+      "online_promoted": false
+    },
+    "cv_cost_l2": {
+      "research_eligible": false,
+      "checks": {
+        "each_seed_ade_vs_gru": true,
+        "median_ade_vs_cv": true,
+        "median_response_vs_zero": true,
+        "anchor_response_exact_zero": true,
+        "gain_vs_own_motion": false,
+        "gain_vs_cv": false,
+        "gain_vs_motion_only": false,
+        "median_response_vs_cv_l2": false,
+        "median_cost_contrast_vs_cv_l2": false,
+        "gain_vs_cv_l2": false,
+        "gain_vs_gru_cost_l2": true
+      },
+      "selected_seed": 993102,
+      "matching_motion_control": "cv_motion_only",
+      "selected_gains": {
+        "own_motion": {
+          "groups": 8,
+          "group_equal_mean": -0.007351487769736553,
+          "percentile_95_interval": [
+            -0.018656045045521832,
+            0.0008419046284412301
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "cv": {
+          "groups": 8,
+          "group_equal_mean": -0.02695040241420181,
+          "percentile_95_interval": [
+            -0.11845417219595347,
+            0.05720957250298525
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "motion_only": {
+          "groups": 8,
+          "group_equal_mean": -0.007351487769736553,
+          "percentile_95_interval": [
+            -0.018656045045521832,
+            0.0008419046284412301
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "cv_l2": {
+          "groups": 8,
+          "group_equal_mean": -0.022906560144791067,
+          "percentile_95_interval": [
+            -0.06012755230340276,
+            0.008507623245204647
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        },
+        "gru_cost_l2": {
+          "groups": 8,
+          "group_equal_mean": 0.22392170211738321,
+          "percentile_95_interval": [
+            0.036287177488861386,
+            0.461103334458098
+          ],
+          "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+        }
+      },
+      "online_promoted": false
+    }
+  },
+  "factorial_comparisons": {
+    "gru_cost_l2_vs_gru_l2": {
+      "all_seed_response_gain_m": {
+        "993101": 0.0026536722852935346,
+        "993102": -0.0018978524737409685,
+        "993103": -0.005235019861926135
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": 0.0296844421035564,
+        "percentile_95_interval": [
+          0.0015182989078052153,
+          0.06851046793398348
+        ],
+        "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+      },
+      "descriptive_only": true
+    },
+    "cv_cost_l2_vs_cv_l2": {
+      "all_seed_response_gain_m": {
+        "993101": 0.0021503965226591093,
+        "993102": -0.0011019556811306813,
+        "993103": -0.004390010004456893
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": -0.022906560144791067,
+        "percentile_95_interval": [
+          -0.06012755230340276,
+          0.008507623245204647
+        ],
+        "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+      },
+      "descriptive_only": true
+    },
+    "cv_l2_vs_gru_l2": {
+      "all_seed_response_gain_m": {
+        "993101": 0.0,
+        "993102": 0.0,
+        "993103": 0.0
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": 0.27651270436573067,
+        "percentile_95_interval": [
+          0.09985163203049431,
+          0.5096618481262767
+        ],
+        "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+      },
+      "descriptive_only": true
+    },
+    "cv_cost_l2_vs_gru_cost_l2": {
+      "all_seed_response_gain_m": {
+        "993101": -0.0005032757626344253,
+        "993102": 0.0007958967926102872,
+        "993103": 0.0008450098574692422
+      },
+      "selected_decision_gain": {
+        "groups": 8,
+        "group_equal_mean": 0.22392170211738321,
+        "percentile_95_interval": [
+          0.036287177488861386,
+          0.461103334458098
+        ],
+        "interpretation": "Fixed fresh V23 development group-equal descriptive intervals, not untouched holdout or closed-loop qualification."
+      },
+      "descriptive_only": true
+    }
+  },
+  "primary_research_eligible": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Offline research eligibility only. Whole optional module off/refusal/failure exact original-entry equivalence, sequential/self-generated candidates, untouched holdout, original8Levels and new-scene enhanced closed-loop capture/safety/latency remain mandatory before any promotion. Preserve original weights/capsule and all historical failures.",
+  "artifact": {
+    "sha256": "2ec8d4165e2b56c99f1781c38e54122a481ef63dc3f8aacf1069d53ace11ca78",
+    "bytes": 195963891,
+    "members": 3809
+  },
+  "transport": {
+    "schema": "cwm_v21.lossless_archive_parts.v1",
+    "full_archive_sha256": "2ec8d4165e2b56c99f1781c38e54122a481ef63dc3f8aacf1069d53ace11ca78",
+    "full_archive_bytes": 195963891,
+    "parts": [
+      {
+        "name": "deployed_cost_contrast_20261010.part001",
+        "bytes": 47185920,
+        "sha256": "bb96604295866eec7b331cedfdfb42f9116468cac76dadf5a0784fc22d02ef33"
+      },
+      {
+        "name": "deployed_cost_contrast_20261010.part002",
+        "bytes": 47185920,
+        "sha256": "bc8ab5c5f976ede35fd97b74657c8debbfd7342fb694880d1abe6ac7494af3b5"
+      },
+      {
+        "name": "deployed_cost_contrast_20261010.part003",
+        "bytes": 47185920,
+        "sha256": "924f03464bc9270ee21758d90b1ee130e4728b09958bb884c24d05503d037817"
+      },
+      {
+        "name": "deployed_cost_contrast_20261010.part004",
+        "bytes": 47185920,
+        "sha256": "7c5bf6e0ceb4db7eadcf10b374cee7a601ef55de84ee2a5dc8fcc3f32245ee1e"
+      },
+      {
+        "name": "deployed_cost_contrast_20261010.part005",
+        "bytes": 7220211,
+        "sha256": "fa01a1e7167f84408be78b367d3ea0256c54b544e97b7c9d0250a5417d65a84e"
+      }
+    ]
+  }
+}
