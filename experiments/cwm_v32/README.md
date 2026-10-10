@@ -57,3 +57,11 @@ and in-run data/manifest/normalizer/checkpoint/protocol mutation rejection.
 The toy full-workflow report marks SYNTHETIC/MOCKED scope; it is not actual
 V28 inference. No scientific experiment starts if exact GitHub publication
 cannot be confirmed.
+
+When Git HTTPS transport fails, exact branch-HEAD verification may use the
+official authenticated GitHub Git-data API with the existing noninteractive
+Git credential. It still requires remote SHA == local HEAD and exact committed
+source/protocol/publisher bytes; the publisher dependency is also snapshotted.
+This does not waive prepublication or any scientific gate. No credentials are
+printed/stored and no network/Git settings are changed. Fallback publication
+accepts only exact matching blob/tree/commit objects and a nonforce ref update.

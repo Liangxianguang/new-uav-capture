@@ -238,3 +238,33 @@ def test_synthetic_complete_workflow_rechecks_inputs_before_summary(complete_fix
         assert result['native_branch_reexecuted'] is False
         assert result['models']['cv_rank_l2']['8']['maximum_observed_response_difference_m'] == 0.
         assert (output/'summary.json').exists()
+
+
+@pytest.mark.parametrize('mode', ['git', 'api', 'wrong_api_head'])
+def test_api_transport_preserves_exact_prepublication_requirement(tmp_path, monkeypatch, mode):
+    here = tmp_path/'experiments/cwm_v32'; here.mkdir(parents=True)
+    publisher = tmp_path/'scripts/publish_exact_github_api.py'; publisher.parent.mkdir()
+    for path in (here/'prefix_invariance.py', here/'prefix_audit_protocol.json', publisher):
+        path.write_bytes(b'fixture committed bytes\n')
+    monkeypatch.setattr(audit, 'ROOT', tmp_path); monkeypatch.setattr(audit, 'HERE', here)
+    sha = 'a'*40
+    def git_output(args, **kwargs):
+        if args[1:3] == ['rev-parse', 'HEAD']: return sha+'\n'
+        if 'ls-remote' in args:
+            if mode != 'git': raise audit.subprocess.CalledProcessError(1, args)
+            return sha+'\t'+audit.BRANCH+'\n'
+        assert args[1] == 'show'
+        return (tmp_path/args[2].split(':', 1)[1]).read_bytes()
+    monkeypatch.setattr(audit.subprocess, 'check_output', git_output)
+    monkeypatch.setattr(audit, 'credential_token', lambda: 'SYNTHETIC_SECRET')
+    class FakeAPI:
+        def __init__(self, token): assert token == 'SYNTHETIC_SECRET'
+        def head(self): return 'b'*40 if mode == 'wrong_api_head' else sha
+    monkeypatch.setattr(audit, 'GitHubAPI', FakeAPI)
+    if mode == 'wrong_api_head':
+        with pytest.raises(ValueError): audit.published_sources()
+    else:
+        result = audit.published_sources()
+        assert result['commit'] == sha
+        assert result['verification'] == ('git_ls_remote_exact_branch' if mode == 'git'
+            else 'authenticated_github_git_data_api_exact_branch')

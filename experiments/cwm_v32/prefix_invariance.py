@@ -17,6 +17,8 @@ from cost_origin_model import public_cost_inputs, normalization
 from repeatability_identity import digest, exact_tree
 from package_ranking_release import safe_name
 from audit_ranking_data import validate_data_protocol
+sys.path.insert(0, str(ROOT/'scripts'))
+from publish_exact_github_api import GitHubAPI, credential_token
 
 REMOTE = 'https://github.com/Liangxianguang/new-uav-capture.git'
 BRANCH = 'refs/heads/causal-world-model-v1-20261009'
@@ -103,15 +105,21 @@ def published_sources():
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
     commit = git('rev-parse', 'HEAD')
-    remote = git('-c', 'http.sslBackend=schannel', '-c', 'http.version=HTTP/1.1', 'ls-remote', REMOTE, BRANCH)
-    if not remote or remote.split()[0] != commit:
+    try:
+        remote = git('-c', 'http.sslBackend=schannel', '-c', 'http.version=HTTP/1.1', 'ls-remote', REMOTE, BRANCH)
+        remote_sha = remote.split()[0] if remote else None
+        verification = 'git_ls_remote_exact_branch'
+    except subprocess.CalledProcessError:
+        remote_sha = GitHubAPI(credential_token()).head()
+        verification = 'authenticated_github_git_data_api_exact_branch'
+    if remote_sha != commit:
         raise ValueError('Publish exact source/protocol HEAD before actual diagnostic')
-    files = (HERE/'prefix_invariance.py', HERE/'prefix_audit_protocol.json')
+    files = (HERE/'prefix_invariance.py', HERE/'prefix_audit_protocol.json', ROOT/'scripts/publish_exact_github_api.py')
     for path in files:
         name = path.relative_to(ROOT).as_posix()
         if subprocess.check_output(['git', 'show', commit+':'+name], cwd=ROOT) != path.read_bytes():
             raise ValueError('Actual diagnostic source differs from published bytes')
-    return {'commit': commit, 'remote': REMOTE, 'branch': BRANCH}
+    return {'commit': commit, 'remote': REMOTE, 'branch': BRANCH, 'verification': verification}
 
 
 def prepare(data, audit, primary, protocol):
@@ -184,7 +192,8 @@ def run(data, audit, primary, output):
     calls, mean, scale, models, identities, manifest, model_hashes = prepare(data, audit, primary, protocol)
     sources = {Path(m.__file__).resolve().relative_to(ROOT).as_posix(): digest(Path(m.__file__).resolve())
         for m in tuple(sys.modules.values()) if getattr(m, '__file__', None)
-        and Path(m.__file__).suffix == '.py' and Path(m.__file__).resolve().is_relative_to(ROOT/'experiments')}
+        and Path(m.__file__).suffix == '.py' and (Path(m.__file__).resolve().is_relative_to(ROOT/'experiments')
+            or Path(m.__file__).resolve() == ROOT/'scripts/publish_exact_github_api.py')}
     sources[(HERE/'prefix_audit_protocol.json').relative_to(ROOT).as_posix()] = digest(HERE/'prefix_audit_protocol.json')
     normalization_sha = digest(primary/'normalization.npz')
     manifest_sha = read(audit/'summary.json')['audited_data_manifest_sha256']
