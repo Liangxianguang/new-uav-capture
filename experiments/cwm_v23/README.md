@@ -154,3 +154,34 @@ It is not a checksum-only audit. Prearchive AND archive audit must pass before
 reports/parts can be published as a verified scientific milestone. The complete
 research audit is still PENDING while training runs; ordinary implementation
 tests and partial checkpoints are not substitutes for it.
+
+### Completed-evidence semantic checks (still pending actual completion)
+
+```powershell
+python experiments/cwm_v23/check_completed_cost_evidence.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --primary results/cwm_v23/primary_fixed_20261010 --retrained results/cwm_v23/retrained_20261010 --restored results/cwm_v23/semantic_check_restored_20261010
+```
+
+Requires BOTH finished18-model populations, not running/partial checkpoints.
+One full positive audit plus five rejection checks cover forged forecasts,
+primary eligibility, RNG (with updated checkpoint hash), missing final model,
+and a changed private effect-label cache with ALL linked checkpoint/cache hashes
+updated. Each negative check must reject at its expected semantic reason;
+an unrelated failure is not a pass. Helper unit tests do not mean these six
+full completed-evidence checks have been executed/passed.
+
+## Independently audited DATA-only release
+
+This can precede complete training, but contains NO enhanced-controller result
+or research-model qualification. It packages the original-controller dataset
+and independent public replay, preserving all source/252frames/geometry/masks/
+labels/costs/decisions. Prearchive AND archive audits reexecute the full data
+audit; a separate process must verify the public artifact again.
+
+```powershell
+python experiments/cwm_v23/cost_data_release.py --data results/cwm_v23/data_20261010 --public results/cwm_v23/public_20261010 --output results/cwm_v23/fresh_cost_data_release_20261010.zip --parts-output experiments/cwm_v23/artifacts/fresh_cost_data_release_20261010.parts.json --restored-output results/cwm_v23/data_release_restored_20261010
+python experiments/cwm_v23/cost_data_release.py --verify experiments/cwm_v23/artifacts/fresh_cost_data_release_20261010.parts.json --restored-output results/cwm_v23/data_independent_verify_restored_20261010
+```
+
+The new data has1,536calls with818train/270development complete UNION calls;
+original controller64/64safe captures with zero collisions/boundary/invalid
+episodes. These baseline counts must never be labeled enhanced-model success.
