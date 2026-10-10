@@ -1,0 +1,20 @@
+{
+  "status": "two_complete_native_train_prefix_diagnostics_identical_not_causal_qualification",
+  "first_native_summary": "D:\\uav-capture\\cwm32-prefix-20261011\\summary.json",
+  "second_native_summary": "D:\\uav-capture\\cwm32-prefix-repeat-20261011\\summary.json",
+  "native_sha256_both": "627df9f3d0acab7d083c87a8aa5eaa110dddfd09db8844fabcfa2db7c4ba04d2",
+  "all_native_bytes_equal": true,
+  "all_typed_native_fields_equal": true,
+  "current_and_two_run_source_snapshots_equal": true,
+  "source_files_checked": 58,
+  "complete_native_calls_each_run": 2304,
+  "groups_each_run": 24,
+  "actual_exit_codes": [
+    0,
+    0
+  ],
+  "model_retraining_performed": false,
+  "native_branch_reexecution_performed": false,
+  "causal_capture_improvement_proven": false,
+  "holdout_used": false
+}
