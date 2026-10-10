@@ -17,6 +17,7 @@ from train_loss_factorial import (audit_data, read_dataset, normalization, popul
     FrozenCommonResponse, LocalTwoHead, state_digest, frozen_configs, sha, BASELINE_SHA, decompose)
 from frozen_training_release import tensor_tree_equal, verify_manifest
 from geometry_release import arrays,compare_arrays
+from artifact_transport import split_archive,resolve_artifact
 
 
 def audit_sources(read,stage,report):
@@ -157,6 +158,7 @@ def main():
     for name in ('data','public','primary','retrained','output'):
         parser.add_argument('--'+name,type=Path)
     parser.add_argument('--verify',type=Path)
+    parser.add_argument('--parts-output',type=Path,help='Lossless <=45MiB parts for GitHub, full ZIP stays in results')
     args = parser.parse_args()
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -167,8 +169,9 @@ def main():
     restored = ROOT.parent.parent/'results/cwm_v21/release_restored'
     configs = frozen_configs(capsule,restored)
     if args.verify:
-        integrity = verify_manifest(args.verify)
-        with zipfile.ZipFile(args.verify) as archive:
+        artifact = resolve_artifact(args.verify,ROOT.parent.parent/'results/cwm_v21/assembled')
+        integrity = verify_manifest(artifact)
+        with zipfile.ZipFile(artifact) as archive:
             result = audit(archive.read,configs,restored)
             if json.loads(archive.read('release_summary.json')) != result:
                 raise ValueError('Archived release summary differs')
@@ -200,13 +203,19 @@ def main():
         recomputed = audit(archive.read,configs,restored)
         if json.loads(archive.read('release_summary.json')) != recomputed or result != recomputed:
             raise ValueError('Archived evidence differs from pre-archive audit')
+    transport = None
+    if args.parts_output:
+        transport = split_archive(args.output,args.parts_output)
+        joined = resolve_artifact(args.parts_output,ROOT.parent.parent/'results/cwm_v21/assembled')
+        if sha(joined) != integrity['sha256']:
+            raise ValueError('Lossless transport differs from audited full archive')
     reports = ROOT/'reports'
     reports.mkdir(exist_ok=True)
     for name in ('data','public','primary'):
         with (reports/('training_summary.json' if name == 'primary' else name+'_summary.json')).open('xb') as file:
             file.write(read(name+'/summary.json'))
     with (reports/'release_manifest.json').open('x') as file:
-        json.dump({**result,'artifact':integrity},file,indent=2)
+        json.dump({**result,'artifact':integrity,'transport':transport},file,indent=2)
     print(json.dumps({'status':result['status'],**integrity}),flush=True)
 
 

@@ -52,3 +52,10 @@ each run, recomputes bins/offsets and every complete-cost decision, compares
 weights/optimizer/RNG/history and matched common-motion weights, verifies
 fixed optimizer update counts and initializations, and recomputes all gates.
 Model/forecast/data failures must remain failures; no online control is enabled.
+
+For a release exceeding GitHub's single-file bound, keep the complete audited
+ZIP in `results` and add `--parts-output experiments/cwm_v21/artifacts/release.parts.json`
+to the release command. Each part is <=45MiB. To verify, pass that manifest to
+`--verify`; it validates every part, joins without overwriting unrelated files,
+checks the exact full-ZIP hash, and runs the same complete semantic audit.
+The transport does not omit any training/development forecasts or checkpoints.

@@ -4,3 +4,8 @@
 
 # V20 reports are exact emitted run bytes (including native JSON line endings).
 /experiments/cwm_v20/reports/** -text whitespace=cr-at-eol
+
+# V21 includes lossless ZIP chunks and exact emitted research report bytes.
+/experiments/cwm_v21/artifacts/*.part* -text
+/experiments/cwm_v21/artifacts/*.parts.json -text whitespace=cr-at-eol
+/experiments/cwm_v21/reports/** -text whitespace=cr-at-eol
