@@ -23,6 +23,21 @@ python -m pytest experiments/cwm_v30 -q
 python experiments/cwm_v30/baseline_full_levels.py --output D:\uav-capture\cwm30-baseline-20261011
 ```
 
+`audit_full_baseline.py` requires the COMPLETE baseline before any new replay
+output. In a fresh process it reexecutes ALL1280 episodes in EACH off/refusal
+mode using the exact original parent planner/runtime, with no optional model or
+context reads. Every numeric trajectory/plan/CBF command and every non-timing
+native episode/step diagnostic must match; all source/protocol/population/hash
+and group-aware summary support is rechecked before and after execution. Only
+six explicitly named native timing fields per episode/step are nondeterministic;
+they remain saved, not silently dropped or latency-qualified. Fixture tests are
+NOT actual full replays. Complete result packaging/archive replay and active
+model faults remain separate requirements.
+
+```powershell
+python experiments/cwm_v30/audit_full_baseline.py --reference D:\uav-capture\cwm30-baseline-20261011 --output D:\uav-capture\cwm30-audit-20261011
+```
+
 Later causal-policy evaluation is separately frozen by `closed_loop_protocol.json`:
 seven scoring/library controls, fixed final80epoch ADE-median models, freshly
 generated geometry shifts on new identities, reserved16episode holdout ONLY after
