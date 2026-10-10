@@ -1,0 +1,334 @@
+{
+  "status": "signal_requires_independent_confirmation",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "protocol": {
+    "version": "cwm_v6.authorized_s4_confirmation.20261010",
+    "authorization": "User explicitly allowed new scenes on 2026-10-10; existing S4 is separate from original Levels.",
+    "seed_start": 962010,
+    "layout_seed_start": 1962010,
+    "groups": 4,
+    "stage": "independent_mechanism_confirmation_only",
+    "target_motion_mode": "adaptive_branching",
+    "target_speed_scales": [
+      0.55,
+      0.75
+    ],
+    "observation_conditions": [
+      {
+        "name": "nominal",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.15,
+          "observation_noise_std": 0.03,
+          "message_delay_steps": 2,
+          "message_dropout_probability": 0.05
+        }
+      },
+      {
+        "name": "delayed_noisy",
+        "overrides": {
+          "detection_range": 14.0,
+          "detection_dropout_probability": 0.22,
+          "observation_noise_std": 0.06,
+          "message_delay_steps": 4,
+          "message_dropout_probability": 0.1
+        }
+      }
+    ],
+    "scene_variation": {
+      "wall_half_extent_x_m": [
+        0.45,
+        0.65
+      ],
+      "wall_half_extent_y_m": [
+        3.85,
+        4.2
+      ],
+      "wall_height_m": [
+        9.25,
+        9.55
+      ],
+      "target_initial_x_m": [
+        -4.25,
+        -3.45
+      ],
+      "target_initial_y_m": [
+        -0.4,
+        0.4
+      ],
+      "target_altitude_m": [
+        4.3,
+        5.7
+      ],
+      "defender_x_offset_m": [
+        0.0,
+        0.35
+      ],
+      "defender_y_scale": [
+        0.92,
+        1.08
+      ],
+      "defender_z_offset_m": [
+        -0.3,
+        0.3
+      ]
+    },
+    "geometry_compatibility": "Identical to scout: wall half-y maximum 4.20 m, default exit 5.30 m, unchanged radius 0.25 m and environment route margin 0.75 m.",
+    "snapshot_steps": [
+      0,
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "history_steps": 8,
+    "horizon_steps": 16,
+    "original_planner_horizon_steps": 8,
+    "branches": [
+      "baseline_plan",
+      "upper_pressure3",
+      "lower_pressure3",
+      "upper_pressure5",
+      "lower_pressure5",
+      "brake",
+      "nearest_upper_pressure5",
+      "nearest_lower_pressure5"
+    ],
+    "maximum_command_speed_mps": 5.0,
+    "effect_threshold_m": 0.05,
+    "data_gate": {
+      "minimum_effect_point_fraction": 0.05,
+      "minimum_branch_flip_pair_fraction": 0.05,
+      "minimum_independent_signal_groups": 2
+    },
+    "target_branch_rule_overrides": {},
+    "original_weights_or_safety_changed": false,
+    "private_labels_model_inputs": false,
+    "enhanced_control_enabled": false,
+    "extension": "Steps 9-16 repeat the eighth original planned command; only 8-step signal qualifies the short-horizon mechanism. Confirming signal does not override target-invalid episodes; repair scene compatibility and validate before promoting a benchmark or controller."
+  },
+  "states": 41,
+  "episodes": 8,
+  "groups": 4,
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "dataset_sha256": "63d85da869c4799242dc686f3c9f9c9a30ebf4ebe93992875d3e2b15e8aa88f9",
+  "source_hashes": {
+    "cwm_v6/s4_collect.py": "9da36b60d39fb91c091a6d29caf0ae1686c81a5d1d4b0c882b01b986b08d87c5",
+    "cwm_v6/s4_confirmation_protocol.json": "db0a59b09b6054ad2621328eb97c7e7769b41fd11a2faa746ee86b19c7563e3d",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/collect_pairs.py": "20caa665e4649a2d4806eff1fd51a9e6696538868768f28c69207231976696cc",
+    "cwm_v1/diagnose_interactions.py": "ada6aa37711f217bcba7bb7f2491900253608e4417e356665eba5a0e2972b02b",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c"
+  },
+  "statistics": {
+    "horizons": {
+      "8": {
+        "effect_m": {
+          "count": 2186,
+          "mean": 0.23267509896428604,
+          "p50": 0.039550329019002115,
+          "p95": 1.0601005356066342,
+          "max": 2.0758581927519515
+        },
+        "effect_over_0_05m_fraction": 0.4867337602927722,
+        "signal_groups": [
+          "cwm-s4-1962010",
+          "cwm-s4-1962011",
+          "cwm-s4-1962012",
+          "cwm-s4-1962013"
+        ],
+        "branch_flip_groups": [
+          "cwm-s4-1962010",
+          "cwm-s4-1962011",
+          "cwm-s4-1962012",
+          "cwm-s4-1962013"
+        ],
+        "branch_flip_pairs": 98,
+        "both_committed_support_pairs": 287,
+        "branch_flip_pair_fraction": 0.34146341463414637,
+        "full_horizon_pairs": 251,
+        "full_horizon_endpoint_effect_m": {
+          "count": 251,
+          "mean": 0.6651398688219242,
+          "p50": 0.5237410552575745,
+          "p95": 1.735046239419831,
+          "max": 2.0758581927519515
+        },
+        "executed_action_difference_mps": {
+          "count": 2186,
+          "mean": 2.7976558743345716,
+          "p50": 2.8092135330479513,
+          "p95": 4.961616578479564,
+          "max": 5.0
+        }
+      },
+      "16": {
+        "effect_m": {
+          "count": 3766,
+          "mean": 0.7655867721513052,
+          "p50": 0.3706632850122338,
+          "p95": 2.9452299541681497,
+          "max": 5.259753767861392
+        },
+        "effect_over_0_05m_fraction": 0.6970260223048327,
+        "signal_groups": [
+          "cwm-s4-1962010",
+          "cwm-s4-1962011",
+          "cwm-s4-1962012",
+          "cwm-s4-1962013"
+        ],
+        "branch_flip_groups": [
+          "cwm-s4-1962010",
+          "cwm-s4-1962011",
+          "cwm-s4-1962012",
+          "cwm-s4-1962013"
+        ],
+        "branch_flip_pairs": 98,
+        "both_committed_support_pairs": 287,
+        "branch_flip_pair_fraction": 0.34146341463414637,
+        "full_horizon_pairs": 174,
+        "full_horizon_endpoint_effect_m": {
+          "count": 174,
+          "mean": 2.2170205404029812,
+          "p50": 1.9732058290230652,
+          "p95": 4.488996189560942,
+          "max": 5.259753767861392
+        },
+        "executed_action_difference_mps": {
+          "count": 3766,
+          "mean": 2.7727692120804734,
+          "p50": 2.793054230737765,
+          "p95": 4.888707847674538,
+          "max": 5.48435771087702
+        }
+      }
+    },
+    "short_horizon_data_gate_passed": true
+  },
+  "episodes_results": [
+    {
+      "episode_index": 962010,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "0e0fe56f557bb663f0d87fd9a7d159be9fabe5b07f748491db9b4225c6275a27",
+      "unobserved_sha256": "0e0fe56f557bb663f0d87fd9a7d159be9fabe5b07f748491db9b4225c6275a27",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 962011,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "a7ec3b42ab0396163b1a132bd5edad8ca89091729344354e5ee4013a52ff26ca",
+      "unobserved_sha256": "a7ec3b42ab0396163b1a132bd5edad8ca89091729344354e5ee4013a52ff26ca",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 962012,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "aa84bd45345739e29ecaf8aedbc001445e4d0c5e815e2633d210b238c744a9e0",
+      "unobserved_sha256": "aa84bd45345739e29ecaf8aedbc001445e4d0c5e815e2633d210b238c744a9e0",
+      "safe_capture_success": false,
+      "capture_event": false,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": true,
+      "termination_reason": "target_obstacle_violation"
+    },
+    {
+      "episode_index": 962013,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "6434d1f33b8fff1452896708f3a74e685e415c8caaf4da6f12fa95ba5386ff23",
+      "unobserved_sha256": "6434d1f33b8fff1452896708f3a74e685e415c8caaf4da6f12fa95ba5386ff23",
+      "safe_capture_success": true,
+      "capture_event": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 962014,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "6d1a4204fa456065c68a33fd38bd405b506d2cd8eb435804d1676d0c331d677a",
+      "unobserved_sha256": "6d1a4204fa456065c68a33fd38bd405b506d2cd8eb435804d1676d0c331d677a",
+      "safe_capture_success": false,
+      "capture_event": false,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": true,
+      "termination_reason": "target_obstacle_violation"
+    },
+    {
+      "episode_index": 962015,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "3d8f786b1e163177cd8cf0c9fb297a2a7176f323cdaca3c2335bd7c379a3e952",
+      "unobserved_sha256": "3d8f786b1e163177cd8cf0c9fb297a2a7176f323cdaca3c2335bd7c379a3e952",
+      "safe_capture_success": false,
+      "capture_event": false,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": true,
+      "termination_reason": "target_obstacle_violation"
+    },
+    {
+      "episode_index": 962016,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "93afc0a9fc78c12ed1dfc0ccb1858649cd05bcd887cf5fd363e178e18dd0468b",
+      "unobserved_sha256": "93afc0a9fc78c12ed1dfc0ccb1858649cd05bcd887cf5fd363e178e18dd0468b",
+      "safe_capture_success": false,
+      "capture_event": false,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": true,
+      "termination_reason": "target_obstacle_violation"
+    },
+    {
+      "episode_index": 962017,
+      "trajectory_byte_equal": true,
+      "outcomes_equal": true,
+      "observed_sha256": "a1a1c565e18cf1feeb5f747e6132caee75436f0240f83bb1ae0178528c591a80",
+      "unobserved_sha256": "a1a1c565e18cf1feeb5f747e6132caee75436f0240f83bb1ae0178528c591a80",
+      "safe_capture_success": false,
+      "capture_event": false,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": true,
+      "termination_reason": "target_obstacle_violation"
+    }
+  ],
+  "elapsed_seconds": 25.57578089996241,
+  "limitations": [
+    "Separate S4 mechanism scout under a different target strategy; not original Level1-8 improvement.",
+    "Mirrored scenes share a group; window/action points are not independent scenes.",
+    "Branch truth is labels only. New branch rule/code, weights, encoder or safety relaxation forbidden.",
+    "Original local CBF is empirical; observer isolation does not prove enhanced-controller safety.",
+    "16-step tail is a held original command, not a longer DN-MPC plan."
+  ]
+}
