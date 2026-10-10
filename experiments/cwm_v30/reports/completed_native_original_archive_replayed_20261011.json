@@ -1,0 +1,43 @@
+{
+  "status": "complete_native_original_population_archive_replay_no_causal_promotion",
+  "native_output": "D:/uav-capture/cwm30-ar-20261011/summary.json",
+  "native_summary_sha256": "8179de04eae22b3a7d8e0c5ad290e2f4c8a15dfba7205d56281b7cd340728983",
+  "actual_archive_driver_exit_code": 0,
+  "native_payload_semantic_copy_not_same_file_bytes": true,
+  "parts_manifest": "experiments/cwm_v30/artifacts/original_full_population_20261011.parts.json",
+  "parts_manifest_sha256": "02ad9bab2e70889b309de0977a65b19831081219b58b681c606524aefa5b0769",
+  "transport_check_is_not_another_scientific_replay": true,
+  "native_summary": {
+  "status": "complete_original_population_archive_independently_replayed",
+  "artifact": {
+    "sha256": "a6995520623e2fe311f06777ca97bae0d7a763eec6fd0cd1a821d863a28173e3",
+    "bytes": 94931869,
+    "members": 7764
+  },
+  "baseline_summary_sha256": "a97c1f89cd57ec21de07e8c107c3147d90bc06f57de23c3bda4846517945e983",
+  "prior_full_audit_summary_sha256": "ff8cf4009a0b027451bc64ad1b64c465ca41ca1cb4f117e41377300904a7ca87",
+  "fresh_full_audit_summary_sha256": "f11c6eb0a7de634e6660750db3a49eaaf4dab97de732c4816776be03ad70f2f5",
+  "original8Level_equal_macro": {
+    "variant_equal_safe_capture_success_rate": 0.9912109375,
+    "variant_equal_collision_rate": 0.0087890625,
+    "variant_equal_boundary_violation_rate": 0.0029296875,
+    "variant_equal_timeout_rate": 0.0,
+    "variant_equal_target_invalid_episode_rate": 0.0,
+    "variant_equal_restricted_safe_capture_time_seconds": 2.954150390625
+  },
+  "episodes_each_mode": 1280,
+  "modes": [
+    "off",
+    "refusal"
+  ],
+  "all_full_original_trajectories_plans_cbf_commands_equal": true,
+  "all_nontiming_native_episode_step_diagnostics_equal": true,
+  "artifact_packaged_and_replayed": true,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "new_model_trained": false,
+  "active_model_faults_exercised": false,
+  "latency_qualified": false,
+  "scope": "Archive + corresponding Git checkout/history + original Python runtime. ALL original1280 development episodes, off/refusal EACH1280, and fresh ALL-mode native archive replay. No active causal control/faults, new geometry/holdout benefit, latency, cross-platform or formal safety qualification."
+}
+}
