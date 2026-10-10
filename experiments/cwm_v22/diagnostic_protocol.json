@@ -1,0 +1,23 @@
+{
+  "version": "cwm_v22.v21_decision_error_decomposition.20261010",
+  "scope": "Posthoc diagnosis of already inspected V21 train/development. Not fresh validation, new training, control qualification, or a causal-identification claim. Truth replacements are diagnostic oracles only.",
+  "source_artifact": "experiments/cwm_v21/artifacts/response_loss_factorial_20261010.parts.json",
+  "source_artifact_sha256": "dbebfb62c6a2a2c92ad6e9fec7d4b6fe49a00067d273f787a660db451fdb9139",
+  "source_training_summary_sha256": "d3a17102601b650769880e258f3f9c00b89fcf6f87c1166a8ad7e15ce577d48b",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "models": ["motion_only", "raw_call_mse", "raw_point_mse", "raw_call_l2", "raw_point_l2"],
+  "seeds": [990101, 990102, 990103],
+  "splits": ["train", "development_validation"],
+  "candidate_populations": ["actual_unique", "geometry_union"],
+  "support": "Same complete-UNION-horizon support as V21 original full-cost decision gate, also for actual_unique comparisons: 833 train and 272 development calls. No terminal imputation or additional subset selection.",
+  "paths": ["model", "own_motion", "fixed_reference_truth", "action_specific_truth", "motion_plus_exact_response", "reference_truth_plus_learned_response", "constant_velocity", "cv_plus_learned_response", "cv_plus_exact_response", "original_gru"],
+  "repair_decomposition": "Let r00=regret(M+R), r10=regret(Tanchor+R), r01=regret(M+Dtruth), r11=regret(Tanchor+Dtruth)=0. Motion repair contribution=.5*((r00-r10)+(r01-r11)); response repair contribution=.5*((r00-r01)+(r10-r11)). Contributions sum to r00, may be negative, are descriptive order-averaged oracle replacements, not identified causal effects or achievable performance bounds.",
+  "diagnostics": "All seeds, configurations and both candidate populations. Preserve all costs/choices/regrets, group-equal regret and tie-optimal rates, helps/harms/unchanged vs own_motion, best-two predicted margins, true-choice response magnitudes, additive repair contributions, centered ranking-cost errors and response-cost contrast error. No truth-dependent gate, threshold/loss sweep, best-seed selection or model promotion.",
+  "tie_absolute_cost_tolerance": 1e-9,
+  "bootstrap": {"draws": 2000, "seed": 992701, "interpretation": "Descriptive intervals across already inspected mirror groups, not holdout inference."},
+  "full_v21_audit_required_before_diagnosis": true,
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "prior_gates_overridden": false
+}
