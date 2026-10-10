@@ -1,0 +1,641 @@
+{
+  "status": "actual_local_shadow_complete_not_promoted",
+  "mode": "shadow",
+  "protocol": {
+    "version": "cwm_v9.actual_local_candidate_shadow.20261010",
+    "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+    "split": "development_validation",
+    "horizon_steps": 8,
+    "snapshot_steps": [
+      0,
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "local_call_selection": "First actual _select_local_sequence invocation per agent per snapshot; retain actual original invocation order and all original candidates.",
+    "selected_median_seeds": {
+      "plain": 967101,
+      "structured": 967102
+    },
+    "missing_peer_policy": "Skip if any of three peers has no complete 8x3 known action sequence; never substitute current true peer plans.",
+    "model_context": "Original public 8x252 policy history and frozen GRU, own current public state, three received delayed peer states; belief reference is the original common public reference. This delayed-relative context and local anchor are transport shifts from V7 training, disclosed and not deployment-qualified.",
+    "anchor": "Actual locally selected own sequence + only received delayed peer sequences, not final centralized team sequence.",
+    "candidate_pool": "Stable exact deduplicated union: actual original candidates, one-pass original generator on constant velocity, then generator on plain/structured response forecasts for each actual original candidate. Never iterate to convergence or generate candidates from future truth.",
+    "information_conditions": [
+      "original_gru",
+      "plain_learned",
+      "structured_learned",
+      "constant_velocity",
+      "gru_plus_exact_response",
+      "fixed_reference_truth",
+      "reference_truth_plus_plain_response",
+      "reference_truth_plus_structured_response",
+      "action_specific_truth"
+    ],
+    "cost": "Original per-agent _local_scenario_cost_matrix and original risk aggregation with captured actual delayed peer state. Copied-state reference score must reproduce the actual selected local score. All conditions compare one shared finite union, not the sequential solver or closed-loop return.",
+    "clone_rollout": "Original local CBF and 8-step fixed joint commands on cloned current environment; independent common per-step sensor/execution noise; stop on termination. Truth is label-only, never candidate generation or model input.",
+    "noise_seed": 969101,
+    "tie_absolute_cost_tolerance": 1e-09,
+    "group_bootstrap_draws": 2000,
+    "group_bootstrap_seed": 969102,
+    "research_signal": {
+      "minimum_positive_gain_groups": 2,
+      "minimum_choice_changes": 1,
+      "minimum_group_equal_diagnostic_cost_gain": 1e-06
+    },
+    "enhanced_control_enabled": false,
+    "new_model_training_enabled": false,
+    "holdout_used": false,
+    "prior_training_gate_override_allowed": false,
+    "limitations": "Previously inspected development data. Candidate-generation changes, delayed-relative input shifts and reference-anchor shifts are exploratory. Shadow work runs after the original plan, so replay equality is not an online latency guarantee. Clone CBF outcomes are hypothetical joint open-loop branches, not multi-step feedback controller gains. No qualification gate is overridden."
+  },
+  "source_hashes": {
+    "cwm_v9/local_shadow.py": "2c74a3cfa4d4af99e6041ec7948d38661f4845e603fb165b07e0ee8d53b8f84b",
+    "cwm_v9/public_provider.py": "ae9c67ba6df6dbd33c0b13691b227d541c254fa3ab240d656f35e505cfdab34a",
+    "cwm_v9/protocol.json": "70350580589fe7bd8bb5b419d4cf775cb73bb58ed62d50987a8fcd423b444de9",
+    "cwm_v1/baseline.py": "f80556b34869633c09b6024096502ab01c0f0934fa74fdcb1427c978b67ae4e8",
+    "cwm_v1/freeze_baseline.py": "33da42834f773fb06e97de2f45d2cf2738543771ff1eeaa457a1711c7683d80c",
+    "cwm_v1/verify_release.py": "cffb517c36efec7af7103d01ede7e4237f1c0494eed92b1bbdb653c5b81cf225",
+    "cwm_v2/scout.py": "bcf1a04c913139e9d042f35ac208b72ee93114abb2814445b1234f1c9188beca",
+    "cwm_v4/diagnose.py": "c77850b6d56981f12716bca553bc6e0417dd2f4971fcfbf6336499c8d7860a9b",
+    "cwm_v5/decision_value.py": "622b15364d2ee5855d2e95259b142b1961c710adbfe863471101beb2cff09562",
+    "cwm_v7/collect_training.py": "d294f8409b8b11f1bacea79d9d2457337b89c47c48a804ae755633f96de2edb9",
+    "cwm_v7/geometry.py": "16418dcbf530c297b801485a8a6750a93e1c959a582a29c3e381fd3954e4cfd6",
+    "cwm_v7/response_model.py": "8c943cc009809ef25b7681f0889fab46b0ae6a0261a41ad761650dfc4a8ce69e",
+    "cwm_v7/geometry_release.py": "8e415b978d47be0bd0b35a33a61fa5a9c7fdb2862b4bd7c36e726568a4a3d1e1",
+    "cwm_v8/s4_value.py": "8b3fe37274738324818a6c3989cfc21f92a06ca6c38a6c21f80f561a0d894c95"
+  },
+  "source_archive_sha256": "d14dcca4dd2b9eb4d8609c1eb906413d4dbe7a76d4bd3c68f4ae17b959f97d69",
+  "capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "statistics": {
+    "all_windows": 320,
+    "rankable_windows": 131,
+    "excluded_incomplete_windows": 189,
+    "methods": {
+      "original_gru": {
+        "choice_changes_vs_original_gru": 0,
+        "tie_optimal_choices": 42,
+        "mean_regret_in_diagnostic_cost": 1.5929746574489123,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "plain_learned": {
+        "choice_changes_vs_original_gru": 6,
+        "tie_optimal_choices": 40,
+        "mean_regret_in_diagnostic_cost": 1.6723043415452008,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": -0.08118897356729526,
+          "percentile_95_interval": [
+            -0.2389828052256654,
+            0.030195009306925646
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "structured_learned": {
+        "choice_changes_vs_original_gru": 9,
+        "tie_optimal_choices": 40,
+        "mean_regret_in_diagnostic_cost": 1.6841682194163512,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": -0.09207052281171951,
+          "percentile_95_interval": [
+            -0.23260916932125913,
+            0.015591622460094583
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "constant_velocity": {
+        "choice_changes_vs_original_gru": 85,
+        "tie_optimal_choices": 121,
+        "mean_regret_in_diagnostic_cost": 0.2669900605408554,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.3175960642309128,
+          "percentile_95_interval": [
+            0.9825135096854175,
+            1.657619979507271
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "gru_plus_exact_response": {
+        "choice_changes_vs_original_gru": 9,
+        "tie_optimal_choices": 45,
+        "mean_regret_in_diagnostic_cost": 1.4880703492323915,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 0.09789603946909158,
+          "percentile_95_interval": [
+            -0.09730994207710253,
+            0.28741385127209756
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "fixed_reference_truth": {
+        "choice_changes_vs_original_gru": 84,
+        "tie_optimal_choices": 124,
+        "mean_regret_in_diagnostic_cost": 0.2463818865044223,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.337446584810124,
+          "percentile_95_interval": [
+            0.9904796278454995,
+            1.6964041116223125
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "reference_truth_plus_plain_response": {
+        "choice_changes_vs_original_gru": 83,
+        "tie_optimal_choices": 121,
+        "mean_regret_in_diagnostic_cost": 0.25024761318768063,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.3334902551577268,
+          "percentile_95_interval": [
+            0.9809095105539685,
+            1.6958161666505247
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "reference_truth_plus_structured_response": {
+        "choice_changes_vs_original_gru": 86,
+        "tie_optimal_choices": 120,
+        "mean_regret_in_diagnostic_cost": 0.2576766534360487,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.3265497741635783,
+          "percentile_95_interval": [
+            0.9865075240768219,
+            1.6737360197381628
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      },
+      "action_specific_truth": {
+        "choice_changes_vs_original_gru": 89,
+        "tie_optimal_choices": 131,
+        "mean_regret_in_diagnostic_cost": 0.0,
+        "gain_vs_original_gru": {
+          "groups": 8,
+          "group_equal_mean": 1.5785838979041975,
+          "percentile_95_interval": [
+            1.160668277989768,
+            2.0202433583914656
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        }
+      }
+    },
+    "motion_research_signal": true,
+    "response_research_signal_given_motion": true,
+    "comparisons": {
+      "motion_correction": {
+        "choice_changes": 84,
+        "positive_gain_groups": 8,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.9246249999501708,
+          "cwm-s4-1965035": 1.4687116635807653,
+          "cwm-s4-1965036": 2.1976045211370763,
+          "cwm-s4-1965037": 1.503612188914764,
+          "cwm-s4-1965038": 0.5588516901823621,
+          "cwm-s4-1965039": 1.7712809727162657,
+          "cwm-s4-1965040": 1.5092734279804878,
+          "cwm-s4-1965041": 0.7656132140191003
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 1.337446584810124,
+          "percentile_95_interval": [
+            0.9904796278454995,
+            1.6964041116223125
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": true
+      },
+      "exact_response_on_original_gru": {
+        "choice_changes": 9,
+        "positive_gain_groups": 4,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.12078003722770259,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.5565470136283783,
+          "cwm-s4-1965037": 0.2926660810839002,
+          "cwm-s4-1965038": -0.3498765280490437,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.3625582296082307,
+          "cwm-s4-1965041": -0.19950651774643546
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.09789603946909158,
+          "percentile_95_interval": [
+            -0.09730994207710253,
+            0.28741385127209756
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": true
+      },
+      "exact_response_given_motion_truth": {
+        "choice_changes": 7,
+        "positive_gain_groups": 6,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.12078003722770259,
+          "cwm-s4-1965035": 0.0,
+          "cwm-s4-1965036": 0.5565470136283783,
+          "cwm-s4-1965037": 0.2926660810839002,
+          "cwm-s4-1965038": 0.043649150525661096,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.5612379613256392,
+          "cwm-s4-1965041": 0.35421826096130626
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": 0.24113731309407344,
+          "percentile_95_interval": [
+            0.09084072337421184,
+            0.39168168061057446
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": true
+      },
+      "plain_response_given_motion_truth": {
+        "choice_changes": 3,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": -0.002351779887151295,
+          "cwm-s4-1965036": 0.0,
+          "cwm-s4-1965037": 0.0,
+          "cwm-s4-1965038": -0.029298857332026085,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": 0.0,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": -0.0039563296523971725,
+          "percentile_95_interval": [
+            -0.011281043985403694,
+            0.0
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      },
+      "structured_response_given_motion_truth": {
+        "choice_changes": 4,
+        "positive_gain_groups": 0,
+        "gain_by_group": {
+          "cwm-s4-1965034": 0.0,
+          "cwm-s4-1965035": -0.002351779887151295,
+          "cwm-s4-1965036": -0.053452156441792076,
+          "cwm-s4-1965037": -0.0050118740143482365,
+          "cwm-s4-1965038": 0.0,
+          "cwm-s4-1965039": 0.0,
+          "cwm-s4-1965040": -0.026358674829073354,
+          "cwm-s4-1965041": 0.0
+        },
+        "diagnostic_regret_gain": {
+          "groups": 8,
+          "group_equal_mean": -0.01089681064654562,
+          "percentile_95_interval": [
+            -0.024259849756993638,
+            -0.0006264842517935296
+          ],
+          "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+        },
+        "exploratory_research_signal": false
+      }
+    }
+  },
+  "actual_selection_comparisons": {
+    "original_gru": {
+      "choice_changes_vs_actual_solver": 44,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 1.453602827775293,
+        "percentile_95_interval": [
+          0.768592593186309,
+          2.0503610410661217
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "plain_learned": {
+      "choice_changes_vs_actual_solver": 40,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 1.3724138542079976,
+        "percentile_95_interval": [
+          0.7231128225637675,
+          1.9255766230497264
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "structured_learned": {
+      "choice_changes_vs_actual_solver": 38,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 1.3615323049635735,
+        "percentile_95_interval": [
+          0.6758087509537314,
+          1.9652082668434854
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "constant_velocity": {
+      "choice_changes_vs_actual_solver": 126,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 2.771198892006206,
+        "percentile_95_interval": [
+          2.280145201163577,
+          3.2698180237287517
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "gru_plus_exact_response": {
+      "choice_changes_vs_actual_solver": 35,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 1.5514988672443843,
+        "percentile_95_interval": [
+          1.0376297548023319,
+          1.9785326686592775
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "fixed_reference_truth": {
+      "choice_changes_vs_actual_solver": 126,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 2.791049412585417,
+        "percentile_95_interval": [
+          2.3285991683404297,
+          3.2788371707721016
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "reference_truth_plus_plain_response": {
+      "choice_changes_vs_actual_solver": 124,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 2.7870930829330196,
+        "percentile_95_interval": [
+          2.3249617913481306,
+          3.2757036065692144
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "reference_truth_plus_structured_response": {
+      "choice_changes_vs_actual_solver": 125,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 2.7801526019388714,
+        "percentile_95_interval": [
+          2.3046204592375816,
+          3.2770509648721675
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    },
+    "action_specific_truth": {
+      "choice_changes_vs_actual_solver": 119,
+      "gain_vs_actual_solver": {
+        "groups": 8,
+        "group_equal_mean": 3.03218672567949,
+        "percentile_95_interval": [
+          2.7069329953421732,
+          3.3883471626279262
+        ],
+        "interpretation": "Previously inspected S4 development groups; descriptive bootstrap only, not untouched validation or test."
+      }
+    }
+  },
+  "actual_local_calls": 320,
+  "missing_peer_calls": 128,
+  "incomplete_support_calls": 61,
+  "providers": {
+    "plain": {
+      "status": "shadow_ready",
+      "load_calls": 1,
+      "prediction_calls": 384,
+      "control_eligible": false
+    },
+    "structured": {
+      "status": "shadow_ready",
+      "load_calls": 1,
+      "prediction_calls": 384,
+      "control_eligible": false
+    }
+  },
+  "episodes": [
+    {
+      "episode_index": 965058,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "25fee30add79217103dfe158aa62af0e0dddb8d3ea83ea49f9efb7e6591bdc81",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965059,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a73831337a630293487dda38b3f8cebb11460e034df2ade64d9846ab809f4fa7",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965060,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "d93e947b7a9c1615257a6320797e2334e94a057c3bd0f8029d23c2be357e7514",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965061,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "f9069ca5f2278ef1a5b43cacaf1f3a51111c19f86b384bf37a50ebe6876c7c2e",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965062,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "1a87acbdfe70b77655c1b2aea6cea256738f0dfc52448ddf8abde9bdc322cd8a",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965063,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4fc1cbc579a700ad86f7a40225ae36168ca12fcd9f5ff88872f21dec41b06a59",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965064,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "a4dd3686be79b2e5212eddc27e03d3c7984820237f63ac1249c5421262e935d8",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965065,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "43d206988a3b56e767ffcb8af4a5fea47d0bfe04858b3a19ef293b24bff421bb",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965066,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "cffc3580881e948de67b2702e1dce3d9f72bdf1a4d788ad46b88d7f023a095fa",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965067,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "fa6f554711b0e71c2b44fa8be1b036ed21ecbab4442b955aa8a48a35aa079cce",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965068,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "5048441105e0ea42bf81a1dc120492fbb23a5a2fc55ba5484a4ca3870d08f810",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965069,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "49c86fb3f3fb249d5ea67ec1c95be1ab19762ec8f14b1ab3b12e9cc0eacb3393",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965070,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "6dc52e09a37e3093ba9861a86dfabc889d42af07acd27c64bff9a3e3a4e4c802",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965071,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "70e4c2f565fcd913416b80e4a181404a29d3d014116b751b77282452526600d0",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965072,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "8aad788afaae6f57d4c54d6b9322b06c31216978c4ab8257407a1656f36ca6d0",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    },
+    {
+      "episode_index": 965073,
+      "trajectory_byte_equal": true,
+      "trajectory_sha256": "4493a2374d3dca235dc46fd0ab6d73493ecd425c18a9b98b81d5bb4a4de6af36",
+      "safe_capture_success": true,
+      "collision": false,
+      "boundary_violation": false,
+      "timeout": false,
+      "target_invalid_episode": false,
+      "termination_reason": "safe_capture"
+    }
+  ],
+  "prior_training_gate_passed": false,
+  "prior_training_gate_overridden": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "torch_rng_preserved_on_optional_load": true,
+  "elapsed_seconds": 42.05273550003767,
+  "limitations": "Previously inspected development data. Candidate-generation changes, delayed-relative input shifts and reference-anchor shifts are exploratory. Shadow work runs after the original plan, so replay equality is not an online latency guarantee. Clone CBF outcomes are hypothetical joint open-loop branches, not multi-step feedback controller gains. No qualification gate is overridden."
+}
