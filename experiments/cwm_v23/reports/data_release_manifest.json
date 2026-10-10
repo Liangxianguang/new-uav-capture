@@ -1,0 +1,87 @@
+{
+  "status": "passed_independent_fresh_original_cost_data_release",
+  "scope": "Original-controller data/public replay only; ongoing separate model training is NOT included. No enhanced-controller performance or research-model qualification.",
+  "episodes": 64,
+  "calls": 1536,
+  "skipped_calls": 0,
+  "split_calls": {
+    "train": 1152,
+    "development_validation": 384
+  },
+  "split_groups": {
+    "train": [
+      "cwm-s4-1993010",
+      "cwm-s4-1993011",
+      "cwm-s4-1993012",
+      "cwm-s4-1993013",
+      "cwm-s4-1993014",
+      "cwm-s4-1993015",
+      "cwm-s4-1993016",
+      "cwm-s4-1993017",
+      "cwm-s4-1993018",
+      "cwm-s4-1993019",
+      "cwm-s4-1993020",
+      "cwm-s4-1993021",
+      "cwm-s4-1993022",
+      "cwm-s4-1993023",
+      "cwm-s4-1993024",
+      "cwm-s4-1993025",
+      "cwm-s4-1993026",
+      "cwm-s4-1993027",
+      "cwm-s4-1993028",
+      "cwm-s4-1993029",
+      "cwm-s4-1993030",
+      "cwm-s4-1993031",
+      "cwm-s4-1993032",
+      "cwm-s4-1993033"
+    ],
+    "development_validation": [
+      "cwm-s4-1993034",
+      "cwm-s4-1993035",
+      "cwm-s4-1993036",
+      "cwm-s4-1993037",
+      "cwm-s4-1993038",
+      "cwm-s4-1993039",
+      "cwm-s4-1993040",
+      "cwm-s4-1993041"
+    ]
+  },
+  "full_union_calls": {
+    "train": 818,
+    "development_validation": 270
+  },
+  "original_controller_outcomes": {
+    "safe_capture_success": 64,
+    "collision": 0,
+    "boundary_violation": 0,
+    "timeout": 0,
+    "target_invalid_episode": 0
+  },
+  "original_observer_plain_public_trajectories_equal": true,
+  "independent252_history_gru_and_delayed_peer_frames_verified": true,
+  "original_geometry_masks_noise_costs_and_decisions_verified": true,
+  "training_eligible_data_only": true,
+  "model_training_artifacts_included": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "data_summary_sha256": "4011d41b44f3923e8a55c397662ccc6d852d2eda0f1abebe943698dbeca3da1d",
+  "public_summary_sha256": "57985d2d93e09bc150f769ffe68ffa85e3f6b7f29d678906e8bc95219db4a663",
+  "artifact": {
+    "sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64",
+    "bytes": 39212316,
+    "members": 3427
+  },
+  "transport": {
+    "schema": "cwm_v21.lossless_archive_parts.v1",
+    "full_archive_sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64",
+    "full_archive_bytes": 39212316,
+    "parts": [
+      {
+        "name": "fresh_cost_data_release_20261010.part001",
+        "bytes": 39212316,
+        "sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64"
+      }
+    ]
+  }
+}

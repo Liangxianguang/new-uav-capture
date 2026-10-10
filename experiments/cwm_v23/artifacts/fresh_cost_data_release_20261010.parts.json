@@ -1,0 +1,12 @@
+{
+  "schema": "cwm_v21.lossless_archive_parts.v1",
+  "full_archive_sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64",
+  "full_archive_bytes": 39212316,
+  "parts": [
+    {
+      "name": "fresh_cost_data_release_20261010.part001",
+      "bytes": 39212316,
+      "sha256": "b3794bdc99d424ecddbb9232fb2998db344e46d5f92e0a5334b8096631aeee64"
+    }
+  ]
+}
