@@ -1,0 +1,36 @@
+{
+  "status": "two_process_exact_candidate_replay_passed",
+  "artifact_sha256": "0c4512aa65c8452a70aafc83d4e369952cb185ec10562ca9b563691d2d0f95f9",
+  "artifact_bytes": 37283177,
+  "supported_calls": 388,
+  "missing_peer_calls": 24,
+  "counts": {
+    "cv": {
+      "minimum": 7,
+      "maximum": 9,
+      "calls_added_beyond_geometry": 0,
+      "total_added_beyond_geometry": 0
+    },
+    "motion": {
+      "minimum": 8,
+      "maximum": 11,
+      "calls_added_beyond_geometry": 388,
+      "total_added_beyond_geometry": 547
+    },
+    "response": {
+      "minimum": 22,
+      "maximum": 24,
+      "calls_added_beyond_geometry": 388,
+      "total_added_beyond_geometry": 5822
+    },
+    "shared": {
+      "minimum": 22,
+      "maximum": 24,
+      "calls_added_beyond_geometry": 388,
+      "total_added_beyond_geometry": 5822
+    }
+  },
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false
+}

@@ -1,0 +1,20 @@
+{
+  "version": "cwm_v27.bounded_public_sequential_candidates.20261010",
+  "source_shadow_sha256": "fb6a0ee23702c94ad1714b5666a0389a41bba545426c2aa21804429e9a9eb217",
+  "baseline_capsule_sha256": "c83a27a4360ad055b69dbced4c28370cb31a32ae89ea9fbab13523fa6218a329",
+  "checkpoint_sha256": "907f6c8c7df68ee53c626d0b8ade973e6053be53f2973b30366df1d444ecfa14",
+  "checkpoint_configuration": "cv_cost_l2",
+  "checkpoint_seed": 993102,
+  "record_ids": [920000640, 10038],
+  "proposal_sources": ["cv", "motion", "response", "shared"],
+  "maximum_unique_candidates": 24,
+  "maximum_expansion_rounds": 2,
+  "seed_library": "Unchanged V18 public geometry: actual_unique, original generator CV, anchor +/-3mps radial/tangent and stop. Original raw multiplicity/order preserved off/refusal/failure.",
+  "path_order": "cv then common motion reference then action-specific predictions in stable current-candidate order. Each path goes through original local candidate generator on a copy. Dedup finite [8,3] actions, append until cap; never truncate original actions/anchor. Two rounds maximum; no private truth or costs in proposal construction. Final pool re-forecast using actual received delayed plans and unchanged selected anchor.",
+  "validation_scope": "Independent original replay re-encodes public252 history and captures every sequential local invocation, then compares against V26 archive. Expansion runs after original plan/observer, not inside a live selector. Two independent processes compare every final pool/input/forecast and proposal provenance. Counts measure available actions, NOT decision/capture efficacy, control or latency qualification.",
+  "enhanced_control_enabled": false,
+  "new_model_trained": false,
+  "holdout_used": false,
+  "prior_gate_override_allowed": false,
+  "later_required": "Fresh ranking-oriented training and decision qualification; whole optional module active sequential selector; untouched holdout; original complete Levels and new scenes closed-loop capture/safety/latency. Original GRU/DN-MPC/local CBF and safety margins unchanged. V23 qualification remains failed."
+}

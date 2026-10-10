@@ -29,3 +29,11 @@
 # V26 complete real-checkpoint shadow evidence retains native emitted bytes.
 /experiments/cwm_v26/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v26/artifacts/** -text
+
+# V27 exact emitted candidate replay evidence; preserve native JSON bytes.
+/experiments/cwm_v27/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v27/artifacts/** -text
+
+# V28 future data/training reports retain exact native evidence bytes.
+/experiments/cwm_v28/reports/** -text whitespace=cr-at-eol
+/experiments/cwm_v28/artifacts/** -text
