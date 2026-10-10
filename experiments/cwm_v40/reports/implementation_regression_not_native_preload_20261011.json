@@ -1,0 +1,30 @@
+{
+  "status": "complete_v28_through_v40_implementation_regression_no_native_qualified_prefix_preload",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 experiments/cwm_v39 experiments/cwm_v40 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 701,
+  "seconds": 99.02,
+  "v40_synthetic_tests": 31,
+  "v40_standalone_final": {"actual_exit_code": 0, "passed": 31, "seconds": 5.06},
+  "initial_v40_standalone": {
+    "actual_exit_code": 1,
+    "passed": 28,
+    "failed": 1,
+    "cause": "Existing-cache refusal test supplied absent certificate; eager Path(None) raised TypeError before cache validation.",
+    "repair": "Validate NEW cache before converting certificate, then explicitly reject absent required artifact/certificate paths. Final full31 tests and combined701 regression passed."
+  },
+  "live_v34_source_freeze_check": {"source_snapshot_files": 44, "mismatches": []},
+  "source_bound_complete_v38_archive_loader_implemented": true,
+  "synthetic_selected_model_adam_rng_restore_performed": true,
+  "synthetic_scope": "Tiny2call80epoch motion/prefix checkpoint fixtures inherited from V37; actual reconstruction/normalizer/cache/common-stage provenance/public forward. Native archive/certificate authorities are mocked in preload orchestration tests, never scientific qualification.",
+  "native_v34_scientific_training_performed": false,
+  "native_v38_complete_scientific_archive_exists": false,
+  "native_qualified_prefix_bundle_preloaded": false,
+  "native_v39_paired_runner_implemented": false,
+  "legacy_failed_l2_model_loaded_or_activated": false,
+  "active_model_fault_fallback_performed": false,
+  "holdout_used": false,
+  "enhanced_control_enabled": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implementation only. Default-off/refused paths read no artifact/protocol or create models; failed fixed prefix primary cannot reconstruct checkpoints/proposer; exact final BASE ADE-median selection/provenance/RNG/public shape/precision/speed/float32 prefix identity, certificate mutation refusal and authorization-last tested. No scientific weights, real archive preload, native closed-loop efficacy, causal identification, complete runner, safety/latency/fault or deployment qualification."
+}
