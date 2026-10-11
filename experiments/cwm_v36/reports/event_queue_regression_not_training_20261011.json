@@ -1,0 +1,19 @@
+{
+  "status": "event_driven_serial_training_queue_implementation_checked_not_native_training",
+  "test_command": "pwsh -NoProfile -File tests/test_cwm36_queue.ps1",
+  "actual_isolated_test_exit_code": 0,
+  "passed": 40,
+  "test_scope": "Synthetic complete/partial header qualification, exact boolean and integer support, bound summary SHA, all fixed9 model/seed identities, failed primary efficacy retained while repeat remains required, absent native data and unrelated PID refusal before output creation, production PowerShell AST parse and absence of polling/sleep/stop/delete commands. Two actual neutral Windows processes exercise attached handle waiting with exit0 and exit7; neutral child invocation verifies native argument transport and nonzero exit refusal. None loads a causal model, performs native full-data validation, invokes a scientific optimizer or evaluates UAVs.",
+  "initial_outer_wrapper_false_failure": "All40 checks printed pass, but an outer command inspected LASTEXITCODE left at7 by an expected negative neutral-child fixture. Added explicit exit0 to the successful isolated test program; reran all40 in an isolated process with actual exit0. The negative native-child behavior remains tested.",
+  "production_script_parser_errors": 0,
+  "operational_queue_started_by_this_test": false,
+  "scientific_output_directories_created_by_this_test": false,
+  "native_v34_complete_audit_claimed": false,
+  "native_v36_scientific_training_performed": false,
+  "native_v37_independent_reload_performed": false,
+  "new_model_efficacy_claimed": false,
+  "original_scientific_sources_modified": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "scope": "Operational queue implementation/test milestone only. Production use must attach the real still-live collection/audit driver, observe actual exit0, validate complete native reports, published scientific sources and resources, and let unchanged V35/V36 validate ALL scientific evidence before optimization. The queue does not implement or authorize independent18-model replay, closed-loop efficacy, fault qualification, holdout or deployment."
+}
