@@ -1,0 +1,46 @@
+{
+  "status": "complete_v28_through_v43_implementation_regression_native_prefix_fallback_not_yet_started",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 experiments/cwm_v39 experiments/cwm_v40 experiments/cwm_v41 experiments/cwm_v42 experiments/cwm_v43 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 811,
+  "seconds": 103.49,
+  "v43_wrapper_tests": 16,
+  "v43_standalone": {"actual_exit_code": 0, "passed": 16, "seconds": 2.16},
+  "cli_import_and_help_actual_exit_code": 0,
+  "test_scope": "Actual original-native-certificate fields copied from published evidence are checked for full1280 modes/default-off/noholdout. Synthetic audit stub tests class binding and restoration on success/failure, refusal before unpublished-source outputs, no active-model options, and actual entry-source closure. Successful stub is orchestration only and is not native replay evidence.",
+  "actual_read_only_full_original_reference_validation": {
+    "actual_exit_code": 0,
+    "status": "actual_complete_original_reference_bound_to_published_native_certificate",
+    "artifact": {
+      "sha256": "a6995520623e2fe311f06777ca97bae0d7a763eec6fd0cd1a821d863a28173e3",
+      "bytes": 94931869,
+      "members": 7764
+    },
+    "certificate_sha256": "8179de04eae22b3a7d8e0c5ad290e2f4c8a15dfba7205d56281b7cd340728983",
+    "prior_episodes_each_mode": 1280,
+    "complete_extracted_inventory_and_saved_semantics_checked": true,
+    "new_native_prefix_replay_performed": false
+  },
+  "live_v34_source_freeze_check": {"source_snapshot_files": 44, "mismatches": []},
+  "collection_observed_during_reference_validation_not_complete_data_gate": {
+    "collector_pid": 19204,
+    "collector_live": true,
+    "completed_episodes": 151,
+    "recorded_calls": 7288,
+    "original_trace_mismatch": 0,
+    "original_target_invalid_episodes": 0,
+    "collection_summary_exists": false,
+    "independent_audit_summary_exists": false
+  },
+  "new_prefix_native_off_refusal_each1280_completed": false,
+  "native_v34_scientific_training_performed": false,
+  "native_qualified_benchmark_scorers_preloaded": false,
+  "native_prefix_paired_development_executed": false,
+  "active_model_fault_fallback_performed": false,
+  "new_evidence_artifact_packaged_and_replayed": false,
+  "latency_qualified": false,
+  "holdout_used": false,
+  "enhanced_control_enabled": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Wrapper implementation and complete existing-evidence validation only. Native full V42 off/refusal must run after exact publication; complete new evidence/archive/publication remains required. No causal-model efficacy, active fault, holdout, latency, cross-platform or formal safety claim."
+}
