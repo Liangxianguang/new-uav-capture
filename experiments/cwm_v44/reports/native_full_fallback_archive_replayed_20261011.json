@@ -1,0 +1,39 @@
+{
+  "status": "complete_prefix_entry_original_fallback_archive_independently_replayed",
+  "actual_process_exit_code": 0,
+  "artifact": {
+    "sha256": "15a2554c51c0eea442e6ef44d1aeb6e32f20de54fab7b222ff8d7b5ebecaa91d",
+    "bytes": 151655152,
+    "members": 5306
+  },
+  "parts_manifest": "experiments/cwm_v44/artifacts/prefix_full_original_fallback_20261011.parts.json",
+  "parts_manifest_sha256": "c96b82fce9bc40d9da69c606ebbccd72a823f91ea6508b8d9261362805501792",
+  "parts": 4,
+  "native_certificate_sha256": "d850e5b42415ebd353ccde112e54571bb546caec0762c8d6ecf7165430fa7ac4",
+  "transport_report_sha256": "c0a8b7b7cd0cf91fddbbac58bc2dd1f0b2b3f4e913c4a0d665d86d48418a2276",
+  "episodes_each_mode": 1280,
+  "modes": ["off", "refusal"],
+  "actual_V42_V43_entry_independently_rerun": true,
+  "all_original_trajectories_plans_CBF_commands_equal": true,
+  "all_nontiming_episode_step_diagnostics_equal": true,
+  "all_archive_members_and_existing_lossless_roundtrip_rechecked": true,
+  "original8Level_equal_macro": {
+    "variant_equal_safe_capture_success_rate": 0.9912109375,
+    "variant_equal_collision_rate": 0.0087890625,
+    "variant_equal_boundary_violation_rate": 0.0029296875,
+    "variant_equal_timeout_rate": 0.0,
+    "variant_equal_target_invalid_episode_rate": 0.0,
+    "variant_equal_restricted_safe_capture_time_seconds": 2.954150390625
+  },
+  "prior_prefix_proof_summary_sha256": "a7fc0873caa86b3796b34a01d31f2b8b7a890b3a7b06022c529efbb19ea8b071",
+  "fresh_prefix_proof_summary_sha256": "6110149801c0028fc186edc5cfa1bc6d63a6eea686fdbe56efba203056ae84f8",
+  "original_archive_sha256": "a6995520623e2fe311f06777ca97bae0d7a763eec6fd0cd1a821d863a28173e3",
+  "original_certificate_sha256": "8179de04eae22b3a7d8e0c5ad290e2f4c8a15dfba7205d56281b7cd340728983",
+  "artifact_packaged_and_replayed": true,
+  "new_model_trained": false,
+  "enhanced_control_enabled": false,
+  "holdout_used": false,
+  "active_model_faults_exercised": false,
+  "latency_qualified": false,
+  "scope": "Complete original development population with actual V42 entry off/refusal. No active causal efficacy/faults, newscene/holdout, latency, cross-platform or formal safety claim. Matching Git history/source and original Python environment required. This is a publication receipt with native certificate identities, not a new native replay."
+}

@@ -1,0 +1,27 @@
+{
+  "schema": "cwm_v21.lossless_archive_parts.v1",
+  "full_archive_sha256": "15a2554c51c0eea442e6ef44d1aeb6e32f20de54fab7b222ff8d7b5ebecaa91d",
+  "full_archive_bytes": 151655152,
+  "parts": [
+    {
+      "name": "prefix_full_original_fallback_20261011.part001",
+      "bytes": 47185920,
+      "sha256": "e18380f876b4bd514179c13467aed969568b9d29a89b4ee78e5816034d9d4bbb"
+    },
+    {
+      "name": "prefix_full_original_fallback_20261011.part002",
+      "bytes": 47185920,
+      "sha256": "b9611e295861d92868c85d57097cd520e59f59f2408e8b3e14f43c7b3dc7b5a7"
+    },
+    {
+      "name": "prefix_full_original_fallback_20261011.part003",
+      "bytes": 47185920,
+      "sha256": "b748710146fd8852214f5bc5e84bf020e4debf12406b62a2ad56d8d6fd8ab130"
+    },
+    {
+      "name": "prefix_full_original_fallback_20261011.part004",
+      "bytes": 10097392,
+      "sha256": "3c26391eb7de86108af64c8a254ddc796a0a7331499b659d763683f2e3d72a21"
+    }
+  ]
+}

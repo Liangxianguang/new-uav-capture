@@ -45,3 +45,6 @@
 # V30 exact emitted full-population research evidence.
 /experiments/cwm_v30/reports/** -text whitespace=cr-at-eol
 /experiments/cwm_v30/artifacts/** -text
+
+# V44 full fallback ZIP transport must retain exact native manifest/chunk bytes.
+/experiments/cwm_v44/artifacts/** -text whitespace=cr-at-eol
