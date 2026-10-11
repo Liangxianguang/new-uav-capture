@@ -1,0 +1,51 @@
+{
+  "status": "complete_v28_through_v44_implementation_regression_no_native_v44_archive_yet",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 experiments/cwm_v39 experiments/cwm_v40 experiments/cwm_v41 experiments/cwm_v42 experiments/cwm_v43 experiments/cwm_v44 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 844,
+  "seconds": 107.42,
+  "v44_synthetic_tests": 33,
+  "intermediate_combined_run_before_final_two_refusal_checks": {
+    "actual_exit_code": 0,
+    "passed": 842,
+    "seconds": 109.66
+  },
+  "cli_import_and_help_actual_exit_code": 0,
+  "test_scope": "Synthetic complete wrapper/archive qualification and typed count rejection, exact retained Git/source binding, unsafe/aliased/corrupted archive refusal, exclusive output protection, complete comparison and real subprocess command ordering, no success certificate after child/comparison/source/original-input failure. Mocked success is orchestration only and does not prove native1280 replay. Existing full baseline/evaluation/loader/train/reload/publisher regressions are also included.",
+  "live_source_freeze_checks": [
+    {"job": "V34_collection", "source_snapshot_files": 44, "mismatches": []},
+    {"job": "V43_native_prefix_fallback", "source_snapshot_files": 86, "mismatches": []}
+  ],
+  "latest_observation_not_complete_data_or_replay_gate": {
+    "collector_pid": 19204,
+    "collector_live": true,
+    "completed_episodes": 163,
+    "expected_episodes": 512,
+    "recorded_calls": 7824,
+    "record_statuses": ["collected_fresh_geometry_prefix_pairs"],
+    "original_trace_mismatches": 0,
+    "invalid_target_episodes": 0,
+    "collection_summary_exists": false,
+    "independent_audit_summary_exists": false,
+    "prefix_fallback_pid": 28860,
+    "prefix_fallback_live": true,
+    "prefix_fallback_mode": "off",
+    "completed_episodes_this_mode": 800,
+    "expected_episodes_each_mode": 1280,
+    "refusal_mode_started": false,
+    "prefix_wrapper_final_summary_exists": false,
+    "prefix_wrapper_failure_exists": false
+  },
+  "new_native_v44_archive_packaged": false,
+  "new_native_v44_archive_independently_replayed": false,
+  "new_native_v44_archive_parts_published": false,
+  "native_v34_scientific_training_performed": false,
+  "native_qualified_benchmark_preloaded": false,
+  "native_prefix_paired_development_executed": false,
+  "active_model_fault_fallback_performed": false,
+  "latency_qualified": false,
+  "holdout_used": false,
+  "enhanced_control_enabled": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Complete evidence packaging/extracted-replay implementation only. Existing live512 collection and actual V42 off/refusal EACH1280 replay continue unchanged. True V44 artifact/proof requires full V43 exit0 and complete independent actual V43 child replay after exact publication; no causal efficacy, training, active fault, holdout or latency claim."
+}
