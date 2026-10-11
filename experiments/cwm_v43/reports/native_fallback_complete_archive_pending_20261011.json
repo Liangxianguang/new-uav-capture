@@ -1,0 +1,56 @@
+{
+  "status": "complete_native_prefix_entry_original1280_off_refusal_replayed_archive_pending",
+  "actual_driver_exit_code": 0,
+  "native_command": "python experiments/cwm_v43/replay_prefix_fallback.py --archive D:/uav-capture/cwm30-full-20261011.zip --certificate D:/uav-capture/cwm30-ar-20261011/summary.json --reference D:/uav-capture/cwm30-ar-20261011/e --output D:/uav-capture/cwm43-off-20261011",
+  "native_preregistration_commit": "41f150141d3f539c0949d96e02eaec7ba0bf8b58",
+  "wrapper_summary_sha256": "a7fc0873caa86b3796b34a01d31f2b8b7a890b3a7b06022c529efbb19ea8b071",
+  "native_summary_sha256": "79f1ef040d1e903d3c9a57141c63eb8314ef054a6a1fcebd1eb7e248bd7657b2",
+  "native_status": "independent_full_original_population_off_refusal_replay_passed",
+  "actual_source_files_verified": 86,
+  "original_archive_sha256": "a6995520623e2fe311f06777ca97bae0d7a763eec6fd0cd1a821d863a28173e3",
+  "original_certificate_sha256": "8179de04eae22b3a7d8e0c5ad290e2f4c8a15dfba7205d56281b7cd340728983",
+  "modes": {
+    "off": {
+      "episodes": 1280,
+      "saved_episode_rows_verified": 1280,
+      "distinct_episode_identities_verified": 1280,
+      "levels": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+      "original_parent_classes_used": true,
+      "optional_context_or_model_read": false,
+      "full_trajectory_plan_cbf_bytes_equal": true,
+      "all_nontiming_native_episode_and_step_diagnostics_equal": true,
+      "episodes_sha256": "8c871e8ed4882b7323454a70ac7a38c0372d437ea0ca4a431e5870507711a00f",
+      "steps_sha256": "c0a14381012c7aca28e8897156578be2229c127fa1147a52d3b715c1dfb67b17"
+    },
+    "refusal": {
+      "episodes": 1280,
+      "saved_episode_rows_verified": 1280,
+      "distinct_episode_identities_verified": 1280,
+      "levels": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+      "original_parent_classes_used": true,
+      "optional_context_or_model_read": false,
+      "full_trajectory_plan_cbf_bytes_equal": true,
+      "all_nontiming_native_episode_and_step_diagnostics_equal": true,
+      "episodes_sha256": "2540c68a4fed2a82ad2485f32b2d6d54a6ec408fa4ce5cbeef9b1ecd3775afbc",
+      "steps_sha256": "64d10a4fccd5568df7ba1d93fb1186ced3e72d5aa659daaef170867241b4385f"
+    }
+  },
+  "original8Level_equal_macro": {
+    "variant_equal_safe_capture_success_rate": 0.9912109375,
+    "variant_equal_collision_rate": 0.0087890625,
+    "variant_equal_boundary_violation_rate": 0.0029296875,
+    "variant_equal_timeout_rate": 0.0,
+    "variant_equal_target_invalid_episode_rate": 0.0,
+    "variant_equal_restricted_safe_capture_time_seconds": 2.954150390625
+  },
+  "macro_scope": "L1-L8 equal Level/variant/mirror-group weighting; L0 diagnostic excluded; retain both L7 variants and original collision/boundary episodes. Not a pooled1280 or100percent-safe result.",
+  "v44_archive_execution_started": true,
+  "v44_complete_archive_independent_replay_verified": false,
+  "v44_complete_parts_published": false,
+  "new_model_trained": false,
+  "enhanced_control_enabled": false,
+  "active_model_faults_exercised": false,
+  "latency_qualified": false,
+  "holdout_used": false,
+  "scope": "Actual V42 entry off/refusal BOTH1280 original development episodes; original numeric and non-timing replay only. This compact publication report binds the retained full native evidence, but is not the native certificate or complete archive. Complete V44 packaging/extracted actual V43 replay/publication is still pending. No causal efficacy, active-model fault, new-scene, holdout, latency, portability or formal safety qualification. Matching Git history and original Python environment remain required."
+}
