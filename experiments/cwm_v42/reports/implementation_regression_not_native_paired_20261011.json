@@ -1,0 +1,61 @@
+{
+  "status": "complete_v28_through_v42_implementation_regression_no_native_prefix_paired_execution",
+  "command": "python -m pytest experiments/cwm_v28 experiments/cwm_v29 experiments/cwm_v30 experiments/cwm_v31 experiments/cwm_v32 experiments/cwm_v33 experiments/cwm_v34 experiments/cwm_v35 experiments/cwm_v36 experiments/cwm_v37 experiments/cwm_v38 experiments/cwm_v39 experiments/cwm_v40 experiments/cwm_v41 experiments/cwm_v42 tests/test_publish_exact_github_api.py -q",
+  "actual_exit_code": 0,
+  "passed": 795,
+  "seconds": 102.04,
+  "v42_synthetic_and_read_only_identity_tests": 45,
+  "v42_standalone": {
+    "actual_exit_code": 0,
+    "passed": 45,
+    "seconds": 3.17
+  },
+  "cli_import_and_help": {
+    "command": "python experiments/cwm_v42/paired_prefix.py --help",
+    "actual_exit_code": 0,
+    "native_simulation_or_model_load_performed": false,
+    "scenario_subset_holdout_optimizer_deployment_options_exposed": false
+  },
+  "live_v34_source_freeze_check": {
+    "source_snapshot_files": 44,
+    "mismatches": []
+  },
+  "collection_observed_during_this_stage_not_a_completed_data_gate": {
+    "collector_pid": 19204,
+    "collector_live": true,
+    "completed_episodes": 144,
+    "total_episodes": 512,
+    "recorded_calls": 6920,
+    "original_trace_mismatch": 0,
+    "original_target_invalid_episodes": 0,
+    "unexpected_call_status": 0,
+    "collection_summary_exists": false,
+    "independent_audit_summary_exists": false
+  },
+  "implementation": {
+    "distinct_prefix_benchmark_selector_and_sequential_hook": true,
+    "all8_method_original1280_fresh64_development_runner": true,
+    "expected_total_method_episodes": 10752,
+    "original_scenario_selected_cost_row_retained": true,
+    "fresh_received_peer_context_each_best_response": true,
+    "unchanged_parent_classes_when_disabled_or_refused": true,
+    "runtime_failures_revoke_both_bundle_permissions": true,
+    "full_cycle_timing_uses_unchanged_v30_observer": true,
+    "complete_public_evidence_manifest_and_source_binding": true
+  },
+  "inspection_repair_before_verification": "Original population decoding must receive unchanged V30 protocol; the V39 eight-method arithmetic view is used only for row statistics. Entirely unsupported expanded policy records an optional failure. Both points were implemented before final combined regression.",
+  "test_scope": "Synthetic initialized public predictors/planners and sequential hook fixtures check seven scoring controls, fixed prefix own-motion source, first-index tie, shadow behavior, peer plan preservation, every-call ordinal/history refresh, original selected scenario costs, off/refusal/old-bundle handling, failure/RNG/input preservation and negative failed-primary runner refusal before any baseline/newscene. All64 preassigned fresh identity fixture checks and actual read-only original1280 capsule identities, evidence-manifest omission/mutation and output overlap checks. No complete qualified native runner execution or actual trained checkpoint faults occurred.",
+  "native_v34_scientific_training_performed": false,
+  "native_v38_complete_scientific_archive_exists": false,
+  "native_qualified_benchmark_scorers_preloaded": false,
+  "native_prefix_paired_development_executed": false,
+  "native_prefix_default_off_whole_population_replayed": false,
+  "native_policy_replay_verified": false,
+  "active_model_fault_fallback_performed": false,
+  "artifact_packaged_and_replayed": false,
+  "holdout_used": false,
+  "holdout_authorized_by_this_report": false,
+  "enhanced_control_enabled": false,
+  "old_failed_gates_overridden": false,
+  "scope": "Implemented future isolated research entry only. No new capture/safety/latency efficacy or formal CBF assurance. Full V34 collection/native audit, two fixed9-model runs, all18 cold reload, complete V38 extracted replay and fixed primary offline gates remain prerequisites. Actual full paired development, active model faults, independent native outcome replay/archive and untouched original holdout remain required before deployment."
+}
